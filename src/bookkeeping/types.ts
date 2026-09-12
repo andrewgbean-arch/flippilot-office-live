@@ -1,0 +1,139 @@
+/* -------------------------------------------------------
+   ⭐ COST TYPES
+------------------------------------------------------- */
+export type CostType =
+  | "purchase"
+  | "transport"
+  | "auction"
+  | "parts"
+  | "labour"
+  | "mot"
+  | "tyres"
+  | "detailing"
+  | "advertising"
+  | "misc"
+  | "recon"; // ⭐ Added for ReconWorkflow
+
+
+/* -------------------------------------------------------
+   ⭐ COST ENTRY (supports recon + VAT)
+------------------------------------------------------- */
+export interface CostEntry {
+  id: string;
+  vehicleId: string;
+
+  // ⭐ Type of cost (purchase, parts, labour, recon, etc.)
+  type: CostType;
+
+  // ⭐ Recon item name (tyres, brakes, MOT prep, etc.)
+  label?: string;
+
+  // ⭐ Category grouping (Recon, Parts, Labour, etc.)
+  category?: string;
+
+  amount: number;
+
+  // ⭐ VAT fields
+  vatRate: number;
+  vatIncluded: boolean;
+  vatReclaimable: boolean;
+  vatAmount: number;
+  netAmount: number;
+
+  supplier?: string;
+  date: string;
+  notes?: string;
+}
+
+
+/* -------------------------------------------------------
+   ⭐ PURCHASE ENTRY
+------------------------------------------------------- */
+export interface PurchaseEntry {
+  id: string;
+  vehicleId: string;
+  purchasePrice: number;
+  supplier?: string;
+  date: string;
+
+  vatRate: number;
+  vatIncluded: boolean;
+  vatAmount: number;
+  netAmount: number;
+}
+
+
+/* -------------------------------------------------------
+   ⭐ SALE ENTRY
+------------------------------------------------------- */
+export interface SaleEntry {
+  id: string;
+  vehicleId: string;
+  salePrice: number;
+  buyer?: string;
+  date: string;
+
+  vatRate: number;
+  vatIncluded: boolean;
+  vatAmount: number;
+  netAmount: number;
+}
+
+
+/* -------------------------------------------------------
+   ⭐ GENERAL TRANSACTION
+------------------------------------------------------- */
+export interface TransactionEntry {
+  id: string;
+  type: "income" | "expense";
+  category: string;
+  amount: number;
+  date: string;
+  notes?: string;
+}
+
+
+/* -------------------------------------------------------
+   ⭐ SUPPLIER
+------------------------------------------------------- */
+export interface Supplier {
+  id: string;
+  name: string;
+  reliabilityScore: number; // 0–100
+  totalSpend: number;
+  totalTransactions: number;
+}
+
+
+/* -------------------------------------------------------
+   ⭐ CATEGORY
+------------------------------------------------------- */
+export interface Category {
+  id: string;
+  name: string;
+  description?: string;
+}
+
+
+/* -------------------------------------------------------
+   ⭐ PROFIT SUMMARY
+------------------------------------------------------- */
+export interface ProfitSummary {
+  vehicleId: string;
+  purchasePrice: number;
+  totalCosts: number;
+  salePrice: number;
+  profit: number;
+  margin: number;
+}
+
+
+/* -------------------------------------------------------
+   ⭐ MONTHLY REPORT
+------------------------------------------------------- */
+export interface MonthlyReport {
+  month: string; // "2026-09"
+  totalSpend: number;
+  totalIncome: number;
+  netProfit: number;
+}

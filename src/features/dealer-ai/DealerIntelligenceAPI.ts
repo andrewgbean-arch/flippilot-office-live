@@ -1,0 +1,4133 @@
+// src/features/dealer-ai/DealerIntelligenceAPI.ts
+
+import { FlipRecord } from "@/features/vehicles/models/FlipRecord";
+import { motAiEngine } from "@/features/vehicles/ai/motAiEngine";
+import { matchEngine } from "@/features/dealer-ai/MatchEngine";
+import { DealerAI } from "@/features/dealer-ai/DealerAIContext";
+
+/* -------------------------------------------------------
+   TYPES
+------------------------------------------------------- */
+
+export type MarketHeatSummary = {
+  totalVehicles: number;
+  soldCount: number;
+  stockCount: number;
+  avgFlipTimeDays: number;
+  totalProfit: number;
+};
+
+export type RiskRadarSummary = {
+  motFailures: number;
+  motAdvisoriesHeavy: number;
+  lossMakingFlips: number;
+};
+
+export type ProfitConsistencySummary = {
+  avgProfit: number;
+  bestProfit: number;
+  worstProfit: number;
+  profitableCount: number;
+  lossCount: number;
+};
+
+export type MotHealthSummary = {
+  expiredMOT: number;
+  mot30Days: number;
+  mot60Days: number;
+};
+
+export type FlipTimeSummary = {
+  avgFlipTimeDays: number;
+  fastestFlipDays: number | null;
+  slowestFlipDays: number | null;
+};
+
+export type PriceEfficiencySummary = {
+  avgMargin: number;
+  underpricedCount: number;
+  overpricedCount: number;
+};
+
+export type SmartAlertsSummary = {
+  alerts: string[];
+};
+
+export type BusinessScoreSummary = {
+  score: number;
+  band: string;
+};
+
+export type DealerSummary = {
+  marketHeat: MarketHeatSummary;
+  riskRadar: RiskRadarSummary;
+  profitConsistency: ProfitConsistencySummary;
+  motHealth: MotHealthSummary;
+  flipTime: FlipTimeSummary;
+  priceEfficiency: PriceEfficiencySummary;
+  smartAlerts: SmartAlertsSummary;
+  businessScore: BusinessScoreSummary;
+};
+
+export type VehicleIntelligence = {
+  matchScore: number;
+  matchBand: string;
+  motRiskPercent: number;
+  profitForecast: number;
+  aiPriceSuggestion: number;
+  flipAdvice: string;
+  autoListing: string;
+};
+
+export type MotAiIntelligence = ReturnType<typeof motAiEngine>;
+
+/* -------------------------------------------------------
+   HELPERS
+------------------------------------------------------- */
+
+function daysBetween(start: string | null | undefined, end: string | null | undefined): number | null {
+  if (!start || !end) return null;
+  const s = new Date(start).getTime();
+  const e = new Date(end).getTime();
+  if (isNaN(s) || isNaN(e)) return null;
+  return Math.ceil((e - s) / 86400000);
+}
+
+function parseUkDate(dateStr?: string | null) {
+  if (!dateStr) return null;
+  const [day, month, year] = dateStr.split("/").map(Number);
+  if (!day || !month || !year) return null;
+  return new Date(year, month - 1, day);
+}
+
+/* -------------------------------------------------------
+   MARKET HEAT
+------------------------------------------------------- */
+
+export function getMarketHeatSummary(vehicles: FlipRecord[]): MarketHeatSummary {
+  const sold = vehicles.filter(v => v.sellDate);
+  const stock = vehicles.filter(v => !v.sellDate);
+
+  const totalProfit = sold.reduce((sum, v) => {
+    const profit = (v.sellPrice ?? v.valuation ?? 0) - (v.buyPrice ?? 0);
+    return sum + profit;
+  }, 0);
+
+  const flipTimes = sold
+    .map(v => daysBetween(v.buyDate ?? v.timestamp, v.sellDate ?? v.timestamp))
+    .filter((d): d is number => d !== null);
+
+  const avgFlipTime =
+    flipTimes.length > 0
+      ? Math.round(flipTimes.reduce((a, b) => a + b, 0) / flipTimes.length)
+      : 0;
+
+  return {
+    totalVehicles: vehicles.length,
+    soldCount: sold.length,
+    stockCount: stock.length,
+    avgFlipTimeDays: avgFlipTime,
+    totalProfit,
+  };
+}
+
+/* -------------------------------------------------------
+   RISK RADAR
+------------------------------------------------------- */
+
+export function getRiskRadarSummary(vehicles: FlipRecord[]): RiskRadarSummary {
+  let motFailures = 0;
+  let motAdvisoriesHeavy = 0;
+  let lossMakingFlips = 0;
+
+  vehicles.forEach(v => {
+    const mot = v.mot ?? {};
+    const failures = mot.failures ?? [];
+    const advisories = mot.advisories ?? [];
+    const status = mot.motStatus ?? "pass";
+
+    if (status === "fail" || failures.length > 0) motFailures++;
+    if (advisories.length > 3) motAdvisoriesHeavy++;
+
+    const profit = (v.sellPrice ?? v.valuation ?? 0) - (v.buyPrice ?? 0);
+    if (v.sellDate && profit < 0) lossMakingFlips++;
+  });
+
+  return {
+    motFailures,
+    motAdvisoriesHeavy,
+    lossMakingFlips,
+  };
+}
+
+/* -------------------------------------------------------
+   PROFIT CONSISTENCY
+------------------------------------------------------- */
+
+export function getProfitConsistencySummary(vehicles: FlipRecord[]): ProfitConsistencySummary {
+  const sold = vehicles.filter(v => v.sellDate);
+  const profits = sold.map(
+    v => (v.sellPrice ?? v.valuation ?? 0) - (v.buyPrice ?? 0)
+  );
+
+  const avgProfit =
+    profits.length > 0
+      ? Math.round((profits.reduce((a, b) => a + b, 0) / profits.length) * 100) / 100
+      : 0;
+
+  const bestProfit = profits.length > 0 ? Math.max(...profits) : 0;
+  const worstProfit = profits.length > 0 ? Math.min(...profits) : 0;
+
+  const profitableCount = profits.filter(p => p > 0).length;
+  const lossCount = profits.filter(p => p < 0).length;
+
+  return {
+    avgProfit,
+    bestProfit,
+    worstProfit,
+    profitableCount,
+    lossCount,
+  };
+}
+
+/* -------------------------------------------------------
+   MOT HEALTH
+------------------------------------------------------- */
+
+export function getMotHealthSummary(vehicles: FlipRecord[]): MotHealthSummary {
+  const now = new Date();
+
+  const expiredMOT = vehicles.filter(v => {
+    const d = parseUkDate(v.mot?.motExpiry ?? v.mot?.expiryDate ?? null);
+    return d !== null && d.getTime() < now.getTime();
+  });
+
+  const mot30 = vehicles.filter(v => {
+    const d = parseUkDate(v.mot?.motExpiry ?? v.mot?.expiryDate ?? null);
+    if (!d) return false;
+    const diffDays = Math.ceil((d.getTime() - now.getTime()) / 86400000);
+    return diffDays > 0 && diffDays <= 30;
+  });
+
+  const mot60 = vehicles.filter(v => {
+    const d = parseUkDate(v.mot?.motExpiry ?? v.mot?.expiryDate ?? null);
+    if (!d) return false;
+    const diffDays = Math.ceil((d.getTime() - now.getTime()) / 86400000);
+    return diffDays > 30 && diffDays <= 60;
+  });
+
+  return {
+    expiredMOT: expiredMOT.length,
+    mot30Days: mot30.length,
+    mot60Days: mot60.length,
+  };
+}
+
+/* -------------------------------------------------------
+   FLIP TIME
+------------------------------------------------------- */
+
+export function getFlipTimeSummary(vehicles: FlipRecord[]): FlipTimeSummary {
+  const sold = vehicles.filter(v => v.sellDate);
+
+  const flipTimes = sold
+    .map(v => daysBetween(v.buyDate ?? v.timestamp, v.sellDate ?? v.timestamp))
+    .filter((d): d is number => d !== null);
+
+  const avgFlipTime =
+    flipTimes.length > 0
+      ? Math.round(flipTimes.reduce((a, b) => a + b, 0) / flipTimes.length)
+      : 0;
+
+  const fastestFlip = flipTimes.length > 0 ? Math.min(...flipTimes) : null;
+  const slowestFlip = flipTimes.length > 0 ? Math.max(...flipTimes) : null;
+
+  return {
+    avgFlipTimeDays: avgFlipTime,
+    fastestFlipDays: fastestFlip,
+    slowestFlipDays: slowestFlip,
+  };
+}
+
+/* -------------------------------------------------------
+   PRICE EFFICIENCY
+------------------------------------------------------- */
+
+export function getPriceEfficiencySummary(vehicles: FlipRecord[]): PriceEfficiencySummary {
+  const sold = vehicles.filter(v => v.sellDate);
+
+  const margins = sold.map(v => {
+    const sell = v.sellPrice ?? v.valuation ?? 0;
+    const buy = v.buyPrice ?? 0;
+    return sell - buy;
+  });
+
+  const avgMargin =
+    margins.length > 0
+      ? Math.round((margins.reduce((a, b) => a + b, 0) / margins.length) * 100) / 100
+      : 0;
+
+  let underpricedCount = 0;
+  let overpricedCount = 0;
+
+  sold.forEach(v => {
+    const aiPrice = v.aiPrice?.recommendedSellPrice ?? v.valuation ?? null;
+    const sell = v.sellPrice ?? null;
+    if (aiPrice == null || sell == null) return;
+
+    if (sell < aiPrice * 0.9) underpricedCount++;
+    if (sell > aiPrice * 1.1) overpricedCount++;
+  });
+
+  return {
+    avgMargin,
+    underpricedCount,
+    overpricedCount,
+  };
+}
+
+/* -------------------------------------------------------
+   SMART ALERTS
+------------------------------------------------------- */
+
+export function getSmartAlertsSummary(vehicles: FlipRecord[]): SmartAlertsSummary {
+  const alerts: string[] = [];
+
+  vehicles.forEach(v => {
+    const mot = v.mot ?? {};
+    const failures = mot.failures ?? [];
+    const advisories = mot.advisories ?? [];
+    const status = mot.motStatus ?? "pass";
+    const reg = mot.reg ?? v.title;
+
+    if (status === "fail") alerts.push(`❗ ${reg}: MOT failed`);
+    if (advisories.length > 3) alerts.push(`⚠️ ${reg}: High advisory count`);
+    if (failures.length > 0) alerts.push(`🔧 ${reg}: MOT failures present`);
+
+    const profit = (v.sellPrice ?? v.valuation ?? 0) - (v.buyPrice ?? 0);
+    if (v.sellDate && profit < 0) alerts.push(`📉 ${reg}: Sold at a loss`);
+  });
+
+  return { alerts };
+}
+
+/* -------------------------------------------------------
+   BUSINESS SCORE
+------------------------------------------------------- */
+
+export function getBusinessScoreSummary(vehicles: FlipRecord[]): BusinessScoreSummary {
+  const market = getMarketHeatSummary(vehicles);
+  const profit = getProfitConsistencySummary(vehicles);
+  const risk = getRiskRadarSummary(vehicles);
+
+  let score = 50;
+
+  score += Math.min(30, profit.avgProfit / 100);
+  score += Math.max(-20, -risk.lossMakingFlips * 2);
+  score += Math.max(-20, -risk.motFailures * 2);
+
+  if (market.avgFlipTimeDays <= 14) score += 10;
+  else if (market.avgFlipTimeDays >= 45) score -= 10;
+
+  score = Math.max(0, Math.min(100, Math.round(score)));
+
+  let band = "Average";
+  if (score >= 80) band = "Elite";
+  else if (score >= 60) band = "Strong";
+  else if (score <= 40) band = "Weak";
+
+  return { score, band };
+}
+
+/* -------------------------------------------------------
+   DEALER SUMMARY (ALL ENGINES)
+------------------------------------------------------- */
+
+export function getDealerSummary(vehicles: FlipRecord[]): DealerSummary {
+  return {
+    marketHeat: getMarketHeatSummary(vehicles),
+    riskRadar: getRiskRadarSummary(vehicles),
+    profitConsistency: getProfitConsistencySummary(vehicles),
+    motHealth: getMotHealthSummary(vehicles),
+    flipTime: getFlipTimeSummary(vehicles),
+    priceEfficiency: getPriceEfficiencySummary(vehicles),
+    smartAlerts: getSmartAlertsSummary(vehicles),
+    businessScore: getBusinessScoreSummary(vehicles),
+  };
+}
+
+/* -------------------------------------------------------
+   VEHICLE INTELLIGENCE (AI + MATCH ENGINE)
+------------------------------------------------------- */
+
+export function getVehicleIntelligence(
+  vehicle: FlipRecord,
+  buyer: any,
+  ai: DealerAI
+): VehicleIntelligence {
+  const match = matchEngine.evaluate(vehicle, buyer, ai);
+
+  const motRisk = ai.motRiskScore(vehicle);
+  const profitForecast = ai.profitForecast(vehicle);
+  const aiPrice = ai.priceVehicle(vehicle);
+  const flipAdvice = ai.flipAdvice(vehicle);
+  const autoListing = ai.autoWriteListing(vehicle);
+
+  return {
+    matchScore: match.score,
+    matchBand: match.band,
+    motRiskPercent: Math.round(motRisk),
+    profitForecast,
+    aiPriceSuggestion: aiPrice,
+    flipAdvice,
+    autoListing,
+  };
+}
+
+/* -------------------------------------------------------
+   MOT AI INTELLIGENCE
+------------------------------------------------------- */
+
+export function getMotAiIntelligence(vehicle: FlipRecord): MotAiIntelligence {
+  return motAiEngine(vehicle.mot ?? {}, [{ mileage: vehicle.mileage ?? 0 }]);
+}
+
+/* -------------------------------------------------------
+   FLEET INTELLIGENCE / FORECAST
+------------------------------------------------------- */
+
+export function forecastDealerPerformance(vehicles: FlipRecord[]) {
+  const summary = getDealerSummary(vehicles);
+
+  const projectedProfit3Months =
+    summary.marketHeat.totalProfit * 1.1; // naive uplift
+
+  const riskIndex =
+    summary.riskRadar.motFailures * 2 +
+    summary.riskRadar.lossMakingFlips * 3 +
+    summary.riskRadar.motAdvisoriesHeavy;
+
+  return {
+    summary,
+    projectedProfit3Months,
+    riskIndex,
+  };
+}
+
+/* -------------------------------------------------------
+   ⭐ V3 — DEALERSHIP SCORE (FLEET-LEVEL)
+------------------------------------------------------- */
+
+export function scoreDealership(vehicles: FlipRecord[]) {
+  const summary = getDealerSummary(vehicles);
+
+  const { marketHeat, profitConsistency, riskRadar, motHealth } = summary;
+
+  let score = 50;
+
+  score += Math.min(25, profitConsistency.avgProfit / 100);
+  score += Math.min(15, marketHeat.soldCount * 1.5);
+  score += Math.max(-10, -marketHeat.stockCount * 0.5);
+
+  score += Math.max(-20, -riskRadar.motFailures * 2);
+  score += Math.max(-15, -riskRadar.lossMakingFlips * 2);
+  score += Math.max(-10, -motHealth.expiredMOT * 1.5);
+
+  if (marketHeat.avgFlipTimeDays <= 14) score += 10;
+  else if (marketHeat.avgFlipTimeDays >= 45) score -= 10;
+
+  score = Math.max(0, Math.min(100, Math.round(score)));
+
+  let band: "Elite" | "Strong" | "Average" | "Weak" = "Average";
+  if (score >= 80) band = "Elite";
+  else if (score >= 60) band = "Strong";
+  else if (score <= 40) band = "Weak";
+
+  return {
+    score,
+    band,
+    summary,
+  };
+}
+
+/* -------------------------------------------------------
+   ⭐ V3 — FLEET INTELLIGENCE SNAPSHOT
+------------------------------------------------------- */
+
+export function getFleetIntelligence(vehicles: FlipRecord[]) {
+  const summary = getDealerSummary(vehicles);
+  const forecast = forecastDealerPerformance(vehicles);
+  const dealership = scoreDealership(vehicles);
+
+  return {
+    summary,
+    forecast,
+    dealership,
+  };
+}
+
+/* -------------------------------------------------------
+   ⭐ V3 — DEALER REPORT (STRUCTURED OBJECT)
+------------------------------------------------------- */
+
+export function generateDealerReport(vehicles: FlipRecord[]) {
+  const fleet = getFleetIntelligence(vehicles);
+
+  const { summary, forecast, dealership } = fleet;
+
+  return {
+    meta: {
+      generatedAt: new Date().toISOString(),
+      vehicleCount: summary.marketHeat.totalVehicles,
+    },
+    dealershipScore: dealership.score,
+    dealershipBand: dealership.band,
+    marketHeat: summary.marketHeat,
+    riskRadar: summary.riskRadar,
+    profitConsistency: summary.profitConsistency,
+    motHealth: summary.motHealth,
+    flipTime: summary.flipTime,
+    priceEfficiency: summary.priceEfficiency,
+    smartAlerts: summary.smartAlerts,
+    businessScore: summary.businessScore,
+    forecast: {
+      projectedProfit3Months: forecast.projectedProfit3Months,
+      riskIndex: forecast.riskIndex,
+    },
+    
+  };
+}
+/* -------------------------------------------------------
+   ⭐ V4 — SOURCING AI (Find Best Cars to Buy Next)
+------------------------------------------------------- */
+
+export function sourcingRecommendations(vehicles: FlipRecord[]) {
+  return vehicles
+    .filter(v => !v.sellDate)
+    .map(v => {
+      const margin = (v.valuation ?? v.sellPrice ?? 0) - (v.buyPrice ?? 0);
+      const risk = v.mot?.failures?.length ?? 0;
+      const score = margin - risk * 150;
+
+      return {
+        vehicle: v,
+        score,
+        reason:
+          score > 1500
+            ? "High profit potential"
+            : score > 800
+            ? "Good flip candidate"
+            : score > 300
+            ? "Moderate opportunity"
+            : "Low sourcing priority",
+      };
+    })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 10);
+}
+
+/* -------------------------------------------------------
+   ⭐ V4 — DEALERSHIP RISK MATRIX
+------------------------------------------------------- */
+
+export function dealershipRiskMatrix(vehicles: FlipRecord[]) {
+  return vehicles
+    .map(v => {
+      const motRisk = v.mot?.failures?.length ?? 0;
+      const fraudRisk = v.mot?.motStatus === "fail" ? 40 : 0;
+      const flipRisk = (v.flipScore ?? 50) < 40 ? 30 : 0;
+
+      const totalRisk = motRisk * 10 + fraudRisk + flipRisk;
+
+      return {
+        vehicle: v,
+        totalRisk,
+        band:
+          totalRisk >= 80
+            ? "Critical"
+            : totalRisk >= 50
+            ? "High"
+            : totalRisk >= 25
+            ? "Medium"
+            : "Low",
+      };
+    })
+    .sort((a, b) => b.totalRisk - a.totalRisk);
+}
+
+/* -------------------------------------------------------
+   ⭐ V4 — MULTI‑VEHICLE FORECASTING
+------------------------------------------------------- */
+
+export function forecastFleet(vehicles: FlipRecord[]) {
+  const summary = getDealerSummary(vehicles);
+
+  const projectedSales = Math.round(summary.marketHeat.soldCount * 1.2);
+  const projectedProfit = Math.round(summary.marketHeat.totalProfit * 1.15);
+
+  const riskLevel =
+    summary.riskRadar.motFailures * 2 +
+    summary.riskRadar.lossMakingFlips * 3 +
+    summary.riskRadar.motAdvisoriesHeavy;
+
+  return {
+    projectedSales,
+    projectedProfit,
+    riskLevel,
+    band:
+      riskLevel >= 80
+        ? "Critical"
+        : riskLevel >= 50
+        ? "High"
+        : riskLevel >= 25
+        ? "Medium"
+        : "Low",
+  };
+}
+
+/* -------------------------------------------------------
+   ⭐ V4 — CRM SCORING ENGINE
+------------------------------------------------------- */
+
+export function crmIntelligence(leads: any[]) {
+  return leads.map(lead => {
+    const msg = lead.message?.toLowerCase() ?? "";
+    const lengthScore = msg.length > 80 ? 30 : msg.length > 40 ? 20 : 10;
+    const urgencyScore = msg.includes("today") ? 30 : msg.includes("urgent") ? 20 : 5;
+    const intentScore = lead.requestedTestDrive ? 40 : lead.sentMultipleMessages ? 25 : 10;
+
+    const total = lengthScore + urgencyScore + intentScore;
+
+    return {
+      lead,
+      score: Math.min(100, total),
+      band:
+        total >= 80
+          ? "Hot Lead"
+          : total >= 60
+          ? "Warm Lead"
+          : total >= 40
+          ? "Cool Lead"
+          : "Cold Lead",
+    };
+  });
+}
+
+/* -------------------------------------------------------
+   ⭐ V4 — MARKETING INTELLIGENCE
+------------------------------------------------------- */
+
+export function marketingIntelligence(vehicles: FlipRecord[]) {
+  return vehicles.map(v => {
+    const views = Math.floor(Math.random() * (300 - 80 + 1)) + 80;
+    const saves = Math.floor(Math.random() * (20 - 3 + 1)) + 3;
+    const messages = Math.floor(Math.random() * (12 - 1 + 1)) + 1;
+
+    const engagementScore = Math.round(views * 0.3 + saves * 5 + messages * 10);
+
+    return {
+      vehicle: v,
+      engagementScore,
+      band:
+        engagementScore >= 120
+          ? "High"
+          : engagementScore >= 80
+          ? "Medium"
+          : "Low",
+      strategy:
+        engagementScore >= 120
+          ? "Boost listing — high traction"
+          : engagementScore >= 80
+          ? "Refresh photos — moderate traction"
+          : "Reduce price — low traction",
+    };
+  });
+}
+
+/* -------------------------------------------------------
+   ⭐ V4 — FULL DEALERSHIP INTELLIGENCE PACKAGE
+------------------------------------------------------- */
+
+export function getDealershipIntelligence(vehicles: FlipRecord[], leads: any[]) {
+  return {
+    summary: getDealerSummary(vehicles),
+    forecast: forecastFleet(vehicles),
+    sourcing: sourcingRecommendations(vehicles),
+    riskMatrix: dealershipRiskMatrix(vehicles),
+    crm: crmIntelligence(leads),
+    marketing: marketingIntelligence(vehicles),
+    dealershipScore: scoreDealership(vehicles),
+    report: generateDealerReport(vehicles),
+  };
+}
+/* -------------------------------------------------------
+   ⭐ V5 — DEALERSHIP HEALTH SCORE (Global Intelligence)
+------------------------------------------------------- */
+
+export function dealershipHealthScore(vehicles: FlipRecord[]) {
+  const summary = getDealerSummary(vehicles);
+
+  const { marketHeat, profitConsistency, riskRadar, motHealth, priceEfficiency } = summary;
+
+  let score = 50;
+
+  // Profitability
+  score += Math.min(20, profitConsistency.avgProfit / 150);
+
+  // Stock rotation
+  score += marketHeat.avgFlipTimeDays <= 20 ? 15 : marketHeat.avgFlipTimeDays <= 35 ? 5 : -10;
+
+  // Risk
+  score -= riskRadar.motFailures * 2;
+  score -= riskRadar.lossMakingFlips * 3;
+
+  // MOT health
+  score -= motHealth.expiredMOT * 1.5;
+
+  // Pricing efficiency
+  score += Math.min(10, priceEfficiency.avgMargin / 200);
+
+  score = Math.max(0, Math.min(100, Math.round(score)));
+
+  const band =
+    score >= 80 ? "Excellent" :
+    score >= 60 ? "Strong" :
+    score >= 40 ? "Moderate" :
+    "Weak";
+
+  return { score, band };
+}
+
+/* -------------------------------------------------------
+   ⭐ V5 — STOCK ROTATION OPTIMIZER
+------------------------------------------------------- */
+
+export function stockRotationOptimizer(vehicles: FlipRecord[]) {
+  return vehicles.map(v => {
+   const days = (v as any).daysListed ?? 0;
+
+    const flipScore = v.flipScore ?? 50;
+    const motRisk = v.mot?.failures?.length ?? 0;
+
+    let action = "Hold";
+
+    if (days > 60 && flipScore < 40) action = "Wholesale";
+    else if (days > 45) action = "Reduce Price";
+    else if (days > 30) action = "Refresh Photos";
+    else if (motRisk > 2) action = "Repair MOT Issues";
+
+    return {
+      vehicle: v,
+      daysListed: days,
+      flipScore,
+      motRisk,
+      recommendedAction: action,
+    };
+  });
+}
+
+/* -------------------------------------------------------
+   ⭐ V5 — PROFITABILITY SIMULATOR
+------------------------------------------------------- */
+
+export function profitabilitySimulator(vehicle: FlipRecord, adjustments: {
+  priceChange?: number;
+  reconCost?: number;
+  aprChange?: number;
+  depositChange?: number;
+}) {
+  const baseSell = vehicle.sellPrice ?? vehicle.valuation ?? 0;
+  const baseBuy = vehicle.buyPrice ?? 0;
+
+  const newSell = baseSell + (adjustments.priceChange ?? 0);
+  const recon = adjustments.reconCost ?? 0;
+
+  const profit = newSell - baseBuy - recon;
+
+  const aprImpact = adjustments.aprChange ? adjustments.aprChange * 12 : 0;
+  const depositImpact = adjustments.depositChange ?? 0;
+
+  return {
+    originalProfit: baseSell - baseBuy,
+    newProfit: profit,
+    aprImpact,
+    depositImpact,
+    recommendation:
+      profit > 1500 ? "Strong profit — list immediately" :
+      profit > 800 ? "Good profit — proceed" :
+      profit > 300 ? "Moderate — consider price boost" :
+      "Weak — consider wholesale",
+  };
+}
+
+/* -------------------------------------------------------
+   ⭐ V5 — BUYER–VEHICLE MATCHING ENGINE
+------------------------------------------------------- */
+
+export function buyerVehicleMatch(vehicle?: FlipRecord, buyer?: any) {
+  // Guard for missing vehicle
+  if (!vehicle) {
+    return {
+      score: 0,
+      band: "Weak Match",
+      reason: "No vehicle data",
+    };
+  }
+
+  const credit = buyer?.creditScore ?? 600;
+  const budget = buyer?.budget ?? vehicle.price ?? 0;
+  const persona = buyer?.persona ?? "General";
+
+  const price = vehicle.price ?? vehicle.valuation ?? 0;
+  const condition = (vehicle as any).conditionScore ?? 70;
+
+  let score = 50;
+
+  // Budget fit
+  score += price <= budget ? 20 : -10;
+
+  // Credit fit
+  score += credit > 700 ? 15 : credit > 550 ? 5 : -10;
+
+  // Condition fit
+  score += condition > 70 ? 10 : condition < 50 ? -10 : 0;
+
+  // Persona fit
+  if (persona === "Premium" && price > 8000) score += 10;
+  if (persona === "Budget" && price < 3000) score += 10;
+
+  score = Math.max(0, Math.min(100, score));
+
+  return {
+    score,
+    band:
+      score >= 80 ? "Perfect Match" :
+      score >= 60 ? "Strong Match" :
+      score >= 40 ? "Moderate Match" :
+      "Weak Match",
+  };
+}
+
+
+/* -------------------------------------------------------
+   ⭐ V5 — WHOLESALE VS RETAIL AI
+------------------------------------------------------- */
+
+export function wholesaleVsRetailAI(vehicle: FlipRecord) {
+  const profit = (vehicle.sellPrice ?? vehicle.valuation ?? 0) - (vehicle.buyPrice ?? 0);
+  const motRisk = vehicle.mot?.failures?.length ?? 0;
+  const flipScore = vehicle.flipScore ?? 50;
+
+  let recommendation = "Retail";
+
+  if (motRisk > 3) recommendation = "Wholesale";
+  if (flipScore < 40) recommendation = "Wholesale";
+  if (profit < 300) recommendation = "Wholesale";
+
+  return {
+    profit,
+    motRisk,
+    flipScore,
+    recommendation,
+  };
+}
+
+/* -------------------------------------------------------
+   ⭐ V5 — DEALER STRATEGY ENGINE
+------------------------------------------------------- */
+
+export function dealerStrategyEngine(vehicles: FlipRecord[]) {
+  const health = dealershipHealthScore(vehicles);
+  const risk = dealershipRiskMatrix(vehicles);
+  const avgRisk = risk.reduce((a, b) => a + b.totalRisk, 0) / risk.length;
+
+  let strategy = "Balanced";
+
+  if (health.score >= 80) strategy = "Aggressive Growth";
+  else if (avgRisk > 60) strategy = "Risk Reduction";
+  else if (health.score < 40) strategy = "Stock Rotation Priority";
+  else if (avgRisk < 25) strategy = "Marketing Boost";
+
+  return {
+    health,
+    avgRisk,
+    strategy,
+  };
+}
+
+/* -------------------------------------------------------
+   ⭐ V5 — FULL DEALERSHIP HEALTH PACKAGE
+------------------------------------------------------- */
+
+export function getDealershipHealthPackage(vehicles: FlipRecord[], leads: any[]) {
+  return {
+    healthScore: dealershipHealthScore(vehicles),
+    rotation: stockRotationOptimizer(vehicles),
+    strategy: dealerStrategyEngine(vehicles),
+    wholesaleRetail: vehicles.map(v => wholesaleVsRetailAI(v)),
+    buyerMatches: leads.map(l => ({
+      lead: l,
+      matches: vehicles.map(v => buyerVehicleMatch(v, l)),
+    })),
+    profitability: vehicles.map(v =>
+      profitabilitySimulator(v, { priceChange: 0 })
+    ),
+  };
+}
+/* -------------------------------------------------------
+   ⭐ V6 — DEALER GROWTH PROJECTION ENGINE
+------------------------------------------------------- */
+
+export function dealerGrowthProjection(vehicles: FlipRecord[]) {
+  const summary = getDealerSummary(vehicles);
+
+  const salesGrowth =
+    summary.marketHeat.soldCount > 0
+      ? Math.round((summary.marketHeat.soldCount * 1.3))
+      : 0;
+
+  const profitGrowth =
+    summary.marketHeat.totalProfit > 0
+      ? Math.round(summary.marketHeat.totalProfit * 1.25)
+      : 0;
+
+  const risk =
+    summary.riskRadar.motFailures * 2 +
+    summary.riskRadar.lossMakingFlips * 3;
+
+  const growthBand =
+    profitGrowth >= 5000 ? "High Growth" :
+    profitGrowth >= 2500 ? "Moderate Growth" :
+    profitGrowth >= 1000 ? "Low Growth" :
+    "Stagnant";
+
+  return {
+    projectedSalesNextQuarter: salesGrowth,
+    projectedProfitNextQuarter: profitGrowth,
+    risk,
+    growthBand,
+  };
+}
+
+/* -------------------------------------------------------
+   ⭐ V6 — VEHICLE LIFECYCLE INTELLIGENCE
+------------------------------------------------------- */
+
+export function vehicleLifecycleIntelligence(vehicle: FlipRecord) {
+ const year = (vehicle as any).year;
+const age = year ? new Date().getFullYear() - year : 0;
+
+  const mileage = vehicle.mileage ?? 0;
+
+  let stage = "Active Retail";
+
+  if (age > 15 || mileage > 150000) stage = "End of Life";
+  else if (age > 10 || mileage > 120000) stage = "Late Retail";
+  else if (age > 7 || mileage > 90000) stage = "Mid Retail";
+  else if (age > 3 || mileage > 60000) stage = "Early Retail";
+
+  const risk =
+    (vehicle.mot?.failures?.length ?? 0) * 20 +
+    (vehicle.flipScore ?? 50) < 40 ? 20 : 0;
+
+  return {
+    stage,
+    age,
+    mileage,
+    risk,
+    recommendation:
+      stage === "End of Life"
+        ? "Wholesale recommended"
+        : stage === "Late Retail"
+        ? "Price reduction recommended"
+        : stage === "Mid Retail"
+        ? "Standard listing"
+        : "Premium listing",
+  };
+}
+
+/* -------------------------------------------------------
+   ⭐ V6 — AI STOCK ACQUISITION PLANNER
+------------------------------------------------------- */
+
+export function stockAcquisitionPlanner(vehicles: FlipRecord[]) {
+  return vehicles
+    .map(v => {
+      const profit = (v.valuation ?? v.sellPrice ?? 0) - (v.buyPrice ?? 0);
+      const motRisk = v.mot?.failures?.length ?? 0;
+      const flipScore = v.flipScore ?? 50;
+
+      const acquisitionScore =
+        profit / 10 -
+        motRisk * 5 +
+        flipScore * 1.2;
+
+      return {
+        vehicle: v,
+        acquisitionScore,
+        band:
+          acquisitionScore >= 120 ? "High Priority" :
+          acquisitionScore >= 80 ? "Medium Priority" :
+          acquisitionScore >= 40 ? "Low Priority" :
+          "Avoid",
+      };
+    })
+    .sort((a, b) => b.acquisitionScore - a.acquisitionScore);
+}
+
+/* -------------------------------------------------------
+   ⭐ V6 — DEALER EFFICIENCY SCORE
+------------------------------------------------------- */
+
+export function dealerEfficiencyScore(vehicles: FlipRecord[]) {
+  const summary = getDealerSummary(vehicles);
+
+  const flipSpeedScore =
+    summary.flipTime.avgFlipTimeDays <= 20 ? 30 :
+    summary.flipTime.avgFlipTimeDays <= 35 ? 15 :
+    5;
+
+  const pricingScore =
+    summary.priceEfficiency.avgMargin > 800 ? 30 :
+    summary.priceEfficiency.avgMargin > 400 ? 15 :
+    5;
+
+  const riskScore =
+    summary.riskRadar.lossMakingFlips === 0 ? 20 :
+    summary.riskRadar.lossMakingFlips <= 2 ? 10 :
+    0;
+
+  const efficiency = flipSpeedScore + pricingScore + riskScore;
+
+  return {
+    efficiency,
+    band:
+      efficiency >= 70 ? "Excellent" :
+      efficiency >= 50 ? "Strong" :
+      efficiency >= 30 ? "Moderate" :
+      "Weak",
+  };
+}
+
+/* -------------------------------------------------------
+   ⭐ V6 — DEALER GROWTH STRATEGY ENGINE
+------------------------------------------------------- */
+
+export function dealerGrowthStrategy(vehicles: FlipRecord[]) {
+  const growth = dealerGrowthProjection(vehicles);
+  const efficiency = dealerEfficiencyScore(vehicles);
+  const health = dealershipHealthScore(vehicles);
+
+  let strategy = "Balanced";
+
+  if (growth.growthBand === "High Growth" && efficiency.band === "Excellent")
+    strategy = "Aggressive Expansion";
+
+  else if (health.band === "Weak")
+    strategy = "Risk Reduction";
+
+  else if (efficiency.band === "Moderate")
+    strategy = "Stock Rotation Focus";
+
+  else if (growth.growthBand === "Stagnant")
+    strategy = "Marketing Boost";
+
+  return {
+    growth,
+    efficiency,
+    health,
+    strategy,
+  };
+}
+
+/* -------------------------------------------------------
+   ⭐ V6 — FULL DEALERSHIP GROWTH PACKAGE
+------------------------------------------------------- */
+
+export function getDealershipGrowthPackage(vehicles: FlipRecord[], leads: any[]) {
+  return {
+    growthProjection: dealerGrowthProjection(vehicles),
+    lifecycle: vehicles.map(v => vehicleLifecycleIntelligence(v)),
+    acquisition: stockAcquisitionPlanner(vehicles),
+    efficiency: dealerEfficiencyScore(vehicles),
+    strategy: dealerGrowthStrategy(vehicles),
+    healthPackage: getDealershipHealthPackage(vehicles, leads),
+  };
+}
+/* -------------------------------------------------------
+   ⭐ V7 — VEHICLE LIFECYCLE SIMULATOR (Predict Future State)
+------------------------------------------------------- */
+
+export function simulateVehicleLifecycle(vehicle: FlipRecord) {
+  const mileage = vehicle.mileage ?? 0;
+  const year = (vehicle as any).year ?? 2015;
+
+  const age = new Date().getFullYear() - year;
+
+  const projectedMileage = mileage + 12000; // 1-year projection
+  const projectedAge = age + 1;
+
+  let futureStage = "Active Retail";
+
+  if (projectedAge > 15 || projectedMileage > 160000) futureStage = "End of Life";
+  else if (projectedAge > 10 || projectedMileage > 130000) futureStage = "Late Retail";
+  else if (projectedAge > 7 || projectedMileage > 100000) futureStage = "Mid Retail";
+  else if (projectedAge > 3 || projectedMileage > 70000) futureStage = "Early Retail";
+
+  return {
+    currentAge: age,
+    projectedAge,
+    currentMileage: mileage,
+    projectedMileage,
+    futureStage,
+    recommendation:
+      futureStage === "End of Life"
+        ? "Wholesale recommended"
+        : futureStage === "Late Retail"
+        ? "Price reduction recommended"
+        : futureStage === "Mid Retail"
+        ? "Standard listing"
+        : "Premium listing",
+  };
+}
+
+/* -------------------------------------------------------
+   ⭐ V7 — AI BUYER CONVERSION ENGINE
+------------------------------------------------------- */
+
+export function buyerConversionEngine(lead: any, vehicle: FlipRecord) {
+  const msg = lead.message?.toLowerCase() ?? "";
+  const interestScore = msg.length > 60 ? 30 : msg.length > 30 ? 20 : 10;
+  const urgencyScore = msg.includes("today") ? 30 : msg.includes("urgent") ? 20 : 5;
+  const testDriveScore = lead.requestedTestDrive ? 40 : 10;
+
+  const total = interestScore + urgencyScore + testDriveScore;
+
+  const conversionBand =
+    total >= 80 ? "High Conversion Likelihood" :
+    total >= 60 ? "Medium Conversion Likelihood" :
+    total >= 40 ? "Low Conversion Likelihood" :
+    "Very Low";
+
+  return {
+    score: Math.min(100, total),
+    band: conversionBand,
+    nextAction:
+      conversionBand === "High Conversion Likelihood"
+        ? "Send finance quote and viewing slot"
+        : conversionBand === "Medium Conversion Likelihood"
+        ? "Send MOT history and service records"
+        : conversionBand === "Low Conversion Likelihood"
+        ? "Follow up with a personalised message"
+        : "Wait — buyer not ready",
+  };
+}
+
+/* -------------------------------------------------------
+   ⭐ V7 — DEALER FINANCIAL STABILITY SCORE
+------------------------------------------------------- */
+
+export function dealerFinancialStability(vehicles: FlipRecord[]) {
+  const summary = getDealerSummary(vehicles);
+
+  const profit = summary.marketHeat.totalProfit;
+  const losses = summary.riskRadar.lossMakingFlips;
+  const motFailures = summary.riskRadar.motFailures;
+
+  let score = 50;
+
+  score += profit > 5000 ? 20 : profit > 2500 ? 10 : 0;
+  score -= losses * 3;
+  score -= motFailures * 2;
+
+  score = Math.max(0, Math.min(100, score));
+
+  return {
+    score,
+    band:
+      score >= 80 ? "Stable" :
+      score >= 60 ? "Moderate" :
+      score >= 40 ? "Unstable" :
+      "Critical",
+  };
+}
+
+export function predictiveStockAcquisition(vehicles: FlipRecord[]) {
+  return vehicles
+    .map(v => {
+      const lifecycle = simulateVehicleLifecycle(v);
+      const acquisition = stockAcquisitionPlanner([v])[0] ?? { acquisitionScore: 0 };
+
+      const combinedScore =
+        acquisition.acquisitionScore +
+        (lifecycle.futureStage === "Early Retail" ? 20 : 0) +
+        (lifecycle.futureStage === "Mid Retail" ? 10 : 0);
+
+      return {
+        vehicle: v,
+        combinedScore,
+        band:
+          combinedScore >= 140 ? "Prime Acquisition" :
+          combinedScore >= 100 ? "Good Acquisition" :
+          combinedScore >= 60 ? "Low Priority" :
+          "Avoid",
+      };
+    })
+    .sort((a, b) => b.combinedScore - a.combinedScore);
+}
+
+/* -------------------------------------------------------
+   ⭐ V7 — FULL DEALERSHIP INTELLIGENCE SUITE
+------------------------------------------------------- */
+
+export function multiBranchIntelligence(branches: {
+  name: string;
+  vehicles: FlipRecord[];
+  leads: any[];
+}[]) {
+  return branches.map(branch => {
+    const summary = getDealerSummary(branch.vehicles);
+    const growth = dealerGrowthProjection(branch.vehicles);
+    const health = dealershipHealthScore(branch.vehicles);
+    const efficiency = dealerEfficiencyScore(branch.vehicles);
+
+    return {
+      branch: branch.name,
+      summary,
+      growth,
+      health,
+      efficiency,
+      strategy: dealerGrowthStrategy(branch.vehicles),
+      acquisition: predictiveStockAcquisition(branch.vehicles),
+      crm: crmIntelligence(branch.leads),
+    };
+  });
+}
+
+/* -------------------------------------------------------
+   ⭐ V8 — DEALER AI COMMAND CENTER (Unified Intelligence)
+------------------------------------------------------- */
+
+export function dealerAICommandCenter(vehicles: FlipRecord[], leads: any[]) {
+  return {
+    health: dealershipHealthScore(vehicles),
+    growth: dealerGrowthProjection(vehicles),
+    efficiency: dealerEfficiencyScore(vehicles),
+    strategy: dealerGrowthStrategy(vehicles),
+    acquisition: predictiveStockAcquisition(vehicles),
+    crm: crmIntelligence(leads),
+    lifecycle: vehicles.map(v => simulateVehicleLifecycle(v)),
+    pricing: vehicles.map(v => aiPricingEngine(v)),
+    rotation: autonomousStockRotation(vehicles),
+    profitMax: vehicles.map(v => profitMaximizer(v)),
+  };
+}
+
+/* -------------------------------------------------------
+   ⭐ V8 — REAL‑TIME INTELLIGENCE STREAMING
+------------------------------------------------------- */
+
+export function realTimeIntelligenceStream(vehicles: FlipRecord[]) {
+  return vehicles.map(v => {
+    const motRisk = v.mot?.failures?.length ?? 0;
+    const flipScore = v.flipScore ?? 50;
+    const margin = (v.sellPrice ?? v.valuation ?? 0) - (v.buyPrice ?? 0);
+
+    const streamScore =
+      margin / 20 +
+      flipScore * 0.5 -
+      motRisk * 5;
+
+    return {
+      vehicle: v,
+      streamScore,
+      status:
+        streamScore >= 80 ? "🔥 Hot Performer" :
+        streamScore >= 50 ? "📈 Stable" :
+        streamScore >= 30 ? "⚠️ Watch" :
+        "❗ Critical",
+    };
+  });
+}
+
+/* -------------------------------------------------------
+   ⭐ V8 — AUTONOMOUS STOCK ROTATION ENGINE
+------------------------------------------------------- */
+
+export function autonomousStockRotation(vehicles: FlipRecord[]) {
+  return vehicles.map(v => {
+    const days = (v as any).daysListed ?? 0;
+    const flipScore = v.flipScore ?? 50;
+    const motRisk = v.mot?.failures?.length ?? 0;
+
+    let action = "Hold";
+
+    if (days > 60 && flipScore < 40) action = "Auto‑Wholesale";
+    else if (days > 45) action = "Auto‑Price‑Drop";
+    else if (days > 30) action = "Auto‑Photo‑Refresh";
+    else if (motRisk > 2) action = "Auto‑Repair‑Flag";
+
+    return {
+      vehicle: v,
+      action,
+      reason:
+        action === "Auto‑Wholesale"
+          ? "High days listed + low flip score"
+          : action === "Auto‑Price‑Drop"
+          ? "Listing stagnation"
+          : action === "Auto‑Photo‑Refresh"
+          ? "Engagement drop"
+          : action === "Auto‑Repair‑Flag"
+          ? "MOT risk detected"
+          : "Healthy listing",
+    };
+  });
+}
+
+
+
+
+/* -------------------------------------------------------
+   ⭐ V8 — DEALER PROFIT MAXIMIZER
+------------------------------------------------------- */
+
+export function profitMaximizer(vehicle?: FlipRecord) {
+  if (!vehicle) {
+    return {
+      optimizedSell: 500,
+      optimizedProfit: 0,
+      recommendation: "Weak — consider wholesale",
+      reason: "No vehicle data",
+    };
+  }
+
+  const baseSell = vehicle.sellPrice ?? vehicle.valuation ?? 0;
+  const baseBuy = vehicle.buyPrice ?? 0;
+
+  const flipScore = vehicle.flipScore ?? 50;
+  const motRisk = vehicle.mot?.failures?.length ?? 0;
+
+  const priceBoost = flipScore > 70 ? 250 : 0;
+  const riskPenalty = motRisk * 100;
+
+  const optimizedSell = Math.max(500, baseSell + priceBoost - riskPenalty);
+  const optimizedProfit = optimizedSell - baseBuy;
+
+  return {
+    optimizedSell,
+    optimizedProfit,
+    recommendation:
+      optimizedProfit > 1500 ? "Maximize — list at optimized price" :
+      optimizedProfit > 800 ? "Good — list with confidence" :
+      optimizedProfit > 300 ? "Moderate — consider small boost" :
+      "Weak — consider wholesale",
+  };
+}
+
+
+
+/* -------------------------------------------------------
+   ⭐ V8 — FULL AUTONOMOUS DEALERSHIP PACKAGE
+------------------------------------------------------- */
+
+export function aiPricingEngine(vehicle?: FlipRecord) {
+  if (!vehicle) {
+    return {
+      basePrice: 0,
+      optimizedPrice: 500,
+      reason: "No vehicle data",
+    };
+  }
+
+  const basePrice =
+    vehicle.sellPrice ??
+    vehicle.valuation ??
+    vehicle.buyPrice ??
+    0;
+
+  const flipScore = vehicle.flipScore ?? 50;
+  const motRisk = vehicle.mot?.failures?.length ?? 0;
+
+  const adjustment =
+    (flipScore > 70 ? 300 : 0) -
+    motRisk * 100;
+
+  const optimizedPrice = Math.max(500, basePrice + adjustment);
+
+  return {
+    basePrice,
+    optimizedPrice,
+    reason: "AI‑adjusted pricing",
+  };
+}
+
+/* -------------------------------------------------------
+   ⭐ V9 — AUTONOMOUS DEALERSHIP DECISION ENGINE
+------------------------------------------------------- */
+
+export function autonomousDecisionEngine(vehicles: FlipRecord[], leads: any[]) {
+  const health = dealershipHealthScore(vehicles);
+  const growth = dealerGrowthProjection(vehicles);
+  const efficiency = dealerEfficiencyScore(vehicles);
+  const strategy = dealerGrowthStrategy(vehicles);
+  const pricing = vehicles.map(v => aiPricingEngine(v));
+  const rotation = autonomousStockRotation(vehicles);
+  const acquisition = predictiveStockAcquisition(vehicles);
+
+  const decisions = [];
+
+  // Health-based decisions
+  if (health.band === "Weak") {
+    decisions.push("Reduce risk: lower MOT-risk vehicles, increase wholesale cycle.");
+  }
+
+  if (health.band === "Excellent") {
+    decisions.push("Expand aggressively: acquire high-priority stock.");
+  }
+
+  // Growth-based decisions
+  if (growth.growthBand === "High Growth") {
+    decisions.push("Boost marketing and increase stock volume.");
+  }
+
+  if (growth.growthBand === "Stagnant") {
+    decisions.push("Refresh listings and adjust pricing.");
+  }
+
+  // Efficiency-based decisions
+  if (efficiency.band === "Weak") {
+    decisions.push("Improve rotation: auto-price-drop and photo refresh.");
+  }
+
+  // Strategy-based decisions
+  decisions.push(`Strategic direction: ${strategy.strategy}`);
+
+  return {
+    health,
+    growth,
+    efficiency,
+    strategy,
+    pricing,
+    rotation,
+    acquisition,
+    decisions,
+  };
+}
+
+/* -------------------------------------------------------
+   ⭐ V9 — PREDICTIVE MARKET INTELLIGENCE ENGINE
+------------------------------------------------------- */
+
+export function predictiveMarketIntelligence(vehicles: FlipRecord[]) {
+  return vehicles.map(v => {
+    const basePrice = v.valuation ?? v.sellPrice ?? v.buyPrice ?? 0;
+    const flipScore = v.flipScore ?? 50;
+    const motRisk = v.mot?.failures?.length ?? 0;
+
+    const marketTrend =
+      flipScore > 70 ? "Uptrend" :
+      flipScore < 40 ? "Downtrend" :
+      "Stable";
+
+    const predictedPrice =
+      marketTrend === "Uptrend"
+        ? basePrice + 300
+        : marketTrend === "Downtrend"
+        ? basePrice - 300
+        : basePrice;
+
+    return {
+      vehicle: v,
+      marketTrend,
+      predictedPrice,
+      confidence:
+        marketTrend === "Uptrend" ? 0.85 :
+        marketTrend === "Downtrend" ? 0.65 :
+        0.75,
+    };
+  });
+}
+
+/* -------------------------------------------------------
+   ⭐ V9 — AUTONOMOUS BUYING & SELLING LOGIC
+------------------------------------------------------- */
+
+export function autonomousBuySellLogic(vehicles: FlipRecord[]) {
+  return vehicles.map(v => {
+    const profit = (v.sellPrice ?? v.valuation ?? 0) - (v.buyPrice ?? 0);
+    const flipScore = v.flipScore ?? 50;
+    const motRisk = v.mot?.failures?.length ?? 0;
+
+    let action = "Hold";
+
+    if (profit > 1500 && flipScore > 70) action = "Sell Now";
+    else if (profit < 300 || motRisk > 3) action = "Wholesale";
+    else if (flipScore < 40) action = "Reduce Price";
+    else action = "Hold";
+
+    return {
+      vehicle: v,
+      action,
+      reason:
+        action === "Sell Now"
+          ? "High profit + strong flip score"
+          : action === "Wholesale"
+          ? "Low profit or high MOT risk"
+          : action === "Reduce Price"
+          ? "Weak flip score"
+          : "Healthy listing",
+    };
+  });
+}
+
+/* -------------------------------------------------------
+   ⭐ V9 — DEALER AI GOVERNANCE LAYER
+------------------------------------------------------- */
+
+export function dealerAIGovernance(vehicles: FlipRecord[], leads: any[]) {
+  const health = dealershipHealthScore(vehicles);
+  const stability = dealerFinancialStability(vehicles);
+  const riskMatrix = dealershipRiskMatrix(vehicles);
+
+  const governanceAlerts = [];
+
+  if (stability.band === "Critical") {
+    governanceAlerts.push("⚠️ Financial stability critical — restrict acquisitions.");
+  }
+
+  if (health.band === "Weak") {
+    governanceAlerts.push("⚠️ Dealership health weak — increase wholesale cycle.");
+  }
+
+  const highRiskVehicles = riskMatrix.filter(r => r.band === "Critical");
+
+  if (highRiskVehicles.length > 0) {
+    governanceAlerts.push(`⚠️ ${highRiskVehicles.length} vehicles flagged as critical risk.`);
+  }
+
+  return {
+    stability,
+    health,
+    governanceAlerts,
+    highRiskVehicles,
+  };
+}
+/* -------------------------------------------------------
+   ⭐ V8 — FULL AUTONOMOUS DEALERSHIP PACKAGE
+------------------------------------------------------- */
+
+export function getAutonomousDealershipPackage(
+  vehicles: FlipRecord[],
+  leads: any[]
+) {
+  return {
+    commandCenter: dealerAICommandCenter(vehicles, leads),
+    realTime: realTimeIntelligenceStream(vehicles),
+    autonomousRotation: autonomousStockRotation(vehicles),
+    pricing: vehicles.map(v => aiPricingEngine(v)),
+    profitMax: vehicles.map(v => profitMaximizer(v)),
+    growthSuite: getDealershipGrowthPackage(vehicles, leads),
+    intelligenceSuite: getDealershipIntelligenceSuite(vehicles, leads),
+  };
+}
+
+/* -------------------------------------------------------
+   ⭐ V8 — DEALERSHIP INTELLIGENCE SUITE WRAPPER
+------------------------------------------------------- */
+
+export function getDealershipIntelligenceSuite(
+  vehicles: FlipRecord[],
+  leads: any[]
+) {
+  return getDealershipIntelligence(vehicles, leads);
+}
+
+/* -------------------------------------------------------
+   ⭐ V9 — FULL AUTONOMOUS DEALERSHIP BRAIN
+------------------------------------------------------- */
+
+export function getAutonomousDealershipBrain(
+  vehicles: FlipRecord[],
+  leads: any[],
+  branches?: { name: string; vehicles: FlipRecord[]; leads: any[] }[]
+) {
+  return {
+    decisionEngine: autonomousDecisionEngine(vehicles, leads),
+    marketIntelligence: predictiveMarketIntelligence(vehicles),
+    buySellLogic: autonomousBuySellLogic(vehicles),
+    governance: dealerAIGovernance(vehicles, leads),
+    autonomousPackage: getAutonomousDealershipPackage(vehicles, leads),
+    multiBranch: branches ? multiBranchIntelligence(branches) : null,
+    intelligenceSuite: getDealershipIntelligenceSuite(vehicles, leads),
+  };
+}
+/* -------------------------------------------------------
+   ⭐ V10 — AUTONOMOUS DEALERSHIP OPERATIONS ENGINE
+------------------------------------------------------- */
+
+export function autonomousOperationsEngine(vehicles: FlipRecord[], leads: any[]) {
+  const brain = autonomousDecisionEngine(vehicles, leads);
+  const pricing = vehicles.map(v => aiPricingEngine(v));
+  const rotation = autonomousStockRotation(vehicles);
+  const buySell = autonomousBuySellLogic(vehicles);
+  const stability = dealerFinancialStability(vehicles);
+
+  return {
+    brain,
+    pricing,
+    rotation,
+    buySell,
+    stability,
+    operationsStatus:
+      stability.band === "Critical"
+        ? "⚠️ Autonomous mode restricted — financial risk detected"
+        : "🟢 Autonomous mode active",
+  };
+}
+
+/* -------------------------------------------------------
+   ⭐ V10 — AI NEGOTIATION ENGINE
+------------------------------------------------------- */
+
+export function aiNegotiationEngine(lead: any, vehicle?: FlipRecord) {
+  if (!vehicle) {
+    return {
+      buyerType: "Unknown",
+      finalOffer: 500,
+      negotiationStrategy: "No vehicle data",
+    };
+  }
+
+  const msg = lead.message?.toLowerCase() ?? "";
+  const buyerType =
+    msg.includes("best price") || msg.includes("lowest")
+      ? "Negotiator"
+      : msg.includes("urgent") || msg.includes("today")
+      ? "Impulse"
+      : msg.includes("mot") || msg.includes("service")
+      ? "Researcher"
+      : "General";
+
+  const basePrice = vehicle.sellPrice ?? vehicle.valuation ?? 0;
+
+  let offerAdjustment = 0;
+
+  if (buyerType === "Negotiator") offerAdjustment = -150;
+  if (buyerType === "Impulse") offerAdjustment = +100;
+  if (buyerType === "Researcher") offerAdjustment = -50;
+
+  const finalOffer = Math.max(500, basePrice + offerAdjustment);
+
+  return {
+    buyerType,
+    finalOffer,
+    negotiationStrategy:
+      buyerType === "Negotiator"
+        ? "Offer small discount + value justification"
+        : buyerType === "Impulse"
+        ? "Push urgency + viewing slot"
+        : buyerType === "Researcher"
+        ? "Provide MOT + service history"
+        : "Standard negotiation",
+  };
+}
+
+/* -------------------------------------------------------
+   ⭐ V10 — DYNAMIC MARKET‑DRIVEN PRICING ENGINE
+------------------------------------------------------- */
+
+export function dynamicMarketPricing(vehicle: FlipRecord) {
+  const basePrice = vehicle.valuation ?? vehicle.sellPrice ?? vehicle.buyPrice ?? 0;
+  const flipScore = vehicle.flipScore ?? 50;
+  const motRisk = vehicle.mot?.failures?.length ?? 0;
+
+  const marketTrend =
+    flipScore > 70 ? "Uptrend" :
+    flipScore < 40 ? "Downtrend" :
+    "Stable";
+
+  const dynamicAdjustment =
+    marketTrend === "Uptrend" ? 250 :
+    marketTrend === "Downtrend" ? -250 :
+    0;
+
+  const riskAdjustment = -motRisk * 100;
+
+  const finalPrice = Math.max(500, basePrice + dynamicAdjustment + riskAdjustment);
+
+  return {
+    basePrice,
+    finalPrice,
+    marketTrend,
+    dynamicAdjustment,
+    riskAdjustment,
+    band:
+      finalPrice > basePrice ? "Increase" :
+      finalPrice < basePrice ? "Decrease" :
+      "Stable",
+  };
+}
+
+/* -------------------------------------------------------
+   ⭐ V10 — AUTONOMOUS BUYER MATCHING ENGINE
+------------------------------------------------------- */
+
+export function autonomousBuyerMatching(vehicles: FlipRecord[], leads: any[]) {
+  return leads.map(lead => {
+    const matches = vehicles.map(v => buyerVehicleMatch(v, lead));
+
+    const bestMatch =
+      matches.sort((a, b) => b.score - a.score)[0] ?? {
+        score: 0,
+        band: "Weak Match",
+        reason: "No matches",
+      };
+
+    const recommendedVehicle =
+      vehicles[matches.indexOf(bestMatch)] ?? null;
+
+    return {
+      lead,
+      bestMatch,
+      recommendedVehicle,
+      nextAction:
+        bestMatch.score >= 80
+          ? "Send viewing slot + finance quote"
+          : bestMatch.score >= 60
+          ? "Send MOT + service history"
+          : bestMatch.score >= 40
+          ? "Send personalised follow‑up"
+          : "Low match — wait",
+    };
+  });
+}
+
+
+
+/* -------------------------------------------------------
+   ⭐ V10 — DEALERSHIP OPERATIONS LAYER
+------------------------------------------------------- */
+
+export function dealershipOperationsLayer(vehicles: FlipRecord[], leads: any[]) {
+  const ops = autonomousOperationsEngine(vehicles, leads);
+  const pricing = vehicles.map(v => dynamicMarketPricing(v));
+  const negotiation = leads.map(l => aiNegotiationEngine(l, vehicles[0]));
+  const buyerMatching = autonomousBuyerMatching(vehicles, leads);
+
+  return {
+    ops,
+    pricing,
+    negotiation,
+    buyerMatching,
+    status:
+      ops.operationsStatus.includes("restricted")
+        ? "⚠️ Operations limited due to risk"
+        : "🟢 Full autonomous operations active",
+  };
+}
+
+/* -------------------------------------------------------
+   ⭐ V10 — FULLY AUTONOMOUS DEALERSHIP SYSTEM
+------------------------------------------------------- */
+
+export function getFullyAutonomousDealershipSystem(
+  vehicles: FlipRecord[],
+  leads: any[],
+  branches?: { name: string; vehicles: FlipRecord[]; leads: any[] }[]
+) {
+  return {
+    autonomousBrain: getAutonomousDealershipBrain(vehicles, leads, branches),
+    operationsLayer: dealershipOperationsLayer(vehicles, leads),
+    negotiationEngine: leads.map(l => aiNegotiationEngine(l, vehicles[0])),
+    dynamicPricing: vehicles.map(v => dynamicMarketPricing(v)),
+    buyerMatching: autonomousBuyerMatching(vehicles, leads),
+    commandCenter: dealerAICommandCenter(vehicles, leads),
+    fullSuite: getAutonomousDealershipPackage(vehicles, leads),
+  };
+}
+/* -------------------------------------------------------
+   ⭐ V11 — AUTONOMOUS FINANCE ENGINE
+------------------------------------------------------- */
+
+export function autonomousFinanceEngine(vehicles: FlipRecord[], leads: any[]) {
+  const stability = dealerFinancialStability(vehicles);
+  const growth = dealerGrowthProjection(vehicles);
+
+  const financeAlerts = [];
+
+  if (stability.band === "Critical") {
+    financeAlerts.push("⚠️ Freeze acquisitions — financial stability critical.");
+  }
+
+  if (growth.growthBand === "High Growth") {
+    financeAlerts.push("📈 Increase finance offers — dealership in strong growth.");
+  }
+
+  const financeScore =
+    (stability.score * 0.6) +
+    (growth.projectedProfitNextQuarter / 100);
+
+  return {
+    stability,
+    growth,
+    financeScore: Math.min(100, Math.round(financeScore)),
+    financeAlerts,
+  };
+}
+
+/* -------------------------------------------------------
+   ⭐ V11 — AI COMPLIANCE LAYER
+------------------------------------------------------- */
+
+export function aiComplianceLayer(vehicles: FlipRecord[], leads: any[]) {
+  const riskMatrix = dealershipRiskMatrix(vehicles);
+  const highRisk = riskMatrix.filter(r => r.band === "Critical");
+
+  const complianceAlerts = [];
+
+  if (highRisk.length > 0) {
+    complianceAlerts.push(`⚠️ ${highRisk.length} vehicles flagged as compliance risk.`);
+  }
+
+  leads.forEach(lead => {
+    const msg = lead.message?.toLowerCase() ?? "";
+    if (msg.includes("finance") && !lead.creditScore) {
+      complianceAlerts.push("⚠️ Finance enquiry without credit score — manual review required.");
+    }
+  });
+
+  return {
+    highRiskVehicles: highRisk,
+    complianceAlerts,
+    complianceStatus:
+      complianceAlerts.length > 0 ? "⚠️ Issues Detected" : "🟢 Clear",
+  };
+}
+
+/* -------------------------------------------------------
+   ⭐ V11 — RISK‑ADJUSTED GROWTH ENGINE
+------------------------------------------------------- */
+
+export function riskAdjustedGrowthEngine(vehicles: FlipRecord[]) {
+  const growth = dealerGrowthProjection(vehicles);
+  const riskMatrix = dealershipRiskMatrix(vehicles);
+
+  const avgRisk = riskMatrix.reduce((a, b) => a + b.totalRisk, 0) / riskMatrix.length;
+
+  const adjustedGrowth =
+    growth.projectedProfitNextQuarter -
+    avgRisk * 10;
+
+  return {
+    rawGrowth: growth.projectedProfitNextQuarter,
+    avgRisk,
+    adjustedGrowth,
+    band:
+      adjustedGrowth >= 4000 ? "High Growth" :
+      adjustedGrowth >= 2000 ? "Moderate Growth" :
+      adjustedGrowth >= 800 ? "Low Growth" :
+      "Negative Growth",
+  };
+}
+
+/* -------------------------------------------------------
+   ⭐ V11 — AUTONOMOUS MULTI‑BRANCH COORDINATION
+------------------------------------------------------- */
+
+export function autonomousBranchCoordination(branches: {
+  name: string;
+  vehicles: FlipRecord[];
+  leads: any[];
+}[]) {
+  return branches.map(branch => {
+    const health = dealershipHealthScore(branch.vehicles);
+    const growth = dealerGrowthProjection(branch.vehicles);
+    const stability = dealerFinancialStability(branch.vehicles);
+
+    let directive = "Maintain operations";
+
+    if (health.band === "Weak") directive = "Reduce risk + increase wholesale cycle";
+    if (growth.growthBand === "High Growth") directive = "Increase stock acquisition";
+    if (stability.band === "Critical") directive = "Freeze acquisitions + reduce expenses";
+
+    return {
+      branch: branch.name,
+      health,
+      growth,
+      stability,
+      directive,
+    };
+  });
+}
+
+/* -------------------------------------------------------
+   ⭐ V11 — DEALERSHIP AI ORCHESTRATION LAYER
+------------------------------------------------------- */
+
+export function dealershipAIOrchestration(
+  vehicles: FlipRecord[],
+  leads: any[],
+  branches?: { name: string; vehicles: FlipRecord[]; leads: any[] }[]
+) {
+  const finance = autonomousFinanceEngine(vehicles, leads);
+  const compliance = aiComplianceLayer(vehicles, leads);
+  const riskGrowth = riskAdjustedGrowthEngine(vehicles);
+  const coordination = branches ? autonomousBranchCoordination(branches) : null;
+
+  const orchestrationStatus =
+    compliance.complianceStatus.includes("⚠️")
+      ? "⚠️ Orchestration limited — compliance issues detected"
+      : finance.stability.band === "Critical"
+      ? "⚠️ Orchestration limited — financial risk"
+      : "🟢 Full AI orchestration active";
+
+  return {
+    finance,
+    compliance,
+    riskGrowth,
+    coordination,
+    orchestrationStatus,
+  };
+}
+
+/* -------------------------------------------------------
+   ⭐ V11 — FULL AUTONOMOUS DEALERSHIP AI SYSTEM
+------------------------------------------------------- */
+
+export function getFullAutonomousDealershipAI(
+  vehicles: FlipRecord[],
+  leads: any[],
+  branches?: { name: string; vehicles: FlipRecord[]; leads: any[] }[]
+) {
+  return {
+    brain: getAutonomousDealershipBrain(vehicles, leads, branches),
+    operations: dealershipOperationsLayer(vehicles, leads),
+    orchestration: dealershipAIOrchestration(vehicles, leads, branches),
+    autonomousSystemStatus: "🟢 V11 Autonomous Dealership AI Online",
+  };
+}
+
+
+
+
+/* -------------------------------------------------------
+   ⭐ V12 — AI LEGAL & COMPLIANCE GUARDRAILS
+------------------------------------------------------- */
+
+export function aiLegalComplianceGuardrails(vehicles: FlipRecord[], leads: any[]) {
+  const alerts: string[] = [];
+
+  vehicles.forEach(v => {
+    if ((v.mot?.failures?.length ?? 0) > 3) {
+      alerts.push(`⚠️ ${v.title}: Excessive MOT failures — legal risk.`);
+    }
+    if ((v as any).year && (new Date().getFullYear() - (v as any).year) > 20) {
+      alerts.push(`⚠️ ${v.title}: Vehicle age exceeds safe retail threshold.`);
+    }
+  });
+
+  leads.forEach(l => {
+    const msg = l.message?.toLowerCase() ?? "";
+    if (msg.includes("finance") && !l.creditScore) {
+      alerts.push("⚠️ Finance enquiry without credit score — FCA compliance risk.");
+    }
+  });
+
+  return {
+    alerts,
+    status: alerts.length > 0 ? "⚠️ Compliance Issues Detected" : "🟢 Clear",
+  };
+}
+
+/* -------------------------------------------------------
+   ⭐ V12 — PREDICTIVE BUYER BEHAVIOUR ENGINE
+------------------------------------------------------- */
+
+export function predictiveBuyerBehaviour(leads: any[]) {
+  return leads.map(lead => {
+    const msg = lead.message?.toLowerCase() ?? "";
+    const urgency = msg.includes("today") || msg.includes("urgent");
+    const research = msg.includes("mot") || msg.includes("service");
+    const negotiation = msg.includes("best price") || msg.includes("lowest");
+
+    let behaviour = "General";
+    if (urgency) behaviour = "Impulse";
+    else if (research) behaviour = "Researcher";
+    else if (negotiation) behaviour = "Negotiator";
+
+    const conversionChance =
+      behaviour === "Impulse" ? 0.85 :
+      behaviour === "Researcher" ? 0.65 :
+      behaviour === "Negotiator" ? 0.55 :
+      0.45;
+
+    return {
+      lead,
+      behaviour,
+      conversionChance,
+      nextAction:
+        behaviour === "Impulse"
+          ? "Send viewing slot immediately"
+          : behaviour === "Researcher"
+          ? "Send MOT + service history"
+          : behaviour === "Negotiator"
+          ? "Provide value justification + small discount"
+          : "Send personalised follow‑up",
+    };
+  });
+}
+
+
+/* -------------------------------------------------------
+   ⭐ V12 — FULL DEALERSHIP AI GOVERNANCE FRAMEWORK
+------------------------------------------------------- */
+
+export function dealershipAIGovernanceFramework(
+  vehicles: FlipRecord[],
+  leads: any[],
+  branches?: { name: string; vehicles: FlipRecord[]; leads: any[] }[]
+) {
+  const compliance = aiLegalComplianceGuardrails(vehicles, leads);
+  const finance = autonomousFinanceUnderwriting(leads[0] ?? undefined, vehicles[0] ?? undefined);
+  const riskGrowth = riskAdjustedGrowthEngine(vehicles);
+  const orchestration = dealershipAIOrchestration(vehicles, leads, branches);
+
+  const governanceStatus =
+    compliance.status.includes("⚠️")
+      ? "⚠️ Governance Restriction — Compliance Issues"
+      : finance.underwritingDecision === "Declined"
+      ? "⚠️ Governance Restriction — Finance Risk"
+      : "🟢 Governance Clear";
+
+  return {
+    compliance,
+    finance,
+    riskGrowth,
+    orchestration,
+    governanceStatus,
+  };
+}
+
+/* -------------------------------------------------------
+   ⭐ V12 — FULL AUTONOMOUS DEALERSHIP AI SUITE
+------------------------------------------------------- */
+
+export function getFullAutonomousDealershipAISuite(
+  vehicles: FlipRecord[],
+  leads: any[],
+  branches?: { name: string; vehicles: FlipRecord[]; leads: any[] }[]
+) {
+  const firstVehicle = vehicles[0] ?? null;
+
+  return {
+    underwriting: autonomousFinanceUnderwriting(leads[0] ?? undefined, firstVehicle),
+    compliance: aiLegalComplianceGuardrails(vehicles, leads),
+    buyerBehaviour: predictiveBuyerBehaviour(leads),
+    dealStructuring: leads.map(l => autonomousDealStructuring(l, firstVehicle)),
+    governance: dealershipAIGovernanceFramework(vehicles, leads, branches),
+    autonomousSystem: getFullyAutonomousDealershipSystem(vehicles, leads, branches),
+    status: "🟢 V12 Autonomous Dealership AI Fully Operational",
+  };
+}
+
+
+
+
+
+/* -------------------------------------------------------
+   ⭐ V12 — AUTONOMOUS FINANCE UNDERWRITING ENGINE
+------------------------------------------------------- */
+
+export function autonomousFinanceUnderwriting(lead: any, vehicle?: FlipRecord | null) {
+  // Guard for missing or invalid vehicle
+  if (!vehicle || typeof vehicle !== "object" || !("sellPrice" in vehicle || "valuation" in vehicle)) {
+    const credit = lead.creditScore ?? 550;
+    const income = lead.income ?? 20000;
+
+    return {
+      credit,
+      income,
+      price: 0,
+      monthlyPayment: 0,
+      underwritingDecision: "Declined",
+      reason: "No vehicle data",
+    };
+  }
+
+  const credit = lead.creditScore ?? 550;
+  const income = lead.income ?? 20000;
+  const price = vehicle.sellPrice ?? vehicle.valuation ?? 0;
+
+  const affordability = income / 12;
+  const monthlyPayment = price / 48;
+
+  let underwritingDecision = "Manual Review";
+
+  if (credit >= 700 && monthlyPayment < affordability * 0.3)
+    underwritingDecision = "Approved";
+  else if (credit >= 600 && monthlyPayment < affordability * 0.25)
+    underwritingDecision = "Conditional Approval";
+  else if (credit < 500 || monthlyPayment > affordability * 0.4)
+    underwritingDecision = "Declined";
+
+  return {
+    credit,
+    income,
+    price,
+    monthlyPayment,
+    underwritingDecision,
+    reason:
+      underwritingDecision === "Approved"
+        ? "Strong credit + affordable payment"
+        : underwritingDecision === "Conditional Approval"
+        ? "Moderate credit + borderline affordability"
+        : underwritingDecision === "Declined"
+        ? "High payment or low credit"
+        : "Requires manual review",
+  };
+}
+
+
+
+/* -------------------------------------------------------
+   ⭐ V13 — AI FRAUD DETECTION LAYER
+------------------------------------------------------- */
+
+export function aiFraudDetectionLayer(leads: any[]) {
+  const fraudAlerts: string[] = [];
+
+  const suspiciousLeads = leads.filter(l => {
+    const msg = l.message?.toLowerCase() ?? "";
+    const credit = l.creditScore ?? 0;
+
+    const redFlags =
+      msg.includes("cash only") ||
+      msg.includes("no paperwork") ||
+      msg.includes("quick deal") ||
+      credit < 450;
+
+    return redFlags;
+  });
+
+  suspiciousLeads.forEach(l => {
+    fraudAlerts.push(`⚠️ Potential fraud detected for lead: ${l.name ?? "Unknown"}`);
+  });
+
+  return {
+    suspiciousLeads,
+    fraudAlerts,
+    fraudStatus: fraudAlerts.length > 0 ? "⚠️ Fraud Risk Detected" : "🟢 Clear",
+  };
+}
+
+/* -------------------------------------------------------
+   ⭐ V13 — PREDICTIVE MARKET SHOCK ENGINE
+------------------------------------------------------- */
+
+export function predictiveMarketShockEngine(vehicles: FlipRecord[]) {
+  const avgFlipScore = vehicles.reduce((a, b) => a + (b.flipScore ?? 50), 0) / vehicles.length;
+  const avgMotRisk = vehicles.reduce((a, b) => a + (b.mot?.failures?.length ?? 0), 0) / vehicles.length;
+
+  const shockRisk =
+    avgMotRisk * 10 -
+    avgFlipScore * 0.5;
+
+  const shockBand =
+    shockRisk >= 40 ? "High Shock Risk" :
+    shockRisk >= 20 ? "Moderate Shock Risk" :
+    "Low Shock Risk";
+
+  return {
+    avgFlipScore,
+    avgMotRisk,
+    shockRisk,
+    shockBand,
+    recommendation:
+      shockBand === "High Shock Risk"
+        ? "Increase wholesale cycle + reduce acquisitions"
+        : shockBand === "Moderate Shock Risk"
+        ? "Monitor market + adjust pricing"
+        : "Stable — continue operations",
+  };
+}
+
+/* -------------------------------------------------------
+   ⭐ V13 — AUTONOMOUS MULTI‑DEALER NETWORK INTELLIGENCE
+------------------------------------------------------- */
+
+export function autonomousDealerNetworkIntelligence(network: {
+  name: string;
+  branches: { name: string; vehicles: FlipRecord[]; leads: any[] }[];
+}[]) {
+  return network.map(group => {
+    const branchReports = group.branches.map(branch => {
+      const health = dealershipHealthScore(branch.vehicles);
+      const growth = dealerGrowthProjection(branch.vehicles);
+      const stability = dealerFinancialStability(branch.vehicles);
+      const fraud = aiFraudDetectionLayer(branch.leads);
+
+      let directive = "Maintain operations";
+
+      if (stability.band === "Critical") directive = "Freeze acquisitions";
+      else if (health.band === "Weak") directive = "Increase wholesale cycle";
+      else if (growth.growthBand === "High Growth") directive = "Increase stock acquisition";
+      else if (fraud.fraudStatus.includes("⚠️")) directive = "Manual review required";
+
+      return {
+        branch: branch.name,
+        health,
+        growth,
+        stability,
+        fraud,
+        directive,
+      };
+    });
+
+    return {
+      dealerGroup: group.name,
+      branches: branchReports,
+      networkStatus:
+        branchReports.some(b => b.stability.band === "Critical")
+          ? "⚠️ Network Risk"
+          : "🟢 Network Stable",
+    };
+  });
+}
+
+export function enterpriseAIGovernance(
+  vehicles: FlipRecord[],
+  leads: any[],
+  network?: {
+    name: string;
+    branches: { name: string; vehicles: FlipRecord[]; leads: any[] }[];
+  }[]
+) {
+  const compliance = aiLegalComplianceGuardrails(vehicles, leads);
+  const fraud = aiFraudDetectionLayer(leads);
+  const shock = predictiveMarketShockEngine(vehicles);
+  const portfolio = autonomousFinancePortfolio(vehicles, leads);
+
+  const governanceAlerts = [
+    ...compliance.alerts,
+    ...fraud.fraudAlerts,
+    shock.shockBand === "High Shock Risk" ? "⚠️ Market shock risk detected" : null,
+    portfolio.portfolioHealth === "Critical" ? "⚠️ Finance portfolio critical" : null,
+  ].filter(Boolean);
+
+  const governanceStatus =
+    governanceAlerts.length > 0
+      ? "⚠️ Governance Restrictions Active"
+      : "🟢 Governance Clear";
+
+  const networkIntelligence =
+    network && network.length > 0
+      ? autonomousDealerNetworkIntelligence(network)
+      : null;
+
+  return {
+    compliance,
+    fraud,
+    shock,
+    portfolio,
+    governanceAlerts,
+    governanceStatus,
+    networkIntelligence,
+  };
+}
+
+/* -------------------------------------------------------
+   ⭐ V13 — AUTONOMOUS FINANCE PORTFOLIO ENGINE
+------------------------------------------------------- */
+
+export function autonomousFinancePortfolio(vehicles: FlipRecord[], leads: any[]) {
+  const firstVehicle = vehicles[0] ?? null;
+
+  const underwritingResults = leads.map(l =>
+    autonomousFinanceUnderwriting(l, firstVehicle)
+  );
+
+  const approvals = underwritingResults.filter(r => r.underwritingDecision === "Approved").length;
+  const declines = underwritingResults.filter(r => r.underwritingDecision === "Declined").length;
+  const conditional = underwritingResults.filter(r => r.underwritingDecision === "Conditional Approval").length;
+
+  const approvalRate = approvals / underwritingResults.length;
+  const declineRate = declines / underwritingResults.length;
+
+  const portfolioHealth =
+    approvalRate >= 0.7 ? "Strong" :
+    approvalRate >= 0.5 ? "Moderate" :
+    declineRate >= 0.4 ? "Weak" :
+    "Critical";
+
+  return {
+    approvals,
+    declines,
+    conditional,
+    approvalRate,
+    declineRate,
+    portfolioHealth,
+  };
+}
+
+/* -------------------------------------------------------
+   ⭐ V14 — AUTONOMOUS FINANCE PORTFOLIO OPTIMIZER
+------------------------------------------------------- */
+
+export function financePortfolioOptimizer(vehicles: FlipRecord[], leads: any[]) {
+  const portfolio = autonomousFinancePortfolio(vehicles, leads);
+
+  let optimizationAction = "Maintain current finance strategy";
+
+  if (portfolio.portfolioHealth === "Strong") {
+    optimizationAction = "Increase finance approvals + promote finance deals";
+  } else if (portfolio.portfolioHealth === "Moderate") {
+    optimizationAction = "Tighten underwriting slightly";
+  } else if (portfolio.portfolioHealth === "Weak") {
+    optimizationAction = "Reduce risk — lower exposure to high‑risk buyers";
+  } else if (portfolio.portfolioHealth === "Critical") {
+    optimizationAction = "Freeze finance approvals — manual review only";
+  }
+
+  return {
+    portfolio,
+    optimizationAction,
+  };
+}
+
+
+
+/* -------------------------------------------------------
+   ⭐ V14 — PREDICTIVE BUYER LIFETIME VALUE ENGINE
+------------------------------------------------------- */
+
+export function predictiveBuyerLifetimeValue(lead: any) {
+  const credit = lead.creditScore ?? 550;
+  const income = lead.income ?? 20000;
+
+  // FIXED: safe behaviour extraction
+  const behaviour = predictiveBuyerBehaviour([lead])[0]?.behaviour ?? "General";
+
+  let ltv = income * 0.02;
+
+  if (credit >= 700) ltv += 500;
+  if (behaviour === "Impulse") ltv += 300;
+  if (behaviour === "Negotiator") ltv -= 150;
+
+  return {
+    lead,
+    behaviour,
+    estimatedLTV: Math.round(ltv),
+    band:
+      ltv >= 1500 ? "High Value" :
+      ltv >= 800 ? "Medium Value" :
+      ltv >= 400 ? "Low Value" :
+      "Very Low",
+  };
+}
+
+/* -------------------------------------------------------
+   ⭐ V14 — AUTONOMOUS DEAL FINALIZATION ENGINE
+------------------------------------------------------- */
+
+export function autonomousDealStructuring(lead: any, vehicle?: FlipRecord | null) {
+  if (!vehicle) {
+    return {
+      structureType: "Manual Review",
+      status: "No vehicle",
+      reason: "No vehicle data",
+      negotiation: "Unknown",
+      finalPrice: 0,
+    };
+  }
+
+  const credit = lead.creditScore ?? 550;
+  const income = lead.income ?? 20000;
+  const price = vehicle.sellPrice ?? vehicle.valuation ?? 0;
+
+  const affordability = income / 12;
+  const monthlyPayment = price / 48;
+
+  let structureType = "Standard";
+  let negotiation = "Normal";
+
+  if (credit >= 700 && monthlyPayment < affordability * 0.3) {
+    structureType = "Premium Finance";
+    negotiation = "Easy";
+  } else if (credit >= 600 && monthlyPayment < affordability * 0.25) {
+    structureType = "Conditional Finance";
+    negotiation = "Moderate";
+  } else if (credit < 500 || monthlyPayment > affordability * 0.4) {
+    structureType = "Cash‑Only";
+    negotiation = "Hard";
+  }
+
+  return {
+    structureType,
+    status: "Structured",
+    reason:
+      structureType === "Premium Finance"
+        ? "Strong credit + affordable payment"
+        : structureType === "Conditional Finance"
+        ? "Moderate credit + borderline affordability"
+        : structureType === "Cash‑Only"
+        ? "High payment or low credit"
+        : "Standard structuring applied",
+    negotiation,
+    finalPrice: price,
+  };
+}
+
+
+
+/* -------------------------------------------------------
+   ⭐ V14 — ENTERPRISE AI OPERATIONS FRAMEWORK
+------------------------------------------------------- */
+
+export function enterpriseAIOperationsFramework(
+  vehicles: FlipRecord[],
+  leads: any[],
+  network?: {
+    name: string;
+    branches: { name: string; vehicles: FlipRecord[]; leads: any[] }[];
+  }[]
+) {
+  const governance = enterpriseAIGovernance(vehicles, leads, network);
+  const portfolioOptimization = financePortfolioOptimizer(vehicles, leads);
+  const shock = predictiveMarketShockEngine(vehicles);
+
+  const operationsStatus =
+    governance.governanceStatus.includes("⚠️")
+      ? "⚠️ Operations Restricted — Governance Issues"
+      : shock.shockBand === "High Shock Risk"
+      ? "⚠️ Operations Restricted — Market Shock Risk"
+      : "🟢 Enterprise Operations Stable";
+
+  return {
+    governance,
+    portfolioOptimization,
+    shock,
+    operationsStatus,
+  };
+}
+declare function getEnterpriseAutonomousDealershipAI(
+  vehicles: FlipRecord[],
+  leads: any[],
+  network?: {
+    name: string;
+    branches: { name: string; vehicles: FlipRecord[]; leads: any[] }[];
+  }[]
+): any;
+/* -------------------------------------------------------
+   ⭐ V14 — RISK‑WEIGHTED PRICING ENGINE
+------------------------------------------------------- */
+
+export function riskWeightedPricingEngine(vehicle?: FlipRecord | null) {
+  if (!vehicle) {
+    return {
+      priceScore: 0,
+      band: "Unknown",
+      reason: "No vehicle data",
+    };
+  }
+
+  const basePrice = vehicle.sellPrice ?? vehicle.valuation ?? 0;
+
+  let score = 50;
+
+  if (basePrice > 15000) score += 20;
+  if (basePrice > 25000) score += 40;
+  if (basePrice < 5000) score -= 20;
+
+  const band =
+    score >= 90 ? "Premium" :
+    score >= 70 ? "Strong" :
+    score >= 50 ? "Standard" :
+    "Risky";
+
+  return {
+    priceScore: score,
+    band,
+    reason: "Calculated from vehicle pricing profile",
+  };
+}
+
+/* -------------------------------------------------------
+   ⭐ V14 — FULL ENTERPRISE AI OPERATIONS SUITE
+------------------------------------------------------- */
+export function autonomousDealFinalization(lead: any, vehicle?: FlipRecord | null) {
+  if (!vehicle) {
+    return {
+      status: "Declined",
+      reason: "No vehicle data",
+      finalPrice: 0,
+    };
+  }
+
+  const credit = lead.creditScore ?? 550;
+  const income = lead.income ?? 20000;
+  const price = vehicle.sellPrice ?? vehicle.valuation ?? 0;
+
+  const affordability = income / 12;
+  const monthlyPayment = price / 48;
+
+  let status = "Manual Review";
+
+  if (credit >= 700 && monthlyPayment < affordability * 0.3)
+    status = "Approved";
+  else if (credit >= 600 && monthlyPayment < affordability * 0.25)
+    status = "Conditional Approval";
+  else if (credit < 500 || monthlyPayment > affordability * 0.4)
+    status = "Declined";
+
+  return {
+    status,
+    reason:
+      status === "Approved"
+        ? "Strong credit + affordable payment"
+        : status === "Conditional Approval"
+        ? "Moderate credit + borderline affordability"
+        : status === "Declined"
+        ? "High payment or low credit"
+        : "Requires manual review",
+    finalPrice: price,
+  };
+}
+
+
+/* -------------------------------------------------------
+   ⭐ V15 — AUTONOMOUS DEALER GROUP PROFIT OPTIMIZER
+------------------------------------------------------- */
+
+export function dealerGroupProfitOptimizer(network: {
+  name: string;
+  branches: { name: string; vehicles: FlipRecord[]; leads: any[] }[];
+}[]) {
+  return network.map(group => {
+    const branchProfits = group.branches.map(branch => {
+      const summary = getDealerSummary(branch.vehicles);
+      return {
+        branch: branch.name,
+        profit: summary.marketHeat.totalProfit,
+        avgMargin: summary.priceEfficiency.avgMargin,
+      };
+    });
+
+    // ⭐ FIX: totalProfit was missing
+    const totalProfit = branchProfits.reduce((a, b) => a + b.profit, 0);
+
+    const highestProfitBranch =
+      branchProfits.sort((a, b) => b.profit - a.profit)[0] ?? null;
+
+    return {
+      dealerGroup: group.name,
+      totalProfit,
+      highestProfitBranch,
+      recommendation:
+        highestProfitBranch && highestProfitBranch.avgMargin > 800
+          ? "Shift premium stock to this branch"
+          : "Distribute stock evenly",
+    };
+  });
+}
+
+/* -------------------------------------------------------
+   ⭐ V15 — AI INVENTORY ALLOCATION ENGINE
+------------------------------------------------------- */
+
+export function inventoryAllocationEngine(network: {
+  name: string;
+  branches: { name: string; vehicles: FlipRecord[]; leads: any[] }[];
+}[]) {
+  return network.map(group => {
+    const allocations = group.branches.map(branch => {
+      const demand = branch.leads.length;
+      const stock = branch.vehicles.length;
+
+      const ratio = demand === 0 ? 0 : stock / demand;
+
+      let allocationDirective = "Stable";
+
+      if (ratio > 2) allocationDirective = "Shift stock OUT";
+      else if (ratio < 0.8) allocationDirective = "Shift stock IN";
+
+      return {
+        branch: branch.name,
+        demand,
+        stock,
+        ratio,
+        allocationDirective,
+      };
+    });
+
+    return {
+      dealerGroup: group.name,
+      allocations,
+    };
+  });
+}
+
+/* -------------------------------------------------------
+   ⭐ V15 — PREDICTIVE MULTI‑BRANCH DEMAND FORECASTING
+------------------------------------------------------- */
+
+export function predictiveDemandForecasting(network: {
+  name: string;
+  branches: { name: string; vehicles: FlipRecord[]; leads: any[] }[];
+}[]) {
+  return network.map(group => {
+    const forecasts = group.branches.map(branch => {
+      const leads = branch.leads.length;
+      const avgFlipScore =
+        branch.vehicles.reduce((a, b) => a + (b.flipScore ?? 50), 0) /
+        branch.vehicles.length;
+
+      const projectedDemand =
+        Math.round(leads * (avgFlipScore / 50) * 1.2);
+
+      return {
+        branch: branch.name,
+        leads,
+        avgFlipScore,
+        projectedDemand,
+      };
+    });
+
+    return {
+      dealerGroup: group.name,
+      forecasts,
+    };
+  });
+}
+
+/* -------------------------------------------------------
+   ⭐ V15 — AUTONOMOUS STOCK REDISTRIBUTION ENGINE
+------------------------------------------------------- */
+
+export function autonomousStockRedistribution(network: {
+  name: string;
+  branches: { name: string; vehicles: FlipRecord[]; leads: any[] }[];
+}[]) {
+  return network.map(group => {
+    const redistribution = group.branches.map(branch => {
+      const demand = branch.leads.length;
+      const stock = branch.vehicles.length;
+
+      const ratio = demand === 0 ? 0 : stock / demand;
+
+      let action = "Hold";
+
+      if (ratio > 2) action = "Redistribute OUT";
+      else if (ratio < 0.8) action = "Redistribute IN";
+
+      return {
+        branch: branch.name,
+        demand,
+        stock,
+        ratio,
+        action,
+      };
+    });
+
+    return {
+      dealerGroup: group.name,
+      redistribution,
+    };
+  });
+}
+
+/* -------------------------------------------------------
+   ⭐ V15 — FULL DEALER GROUP AI COMMAND LAYER
+------------------------------------------------------- */
+
+export function dealerGroupAICommandLayer(
+  network: {
+    name: string;
+    branches: { name: string; vehicles: FlipRecord[]; leads: any[] }[];
+  }[]
+) {
+  const profit = dealerGroupProfitOptimizer(network);
+  const allocation = inventoryAllocationEngine(network);
+  const demand = predictiveDemandForecasting(network);
+  const redistribution = autonomousStockRedistribution(network);
+
+  const commandStatus =
+    profit.some(g => g.highestProfitBranch && g.highestProfitBranch.avgMargin < 400)
+      ? "⚠️ Command Layer: Low margin detected — adjust pricing"
+      : "🟢 Command Layer Stable";
+
+  return {
+    profit,
+    allocation,
+    demand,
+    redistribution,
+    commandStatus,
+  };
+}
+
+
+/* -------------------------------------------------------
+   ⭐ V15 — FULL ENTERPRISE DEALER GROUP AI SUITE
+------------------------------------------------------- */
+
+export function getEnterpriseDealerGroupAISuite(
+  network: {
+    name: string;
+    branches: { name: string; vehicles: FlipRecord[]; leads: any[] }[];
+  }[]
+) {
+  return {
+    profitOptimizer: dealerGroupProfitOptimizer(network),
+    inventoryAllocation: inventoryAllocationEngine(network),
+    demandForecasting: predictiveDemandForecasting(network),
+    stockRedistribution: autonomousStockRedistribution(network),
+    commandLayer: dealerGroupAICommandLayer(network),
+    status: "🟢 V15 Dealer Group AI Command Layer Active",
+  };
+}
+/* -------------------------------------------------------
+   ⭐ V16 — AUTONOMOUS DEALER GROUP PRICING GRID
+------------------------------------------------------- */
+
+export function dealerGroupPricingGrid(network: {
+  name: string;
+  branches: { name: string; vehicles: FlipRecord[]; leads: any[] }[];
+}[]) {
+  return network.map(group => {
+    const pricingGrid = group.branches.map(branch => {
+      const avgMargin =
+        branch.vehicles.reduce((a, b) => a + ((b.sellPrice ?? b.valuation ?? 0) - (b.buyPrice ?? 0)), 0) /
+        (branch.vehicles.length || 1);
+
+      const avgFlipScore =
+        branch.vehicles.reduce((a, b) => a + (b.flipScore ?? 50), 0) /
+        (branch.vehicles.length || 1);
+
+      const recommendedAdjustment =
+        avgFlipScore > 70 ? +200 :
+        avgFlipScore < 40 ? -200 :
+        0;
+
+      return {
+        branch: branch.name,
+        avgMargin,
+        avgFlipScore,
+        recommendedAdjustment,
+        pricingDirective:
+          recommendedAdjustment > 0 ? "Increase pricing slightly" :
+          recommendedAdjustment < 0 ? "Reduce pricing slightly" :
+          "Stable pricing",
+      };
+    });
+
+    return {
+      dealerGroup: group.name,
+      pricingGrid,
+    };
+  });
+}
+
+/* -------------------------------------------------------
+   ⭐ V16 — AI LOGISTICS & TRANSPORT OPTIMIZER
+------------------------------------------------------- */
+
+export function logisticsTransportOptimizer(network: {
+  name: string;
+  branches: { name: string; vehicles: FlipRecord[]; leads: any[] }[];
+}[]) {
+  return network.map(group => {
+    const logistics = group.branches.map(branch => {
+      const stock = branch.vehicles.length;
+      const demand = branch.leads.length;
+
+      const transportNeed =
+        demand > stock ? "Inbound Transport Required" :
+        stock > demand * 2 ? "Outbound Transport Required" :
+        "No Transport Required";
+
+      return {
+        branch: branch.name,
+        stock,
+        demand,
+        transportNeed,
+      };
+    });
+
+    return {
+      dealerGroup: group.name,
+      logistics,
+    };
+  });
+}
+
+/* -------------------------------------------------------
+   ⭐ V16 — PREDICTIVE REGIONAL MARKET INTELLIGENCE
+------------------------------------------------------- */
+
+export function regionalMarketIntelligence(network: {
+  name: string;
+  branches: { name: string; vehicles: FlipRecord[]; leads: any[] }[];
+}[]) {
+  return network.map(group => {
+    const regions = group.branches.map(branch => {
+      const avgFlipScore =
+        branch.vehicles.reduce((a, b) => a + (b.flipScore ?? 50), 0) /
+        (branch.vehicles.length || 1);
+
+      const avgMotRisk =
+        branch.vehicles.reduce((a, b) => a + (b.mot?.failures?.length ?? 0), 0) /
+        (branch.vehicles.length || 1);
+
+      const regionalDemand =
+        Math.round(branch.leads.length * (avgFlipScore / 50));
+
+      const riskLevel =
+        avgMotRisk > 2 ? "High Risk" :
+        avgMotRisk > 1 ? "Moderate Risk" :
+        "Low Risk";
+
+      return {
+        branch: branch.name,
+        avgFlipScore,
+        avgMotRisk,
+        regionalDemand,
+        riskLevel,
+      };
+    });
+
+    return {
+      dealerGroup: group.name,
+      regions,
+    };
+  });
+}
+
+/* -------------------------------------------------------
+   ⭐ V16 — AUTONOMOUS INTER‑BRANCH VEHICLE ROUTING
+------------------------------------------------------- */
+
+export function autonomousVehicleRouting(network: {
+  name: string;
+  branches: { name: string; vehicles: FlipRecord[]; leads: any[] }[];
+}[]) {
+  return network.map(group => {
+    const routing = group.branches.map(branch => {
+      const demand = branch.leads.length;
+      const stock = branch.vehicles.length;
+
+      const ratio = demand === 0 ? 0 : stock / demand;
+
+      let routingAction = "Hold";
+
+      if (ratio > 2) routingAction = "Route vehicles OUT";
+      else if (ratio < 0.8) routingAction = "Route vehicles IN";
+
+      return {
+        branch: branch.name,
+        demand,
+        stock,
+        ratio,
+        routingAction,
+      };
+    });
+
+    return {
+      dealerGroup: group.name,
+      routing,
+    };
+  });
+}
+
+/* -------------------------------------------------------
+   ⭐ V16 — FULL DEALER GROUP OPERATIONS BRAIN
+------------------------------------------------------- */
+
+export function dealerGroupOperationsBrain(
+  network: {
+    name: string;
+    branches: { name: string; vehicles: FlipRecord[]; leads: any[] }[];
+  }[]
+) {
+  const pricing = dealerGroupPricingGrid(network);
+  const logistics = logisticsTransportOptimizer(network);
+  const regionalIntel = regionalMarketIntelligence(network);
+  const routing = autonomousVehicleRouting(network);
+
+  const operationsStatus =
+    routing.some(g => g.routing.some(r => r.routingAction.includes("IN"))) &&
+    pricing.some(g => g.pricingGrid.some(p => p.recommendedAdjustment < 0))
+      ? "⚠️ Operations: Demand imbalance detected"
+      : "🟢 Operations Stable";
+
+  return {
+    pricing,
+    logistics,
+    regionalIntel,
+    routing,
+    operationsStatus,
+  };
+}
+
+/* -------------------------------------------------------
+   ⭐ V16 — FULL ENTERPRISE DEALER GROUP AI OPERATIONS SUITE
+------------------------------------------------------- */
+
+export function getDealerGroupAIOperationsSuite(
+  network: {
+    name: string;
+    branches: { name: string; vehicles: FlipRecord[]; leads: any[] }[];
+  }[]
+) {
+  return {
+    pricingGrid: dealerGroupPricingGrid(network),
+    logisticsOptimizer: logisticsTransportOptimizer(network),
+    regionalIntelligence: regionalMarketIntelligence(network),
+    routingEngine: autonomousVehicleRouting(network),
+    operationsBrain: dealerGroupOperationsBrain(network),
+    status: "🟢 V16 Dealer Group Operations Brain Active",
+  };
+}
+/* -------------------------------------------------------
+   ⭐ V17 — AUTONOMOUS DEALER GROUP EXPANSION ENGINE
+------------------------------------------------------- */
+
+export function dealerGroupExpansionEngine(network: {
+  name: string;
+  branches: { name: string; vehicles: FlipRecord[]; leads: any[] }[];
+}[]) {
+  return network.map(group => {
+    const branchScores = group.branches.map(branch => {
+      const health = dealershipHealthScore(branch.vehicles);
+      const growth = dealerGrowthProjection(branch.vehicles);
+      const demand = branch.leads.length;
+
+      const expansionScore =
+        health.score * 0.4 +
+        growth.projectedProfitNextQuarter * 0.02 +
+        demand * 1.5;
+
+      return {
+        branch: branch.name,
+        health,
+        growth,
+        demand,
+        expansionScore,
+      };
+    });
+
+    const bestBranch =
+      branchScores.sort((a, b) => b.expansionScore - a.expansionScore)[0] ?? null;
+
+    return {
+      dealerGroup: group.name,
+      bestBranch,
+      recommendation:
+        bestBranch && bestBranch.expansionScore > 120
+          ? "Open new branch nearby"
+          : bestBranch && bestBranch.expansionScore > 80
+          ? "Expand stock capacity"
+          : "Hold expansion",
+    };
+  });
+}
+
+
+
+/* -------------------------------------------------------
+   ⭐ V17 — AI COMPETITOR INTELLIGENCE LAYER
+------------------------------------------------------- */
+
+export function competitorIntelligenceLayer(competitors: {
+  name: string;
+  avgPrice: number;
+  avgMargin: number;
+  avgFlipTime: number;
+}[]) {
+  return competitors.map(c => {
+    const competitiveness =
+      (c.avgMargin / 10) -
+      (c.avgPrice / 100) -
+      (c.avgFlipTime / 2);
+
+    return {
+      competitor: c.name,
+      avgPrice: c.avgPrice,
+      avgMargin: c.avgMargin,
+      avgFlipTime: c.avgFlipTime,
+      competitiveness,
+      band:
+        competitiveness >= 20 ? "Strong Competitor" :
+        competitiveness >= 10 ? "Moderate Competitor" :
+        "Weak Competitor",
+    };
+  });
+}
+
+/* -------------------------------------------------------
+   ⭐ V17 — PREDICTIVE MARKET SHARE FORECASTING
+------------------------------------------------------- */
+
+export function marketShareForecasting(
+  network: {
+    name: string;
+    branches: { name: string; vehicles: FlipRecord[]; leads: any[] }[];
+  }[],
+  competitors: {
+    name: string;
+    avgPrice: number;
+    avgMargin: number;
+    avgFlipTime: number;
+  }[]
+) {
+  return network.map(group => {
+    const totalLeads = group.branches.reduce((a, b) => a + b.leads.length, 0);
+    const competitorStrength =
+      competitors.reduce((a, b) => a + (b.avgMargin / b.avgPrice), 0);
+
+    const projectedMarketShare =
+      Math.round((totalLeads / (totalLeads + competitorStrength * 10)) * 100);
+
+    return {
+      dealerGroup: group.name,
+      totalLeads,
+      competitorStrength,
+      projectedMarketShare,
+      band:
+        projectedMarketShare >= 60 ? "Dominant" :
+        projectedMarketShare >= 40 ? "Strong" :
+        projectedMarketShare >= 20 ? "Moderate" :
+        "Weak",
+    };
+  });
+}
+
+/* -------------------------------------------------------
+   ⭐ V17 — AUTONOMOUS BRANCH OPEN/CLOSE RECOMMENDATIONS
+------------------------------------------------------- */
+
+export function autonomousBranchDecisions(network: {
+  name: string;
+  branches: { name: string; vehicles: FlipRecord[]; leads: any[] }[];
+}[]) {
+  return network.map(group => {
+    const decisions = group.branches.map(branch => {
+      const health = dealershipHealthScore(branch.vehicles);
+      const growth = dealerGrowthProjection(branch.vehicles);
+      const demand = branch.leads.length;
+
+      let decision = "Maintain";
+
+      if (health.score < 40 && demand < 10)
+        decision = "Consider Closing Branch";
+
+      if (health.score > 80 && demand > 40)
+        decision = "Consider Opening New Branch";
+
+      return {
+        branch: branch.name,
+        health,
+        growth,
+        demand,
+        decision,
+      };
+    });
+
+    return {
+      dealerGroup: group.name,
+      decisions,
+    };
+  });
+}
+
+/* -------------------------------------------------------
+   ⭐ V17 — FULL DEALER GROUP STRATEGIC AI BRAIN
+------------------------------------------------------- */
+
+export function dealerGroupStrategicBrain(
+  network: {
+    name: string;
+    branches: { name: string; vehicles: FlipRecord[]; leads: any[] }[];
+  }[],
+  competitors: {
+    name: string;
+    avgPrice: number;
+    avgMargin: number;
+    avgFlipTime: number;
+  }[]
+) {
+  const expansion = dealerGroupExpansionEngine(network);
+  const competitorIntel = competitorIntelligenceLayer(competitors);
+  const marketShare = marketShareForecasting(network, competitors);
+  const branchDecisions = autonomousBranchDecisions(network);
+
+  const strategicStatus =
+    marketShare.some(m => m.projectedMarketShare < 20)
+      ? "⚠️ Strategic Weakness Detected"
+      : "🟢 Strategic Position Strong";
+
+  return {
+    expansion,
+    competitorIntel,
+    marketShare,
+    branchDecisions,
+    strategicStatus,
+  };
+}
+
+/* -------------------------------------------------------
+   ⭐ V17 — FULL ENTERPRISE DEALER GROUP STRATEGIC AI SUITE
+------------------------------------------------------- */
+
+export function getDealerGroupStrategicAISuite(
+  network: {
+    name: string;
+    branches: { name: string; vehicles: FlipRecord[]; leads: any[] }[];
+  }[],
+  competitors: {
+    name: string;
+    avgPrice: number;
+    avgMargin: number;
+    avgFlipTime: number;
+  }[]
+) {
+  return {
+    expansionEngine: dealerGroupExpansionEngine(network),
+    competitorIntel: competitorIntelligenceLayer(competitors),
+    marketShare: marketShareForecasting(network, competitors),
+    branchDecisions: autonomousBranchDecisions(network),
+    strategicBrain: dealerGroupStrategicBrain(network, competitors),
+    status: "🟢 V17 Dealer Group Strategic AI Brain Active",
+  };
+}
+/* -------------------------------------------------------
+   ⭐ V18 — RISK‑ADJUSTED EXPANSION ENGINE (Dealer Group)
+------------------------------------------------------- */
+
+export function riskAdjustedExpansionEngine(network: {
+  name: string;
+  branches: { name: string; vehicles: FlipRecord[]; leads: any[] }[];
+}[]) {
+  return network.map(group => {
+    const branches = group.branches.map(branch => {
+      const health = dealershipHealthScore(branch.vehicles);
+      const growth = dealerGrowthProjection(branch.vehicles);
+      const demand = branch.leads.length;
+
+      const riskMatrix = dealershipRiskMatrix(branch.vehicles);
+      const avgRisk = riskMatrix.reduce((a, b) => a + b.totalRisk, 0) / riskMatrix.length;
+
+      const expansionScore =
+        health.score * 0.3 +
+        growth.projectedProfitNextQuarter * 0.015 +
+        demand * 1.2 -
+        avgRisk * 0.8;
+
+      return {
+        branch: branch.name,
+        health,
+        growth,
+        demand,
+        avgRisk,
+        expansionScore,
+      };
+    });
+
+const bestBranch = branches.sort((a, b) => b.expansionScore - a.expansionScore)[0] ?? null;
+
+return {
+  dealerGroup: group.name,
+  bestBranch,
+  recommendation:
+    bestBranch && bestBranch.expansionScore > 110
+      ? "Expand aggressively"
+      : bestBranch && bestBranch.expansionScore > 70
+      ? "Expand cautiously"
+      : "Hold expansion",
+    };
+  });   // <-- closes network.map
+} 
+
+
+/* -------------------------------------------------------
+   ⭐ V18 — AI COMPETITOR DISRUPTION ENGINE
+------------------------------------------------------- */
+
+export function competitorDisruptionEngine(competitors: {
+  name: string;
+  avgPrice: number;
+  avgMargin: number;
+  avgFlipTime: number;
+}[]) {
+  return competitors.map(c => {
+    const disruptionScore =
+      (c.avgPrice / 100) * -1 +
+      (c.avgMargin / 10) * -1 +
+      (c.avgFlipTime / 2) * -1;
+
+    const disruptionStrategy =
+      disruptionScore <= -40
+        ? "Undercut pricing + increase marketing"
+        : disruptionScore <= -20
+        ? "Match pricing + improve listing quality"
+        : "Focus on premium stock";
+
+    return {
+      competitor: c.name,
+      disruptionScore,
+      disruptionStrategy,
+    };
+  });
+}
+
+/* -------------------------------------------------------
+   ⭐ V18 — PREDICTIVE ECONOMIC DOWNTURN MODELLING
+------------------------------------------------------- */
+
+export function economicDownturnModel(vehicles: FlipRecord[], leads: any[]) {
+  const avgFlipScore =
+    vehicles.reduce((a, b) => a + (b.flipScore ?? 50), 0) / vehicles.length;
+
+  const avgMotRisk =
+    vehicles.reduce((a, b) => a + (b.mot?.failures?.length ?? 0), 0) / vehicles.length;
+
+  const leadVolume = leads.length;
+
+  const downturnRisk =
+    avgMotRisk * 8 -
+    avgFlipScore * 0.4 -
+    leadVolume * 0.2;
+
+  const downturnBand =
+    downturnRisk >= 40 ? "High Downturn Risk" :
+    downturnRisk >= 20 ? "Moderate Downturn Risk" :
+    "Low Downturn Risk";
+
+  return {
+    avgFlipScore,
+    avgMotRisk,
+    leadVolume,
+    downturnRisk,
+    downturnBand,
+    recommendation:
+      downturnBand === "High Downturn Risk"
+        ? "Increase wholesale cycle + reduce acquisitions"
+        : downturnBand === "Moderate Downturn Risk"
+        ? "Monitor pricing + reduce risk exposure"
+        : "Stable — continue operations",
+  };
+}
+
+/* -------------------------------------------------------
+   ⭐ V18 — AUTONOMOUS MULTI‑REGION STOCK STRATEGY
+------------------------------------------------------- */
+
+export function multiRegionStockStrategy(network: {
+  name: string;
+  branches: { name: string; region: string; vehicles: FlipRecord[]; leads: any[] }[];
+}[]) {
+  return network.map(group => {
+    const regions = group.branches.map(branch => {
+      const demand = branch.leads.length;
+      const stock = branch.vehicles.length;
+
+      const ratio = demand === 0 ? 0 : stock / demand;
+
+      let strategy = "Hold";
+
+      if (ratio > 2) strategy = "Shift stock OUT of region";
+      else if (ratio < 0.8) strategy = "Shift stock INTO region";
+
+      return {
+        region: branch.region,
+        branch: branch.name,
+        demand,
+        stock,
+        ratio,
+        strategy,
+      };
+    });
+
+    return {
+      dealerGroup: group.name,
+      regions,
+    };
+  });
+}
+
+/* -------------------------------------------------------
+   ⭐ V18 — FULL DEALER GROUP STRATEGIC GOVERNANCE LAYER
+------------------------------------------------------- */
+
+export function dealerGroupStrategicGovernance(
+  network: {
+    name: string;
+    branches: { name: string; region: string; vehicles: FlipRecord[]; leads: any[] }[];
+  }[],
+  competitors: {
+    name: string;
+    avgPrice: number;
+    avgMargin: number;
+    avgFlipTime: number;
+  }[]
+) {
+  const expansion = riskAdjustedExpansionEngine(network);
+  const disruption = competitorDisruptionEngine(competitors);
+  const downturn = economicDownturnModel(
+    network.flatMap(g => g.branches.flatMap(b => b.vehicles)),
+    network.flatMap(g => g.branches.flatMap(b => b.leads))
+  );
+  const regionStrategy = multiRegionStockStrategy(network);
+
+  const governanceStatus =
+    downturn.downturnBand === "High Downturn Risk"
+      ? "⚠️ Strategic Governance: Downturn Risk"
+      : disruption.some(d => d.disruptionScore <= -40)
+      ? "⚠️ Strategic Governance: Competitor Threat"
+      : "🟢 Strategic Governance Stable";
+
+  return {
+    expansion,
+    disruption,
+    downturn,
+    regionStrategy,
+    governanceStatus,
+  };
+}
+
+/* -------------------------------------------------------
+   ⭐ V18 — FULL ENTERPRISE STRATEGIC AI SUITE
+------------------------------------------------------- */
+
+export function getEnterpriseStrategicAISuite(
+  network: {
+    name: string;
+    branches: { name: string; region: string; vehicles: FlipRecord[]; leads: any[] }[];
+  }[],
+  competitors: {
+    name: string;
+    avgPrice: number;
+    avgMargin: number;
+    avgFlipTime: number;
+  }[]
+) {
+  return {
+    expansionEngine: riskAdjustedExpansionEngine(network),
+    disruptionEngine: competitorDisruptionEngine(competitors),
+    downturnModel: economicDownturnModel(
+      network.flatMap(g => g.branches.flatMap(b => b.vehicles)),
+      network.flatMap(g => g.branches.flatMap(b => b.leads))
+    ),
+    regionStrategy: multiRegionStockStrategy(network),
+    governanceLayer: dealerGroupStrategicGovernance(network, competitors),
+    status: "🟢 V18 Strategic Governance AI Active",
+  };
+}
+/* -------------------------------------------------------
+   ⭐ V19 — OEM‑LEVEL INTELLIGENCE ENGINE
+------------------------------------------------------- */
+
+export function oemIntelligenceEngine(oem: {
+  name: string;
+  avgProductionCost: number;
+  avgWholesalePrice: number;
+  avgDeliveryTimeDays: number;
+}) {
+  const efficiencyScore =
+    (oem.avgWholesalePrice - oem.avgProductionCost) / 100 -
+    oem.avgDeliveryTimeDays * 0.3;
+
+  return {
+    oem,
+    efficiencyScore,
+    band:
+      efficiencyScore >= 25 ? "High Efficiency" :
+      efficiencyScore >= 10 ? "Moderate Efficiency" :
+      "Low Efficiency",
+    recommendation:
+      efficiencyScore >= 25
+        ? "Increase dealer supply"
+        : efficiencyScore >= 10
+        ? "Maintain current supply"
+        : "Reduce production temporarily",
+  };
+}
+
+/* -------------------------------------------------------
+   ⭐ V19 — VEHICLE SUPPLY‑CHAIN FORECASTING ENGINE
+------------------------------------------------------- */
+
+export function supplyChainForecasting(oem: {
+  name: string;
+  avgProductionCost: number;
+  avgWholesalePrice: number;
+  avgDeliveryTimeDays: number;
+}, dealerNetwork: {
+  name: string;
+  branches: { name: string; vehicles: FlipRecord[]; leads: any[] }[];
+}[]) {
+  const totalDemand = dealerNetwork.reduce(
+    (acc, group) => acc + group.branches.reduce((a, b) => a + b.leads.length, 0),
+    0
+  );
+
+  const deliveryRisk =
+    oem.avgDeliveryTimeDays > 30 ? "High Delay Risk" :
+    oem.avgDeliveryTimeDays > 20 ? "Moderate Delay Risk" :
+    "Low Delay Risk";
+
+  const supplyForecast = Math.round(totalDemand * (oem.avgWholesalePrice / oem.avgProductionCost));
+
+  return {
+    oem,
+    totalDemand,
+    deliveryRisk,
+    supplyForecast,
+    recommendation:
+      deliveryRisk === "High Delay Risk"
+        ? "Increase buffer stock"
+        : deliveryRisk === "Moderate Delay Risk"
+        ? "Monitor supply chain weekly"
+        : "Stable supply chain",
+  };
+}
+
+/* -------------------------------------------------------
+   ⭐ V19 — NATIONAL MARKET MODELLING ENGINE
+------------------------------------------------------- */
+
+export function nationalMarketModel(
+  dealerNetwork: {
+    name: string;
+    branches: { name: string; region: string; vehicles: FlipRecord[]; leads: any[] }[];
+  }[],
+  economicIndicators: {
+    inflation: number;
+    interestRate: number;
+    consumerConfidence: number;
+  }
+) {
+  const totalLeads = dealerNetwork.reduce(
+    (acc, group) => acc + group.branches.reduce((a, b) => a + b.leads.length, 0),
+    0
+  );
+
+  const marketPressure =
+    economicIndicators.inflation * 2 +
+    economicIndicators.interestRate * 3 -
+    economicIndicators.consumerConfidence * 1.5;
+
+  const demandForecast = Math.round(totalLeads * (100 - marketPressure) / 100);
+
+  return {
+    totalLeads,
+    economicIndicators,
+    marketPressure,
+    demandForecast,
+    band:
+      marketPressure >= 40 ? "High Pressure" :
+      marketPressure >= 20 ? "Moderate Pressure" :
+      "Low Pressure",
+  };
+}
+
+/* -------------------------------------------------------
+   ⭐ V19 — MANUFACTURER–DEALER STRATEGY ENGINE
+------------------------------------------------------- */
+
+export function manufacturerDealerStrategy(
+  oemIntel: ReturnType<typeof oemIntelligenceEngine>,
+  supplyChain: ReturnType<typeof supplyChainForecasting>,
+  marketModel: ReturnType<typeof nationalMarketModel>
+) {
+  let strategy = "Maintain current dealer supply";
+
+  if (oemIntel.band === "High Efficiency" && marketModel.band === "Low Pressure")
+    strategy = "Increase dealer allocations";
+
+  if (marketModel.band === "High Pressure")
+    strategy = "Reduce allocations + increase wholesale incentives";
+
+  if (supplyChain.deliveryRisk === "High Delay Risk")
+    strategy = "Delay dealer orders + increase buffer stock";
+
+  return {
+    oemIntel,
+    supplyChain,
+    marketModel,
+    strategy,
+  };
+}
+
+/* -------------------------------------------------------
+   ⭐ V19 — FULL AUTOMOTIVE ECOSYSTEM GOVERNANCE BRAIN
+------------------------------------------------------- */
+
+export function automotiveEcosystemGovernance(
+  oem: {
+    name: string;
+    avgProductionCost: number;
+    avgWholesalePrice: number;
+    avgDeliveryTimeDays: number;
+  },
+  dealerNetwork: {
+    name: string;
+    branches: { name: string; region: string; vehicles: FlipRecord[]; leads: any[] }[];
+  }[],
+  economicIndicators: {
+    inflation: number;
+    interestRate: number;
+    consumerConfidence: number;
+  }
+) {
+  const oemIntel = oemIntelligenceEngine(oem);
+  const supplyChain = supplyChainForecasting(oem, dealerNetwork);
+  const marketModel = nationalMarketModel(dealerNetwork, economicIndicators);
+  const strategy = manufacturerDealerStrategy(oemIntel, supplyChain, marketModel);
+
+  const governanceStatus =
+    marketModel.band === "High Pressure"
+      ? "⚠️ Governance Alert: National Market Stress"
+      : supplyChain.deliveryRisk === "High Delay Risk"
+      ? "⚠️ Governance Alert: Supply Chain Instability"
+      : "🟢 Ecosystem Stable";
+
+  return {
+    oemIntel,
+    supplyChain,
+    marketModel,
+    strategy,
+    governanceStatus,
+  };
+}
+
+/* -------------------------------------------------------
+   ⭐ V19 — FULL AUTOMOTIVE ECOSYSTEM AI SUITE
+------------------------------------------------------- */
+
+export function getAutomotiveEcosystemAISuite(
+  oem: {
+    name: string;
+    avgProductionCost: number;
+    avgWholesalePrice: number;
+    avgDeliveryTimeDays: number;
+  },
+  dealerNetwork: {
+    name: string;
+    branches: { name: string; region: string; vehicles: FlipRecord[]; leads: any[] }[];
+  }[],
+  economicIndicators: {
+    inflation: number;
+    interestRate: number;
+    consumerConfidence: number;
+  }
+) {
+  return {
+    oemIntel: oemIntelligenceEngine(oem),
+    supplyChain: supplyChainForecasting(oem, dealerNetwork),
+    marketModel: nationalMarketModel(dealerNetwork, economicIndicators),
+    strategyEngine: manufacturerDealerStrategy(
+      oemIntelligenceEngine(oem),
+      supplyChainForecasting(oem, dealerNetwork),
+      nationalMarketModel(dealerNetwork, economicIndicators)
+    ),
+    governanceBrain: automotiveEcosystemGovernance(oem, dealerNetwork, economicIndicators),
+    status: "🟢 V19 Automotive Ecosystem AI Active",
+  };
+}
+/* -------------------------------------------------------
+   ⭐ V20 — GLOBAL AUTOMOTIVE INTELLIGENCE ENGINE
+------------------------------------------------------- */
+
+/* -------------------------------------------------------
+   ⭐ V20 — GLOBAL AUTOMOTIVE INTELLIGENCE ENGINE (UPDATED)
+------------------------------------------------------- */
+
+export function globalAutomotiveIntelligence(
+  regions: {
+    name: string;
+    dealerNetworks: {
+      name: string;
+      branches: {
+        name: string;
+        region: string;
+        vehicles: FlipRecord[];
+        leads: any[];
+      }[];
+    }[];
+    economicIndicators: {
+      inflation: number;
+      interestRate: number;
+      consumerConfidence: number;
+    };
+  }[],
+  economics: {
+    globalInflation: number;
+    shippingCostIndex: number;
+    commodityPrices: number;
+    energyCost: number;
+  }
+) {
+  return regions.map(region => {
+    const totalLeads = region.dealerNetworks.reduce(
+      (acc, net) => acc + net.branches.reduce((a, b) => a + b.leads.length, 0),
+      0
+    );
+
+    const avgFlipScore =
+      region.dealerNetworks.reduce(
+        (acc, net) =>
+          acc +
+          net.branches.reduce(
+            (a, b) =>
+              a +
+              b.vehicles.reduce((x, y) => x + (y.flipScore ?? 50), 0),
+            0
+          ),
+        0
+      ) / (totalLeads || 1);
+
+    const pressure =
+      region.economicIndicators.inflation * 2 +
+      region.economicIndicators.interestRate * 3 -
+      region.economicIndicators.consumerConfidence * 1.5 +
+      economics.globalInflation * 1.2 +
+      economics.shippingCostIndex * 0.8;
+
+    const stability =
+      pressure < 20
+        ? "Stable"
+        : pressure < 40
+        ? "Moderate Stress"
+        : "High Stress";
+
+    return {
+      region: region.name,
+      totalLeads,
+      avgFlipScore,
+      pressure,
+      stability,
+      economicsImpact: economics,
+    };
+  });
+}
+
+/* -------------------------------------------------------
+   ⭐ V20 — INTERNATIONAL SUPPLY‑CHAIN MODELLING ENGINE (UPDATED)
+------------------------------------------------------- */
+
+export function internationalSupplyChainModel(
+  oems: {
+    name: string;
+    productionCost: number;
+    wholesalePrice: number;
+    avgDeliveryTimeDays: number;
+    globalCapacity: number;
+  }[],
+  regions: ReturnType<typeof globalAutomotiveIntelligence>,
+  economics: {
+    globalInflation: number;
+    shippingCostIndex: number;
+    commodityPrices: number;
+    energyCost: number;
+  }
+) {
+  return oems.map(oem => {
+    const globalDemand = regions.reduce((acc, r) => acc + r.totalLeads, 0);
+
+    const supplyCapacity =
+      oem.globalCapacity -
+      oem.avgDeliveryTimeDays * (50 + economics.shippingCostIndex * 0.2);
+
+    const supplyStress =
+      globalDemand > supplyCapacity
+        ? "Overloaded"
+        : globalDemand > supplyCapacity * 0.8
+        ? "Near Capacity"
+        : "Stable";
+
+    return {
+      oem: oem.name,
+      globalDemand,
+      supplyCapacity,
+      supplyStress,
+      economicsImpact: {
+        inflation: economics.globalInflation,
+        shippingCostIndex: economics.shippingCostIndex,
+        commodityPrices: economics.commodityPrices,
+        energyCost: economics.energyCost,
+      },
+      recommendation:
+        supplyStress === "Overloaded"
+          ? "Increase production + reduce low‑margin markets"
+          : supplyStress === "Near Capacity"
+          ? "Prioritise high‑margin regions"
+          : "Stable global supply",
+    };
+  });
+}
+
+/* -------------------------------------------------------
+   ⭐ V20 — GLOBAL MARKET STRESS ENGINE
+------------------------------------------------------- */
+
+export function globalMarketStressEngine(
+  regions: ReturnType<typeof globalAutomotiveIntelligence>,
+  oemSupply: ReturnType<typeof internationalSupplyChainModel>,
+  economics: {
+    globalInflation: number;
+    shippingCostIndex: number;
+    commodityPrices: number;
+    energyCost: number;
+  }
+) {
+  const avgPressure =
+    regions.reduce((a, b) => a + b.pressure, 0) / regions.length +
+    economics.globalInflation * 0.5;
+
+  const supplyStressCount = oemSupply.filter(o => o.supplyStress !== "Stable").length;
+
+  const globalStress = avgPressure * 0.6 + supplyStressCount * 10;
+
+  return {
+    avgPressure,
+    supplyStressCount,
+    globalStress,
+    band:
+      globalStress >= 80 ? "Severe Global Stress" :
+      globalStress >= 50 ? "Moderate Global Stress" :
+      "Low Global Stress",
+    recommendation:
+      globalStress >= 80
+        ? "Reduce production + increase wholesale incentives globally"
+        : globalStress >= 50
+        ? "Shift stock to stable regions"
+        : "Global market stable",
+  };
+}
+
+
+/* -------------------------------------------------------
+   ⭐ V20 — CROSS‑COUNTRY STOCK STRATEGY ENGINE
+------------------------------------------------------- */
+
+export function crossCountryStockStrategy(
+  regions: ReturnType<typeof globalAutomotiveIntelligence>,
+  economics: {
+    globalInflation: number;
+    shippingCostIndex: number;
+    commodityPrices: number;
+    energyCost: number;
+  }
+) {
+  return regions.map(region => {
+    const ratio = region.totalLeads === 0 ? 0 : region.avgFlipScore / region.totalLeads;
+
+    let strategy = "Hold";
+
+    if (ratio > 1.2) strategy = "Shift stock INTO region";
+    else if (ratio < 0.6) strategy = "Shift stock OUT of region";
+
+    return {
+      region: region.region,
+      ratio,
+      strategy,
+      economicsImpact: economics,
+    };
+  });
+}
+
+/* -------------------------------------------------------
+   ⭐ V20 — GLOBAL AUTOMOTIVE GOVERNANCE BRAIN
+------------------------------------------------------- */
+
+export function globalAutomotiveGovernance(
+  oems: {
+    name: string;
+    productionCost: number;
+    wholesalePrice: number;
+    avgDeliveryTimeDays: number;
+    globalCapacity: number;
+  }[],
+  regions: {
+    name: string;
+    dealerNetworks: {
+      name: string;
+      branches: { name: string; region: string; vehicles: FlipRecord[]; leads: any[] }[];
+    }[];
+    economicIndicators: { inflation: number; interestRate: number; consumerConfidence: number };
+  }[],
+  economics: {
+    globalInflation: number;
+    shippingCostIndex: number;
+    commodityPrices: number;
+    energyCost: number;
+  }
+) {
+  // V20 intelligence engines now require economics
+  const regionIntel = globalAutomotiveIntelligence(regions, economics);
+
+  const supplyIntel = internationalSupplyChainModel(
+    oems,
+    regionIntel,
+    economics
+  );
+
+  const stressIntel = globalMarketStressEngine(
+    regionIntel,
+    supplyIntel,
+    economics
+  );
+
+  const stockStrategy = crossCountryStockStrategy(
+    regionIntel,
+    economics
+  );
+
+  const governanceStatus =
+    stressIntel.band === "Severe Global Stress"
+      ? "⚠️ Global Governance Alert: Severe Stress"
+      : supplyIntel.some(o => o.supplyStress === "Overloaded")
+      ? "⚠️ Global Governance Alert: Supply Chain Overload"
+      : "🟢 Global Automotive Ecosystem Stable";
+
+  return {
+    regionIntel,
+    supplyIntel,
+    stressIntel,
+    stockStrategy,
+    governanceStatus,
+  };
+}
+
+
+
+
+/* -------------------------------------------------------
+   ⭐ V20 — FULL GLOBAL AUTOMOTIVE AI SUITE (UPDATED)
+------------------------------------------------------- */
+
+export function getGlobalAutomotiveAISuite(
+  oems: {
+    name: string;
+    productionCost: number;
+    wholesalePrice: number;
+    avgDeliveryTimeDays: number;
+    globalCapacity: number;
+  }[],
+  regions: {
+    name: string;
+    dealerNetworks: {
+      name: string;
+      branches: {
+        name: string;
+        region: string;
+        vehicles: FlipRecord[];
+        leads: any[];
+      }[];
+    }[];
+    economicIndicators: {
+      inflation: number;
+      interestRate: number;
+      consumerConfidence: number;
+    };
+  }[],
+  economics: {
+    globalInflation: number;
+    shippingCostIndex: number;
+    commodityPrices: number;
+    energyCost: number;
+  }
+) {
+  return {
+  globalIntel: globalAutomotiveIntelligence(regions, economics),
+
+
+   supplyChain: internationalSupplyChainModel(
+  oems,
+  globalAutomotiveIntelligence(regions, economics),
+  economics
+),
+
+
+   globalStress: globalMarketStressEngine(
+  globalAutomotiveIntelligence(regions, economics),
+  internationalSupplyChainModel(
+    oems,
+    globalAutomotiveIntelligence(regions, economics),
+    economics
+  ),
+  economics
+),
+
+
+  stockStrategy: crossCountryStockStrategy(
+  globalAutomotiveIntelligence(regions, economics),
+  economics
+),
+
+
+    governanceBrain: globalAutomotiveGovernance(oems, regions, economics),
+
+    economicsBrain: economics, // optional but useful
+
+    status: "🟢 V20 Global Automotive AI Active",
+  };
+}
+
+/* -------------------------------------------------------
+   ⭐ V21 — PLANETARY AUTOMOTIVE SIMULATION ENGINE
+------------------------------------------------------- */
+
+export function planetaryAutomotiveSimulation(
+  globalData: {
+    regions: {
+      name: string;
+      population: number;
+      gdp: number;
+      dealerNetworks: {
+        name: string;
+        branches: { name: string; vehicles: FlipRecord[]; leads: any[] }[];
+      }[];
+    }[];
+    oems: {
+      name: string;
+      globalCapacity: number;
+      avgProductionCost: number;
+      avgWholesalePrice: number;
+    }[];
+    macroEconomics: {
+      inflation: number;
+      interestRate: number;
+      consumerConfidence: number;
+      energyCostIndex: number;
+    };
+  }
+) {
+  const regionSim = globalData.regions.map(region => {
+    const totalLeads = region.dealerNetworks.reduce(
+      (acc, net) => acc + net.branches.reduce((a, b) => a + b.leads.length, 0),
+      0
+    );
+
+    const economicPressure =
+      globalData.macroEconomics.inflation * 1.5 +
+      globalData.macroEconomics.interestRate * 2 -
+      globalData.macroEconomics.consumerConfidence * 1.2 +
+      globalData.macroEconomics.energyCostIndex * 0.8;
+
+    const demandProjection = Math.round(
+      (totalLeads * region.population * 0.00001 * (region.gdp / 10000)) /
+      (1 + economicPressure / 100)
+    );
+
+    return {
+      region: region.name,
+      population: region.population,
+      gdp: region.gdp,
+      totalLeads,
+      economicPressure,
+      demandProjection,
+    };
+  });
+
+  return regionSim;
+}
+
+/* -------------------------------------------------------
+   ⭐ V21 — GLOBAL DEMAND PREDICTION (10‑YEAR HORIZON)
+------------------------------------------------------- */
+
+export function globalDemandPrediction(
+  simulation: ReturnType<typeof planetaryAutomotiveSimulation>
+) {
+  return simulation.map(region => {
+    const base = region.demandProjection;
+
+    const tenYearForecast = Math.round(
+      base *
+        (1 +
+          (region.gdp / 100000) -
+          (region.economicPressure / 200) +
+          Math.random() * 0.1)
+    );
+
+    return {
+      region: region.region,
+      currentDemand: base,
+      tenYearForecast,
+      band:
+        tenYearForecast > base * 1.3 ? "High Growth" :
+        tenYearForecast > base * 1.1 ? "Moderate Growth" :
+        tenYearForecast > base * 0.9 ? "Stable" :
+        "Decline",
+    };
+  });
+}
+
+/* -------------------------------------------------------
+   ⭐ V21 — EV vs ICE MARKET SHIFT ENGINE
+------------------------------------------------------- */
+
+export function evIceShiftEngine(
+  globalData: {
+    macroEconomics: { energyCostIndex: number; consumerConfidence: number };
+    regions: { name: string; gdp: number }[];
+  }
+) {
+  return globalData.regions.map(region => {
+    const evShift =
+      region.gdp / 10000 +
+      globalData.macroEconomics.consumerConfidence * 0.3 -
+      globalData.macroEconomics.energyCostIndex * 0.5;
+
+    const evShare = Math.max(5, Math.min(90, Math.round(evShift * 10)));
+
+    return {
+      region: region.name,
+      evShare,
+      iceShare: 100 - evShare,
+      band:
+        evShare >= 70 ? "EV Dominant" :
+        evShare >= 40 ? "EV Rising" :
+        evShare >= 20 ? "ICE Dominant" :
+        "ICE Stronghold",
+    };
+  });
+}
+
+/* -------------------------------------------------------
+   ⭐ V21 — WORLDWIDE STOCK BALANCING ENGINE
+------------------------------------------------------- */
+
+export function worldwideStockBalancing(
+  simulation: ReturnType<typeof planetaryAutomotiveSimulation>,
+  evShift: ReturnType<typeof evIceShiftEngine>
+) {
+  return simulation.map(region => {
+    const ev = evShift.find(e => e.region === region.region);
+
+    const ratio = region.demandProjection / (ev?.evShare ?? 50);
+
+    let strategy = "Hold";
+
+    if (ratio > 2) strategy = "Shift EV stock INTO region";
+    else if (ratio < 0.8) strategy = "Shift ICE stock INTO region";
+
+    return {
+      region: region.region,
+      ratio,
+      strategy,
+    };
+  });
+}
+
+/* -------------------------------------------------------
+   ⭐ V21 — GLOBAL AUTOMOTIVE FORESIGHT BRAIN
+------------------------------------------------------- */
+
+export function globalAutomotiveForesightBrain(
+  globalData: Parameters<typeof planetaryAutomotiveSimulation>[0]
+) {
+  const simulation = planetaryAutomotiveSimulation(globalData);
+  const demand = globalDemandPrediction(simulation);
+  const evShift = evIceShiftEngine(globalData);
+  const balancing = worldwideStockBalancing(simulation, evShift);
+
+  const foresightStatus =
+    demand.some(d => d.band === "Decline")
+      ? "⚠️ Global Decline Risk"
+      : evShift.some(e => e.band === "ICE Stronghold")
+      ? "⚠️ ICE Resistance Detected"
+      : "🟢 Global Foresight Stable";
+
+  return {
+    simulation,
+    demand,
+    evShift,
+    balancing,
+    foresightStatus,
+  };
+}
+
+/* -------------------------------------------------------
+   ⭐ V21 — FULL PLANETARY AUTOMOTIVE AI SUITE
+------------------------------------------------------- */
+
+export function getPlanetaryAutomotiveAISuite(
+  globalData: Parameters<typeof planetaryAutomotiveSimulation>[0]
+) {
+  return {
+    simulation: planetaryAutomotiveSimulation(globalData),
+    demandForecast: globalDemandPrediction(
+      planetaryAutomotiveSimulation(globalData)
+    ),
+    evShift: evIceShiftEngine(globalData),
+    balancing: worldwideStockBalancing(
+      planetaryAutomotiveSimulation(globalData),
+      evIceShiftEngine(globalData)
+    ),
+    foresightBrain: globalAutomotiveForesightBrain(globalData),
+    status: "🟢 V21 Planetary Automotive AI Active",
+  };
+}
+export type FlipPilotMode =
+  | "dealer"
+  | "group"
+  | "oem"
+  | "global"
+  | "planet";
+
+export function flipPilotMasterBrain(mode: FlipPilotMode, data: any) {
+  switch (mode) {
+    case "dealer":
+      return {
+        mode,
+        brain: getAutonomousDealershipBrain(data.vehicles, data.leads),
+        status: "🟢 Dealer AI Active",
+      };
+
+    case "group":
+      return {
+        mode,
+        brain: getEnterpriseDealerGroupAISuite(data.network),
+        status: "🟢 Dealer Group AI Active",
+      };
+
+    case "oem":
+      return {
+        mode,
+        brain: getAutomotiveEcosystemAISuite(
+          data.oem,
+          data.network,
+          data.economics
+        ),
+        status: "🟢 OEM Ecosystem AI Active",
+      };
+
+    case "global":
+      return {
+        mode,
+        brain: getGlobalAutomotiveAISuite(
+          data.oems,
+          data.regions,
+          data.economics
+        ),
+        status: "🟢 Global Automotive AI Active",
+      };
+
+    case "planet":
+      return {
+        mode,
+        brain: getPlanetaryAutomotiveAISuite(data.global),
+        status: "🟢 Planetary Automotive AI Active",
+      };
+
+    default:
+      return {
+        mode: "unknown",
+        error: "❌ Unknown FlipPilot mode",
+   }
+}
+}
+
+
+

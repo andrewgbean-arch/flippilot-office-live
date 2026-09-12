@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "ignoreDeprecations": "6.0"
+  },
+
+  "files": [],
+
+  "references": [
+    { "path": "./tsconfig.web.json" },
+    { "path": "./tsconfig.native.json" }
+  ],
+
+  "exclude": [
+    
+  ]
+}
+
+

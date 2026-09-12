@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "baseUrl": ".",
+    "ignoreDeprecations": "6.0",
+
+    "paths": {
+      "@motors/*": ["src/motors/*"],
+      "@features/*": ["src/features/*"]
+    }
+  },
+
+  "include": ["src/motors"],
+  "exclude": ["node_modules"]
+}

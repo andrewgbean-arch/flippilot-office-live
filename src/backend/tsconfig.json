@@ -1,0 +1,38 @@
+{
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "module": "nodenext",
+    "target": "esnext",
+    "types": [],
+    "sourceMap": true,
+    "declaration": true,
+    "declarationMap": true,
+    "allowJs": false,
+    "noEmitOnError": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "strict": true,
+    "jsx": "react-jsx",
+    "verbatimModuleSyntax": false,
+    "isolatedModules": true,
+    "noUncheckedSideEffectImports": true,
+    "moduleDetection": "force",
+    "skipLibCheck": true,
+
+    "ignoreDeprecations": "6.0",
+
+    "baseUrl": "src",
+   "paths": {
+  "@/*": ["*"],
+  "@/backend/*": ["backend/*"],
+  "@/types/*": ["types/*"],
+  "@/utils/*": ["utils/*"],
+  "@/components/*": ["components/*"],
+  "@/features/*": ["features/*"],
+  "@/staff/*": ["staff/*"]
+}
+  },
+  "include": ["src"],
+  "exclude": ["node_modules", "dist"]
+}
