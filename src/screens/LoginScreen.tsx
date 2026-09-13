@@ -74,6 +74,12 @@ export default function LoginScreen() {
         </button>
 
         <p className="text-center text-white/50 text-sm">
+          <Link to="/forgot-password" className="text-yellow-300 hover:underline">
+            Forgot password?
+          </Link>
+        </p>
+
+        <p className="text-center text-white/50 text-sm">
           No account yet?{" "}
           <Link to="/signup" className="text-yellow-300 hover:underline">
             Create one

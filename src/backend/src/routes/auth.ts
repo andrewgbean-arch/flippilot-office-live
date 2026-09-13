@@ -7,10 +7,13 @@ import {
   signToken,
   requireAuth,
   verifyInviteToken,
+  signPasswordResetToken,
+  verifyPasswordResetToken,
   type StoredUser,
   type AuthUser,
   type Dealership,
 } from "../auth";
+import { sendEmail } from "../email";
 
 const TRIAL_DAYS = 14;
 
@@ -193,6 +196,75 @@ export default function registerAuthRoute(app: Express) {
 
     if (!user || !(await verifyPassword(currentPassword, user.passwordHash))) {
       return res.status(401).json({ ok: false, error: "Current password is incorrect" });
+    }
+
+    user.passwordHash = await hashPassword(newPassword);
+    writeCollection("users", users);
+
+    res.json({ ok: true });
+  });
+
+  // Requesting a reset always returns the same generic response
+  // regardless of whether the email is registered — otherwise this
+  // endpoint could be used to check which emails have accounts.
+  app.post("/auth/forgot-password", async (req, res) => {
+    const { email } = req.body ?? {};
+    if (!email) {
+      return res.status(400).json({ ok: false, error: "Email is required" });
+    }
+
+    const users = readCollection<StoredUser>("users");
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const user = users.find(u => u.email === normalizedEmail);
+
+    let devResetLink: string | undefined;
+
+    if (user) {
+      const token = signPasswordResetToken(user.id);
+      const resetLink = `${req.headers.origin || "http://localhost:5173"}/reset-password?token=${token}`;
+
+      await sendEmail(
+        user.email,
+        "Reset your FlipPilot Dealer OS password",
+        `Click this link to reset your password (expires in 1 hour): ${resetLink}\n\nIf you didn't request this, ignore this email.`
+      );
+
+      // Only surfaced when no real email provider is configured (see
+      // email.ts) — otherwise the link would only ever reach the real
+      // inbox, same as a production password reset should work.
+      if (!process.env.RESEND_API_KEY) {
+        devResetLink = resetLink;
+      }
+    }
+
+    res.json({
+      ok: true,
+      message: "If an account exists for that email, a reset link has been sent.",
+      ...(devResetLink ? { devResetLink } : {}),
+    });
+  });
+
+  app.post("/auth/reset-password", async (req, res) => {
+    const { token, newPassword } = req.body ?? {};
+
+    if (!token || !newPassword) {
+      return res.status(400).json({ ok: false, error: "Token and new password are required" });
+    }
+    if (typeof newPassword !== "string" || newPassword.length < 8) {
+      return res
+        .status(400)
+        .json({ ok: false, error: "New password must be at least 8 characters" });
+    }
+
+    const userId = verifyPasswordResetToken(token);
+    if (!userId) {
+      return res.status(400).json({ ok: false, error: "This reset link is invalid or has expired" });
+    }
+
+    const users = readCollection<StoredUser>("users");
+    const user = users.find(u => u.id === userId);
+    if (!user) {
+      return res.status(404).json({ ok: false, error: "Account no longer exists" });
     }
 
     user.passwordHash = await hashPassword(newPassword);

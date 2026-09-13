@@ -126,6 +126,32 @@ export function requireOwner(req: Request, res: Response, next: NextFunction) {
   next();
 }
 
+interface PasswordResetPayload {
+  purpose: "password-reset";
+  userId: string;
+}
+
+// Short-lived (1 hour), single-purpose token — same separation-of-
+// concerns reasoning as the invite token: never accepted by requireAuth,
+// never usable for anything except calling /auth/reset-password once.
+export function signPasswordResetToken(userId: string): string {
+  return jwt.sign(
+    { purpose: "password-reset", userId },
+    getJwtSecret(),
+    { expiresIn: "1h" }
+  );
+}
+
+export function verifyPasswordResetToken(token: string): string | null {
+  try {
+    const decoded = jwt.verify(token, getJwtSecret()) as PasswordResetPayload;
+    if (decoded.purpose !== "password-reset") return null;
+    return decoded.userId;
+  } catch {
+    return null;
+  }
+}
+
 // Attaches req.user when a valid token is present, and rejects with 401
 // otherwise. Every real data route (inventory/leads/staff) uses this —
 // previously those endpoints had zero access control, so anyone who
