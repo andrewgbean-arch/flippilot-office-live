@@ -83,6 +83,49 @@ export function verifyToken(token: string): AuthUser | null {
   }
 }
 
+export interface InviteTokenPayload {
+  purpose: "dealer-invite";
+  dealershipId: string;
+  dealershipName: string;
+  role: "staff";
+  inviteeName?: string;
+}
+
+// Lets an owner invite a real teammate into their EXISTING dealership —
+// previously every signup created a brand-new, isolated dealership with
+// no way to add a second person to one at all. This token is a
+// short-lived, single-purpose JWT (not a login session token — verified
+// separately via verifyInviteToken, never accepted by requireAuth)
+// carrying just enough to let /auth/join create a properly-scoped
+// account without ever trusting client-supplied dealership IDs.
+export function signInviteToken(payload: Omit<InviteTokenPayload, "purpose">): string {
+  return jwt.sign(
+    { purpose: "dealer-invite", ...payload },
+    getJwtSecret(),
+    { expiresIn: "7d" }
+  );
+}
+
+export function verifyInviteToken(token: string): InviteTokenPayload | null {
+  try {
+    const decoded = jwt.verify(token, getJwtSecret()) as InviteTokenPayload;
+    if (decoded.purpose !== "dealer-invite") return null;
+    return decoded;
+  } catch {
+    return null;
+  }
+}
+
+// A first, real use of the owner/staff role split that already existed
+// on every account — nothing previously checked it anywhere.
+export function requireOwner(req: Request, res: Response, next: NextFunction) {
+  const user = (req as Request & { user: AuthUser }).user;
+  if (user.role !== "owner") {
+    return res.status(403).json({ ok: false, error: "Only the dealership owner can do this" });
+  }
+  next();
+}
+
 // Attaches req.user when a valid token is present, and rejects with 401
 // otherwise. Every real data route (inventory/leads/staff) uses this —
 // previously those endpoints had zero access control, so anyone who

@@ -6,9 +6,118 @@ import { SupernovaSectionDivider } from "@/components/supernova/SupernovaSection
 import { SupernovaGlowButton } from "@/components/supernova/SupernovaGlowButton";
 
 import { useDealer } from "@/context/DealerContext";
+import { useAuth } from "@/context/AuthContext";
 import { authHeaders } from "@/lib/authToken";
 
 const BASE_URL = "http://localhost:4001";
+
+function InviteTeammateModal({ onClose }: { onClose: () => void }) {
+  const [inviteeName, setInviteeName] = useState("");
+  const [link, setLink] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function generateLink() {
+    setGenerating(true);
+    setError(null);
+    try {
+      const res = await fetch(`${BASE_URL}/dealership/invite`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ inviteeName: inviteeName.trim() }),
+      });
+      const data = await res.json();
+      if (!data.ok) {
+        setError(data.error || "Failed to generate invite link.");
+        return;
+      }
+      setLink(`${window.location.origin}/join?token=${data.token}`);
+    } catch {
+      setError("Backend unreachable — try again.");
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  function copyLink() {
+    if (!link) return;
+    navigator.clipboard.writeText(link).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+      <div className="bg-black/90 border border-yellow-400/30 p-6 rounded-xl w-full max-w-md">
+        <h2 className="text-yellow-300 text-xl font-bold mb-4">Invite a Teammate</h2>
+
+        {!link ? (
+          <>
+            <label className="text-white/60 text-sm">Their Name (optional)</label>
+            <input
+              type="text"
+              value={inviteeName}
+              onChange={(e) => setInviteeName(e.target.value)}
+              placeholder="e.g. Sarah"
+              className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-4"
+            />
+
+            {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
+
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={onClose}
+                className="px-4 py-2 rounded bg-white/10 text-white/70 hover:bg-white/20"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={generateLink}
+                disabled={generating}
+                className="px-4 py-2 rounded font-semibold bg-yellow-400 text-black hover:bg-yellow-300 disabled:opacity-60"
+              >
+                {generating ? "Generating…" : "Generate Link"}
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="text-white/70 text-sm mb-3">
+              {inviteeName.trim()
+                ? `Share this link with ${inviteeName.trim()} — they'll`
+                : "Share this link with a coworker — they'll"}{" "}
+              create their own login and land inside your dealership, not a
+              separate one. It expires in 7 days.
+            </p>
+            <div className="flex gap-2 mb-4">
+              <input
+                readOnly
+                value={link}
+                className="flex-1 p-2 rounded bg-black/40 border border-white/10 text-white/80 text-sm"
+              />
+              <button
+                onClick={copyLink}
+                className="px-4 py-2 rounded font-semibold bg-yellow-400 text-black hover:bg-yellow-300 whitespace-nowrap"
+              >
+                {copied ? "Copied!" : "Copy"}
+              </button>
+            </div>
+            <div className="flex justify-end">
+              <button
+                onClick={onClose}
+                className="px-4 py-2 rounded bg-white/10 text-white/70 hover:bg-white/20"
+              >
+                Close
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function EditDealerProfileModal({ onClose }: { onClose: () => void }) {
   const { dealer, updateDealer } = useDealer();
@@ -196,8 +305,10 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
 }
 
 export default function Settings() {
+  const { user } = useAuth();
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [showInviteModal, setShowInviteModal] = useState(false);
 
   return (
     <div className="animate-fadeIn text-white px-6 py-10 max-w-5xl mx-auto">
@@ -241,6 +352,20 @@ export default function Settings() {
           <SupernovaGlowButton label="Change Password" onClick={() => setShowPasswordModal(true)} />
         </SupernovaGlowCard>
 
+        {/* Team — owner only, since inviting someone into your
+            dealership's data is an ownership-level decision */}
+        {user?.role === "owner" && (
+          <SupernovaGlowCard>
+            <h2 className="text-yellow-300 font-bold text-xl mb-3">Team</h2>
+            <p className="text-white/70 mb-4">
+              Invite a teammate into this dealership — they'll get their
+              own login inside your workspace, not a separate one.
+            </p>
+
+            <SupernovaGlowButton label="Invite Teammate" onClick={() => setShowInviteModal(true)} />
+          </SupernovaGlowCard>
+        )}
+
       </section>
 
       {/* Not built yet — being upfront instead of shipping dead buttons */}
@@ -252,7 +377,6 @@ export default function Settings() {
         <ul className="space-y-3 text-white/70">
           <li>• Custom dealer themes</li>
           <li>• Notification preferences</li>
-          <li>• Team invites (currently every signup creates a separate dealership)</li>
           <li>• Multi‑dealer account switching</li>
           <li>• Exportable configuration profiles</li>
         </ul>
@@ -260,6 +384,7 @@ export default function Settings() {
 
       {showProfileModal && <EditDealerProfileModal onClose={() => setShowProfileModal(false)} />}
       {showPasswordModal && <ChangePasswordModal onClose={() => setShowPasswordModal(false)} />}
+      {showInviteModal && <InviteTeammateModal onClose={() => setShowInviteModal(false)} />}
 
     </div>
   );

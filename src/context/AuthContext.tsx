@@ -23,6 +23,12 @@ interface AuthContextType {
     email: string,
     password: string
   ) => Promise<AuthResult>;
+  joinDealership: (
+    token: string,
+    name: string,
+    email: string,
+    password: string
+  ) => Promise<AuthResult>;
   logout: () => void;
 }
 
@@ -87,13 +93,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  async function joinDealership(
+    token: string,
+    name: string,
+    email: string,
+    password: string
+  ): Promise<AuthResult> {
+    try {
+      const res = await fetch(`${BASE_URL}/auth/join`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token, name, email, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) return { ok: false, error: data.error ?? "Failed to join dealership" };
+
+      setAuthToken(data.token);
+      setUser(data.user);
+      return { ok: true };
+    } catch {
+      return { ok: false, error: "Couldn't reach the server — is the backend running?" };
+    }
+  }
+
   function logout() {
     setAuthToken(null);
     setUser(null);
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, signup, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, signup, joinDealership, logout }}>
       {children}
     </AuthContext.Provider>
   );

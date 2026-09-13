@@ -87,6 +87,7 @@ const signupLimiter = rateLimit({
 });
 app.use("/auth/login", loginLimiter);
 app.use("/auth/signup", signupLimiter);
+app.use("/auth/join", signupLimiter);
 
 registerAuthRoute(app);
 registerDealershipRoute(app);

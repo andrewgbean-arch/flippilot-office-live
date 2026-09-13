@@ -1,6 +1,6 @@
 import { Express, Request } from "express";
 import { readCollection, writeCollection } from "../db";
-import { requireAuth, type AuthUser, type Dealership } from "../auth";
+import { requireAuth, requireOwner, signInviteToken, type AuthUser, type Dealership } from "../auth";
 
 export default function registerDealershipRoute(app: Express) {
   app.get("/dealership/me", requireAuth, (req, res) => {
@@ -19,7 +19,7 @@ export default function registerDealershipRoute(app: Express) {
   // previously had no backing endpoint at all, just a button with no
   // onClick. Only name/phone/address are editable here; billing/
   // subscription fields stay untouched regardless of what's posted.
-  app.put("/dealership/me", requireAuth, (req, res) => {
+  app.put("/dealership/me", requireAuth, requireOwner, (req, res) => {
     const user = (req as Request & { user: AuthUser }).user;
     const { name, phone, address } = req.body ?? {};
 
@@ -48,5 +48,31 @@ export default function registerDealershipRoute(app: Express) {
 
     writeCollection("dealerships", dealerships);
     res.json({ ok: true, dealership });
+  });
+
+  // Generates a shareable invite link (owner-only). There's no email
+  // service configured for this app yet, so this hands back a raw link
+  // for the owner to send themselves however they like, rather than
+  // pretending to email it.
+  app.post("/dealership/invite", requireAuth, requireOwner, (req, res) => {
+    const user = (req as Request & { user: AuthUser }).user;
+    const { inviteeName } = req.body ?? {};
+    const dealerships = readCollection<Dealership>("dealerships");
+    const dealership = dealerships.find(d => d.id === user.dealershipId);
+
+    if (!dealership) {
+      return res.status(404).json({ ok: false, error: "Dealership not found" });
+    }
+
+    const trimmedName = typeof inviteeName === "string" ? inviteeName.trim() : "";
+
+    const token = signInviteToken({
+      dealershipId: dealership.id,
+      dealershipName: dealership.name,
+      role: "staff",
+      ...(trimmedName ? { inviteeName: trimmedName } : {}),
+    });
+
+    res.json({ ok: true, token });
   });
 }

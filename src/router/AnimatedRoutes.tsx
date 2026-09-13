@@ -5,6 +5,7 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 /* AUTH */
 import LoginScreen from "@/screens/LoginScreen";
 import SignupScreen from "@/screens/SignupScreen";
+import JoinScreen from "@/screens/JoinScreen";
 
 /* BILLING */
 import BillingScreen from "@/screens/BillingScreen";
@@ -116,6 +117,7 @@ export default function AnimatedRoutes() {
       {/* AUTH — outside DealerLayout, no sidebar/nav chrome */}
       <Route path="/login" element={<LoginScreen />} />
       <Route path="/signup" element={<SignupScreen />} />
+      <Route path="/join" element={<JoinScreen />} />
       <Route path="/terms" element={<TermsScreen />} />
       <Route path="/privacy" element={<PrivacyScreen />} />
 

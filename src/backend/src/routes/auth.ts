@@ -6,6 +6,7 @@ import {
   verifyPassword,
   signToken,
   requireAuth,
+  verifyInviteToken,
   type StoredUser,
   type AuthUser,
   type Dealership,
@@ -77,6 +78,66 @@ export default function registerAuthRoute(app: Express) {
 
     const token = signToken(toPublicUser(newUser));
     res.json({ ok: true, token, user: toPublicUser(newUser) });
+  });
+
+  // Looks up what dealership an invite link points to, so the Join
+  // screen can show "You're joining Bean Motors" before asking for a
+  // password — and so a dead/expired link fails fast with a clear
+  // error instead of just at final submit.
+  app.get("/auth/invite/:token", (req, res) => {
+    const payload = verifyInviteToken(req.params.token);
+    if (!payload) {
+      return res.status(400).json({ ok: false, error: "This invite link is invalid or has expired" });
+    }
+    res.json({ ok: true, dealershipName: payload.dealershipName, inviteeName: payload.inviteeName });
+  });
+
+  // Creates a real account inside an EXISTING dealership from an invite
+  // link — the only way, before this, to add a second person to a
+  // dealership was for them to sign up and get their own brand-new
+  // isolated one instead.
+  app.post("/auth/join", async (req, res) => {
+    const { token, name, email, password } = req.body ?? {};
+
+    if (!token || !name || !email || !password) {
+      return res.status(400).json({
+        ok: false,
+        error: "Name, email, password and an invite link are required",
+      });
+    }
+    if (typeof password !== "string" || password.length < 8) {
+      return res
+        .status(400)
+        .json({ ok: false, error: "Password must be at least 8 characters" });
+    }
+
+    const payload = verifyInviteToken(token);
+    if (!payload) {
+      return res.status(400).json({ ok: false, error: "This invite link is invalid or has expired" });
+    }
+
+    const users = readCollection<StoredUser>("users");
+    const normalizedEmail = String(email).trim().toLowerCase();
+
+    if (users.some(u => u.email === normalizedEmail)) {
+      return res
+        .status(409)
+        .json({ ok: false, error: "An account with that email already exists" });
+    }
+
+    const newUser: StoredUser = {
+      id: randomUUID(),
+      email: normalizedEmail,
+      name: String(name).trim(),
+      role: payload.role,
+      dealershipId: payload.dealershipId,
+      passwordHash: await hashPassword(password),
+    };
+
+    writeCollection("users", [...users, newUser]);
+
+    const authToken = signToken(toPublicUser(newUser));
+    res.json({ ok: true, token: authToken, user: toPublicUser(newUser) });
   });
 
   app.post("/auth/login", async (req, res) => {
