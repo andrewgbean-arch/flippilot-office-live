@@ -1,6 +1,11 @@
 export interface Vehicle {
   id: string;
 
+  // When this vehicle entered inventory — used for days-in-stock style
+  // reporting (e.g. the Stock Optimiser tool). Optional since existing
+  // seed/demo vehicles predate this field.
+  createdAt?: string;
+
   // Identity
   reg?: string;
   make: string;

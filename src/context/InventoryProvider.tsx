@@ -161,6 +161,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
   function createVehicleFromMOT(mot: any): Vehicle {
     const newVehicle: Vehicle = {
       id: crypto.randomUUID(),
+      createdAt: new Date().toISOString(),
 
       make: mot.make ?? "",
       model: mot.model ?? "",
@@ -249,6 +250,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
   }): Vehicle {
     const newVehicle: Vehicle = {
       id: crypto.randomUUID(),
+      createdAt: new Date().toISOString(),
 
       ...(data.reg ? { reg: data.reg } : {}),
       make: data.make,
