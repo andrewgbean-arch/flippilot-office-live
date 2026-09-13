@@ -1,18 +1,21 @@
-import { Express } from "express";
-import { readCollection, writeCollection } from "../db";
+import { Express, Request } from "express";
+import { readTenantCollection, writeTenantCollection } from "../db";
+import type { AuthUser } from "../auth";
 
-// Leads previously lived only in browser localStorage (leadStorage.web.ts)
-// — nothing on the backend at all. Same whole-collection GET/PUT pattern
-// as inventory, matching what LeadsContext already expects from
-// loadLeads()/saveLeads().
+function dealershipId(req: Request): string {
+  return (req as Request & { user: AuthUser }).user.dealershipId;
+}
+
+// Scoped per-dealership — one dealer's leads are never visible to
+// another (requireAuth runs before this in server.ts).
 export default function registerLeadsRoute(app: Express) {
-  app.get("/leads", (_req, res) => {
-    res.json({ ok: true, items: readCollection("leads") });
+  app.get("/leads", (req, res) => {
+    res.json({ ok: true, items: readTenantCollection(dealershipId(req), "leads") });
   });
 
   app.put("/leads", (req, res) => {
     const items = Array.isArray(req.body?.items) ? req.body.items : [];
-    writeCollection("leads", items);
+    writeTenantCollection(dealershipId(req), "leads", items);
     res.json({ ok: true, items });
   });
 }

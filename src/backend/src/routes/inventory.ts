@@ -1,18 +1,23 @@
-import { Express } from "express";
-import { readCollection, writeCollection } from "../db";
+import { Express, Request } from "express";
+import { readTenantCollection, writeTenantCollection } from "../db";
+import type { AuthUser } from "../auth";
 
-// Was hardcoded mock data (Ford Fiesta / BMW 1 Series) that never
-// changed no matter what the frontend did — now backed by the real
-// file store, and the frontend's whole-collection load/save pattern
-// (see InventoryProvider.tsx) maps directly to GET/PUT here.
+function dealershipId(req: Request): string {
+  return (req as Request & { user: AuthUser }).user.dealershipId;
+}
+
+// Was hardcoded mock data (Ford Fiesta / BMW 1 Series), then a single
+// shared file for every dealer — now scoped per-dealership so one
+// dealer's inventory is never visible to another (requireAuth runs
+// before this in server.ts, so req.user is always populated here).
 export default function registerInventoryRoute(app: Express) {
-  app.get("/inventory", (_req, res) => {
-    res.json({ ok: true, items: readCollection("vehicles") });
+  app.get("/inventory", (req, res) => {
+    res.json({ ok: true, items: readTenantCollection(dealershipId(req), "vehicles") });
   });
 
   app.put("/inventory", (req, res) => {
     const items = Array.isArray(req.body?.items) ? req.body.items : [];
-    writeCollection("vehicles", items);
+    writeTenantCollection(dealershipId(req), "vehicles", items);
     res.json({ ok: true, items });
   });
 }

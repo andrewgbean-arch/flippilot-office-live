@@ -8,6 +8,7 @@ export type AuthUser = {
   email: string;
   name: string;
   role: "owner" | "staff";
+  dealershipId: string;
 };
 
 type AuthResult = { ok: true } | { ok: false; error: string };
@@ -16,7 +17,12 @@ interface AuthContextType {
   user: AuthUser | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<AuthResult>;
-  signup: (name: string, email: string, password: string) => Promise<AuthResult>;
+  signup: (
+    name: string,
+    dealershipName: string,
+    email: string,
+    password: string
+  ) => Promise<AuthResult>;
   logout: () => void;
 }
 
@@ -58,12 +64,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  async function signup(name: string, email: string, password: string): Promise<AuthResult> {
+  async function signup(
+    name: string,
+    dealershipName: string,
+    email: string,
+    password: string
+  ): Promise<AuthResult> {
     try {
       const res = await fetch(`${BASE_URL}/auth/signup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password }),
+        body: JSON.stringify({ name, dealershipName, email, password }),
       });
       const data = await res.json();
       if (!res.ok) return { ok: false, error: data.error ?? "Signup failed" };

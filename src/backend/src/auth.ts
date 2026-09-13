@@ -22,10 +22,24 @@ export interface AuthUser {
   email: string;
   name: string;
   role: "owner" | "staff";
+  dealershipId: string;
 }
 
 export interface StoredUser extends AuthUser {
   passwordHash: string;
+}
+
+export type SubscriptionStatus = "trialing" | "active" | "past_due" | "canceled";
+
+export interface Dealership {
+  id: string;
+  name: string;
+  ownerId: string;
+  createdAt: string;
+  subscriptionStatus: SubscriptionStatus;
+  trialEndsAt: string;
+  stripeCustomerId?: string;
+  stripeSubscriptionId?: string;
 }
 
 export async function hashPassword(password: string): Promise<string> {
@@ -41,7 +55,13 @@ export async function verifyPassword(
 
 export function signToken(user: AuthUser): string {
   return jwt.sign(
-    { id: user.id, email: user.email, name: user.name, role: user.role },
+    {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      dealershipId: user.dealershipId,
+    },
     getJwtSecret(),
     { expiresIn: TOKEN_TTL }
   );
@@ -49,7 +69,13 @@ export function signToken(user: AuthUser): string {
 
 export function verifyToken(token: string): AuthUser | null {
   try {
-    return jwt.verify(token, getJwtSecret()) as AuthUser;
+    const decoded = jwt.verify(token, getJwtSecret()) as AuthUser;
+    // Tokens signed before multi-tenancy was added won't have a
+    // dealershipId — treat those as invalid so the user is forced to
+    // log in again and get a token that actually scopes their data,
+    // rather than silently hitting undefined dealershipId everywhere.
+    if (!decoded.dealershipId) return null;
+    return decoded;
   } catch {
     return null;
   }

@@ -7,6 +7,7 @@ export default function SignupScreen() {
   const navigate = useNavigate();
 
   const [name, setName] = useState("");
+  const [dealershipName, setDealershipName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -22,7 +23,7 @@ export default function SignupScreen() {
     }
 
     setSubmitting(true);
-    const result = await signup(name, email, password);
+    const result = await signup(name, dealershipName, email, password);
     setSubmitting(false);
 
     if (!result.ok) {
@@ -50,13 +51,25 @@ export default function SignupScreen() {
         )}
 
         <div>
-          <label className="text-white/70 text-sm block mb-1">Name</label>
+          <label className="text-white/70 text-sm block mb-1">Your Name</label>
           <input
             type="text"
             value={name}
             onChange={e => setName(e.target.value)}
             required
             className="w-full px-4 py-2 rounded-lg bg-black/40 border border-white/20 text-white focus:border-yellow-400/60 outline-none"
+          />
+        </div>
+
+        <div>
+          <label className="text-white/70 text-sm block mb-1">Dealership Name</label>
+          <input
+            type="text"
+            value={dealershipName}
+            onChange={e => setDealershipName(e.target.value)}
+            required
+            placeholder="e.g. Bean Motors"
+            className="w-full px-4 py-2 rounded-lg bg-black/40 border border-white/20 text-white focus:border-yellow-400/60 outline-none placeholder:text-white/30"
           />
         </div>
 

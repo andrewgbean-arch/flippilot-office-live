@@ -44,3 +44,55 @@ export function writeCollection<T>(collection: string, data: T[]): void {
   ensureDataDir();
   fs.writeFileSync(filePath(collection), JSON.stringify(data, null, 2), "utf-8");
 }
+
+/* --------------------------------------------------
+   ⭐ Tenant-scoped collections (multi-tenancy)
+
+   readCollection/writeCollection above are global — fine for `users`
+   and `dealerships` themselves, but business data (vehicles/leads/
+   staff) needs to be isolated per dealership so one dealer can never
+   see or overwrite another's stock. Same JSON-file approach, just
+   nested under data/dealerships/<dealershipId>/<collection>.json.
+-------------------------------------------------- */
+
+function tenantDir(dealershipId: string) {
+  const dir = path.join(DATA_DIR, "dealerships", dealershipId);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  return dir;
+}
+
+function tenantFilePath(dealershipId: string, collection: string) {
+  return path.join(tenantDir(dealershipId), `${collection}.json`);
+}
+
+export function readTenantCollection<T>(
+  dealershipId: string,
+  collection: string
+): T[] {
+  ensureDataDir();
+  const file = tenantFilePath(dealershipId, collection);
+  if (!fs.existsSync(file)) return [];
+
+  try {
+    const raw = fs.readFileSync(file, "utf-8");
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as T[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function writeTenantCollection<T>(
+  dealershipId: string,
+  collection: string,
+  data: T[]
+): void {
+  ensureDataDir();
+  fs.writeFileSync(
+    tenantFilePath(dealershipId, collection),
+    JSON.stringify(data, null, 2),
+    "utf-8"
+  );
+}

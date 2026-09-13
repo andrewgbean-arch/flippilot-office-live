@@ -151,6 +151,7 @@ export default function DealerSidebar() {
       icon: FiSettings,
       items: [
         { to: "/dealer/settings", label: "Settings" },
+        { to: "/billing", label: "Billing" },
       ],
     },
 

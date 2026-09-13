@@ -8,7 +8,10 @@ import {
   requireAuth,
   type StoredUser,
   type AuthUser,
+  type Dealership,
 } from "../auth";
+
+const TRIAL_DAYS = 14;
 
 function toPublicUser(user: StoredUser): AuthUser {
   const { passwordHash, ...publicUser } = user;
@@ -17,12 +20,13 @@ function toPublicUser(user: StoredUser): AuthUser {
 
 export default function registerAuthRoute(app: Express) {
   app.post("/auth/signup", async (req, res) => {
-    const { email, password, name } = req.body ?? {};
+    const { email, password, name, dealershipName } = req.body ?? {};
 
-    if (!email || !password || !name) {
-      return res
-        .status(400)
-        .json({ ok: false, error: "Name, email and password are required" });
+    if (!email || !password || !name || !dealershipName) {
+      return res.status(400).json({
+        ok: false,
+        error: "Name, dealership name, email and password are required",
+      });
     }
     if (typeof password !== "string" || password.length < 8) {
       return res
@@ -39,19 +43,36 @@ export default function registerAuthRoute(app: Express) {
         .json({ ok: false, error: "An account with that email already exists" });
     }
 
-    // First account created becomes the owner; anyone signing up after
-    // that is "staff" — there's no invite flow yet, so this is a simple
-    // bootstrap rule, not real role management.
-    const role: AuthUser["role"] = users.length === 0 ? "owner" : "staff";
+    // Every signup creates its own dealership, isolated from every other
+    // one — there's no "join an existing dealership" invite flow yet, so
+    // this is the whole tenant-creation story for now: sign up = you're
+    // the owner of a brand new dealership, with your own inventory/
+    // leads/staff data that no one else can see.
+    const now = new Date();
+    const trialEndsAt = new Date(now.getTime() + TRIAL_DAYS * 86400000);
+
+    const dealership: Dealership = {
+      id: randomUUID(),
+      name: String(dealershipName).trim(),
+      ownerId: "", // filled in below once the user id exists
+      createdAt: now.toISOString(),
+      subscriptionStatus: "trialing",
+      trialEndsAt: trialEndsAt.toISOString(),
+    };
 
     const newUser: StoredUser = {
       id: randomUUID(),
       email: normalizedEmail,
       name: String(name).trim(),
-      role,
+      role: "owner",
+      dealershipId: dealership.id,
       passwordHash: await hashPassword(password),
     };
 
+    dealership.ownerId = newUser.id;
+
+    const dealerships = readCollection<Dealership>("dealerships");
+    writeCollection("dealerships", [...dealerships, dealership]);
     writeCollection("users", [...users, newUser]);
 
     const token = signToken(toPublicUser(newUser));

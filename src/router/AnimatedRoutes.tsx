@@ -6,6 +6,9 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import LoginScreen from "@/screens/LoginScreen";
 import SignupScreen from "@/screens/SignupScreen";
 
+/* BILLING */
+import BillingScreen from "@/screens/BillingScreen";
+
 /* HOME */
 import HomeScreen from "@/screens/HomeScreen";
 
@@ -158,6 +161,7 @@ export default function AnimatedRoutes() {
 
         {/* SETTINGS */}
         <Route path="dealer/settings" element={<Settings />} />
+        <Route path="billing" element={<BillingScreen />} />
 
         {/* BOOKKEEPING */}
         <Route path="bookkeeping" element={<BookkeepingScreen />} />

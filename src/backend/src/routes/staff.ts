@@ -1,18 +1,21 @@
-import { Express } from "express";
-import { readCollection, writeCollection } from "../db";
+import { Express, Request } from "express";
+import { readTenantCollection, writeTenantCollection } from "../db";
+import type { AuthUser } from "../auth";
 
-// Staff previously lived only in browser localStorage (staffStorage.web.ts)
-// — nothing on the backend at all. Same whole-collection GET/PUT pattern
-// as inventory/leads, matching what StaffContext already expects from
-// loadStaff()/saveStaff().
+function dealershipId(req: Request): string {
+  return (req as Request & { user: AuthUser }).user.dealershipId;
+}
+
+// Scoped per-dealership — one dealer's staff records are never visible
+// to another (requireAuth runs before this in server.ts).
 export default function registerStaffRoute(app: Express) {
-  app.get("/staff", (_req, res) => {
-    res.json({ ok: true, items: readCollection("staff") });
+  app.get("/staff", (req, res) => {
+    res.json({ ok: true, items: readTenantCollection(dealershipId(req), "staff") });
   });
 
   app.put("/staff", (req, res) => {
     const items = Array.isArray(req.body?.items) ? req.body.items : [];
-    writeCollection("staff", items);
+    writeTenantCollection(dealershipId(req), "staff", items);
     res.json({ ok: true, items });
   });
 }

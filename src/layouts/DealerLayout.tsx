@@ -9,6 +9,7 @@ import SupernovaDealerHUD from "../components/dealer/SupernovaDealerHUD";
 import DashboardHeader from "../components/DashboardHeader";
 import DashboardFooter from "../components/DashboardFooter";
 import ErrorBoundary from "../components/ErrorBoundary";
+import TrialBanner from "../components/TrialBanner";
 
 export default function DealerLayout() {
   const { pathname } = useLocation();
@@ -77,6 +78,7 @@ export default function DealerLayout() {
       <div className="flex-1 lg:ml-60 lg:mr-60 min-h-screen overflow-y-auto relative z-10">
 
         <DashboardHeader />
+        <TrialBanner />
 
         {!hideHUD && (
           <>
