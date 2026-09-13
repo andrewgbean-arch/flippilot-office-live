@@ -17,7 +17,7 @@ interface EditVehicleProps {
 
 export default function EditVehicle({ vehicleId }: EditVehicleProps) {
   const navigate = useNavigate();
-  const { vehicles } = useInventory();
+  const { vehicles, updateVehicle, deleteVehicle } = useInventory();
 
   const vehicle = vehicles.find((v) => v.id === vehicleId);
 
@@ -95,9 +95,7 @@ export default function EditVehicle({ vehicleId }: EditVehicleProps) {
      ⭐ Save Vehicle
   ============================================================ */
   const saveVehicle = () => {
-    const updated = {
-      ...vehicle,
-
+    updateVehicle(vehicleId, {
       make,
       model,
       year: year ? Number(year) : null,
@@ -114,21 +112,17 @@ export default function EditVehicle({ vehicleId }: EditVehicleProps) {
         reg: reg || null,
         colour: colour || null,
       },
-    };
+    });
 
-    const newList = vehicles.map((v) => (v.id === vehicleId ? updated : v));
-    (window as any).__inventory_setVehicles?.(newList);
-
-    navigate(`/vehicles/overview/${vehicleId}`);
+    navigate(`/dealer/inventory/${vehicleId}`);
   };
 
   /* ============================================================
      ⭐ Delete Vehicle (soft delete + undo)
   ============================================================ */
   const hardDeleteVehicle = () => {
-    const newList = vehicles.filter((v) => v.id !== vehicleId);
-    (window as any).__inventory_setVehicles?.(newList);
-    navigate("/vehicles/list");
+    deleteVehicle(vehicleId);
+    navigate("/dealer/inventory/list");
   };
 
   const softDeleteVehicle = () => {

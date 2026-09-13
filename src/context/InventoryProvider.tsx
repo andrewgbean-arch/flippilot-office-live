@@ -18,6 +18,8 @@ interface InventoryContextType {
 
   updateVehicleMOT: (vehicleId: string, motData: Vehicle["mot"]) => void;
   updateVehicleSale: (vehicleId: string, sellPrice: number) => void;
+  updateVehicle: (vehicleId: string, patch: Partial<Vehicle>) => void;
+  deleteVehicle: (vehicleId: string) => void;
   createVehicleFromMOT: (motData: any) => Vehicle;
   addManualVehicle: (data: {
     reg?: string | null;
@@ -127,6 +129,29 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
           ? { ...v, sellPrice, status: "sold" as Vehicle["status"] }
           : v
       );
+      saveInventoryToServer(updated);
+      return updated;
+    });
+  }
+
+  // ⭐ GENERIC EDIT
+  //
+  // EditVehicle.tsx used to call `(window as any).__inventory_setVehicles?.(...)`
+  // — a global hook nothing in the codebase ever assigned, so Save/Delete
+  // there silently did nothing at all before navigating to a dead route.
+  function updateVehicle(vehicleId: string, patch: Partial<Vehicle>) {
+    setVehicles(prev => {
+      const updated = prev.map(v =>
+        v.id === vehicleId ? { ...v, ...patch } : v
+      );
+      saveInventoryToServer(updated);
+      return updated;
+    });
+  }
+
+  function deleteVehicle(vehicleId: string) {
+    setVehicles(prev => {
+      const updated = prev.filter(v => v.id !== vehicleId);
       saveInventoryToServer(updated);
       return updated;
     });
@@ -300,6 +325,8 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
         refreshInventory: loadInventory,
         updateVehicleMOT,
         updateVehicleSale,
+        updateVehicle,
+        deleteVehicle,
         createVehicleFromMOT,
         addManualVehicle,
       }}

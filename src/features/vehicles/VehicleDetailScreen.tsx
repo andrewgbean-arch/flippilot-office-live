@@ -1,5 +1,4 @@
 import { useParams, useNavigate } from "react-router-dom";
-import DealerLayout from "@/layouts/DealerLayout";
 
 import VehicleHeaderCard from "@/components/motors/VehicleHeaderCard";
 import VehicleSummaryCard from "@/components/motors/VehicleSummaryCard";
@@ -79,7 +78,6 @@ export default function VehicleDetailScreen() {
   };
 
   return (
-    <DealerLayout>
       <div className="space-y-10">
         <CosmicRibbon />
         <CosmicIdentityBlock vehicle={flipRecord} />
@@ -127,12 +125,11 @@ export default function VehicleDetailScreen() {
 
         {/* Navigate to full ReconWorkflow page instead of passing props */}
         <button
-          onClick={() => navigate(`/dealer-ai/recon/${vehicle.id}`)}
+          onClick={() => navigate(`/dealer/workflow/recon/${vehicle.id}`)}
           className="px-4 py-2 bg-green-500 text-black rounded font-bold"
         >
           Recon Workflow
         </button>
       </div>
-    </DealerLayout>
   );
 }
