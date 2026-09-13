@@ -1,13 +1,20 @@
 import { SupernovaGlowCard } from "../../components/supernova/SupernovaGlowCard";
 import { SupernovaHeroHeader } from "../../components/supernova/SupernovaHeroHeader";
 import { SupernovaSectionDivider } from "../../components/supernova/SupernovaSectionDivider";
+import { useDealer } from "@/context/DealerContext";
 
+// Name/location/phone below now come from the real dealership (settable
+// in Settings -> Edit Dealer Profile); hours/reviews/featured-stock are
+// still mock content — a real reviews/hours/stock system would be a
+// separate, larger feature.
 export default function DealerPublicPage() {
+  const { dealer: realDealer } = useDealer();
+
   const dealer = {
-    name: "FlipPilot Motors",
+    name: realDealer?.name ?? "Your Dealership",
     tagline: "Premium vehicles. Trusted service. Local expertise.",
-    location: "Paignton, Devon",
-    phone: "01803 555 777",
+    location: realDealer?.address || "Address not set — add one in Settings",
+    phone: realDealer?.phone || "Phone not set — add one in Settings",
     email: "sales@flippilotmotors.co.uk",
     hours: [
       { day: "Monday", time: "09:00 – 18:00" },

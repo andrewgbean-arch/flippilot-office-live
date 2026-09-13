@@ -40,6 +40,8 @@ export interface Dealership {
   trialEndsAt: string;
   stripeCustomerId?: string;
   stripeSubscriptionId?: string;
+  phone?: string;
+  address?: string;
 }
 
 export async function hashPassword(password: string): Promise<string> {

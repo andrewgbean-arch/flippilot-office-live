@@ -106,4 +106,37 @@ export default function registerAuthRoute(app: Express) {
     const user = (req as any).user as AuthUser;
     res.json({ ok: true, user });
   });
+
+  // "Security Options" in Settings previously had no onClick at all.
+  // This is a real change-password flow for a logged-in user — not a
+  // password-reset flow (that needs email delivery, which this app
+  // doesn't have set up yet).
+  app.put("/auth/password", requireAuth, async (req, res) => {
+    const authUser = (req as any).user as AuthUser;
+    const { currentPassword, newPassword } = req.body ?? {};
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({
+        ok: false,
+        error: "Current and new password are required",
+      });
+    }
+    if (typeof newPassword !== "string" || newPassword.length < 8) {
+      return res
+        .status(400)
+        .json({ ok: false, error: "New password must be at least 8 characters" });
+    }
+
+    const users = readCollection<StoredUser>("users");
+    const user = users.find(u => u.id === authUser.id);
+
+    if (!user || !(await verifyPassword(currentPassword, user.passwordHash))) {
+      return res.status(401).json({ ok: false, error: "Current password is incorrect" });
+    }
+
+    user.passwordHash = await hashPassword(newPassword);
+    writeCollection("users", users);
+
+    res.json({ ok: true });
+  });
 }
