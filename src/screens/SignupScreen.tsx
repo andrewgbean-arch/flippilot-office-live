@@ -105,6 +105,13 @@ export default function SignupScreen() {
           {submitting ? "Creating account…" : "Create Account"}
         </button>
 
+        <p className="text-center text-white/40 text-xs">
+          By creating an account you agree to our{" "}
+          <Link to="/terms" className="text-yellow-300/80 hover:underline">Terms</Link>{" "}
+          and{" "}
+          <Link to="/privacy" className="text-yellow-300/80 hover:underline">Privacy Policy</Link>.
+        </p>
+
         <p className="text-center text-white/50 text-sm">
           Already have an account?{" "}
           <Link to="/login" className="text-yellow-300 hover:underline">

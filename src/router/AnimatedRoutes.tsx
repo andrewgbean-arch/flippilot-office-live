@@ -9,6 +9,10 @@ import SignupScreen from "@/screens/SignupScreen";
 /* BILLING */
 import BillingScreen from "@/screens/BillingScreen";
 
+/* LEGAL */
+import TermsScreen from "@/screens/TermsScreen";
+import PrivacyScreen from "@/screens/PrivacyScreen";
+
 /* HOME */
 import HomeScreen from "@/screens/HomeScreen";
 
@@ -112,6 +116,8 @@ export default function AnimatedRoutes() {
       {/* AUTH — outside DealerLayout, no sidebar/nav chrome */}
       <Route path="/login" element={<LoginScreen />} />
       <Route path="/signup" element={<SignupScreen />} />
+      <Route path="/terms" element={<TermsScreen />} />
+      <Route path="/privacy" element={<PrivacyScreen />} />
 
       <Route
         path="/"
