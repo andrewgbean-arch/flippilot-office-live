@@ -8,6 +8,7 @@ import DealerRightSidebar from "../components/DealerRightSidebar";
 import SupernovaDealerHUD from "../components/dealer/SupernovaDealerHUD";
 import DashboardHeader from "../components/DashboardHeader";
 import DashboardFooter from "../components/DashboardFooter";
+import ErrorBoundary from "../components/ErrorBoundary";
 
 export default function DealerLayout() {
   const { pathname } = useLocation();
@@ -104,7 +105,13 @@ export default function DealerLayout() {
         {/* PAGE CONTENT */}
         <main className="p-10 pb-32 relative z-30">
           <div className="relative animate-fadeIn">
-            <Outlet />
+            {/* key=pathname remounts the boundary on navigation, so
+                leaving a crashed page clears its error state instead of
+                it sticking around; the sidebar/header stay up either
+                way since they're outside this boundary. */}
+            <ErrorBoundary key={pathname} fullScreen={false}>
+              <Outlet />
+            </ErrorBoundary>
           </div>
         </main>
 

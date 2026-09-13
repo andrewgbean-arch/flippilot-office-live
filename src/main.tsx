@@ -5,6 +5,7 @@ import { BrowserRouter } from "react-router-dom";
 import "./index.css";
 
 import App from "./App";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 // Providers
 import { DealerAIProvider } from "./features/dealer-ai/DealerAIStateProvider";
@@ -20,26 +21,28 @@ import { StaffProvider } from "./staff/StaffContext";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <BrowserRouter>
-      <DealerNotificationsProvider>
-        <DealerContextProvider>
-          <InventoryProvider>
-            <IntelligenceProvider>
-              <LeadsProvider>
-                <DealerAIProvider>
-                  <VehicleHistoryProvider>
-                    <BookkeepingProvider>
-                      <StaffProvider>
-                        <App />
-                      </StaffProvider>
-                    </BookkeepingProvider>
-                  </VehicleHistoryProvider>
-                </DealerAIProvider>
-              </LeadsProvider>
-            </IntelligenceProvider>
-          </InventoryProvider>
-        </DealerContextProvider>
-      </DealerNotificationsProvider>
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <DealerNotificationsProvider>
+          <DealerContextProvider>
+            <InventoryProvider>
+              <IntelligenceProvider>
+                <LeadsProvider>
+                  <DealerAIProvider>
+                    <VehicleHistoryProvider>
+                      <BookkeepingProvider>
+                        <StaffProvider>
+                          <App />
+                        </StaffProvider>
+                      </BookkeepingProvider>
+                    </VehicleHistoryProvider>
+                  </DealerAIProvider>
+                </LeadsProvider>
+              </IntelligenceProvider>
+            </InventoryProvider>
+          </DealerContextProvider>
+        </DealerNotificationsProvider>
+      </BrowserRouter>
+    </ErrorBoundary>
   </StrictMode>
 );
