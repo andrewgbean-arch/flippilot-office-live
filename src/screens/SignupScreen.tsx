@@ -30,7 +30,7 @@ export default function SignupScreen() {
       setError(result.error);
       return;
     }
-    navigate("/", { replace: true });
+    navigate("/onboarding", { replace: true });
   }
 
   return (

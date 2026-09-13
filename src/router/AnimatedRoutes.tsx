@@ -8,6 +8,7 @@ import SignupScreen from "@/screens/SignupScreen";
 import JoinScreen from "@/screens/JoinScreen";
 import ForgotPasswordScreen from "@/screens/ForgotPasswordScreen";
 import ResetPasswordScreen from "@/screens/ResetPasswordScreen";
+import OnboardingScreen from "@/screens/OnboardingScreen";
 
 /* BILLING */
 import BillingScreen from "@/screens/BillingScreen";
@@ -122,6 +123,14 @@ export default function AnimatedRoutes() {
       <Route path="/join" element={<JoinScreen />} />
       <Route path="/forgot-password" element={<ForgotPasswordScreen />} />
       <Route path="/reset-password" element={<ResetPasswordScreen />} />
+      <Route
+        path="/onboarding"
+        element={
+          <ProtectedRoute>
+            <OnboardingScreen />
+          </ProtectedRoute>
+        }
+      />
       <Route path="/terms" element={<TermsScreen />} />
       <Route path="/privacy" element={<PrivacyScreen />} />
 
