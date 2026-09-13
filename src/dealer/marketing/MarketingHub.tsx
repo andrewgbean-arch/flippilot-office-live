@@ -2,7 +2,7 @@ import { SupernovaHeroHeader } from "@/components/supernova/SupernovaHeroHeader"
 import { SupernovaSectionDivider } from "@/components/supernova/SupernovaSectionDivider";
 import { SupernovaGlowCard } from "@/components/supernova/SupernovaGlowCard";
 
-import DealerPublicPage from "@/dealer/marketplace/DealerPublicPage";
+import DealerPublicPage from "@/dealer/public/DealerPublicPage";
 import DealerNeonHeader from "@/components/dealer/DealerNeonHeader";
 import DealerSectionGlow from "@/components/dealer/DealerSectionGlow";
 import DealerGridButton from "@/components/dealer/DealerGridButton";
@@ -41,6 +41,10 @@ export default function MarketingHub() {
   href="/dealer/marketing/boost"
 />
 
+<DealerGridButton
+  label="Marketplace Sync"
+  href="/dealer/marketing/sync"
+/>
 
       </SupernovaGlowCard>
 

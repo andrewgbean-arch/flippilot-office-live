@@ -10,6 +10,7 @@ import registerIntelligenceRoute from "./routes/intelligence";
 import registerLeadsRoute from "./routes/leads";
 import registerStaffRoute from "./routes/staff";
 import registerDVLA from "./dvla";
+import registerSyndicationRoute from "./routes/syndication";
 
 const app = express();
 // 3001 clashes with flippilotlatest's separate backend — this office
@@ -46,6 +47,7 @@ registerStaffRoute(app);
 // DVSA MOT History + DVLA Vehicle Enquiry Service integration with real
 // credentials — worth reusing that pattern here instead of this stub.
 registerDVLA(app);
+registerSyndicationRoute(app);
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`🔥 FlipPilot Office backend listening on http://0.0.0.0:${PORT}`);
 });

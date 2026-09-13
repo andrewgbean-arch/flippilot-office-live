@@ -110,6 +110,7 @@ export default function DealerSidebar() {
       icon: FiStar,
       items: [
         { to: "/dealer/marketing", label: "Marketing Hub" },
+        { to: "/dealer/marketing/sync", label: "Marketplace Sync" },
       ],
     },
 

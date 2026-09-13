@@ -35,6 +35,7 @@ import ContractGenerator from "@/dealer/finance/ContractGenerator";
 
 /* MARKETING */
 import MarketingHub from "@/dealer/marketing/MarketingHub";
+import MarketplaceSync from "@/dealer/marketing/MarketplaceSync";
 
 /* TOOLS + SETTINGS */
 import ToolsHub from "@/dealer/tools/ToolsHub";
@@ -134,6 +135,7 @@ export default function AnimatedRoutes() {
 
         {/* MARKETING */}
         <Route path="dealer/marketing" element={<MarketingHub />} />
+        <Route path="dealer/marketing/sync" element={<MarketplaceSync />} />
 
         {/* TOOLS */}
         <Route path="dealer/tools" element={<ToolsHub />} />
