@@ -1,10 +1,44 @@
+import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
+import { useInventory } from "@/context/InventoryProvider";
+import { useIntelligence } from "@/context/IntelligenceProvider";
+import { computeDealerHudStats } from "@/lib/dealerHudStats";
 
 export default function DashboardHeader() {
   const { pathname } = useLocation();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+
+  const { vehicles, loading: inventoryLoading, refreshInventory } = useInventory();
+  const { flipScores, riskScores, marketIntel, motHealth, loading: intelLoading } =
+    useIntelligence();
+  const [manualSyncing, setManualSyncing] = useState(false);
+
+  const hud = computeDealerHudStats(
+    vehicles,
+    inventoryLoading || intelLoading,
+    flipScores,
+    riskScores,
+    marketIntel,
+    motHealth
+  );
+
+  const syncing = manualSyncing || inventoryLoading || intelLoading;
+
+  // "Sync AI" used to be a button with no onClick at all — it looked
+  // clickable but did nothing. This re-pulls inventory from the backend,
+  // which is what the intelligence numbers across the HUD are computed
+  // from, so it's a real refresh rather than a decorative spinner.
+  async function handleSync() {
+    if (syncing) return;
+    setManualSyncing(true);
+    try {
+      await refreshInventory();
+    } finally {
+      setManualSyncing(false);
+    }
+  }
 
   function handleLogout() {
     logout();
@@ -54,26 +88,34 @@ export default function DashboardHeader() {
           Pricing Brain
         </div>
 
-        {/* MARKET TREND BADGE */}
-        <div className="
-          px-3 py-1 rounded-lg text-sm font-semibold
-          bg-black/50 border border-green-400/30
-          text-green-300 shadow-[0_0_12px_rgba(0,255,0,0.4)]
-        ">
-          Market Rising
+        {/* MARKET TREND BADGE — real fleet-wide demand trend, computed
+            from IntelligenceProvider's per-vehicle market intel */}
+        <div className={`
+          px-3 py-1 rounded-lg text-sm font-semibold border shadow-[0_0_12px_rgba(0,0,0,0.2)]
+          ${hud.marketTrend === "rising"
+            ? "bg-black/50 border-green-400/30 text-green-300 shadow-[0_0_12px_rgba(0,255,0,0.4)]"
+            : hud.marketTrend === "falling"
+            ? "bg-black/50 border-red-400/30 text-red-300 shadow-[0_0_12px_rgba(255,0,0,0.4)]"
+            : "bg-black/50 border-white/20 text-white/70"}
+        `}>
+          Market {hud.marketTrend === "rising" ? "Rising" : hud.marketTrend === "falling" ? "Falling" : "Flat"}
         </div>
 
-        {/* SYNC BUTTON */}
+        {/* SYNC BUTTON — re-pulls inventory from the backend, which is
+            what every number in this header/HUD is computed from */}
         <button
-          className="
+          onClick={handleSync}
+          disabled={syncing}
+          className={`
             px-5 py-2 rounded-lg text-sm font-semibold
             bg-yellow-400 hover:bg-yellow-300 text-black
             flex items-center gap-2 transition
             shadow-[0_0_15px_rgba(255,215,0,0.5)]
-          "
+            ${syncing ? "opacity-70 cursor-wait" : ""}
+          `}
         >
-          <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-          Sync AI
+          <span className={`w-2 h-2 rounded-full ${syncing ? "bg-yellow-700 animate-pulse" : "bg-green-400"}`} />
+          {syncing ? "Syncing…" : "Sync AI"}
         </button>
 
         {/* USER + LOGOUT */}

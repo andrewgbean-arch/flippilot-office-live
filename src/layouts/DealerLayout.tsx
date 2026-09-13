@@ -11,9 +11,26 @@ import DashboardFooter from "../components/DashboardFooter";
 import ErrorBoundary from "../components/ErrorBoundary";
 import TrialBanner from "../components/TrialBanner";
 
+import { useInventory } from "@/context/InventoryProvider";
+import { useIntelligence } from "@/context/IntelligenceProvider";
+import { computeDealerHudStats } from "@/lib/dealerHudStats";
+
 export default function DealerLayout() {
   const { pathname } = useLocation();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+
+  const { vehicles, loading: inventoryLoading } = useInventory();
+  const { flipScores, riskScores, marketIntel, motHealth, loading: intelLoading } =
+    useIntelligence();
+
+  const hud = computeDealerHudStats(
+    vehicles,
+    inventoryLoading || intelLoading,
+    flipScores,
+    riskScores,
+    marketIntel,
+    motHealth
+  );
 
   const isHome =
     pathname === "/" ||
@@ -84,12 +101,12 @@ export default function DealerLayout() {
           <>
             <div className="px-10 pt-6 relative z-30">
               <SupernovaDealerHUD
-                aiSync="syncing"
-                marketTrend="rising"
+                aiSync={hud.aiSync}
+                marketTrend={hud.marketTrend}
                 brainMode="Pricing Brain"
-                riskLevel="medium"
-                flipScore={87}
-                motHealth="watch"
+                riskLevel={hud.riskLevel}
+                flipScore={hud.flipScore}
+                motHealth={hud.motHealth}
               />
             </div>
 
@@ -97,7 +114,9 @@ export default function DealerLayout() {
               <div className="bg-black/40 border border-yellow-400/30 rounded-xl p-4 flex items-center gap-4 shadow-[0_0_20px_rgba(255,215,0,0.25)]">
                 <div className="w-3 h-3 bg-yellow-400 rounded-full animate-pulse" />
                 <p className="text-white/80 text-sm">
-                  Supernova V14: Market volatility rising • Pricing Brain adjusting valuations.
+                  {vehicles.length === 0
+                    ? "Supernova: add vehicles to your inventory to activate live intelligence."
+                    : `Supernova: market ${hud.marketTrend} • fleet risk ${hud.riskLevel} • avg FlipScore ${hud.flipScore}/100 across ${vehicles.length} vehicle${vehicles.length === 1 ? "" : "s"}.`}
                 </p>
               </div>
             </div>
