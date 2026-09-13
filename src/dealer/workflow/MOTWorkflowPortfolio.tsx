@@ -57,7 +57,11 @@ export default function MOTWorkflowPortfolio() {
         </SupernovaGlowCard>
 
         <SupernovaGlowCard>
-          <MOTInsightsPanel />
+          {selected ? (
+            <MOTInsightsPanel mot={selected.mot} />
+          ) : (
+            <p className="text-white/60">No at-risk vehicle selected.</p>
+          )}
         </SupernovaGlowCard>
       </div>
 

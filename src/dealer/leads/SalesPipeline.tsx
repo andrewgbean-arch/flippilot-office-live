@@ -3,17 +3,27 @@ import { SupernovaHeroHeader } from "../../components/supernova/SupernovaHeroHea
 import { SupernovaGlowCard } from "../../components/supernova/SupernovaGlowCard";
 import { SupernovaSectionDivider } from "../../components/supernova/SupernovaSectionDivider";
 import { SupernovaMetricBar } from "../../components/supernova/SupernovaMetricBar";
+import { useLeads } from "@/context/LeadsContext";
 
 export default function SalesPipeline() {
+  const { leads } = useLeads();
+
+  // Was a hardcoded { new: 42, contacted: 31, ... } object that never
+  // reflected real leads, sitting right next to a fully real
+  // LeadsDashboard/LeadDetails. "Hot" maps to "negotiating" — the real
+  // LeadStatus closest to the original "high-intent" framing (Lead.score
+  // exists on the type but is never actually set anywhere, so it's not
+  // a usable signal).
   const pipeline = {
-    new: 42,
-    contacted: 31,
-    hot: 18,
-    viewing: 12,
-    sold: 7,
+    new: leads.filter((l) => l.status === "new").length,
+    contacted: leads.filter((l) => l.status === "contacted").length,
+    hot: leads.filter((l) => l.status === "negotiating").length,
+    viewing: leads.filter((l) => l.status === "viewing_booked").length,
+    sold: leads.filter((l) => l.status === "won").length,
   };
 
-  const conversionRate = Math.round((pipeline.sold / pipeline.new) * 100);
+  const conversionRate =
+    leads.length > 0 ? Math.round((pipeline.sold / leads.length) * 100) : 0;
 
   return (
     <div className="animate-fadeIn p-10 text-white relative z-10">

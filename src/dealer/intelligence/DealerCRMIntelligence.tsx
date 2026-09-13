@@ -1,40 +1,67 @@
 import React, { useMemo } from "react";
 import SupernovaCard from "@/components/SupernovaCard";
 import { SupernovaSectionDivider } from "@/components/supernova/SupernovaSectionDivider";
+import { useLeads } from "@/context/LeadsContext";
 
 import {
-  FiUsers,
   FiMail,
   FiTrendingUp,
   FiActivity,
-  FiStar,
   FiAlertTriangle,
 } from "react-icons/fi";
 
-// ⭐ TEMP DATA (replace with backend later)
-const leads: {
-  id: string;
-  name: string;
-  source: string;
-  engagement: number; // 0–100
-  conversionChance: number; // %
-  risk: number; // %
-}[] = [];
+// Base scores by pipeline status — a real, meaningful signal (how far a
+// lead has progressed), but on its own this made every lead sharing a
+// status show byte-identical numbers with zero per-lead differentiation.
+// Blended below with two genuinely per-lead real signals: how long a
+// lead has sat without progressing (staleness), and whether it has
+// complete contact info (a lead with no phone or email is harder to
+// actually reach and convert).
+const STATUS_BASE: Record<string, { engagement: number; conversion: number; risk: number }> = {
+  new: { engagement: 20, conversion: 15, risk: 40 },
+  contacted: { engagement: 40, conversion: 30, risk: 35 },
+  viewing_booked: { engagement: 65, conversion: 50, risk: 25 },
+  test_drive: { engagement: 80, conversion: 65, risk: 20 },
+  negotiating: { engagement: 90, conversion: 80, risk: 30 },
+  won: { engagement: 100, conversion: 100, risk: 5 },
+  lost: { engagement: 10, conversion: 0, risk: 90 },
+};
+
+function clamp(n: number): number {
+  return Math.max(0, Math.min(100, Math.round(n)));
+}
 
 export default function DealerCRMIntelligence() {
-  // ⭐ CRM Metrics
+  const { leads: rawLeads } = useLeads();
+
+  const leads = useMemo(
+    () =>
+      rawLeads.map((l) => {
+        const base = STATUS_BASE[l.status] ?? { engagement: 30, conversion: 25, risk: 40 };
+        const isOpen = l.status !== "won" && l.status !== "lost";
+        const daysOld = (Date.now() - new Date(l.createdAt).getTime()) / 86400000;
+        const staleness = isOpen ? Math.min(30, Math.floor(daysOld / 2)) : 0;
+        const hasFullContact = Boolean(l.phone && l.email);
+
+        return {
+          id: l.id,
+          name: l.name,
+          source: l.source || "Unknown",
+          engagement: clamp(base.engagement - staleness),
+          conversionChance: clamp(base.conversion - staleness / 2 + (hasFullContact ? 5 : -5)),
+          risk: clamp(base.risk + staleness + (hasFullContact ? -5 : 10)),
+        };
+      }),
+    [rawLeads]
+  );
+
   const metrics = useMemo(() => {
     const avgEngagement = leads.length
-      ? Math.round(
-          leads.reduce((sum, l) => sum + l.engagement, 0) / leads.length
-        )
+      ? Math.round(leads.reduce((sum, l) => sum + l.engagement, 0) / leads.length)
       : 0;
 
     const avgConversion = leads.length
-      ? Math.round(
-          leads.reduce((sum, l) => sum + l.conversionChance, 0) /
-            leads.length
-        )
+      ? Math.round(leads.reduce((sum, l) => sum + l.conversionChance, 0) / leads.length)
       : 0;
 
     const avgRisk = leads.length
@@ -52,7 +79,7 @@ export default function DealerCRMIntelligence() {
     })();
 
     return { avgEngagement, avgConversion, avgRisk, topSources };
-  }, []);
+  }, [leads]);
 
   return (
     <div className="px-6 py-8 max-w-5xl mx-auto animate-fadeIn">
@@ -63,7 +90,6 @@ export default function DealerCRMIntelligence() {
         AI‑powered insights into leads, engagement, and conversion.
       </p>
 
-      {/* ⭐ Overview */}
       <SupernovaCard title="CRM Overview" accent="gold">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-white/70">
           <div>
@@ -89,7 +115,6 @@ export default function DealerCRMIntelligence() {
         </div>
       </SupernovaCard>
 
-      {/* ⭐ Top Lead Sources */}
       <SupernovaCard
         title="Top Lead Sources"
         subtitle="Where your highest‑quality leads originate."
@@ -114,7 +139,6 @@ export default function DealerCRMIntelligence() {
         )}
       </SupernovaCard>
 
-      {/* ⭐ Lead Intelligence */}
       <SupernovaCard
         title="Lead Intelligence"
         subtitle="AI‑generated insights for each active lead."
@@ -160,8 +184,9 @@ export default function DealerCRMIntelligence() {
                 </div>
 
                 <p className="text-white/60 mt-3 text-sm italic">
-                  AI Insight: Leads with engagement above 70% convert 3× more
-                  often within 48 hours.
+                  {l.engagement >= 70
+                    ? "AI Insight: High engagement — leads like this convert 3× more often within 48 hours."
+                    : "AI Insight: Consider a follow-up to boost engagement."}
                 </p>
               </div>
             ))}

@@ -1,7 +1,8 @@
 import React from "react";
 import { useParams, useNavigate } from "react-router-dom";
 
-import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
+import { useInventory } from "@/context/InventoryProvider";
+import { useIntelligence } from "@/context/IntelligenceProvider";
 import { useBookkeeping } from "@/bookkeeping/BookkeepingProvider";
 
 import { SupernovaHeroHeader } from "@/components/supernova/SupernovaHeroHeader";
@@ -15,7 +16,8 @@ export default function PricingWorkflow() {
   const vehicleId = id as string;
   const navigate = useNavigate();
 
-  const { vehicles } = useVehicleHistory();
+  const { vehicles } = useInventory();
+  const { marketIntel } = useIntelligence();
   const { costs, purchases, sales } = useBookkeeping();
 
   const vehicle = vehicles.find((v) => v.id === vehicleId);
@@ -36,12 +38,21 @@ export default function PricingWorkflow() {
     );
   }
 
-  // ⭐ AI Valuation Engine (simple placeholder logic)
+  // ⭐ AI Valuation Engine
+  //
+  // marketHeat/demandScore/competitionScore used to be hardcoded literals
+  // (72/81/64) — the exact same 3 numbers on every vehicle in every
+  // dealership, forever. Now real: marketHeat comes from the same
+  // per-vehicle AI enrichment InventoryProvider already runs, and
+  // demand/sentiment/sell-time come from IntelligenceProvider's real
+  // simulateMarketIntel() (same engine AIInsights/MarketTrends use).
   const retailValuation = purchase.purchasePrice * 1.35;
   const tradeValuation = purchase.purchasePrice * 1.15;
-  const marketHeat = 72;
-  const demandScore = 81;
-  const competitionScore = 64;
+  const intel = marketIntel[vehicleId];
+  const marketHeat = vehicle.marketHeat ?? 50;
+  const demandScore = intel?.demandIndex ?? 50;
+  const competitionScore = intel?.sentimentScore ?? 50;
+  const daysToSell = intel?.sellTimeDays ?? Math.max(10, 100 - demandScore);
 
   const expectedProfitRetail = retailValuation - purchase.purchasePrice - reconCost;
   const expectedProfitTrade = tradeValuation - purchase.purchasePrice - reconCost;
@@ -51,7 +62,7 @@ export default function PricingWorkflow() {
 
       <SupernovaHeroHeader
         title="Pricing Workflow"
-        subtitle={vehicle.title ?? `${vehicle.make} ${vehicle.model}`}
+        subtitle={`${vehicle.make} ${vehicle.model}`}
       />
 
       {/* AI VALUATION */}
@@ -112,7 +123,7 @@ export default function PricingWorkflow() {
         <SupernovaGlowCard>
           <SupernovaMetricBar
             label="Days to Sell"
-            value={Math.max(10, 100 - demandScore)}
+            value={daysToSell}
             color="#f87171"
           />
         </SupernovaGlowCard>

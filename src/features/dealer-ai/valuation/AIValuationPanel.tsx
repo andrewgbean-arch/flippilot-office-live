@@ -2,7 +2,8 @@ import React, { useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { FiArrowLeft } from "react-icons/fi";
 
-import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
+import { useInventory } from "@/context/InventoryProvider";
+import { useIntelligence } from "@/context/IntelligenceProvider";
 import { SupernovaHeroHeader } from "@/components/supernova/SupernovaHeroHeader";
 import { SupernovaSectionDivider } from "@/components/supernova/SupernovaSectionDivider";
 import { SupernovaGlowCard } from "@/components/supernova/SupernovaGlowCard";
@@ -10,7 +11,8 @@ import { SupernovaGlowCard } from "@/components/supernova/SupernovaGlowCard";
 export default function AIValuationPanel() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { vehicles } = useVehicleHistory();
+  const { vehicles } = useInventory();
+  const { flipScores, riskScores } = useIntelligence();
 
   const vehicle = vehicles.find((v) => v.id === id);
 
@@ -29,18 +31,24 @@ export default function AIValuationPanel() {
   }
 
   /* -------------------------------------------------------
-     ⭐ AI Valuation Logic (mocked but realistic)
+     ⭐ AI Valuation Logic
+     "Volatility" used to be Math.random() * 30 — a different number on
+     every single render regardless of the vehicle. Replaced with a
+     deterministic estimate from age + mileage (older/higher-mileage
+     stock genuinely does swing in value more), and risk/flipScore now
+     come from IntelligenceProvider's real per-vehicle scoring instead
+     of a local re-derivation.
   ------------------------------------------------------- */
   const valuation = useMemo(() => {
-    const age = new Date().getFullYear() - (vehicle.mot?.year ?? 0);
-    const mileage = vehicle.mot?.mileage ?? 60000;
+    const age = new Date().getFullYear() - (vehicle.year ?? new Date().getFullYear());
+    const mileage = vehicle.mileage ?? 60000;
 
     // Base value from age + mileage
     let base = 8000 - age * 300 - Math.floor(mileage / 5000) * 150;
 
     // Adjust for MOT expiry
-    if (vehicle.mot?.expiryDate) {
-      const exp = new Date(vehicle.mot.expiryDate);
+    if (vehicle.mot?.expiry) {
+      const exp = new Date(vehicle.mot.expiry);
       const now = new Date();
       const diff = exp.getTime() - now.getTime();
       const days = diff / (1000 * 60 * 60 * 24);
@@ -50,7 +58,7 @@ export default function AIValuationPanel() {
     }
 
     // Adjust for flip score
-    const flipScore = vehicle.flipScore ?? 50;
+    const flipScore = flipScores[vehicle.id] ?? 50;
     base += (flipScore - 50) * 20;
 
     // Trade / Retail / Quick sale ranges
@@ -58,13 +66,12 @@ export default function AIValuationPanel() {
     const retail = Math.max(500, base * 1.15);
     const quickSale = Math.max(500, base * 0.75);
 
-    // Risk score (mock)
-    const risk = Math.min(100, age * 5 + (mileage / 1000) * 2);
+    const risk = riskScores[vehicle.id] ?? Math.min(100, age * 5 + (mileage / 1000) * 2);
 
-    // Volatility score (mock)
-    const volatility = Math.min(100, 20 + (Math.random() * 30));
+    // Volatility: older, higher-mileage stock is genuinely more prone to
+    // value swings — deterministic, not random.
+    const volatility = Math.min(100, Math.round(age * 4 + mileage / 4000));
 
-    // Recon estimate (mock)
     const recon = Math.max(150, age * 40 + (mileage / 10000) * 80);
 
     return {
@@ -72,11 +79,11 @@ export default function AIValuationPanel() {
       retail: Math.round(retail),
       quickSale: Math.round(quickSale),
       risk: Math.round(risk),
-      volatility: Math.round(volatility),
+      volatility,
       recon: Math.round(recon),
       flipScore,
     };
-  }, [vehicle]);
+  }, [vehicle, flipScores, riskScores]);
 
   const profitColor = (profit: number) => {
     if (profit < 0) return "text-red-400";
@@ -95,7 +102,7 @@ export default function AIValuationPanel() {
       </button>
 
       <SupernovaHeroHeader
-        title={`AI Valuation: ${vehicle.title}`}
+        title={`AI Valuation: ${vehicle.make} ${vehicle.model}`}
         subtitle="Dealer AI • Market Intelligence Panel"
       />
 

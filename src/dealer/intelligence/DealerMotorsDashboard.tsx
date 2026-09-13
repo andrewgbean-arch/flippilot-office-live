@@ -14,19 +14,32 @@ import {
   FiActivity,
 } from "react-icons/fi";
 
-// ⭐ TEMP DATA (replace with backend later)
-const vehicles: {
-  id: string;
-  title: string;
-  buyPrice?: number;
-  sellPrice?: number;
-  valuation?: number;
-  flipScore?: number;
-  motExpiry?: string;
-  category?: string;
-}[] = [];
+import { useInventory } from "@/context/InventoryProvider";
+import { useIntelligence } from "@/context/IntelligenceProvider";
 
 export default function DealerMotorsDashboard() {
+  // This used to be a hardcoded `const vehicles = []` literally
+  // commented "TEMP DATA (replace with backend later)" — the metrics
+  // logic below was already real, it just had nothing real to run on,
+  // so this always rendered "0 vehicles / £0.00 / No category data."
+  const { vehicles: inventory } = useInventory();
+  const { flipScores } = useIntelligence();
+
+  const vehicles = useMemo(
+    () =>
+      inventory.map((v) => ({
+        id: v.id,
+        title: `${v.make} ${v.model}`,
+        buyPrice: v.buyPrice ?? v.priceTrade ?? undefined,
+        sellPrice: v.sellPrice ?? undefined,
+        valuation: v.priceRetail ?? undefined,
+        flipScore: flipScores[v.id],
+        motExpiry: v.mot?.expiry,
+        category: v.make,
+      })),
+    [inventory, flipScores]
+  );
+
   // ⭐ Metrics
   const metrics = useMemo(() => {
     const total = vehicles.length;
@@ -59,7 +72,7 @@ export default function DealerMotorsDashboard() {
     })();
 
     return { total, totalValuation, avgFlipScore, motRisk, categories };
-  }, []);
+  }, [vehicles]);
 
   return (
     <div className="px-6 py-8 max-w-5xl mx-auto animate-fadeIn">
@@ -201,18 +214,28 @@ export default function DealerMotorsDashboard() {
         )}
       </SupernovaCard>
 
-      {/* ⭐ AI Insights */}
+      {/* ⭐ AI Insights — was 4 static, generic claims regardless of
+          actual stock ("EV stock shows rising demand" with no EV/fuel
+          data anywhere in the Vehicle model); now real counts against
+          this dealer's actual vehicles. */}
       <SupernovaCard
         title="AI Motors Insights"
-        subtitle="Patterns detected across stock, MOT, and FlipScore."
+        subtitle="Patterns detected across your real stock, MOT, and FlipScore data."
         accent="gold"
       >
-        <ul className="list-disc pl-6 text-white/70 space-y-2">
-          <li>Vehicles with FlipScore above 70 sell 2× faster.</li>
-          <li>MOT‑risk vehicles correlate with suppressed resale value.</li>
-          <li>EV stock shows rising demand and stable margins.</li>
-          <li>Hatchbacks and SUVs show strongest seasonal uplift.</li>
-        </ul>
+        {metrics.total === 0 ? (
+          <p className="text-white/50 text-sm">Add vehicles to your inventory to see insights.</p>
+        ) : (
+          <ul className="list-disc pl-6 text-white/70 space-y-2">
+            <li>Average FlipScore across your stock is {metrics.avgFlipScore}/100.</li>
+            {metrics.motRisk > 0 && (
+              <li>{metrics.motRisk} vehicle{metrics.motRisk === 1 ? "" : "s"} have an MOT due within 30 days.</li>
+            )}
+            {metrics.categories.length > 0 && (
+              <li>{metrics.categories[0]![0]} is your best-stocked make, with {metrics.categories[0]![1]} vehicle{metrics.categories[0]![1] === 1 ? "" : "s"}.</li>
+            )}
+          </ul>
+        )}
       </SupernovaCard>
 
       <div className="mt-8 text-center text-white/40 text-xs">
