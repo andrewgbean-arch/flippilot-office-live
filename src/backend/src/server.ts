@@ -5,6 +5,7 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
+import rateLimit from "express-rate-limit";
 import registerIntelligenceV3 from "./routes/intelligenceV3";
 import registerSearchRoute from "./routes/search";
 import registerLookupRoute from "./routes/lookup";
@@ -63,6 +64,29 @@ app.get("/", (_req, res) => {
     timestamp: new Date().toISOString()
   });
 });
+
+// No brute-force protection existed on login at all before this — an
+// attacker could try passwords as fast as the network allowed. 10
+// attempts per 15 minutes per IP is generous for a real user (who
+// mistypes a password a handful of times, not dozens) but blocks
+// automated guessing. Signup gets a looser limit — it's not a guessing
+// target the same way, just worth capping against account-creation spam.
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { ok: false, error: "Too many login attempts — try again in 15 minutes." },
+});
+const signupLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { ok: false, error: "Too many signup attempts — try again later." },
+});
+app.use("/auth/login", loginLimiter);
+app.use("/auth/signup", signupLimiter);
 
 registerAuthRoute(app);
 registerDealershipRoute(app);
