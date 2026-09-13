@@ -2,18 +2,22 @@ import React, { useState } from "react";
 import { CostType, CostEntry } from "./types";
 import { calculateVat } from "./vatUtils";
 import { useBookkeeping } from "./BookkeepingProvider";
+import VehiclePicker from "./VehiclePicker";
 
 interface AddCostModalProps {
   vehicleId: string | null;
   onClose: () => void;
 }
 
-export default function AddCostModal({ vehicleId, onClose }: AddCostModalProps) {
+export default function AddCostModal({ vehicleId: initialVehicleId, onClose }: AddCostModalProps) {
   const { addCost } = useBookkeeping();
 
+  // Was a fixed prop with no way to change it — now an editable
+  // selection, defaulting to whatever the caller suggested.
+  const [vehicleId, setVehicleId] = useState<string | null>(initialVehicleId);
   const [type, setType] = useState<CostType>("parts");
-  const [amount, setAmount] = useState<number>(0);
-  const [vatRate, setVatRate] = useState<number>(0.2);
+  const [amount, setAmount] = useState<string>("");
+  const [vatRate, setVatRate] = useState<string>("20");
   const [vatIncluded, setVatIncluded] = useState<boolean>(true);
   const [vatReclaimable, setVatReclaimable] = useState<boolean>(true);
   const [supplier, setSupplier] = useState<string>("");
@@ -22,13 +26,15 @@ export default function AddCostModal({ vehicleId, onClose }: AddCostModalProps) 
 
   function handleSave() {
     if (!vehicleId) {
-      alert("You must add a purchase before adding costs.");
-      onClose();
+      alert("Select a vehicle first.");
       return;
     }
 
-    const breakdown = calculateVat(amount, {
-      vatRate,
+    const numericAmount = Number(amount) || 0;
+    const numericVatRate = (Number(vatRate) || 0) / 100;
+
+    const breakdown = calculateVat(numericAmount, {
+      vatRate: numericVatRate,
       vatIncluded,
       vatReclaimable,
     });
@@ -37,8 +43,8 @@ export default function AddCostModal({ vehicleId, onClose }: AddCostModalProps) 
       id: crypto.randomUUID(),
       vehicleId,
       type,
-      amount,
-      vatRate,
+      amount: numericAmount,
+      vatRate: numericVatRate,
       vatIncluded,
       vatReclaimable,
       vatAmount: breakdown.vat,
@@ -53,15 +59,13 @@ export default function AddCostModal({ vehicleId, onClose }: AddCostModalProps) 
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-      <div className="bg-black/80 border border-white/10 p-6 rounded-xl w-full max-w-lg">
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+      <div className="bg-black/80 border border-white/10 p-6 rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <h2 className="text-white/80 text-xl font-semibold mb-4">Add Cost</h2>
 
-        {!vehicleId && (
-          <div className="mb-4 p-3 bg-red-500/20 border border-red-500/40 rounded text-red-300 text-sm">
-            No vehicle selected — add a purchase first.
-          </div>
-        )}
+        {/* VEHICLE */}
+        <label className="text-white/60 text-sm">Vehicle</label>
+        <VehiclePicker value={vehicleId} onChange={setVehicleId} />
 
         {/* TYPE */}
         <label className="text-white/60 text-sm">Cost Type</label>
@@ -87,17 +91,19 @@ export default function AddCostModal({ vehicleId, onClose }: AddCostModalProps) 
         <input
           type="number"
           value={amount}
-          onChange={(e) => setAmount(Number(e.target.value))}
+          onChange={(e) => setAmount(e.target.value)}
+          placeholder="0.00"
           className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-4"
         />
 
         {/* VAT RATE */}
-        <label className="text-white/60 text-sm">VAT Rate</label>
+        <label className="text-white/60 text-sm">VAT Rate (%)</label>
         <input
           type="number"
-          step="0.01"
+          step="1"
           value={vatRate}
-          onChange={(e) => setVatRate(Number(e.target.value))}
+          onChange={(e) => setVatRate(e.target.value)}
+          placeholder="20"
           className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-4"
         />
 

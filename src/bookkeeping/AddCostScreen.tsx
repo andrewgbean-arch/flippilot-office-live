@@ -1,8 +1,7 @@
+import { Navigate } from "react-router-dom";
+
+// See AddPurchaseScreen.tsx — same dead-end-placeholder issue. The real
+// "Add Cost" flow is a modal inside BookkeepingScreen, not its own route.
 export default function AddCostScreen() {
-  return (
-    <div className="p-10 text-white">
-      <h1 className="text-2xl font-bold mb-4">Add Cost</h1>
-      <p className="text-white/70">Placeholder screen for adding a cost.</p>
-    </div>
-  );
+  return <Navigate to="/bookkeeping" replace />;
 }

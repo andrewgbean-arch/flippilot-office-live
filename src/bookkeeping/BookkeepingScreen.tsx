@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { Link } from "react-router-dom";
 import { useBookkeeping } from "./BookkeepingProvider";
 
 import BookkeepingTable from "./BookkeepingTable";
@@ -32,26 +33,10 @@ const [showSaleModal, setShowSaleModal] = useState(false);
 const [showTransactionModal, setShowTransactionModal] = useState(false); // ⭐ FIXED
 
 
-  // AUTO-SELECT MOST RECENT VEHICLE
-  const selectedVehicleId =
-    purchases.length > 0 ? purchases[purchases.length - 1].vehicleId : null;
-
-  // SMART BUTTON LOGIC
-  function handleAddCost() {
-    if (!selectedVehicleId) {
-      setShowPurchaseModal(true);
-      return;
-    }
-    setShowCostModal(true);
-  }
-
-  function handleAddSale() {
-    if (!selectedVehicleId) {
-      setShowPurchaseModal(true);
-      return;
-    }
-    setShowSaleModal(true);
-  }
+  // Default pre-selection for the Cost/Sale modals (most recently
+  // purchased vehicle) — just a starting point now, since both modals
+  // have their own vehicle picker and can target any vehicle in stock.
+  const selectedVehicleId = purchases.at(-1)?.vehicleId ?? null;
 
   return (
     <div className="min-h-screen bg-[#0A1128] text-white p-10 animate-fadeIn">
@@ -68,11 +53,11 @@ const [showTransactionModal, setShowTransactionModal] = useState(false); // ⭐ 
     Add Purchase
   </GoldButton>
 
-  <GoldButton onPress={handleAddCost}>
+  <GoldButton onPress={() => setShowCostModal(true)}>
     Add Cost
   </GoldButton>
 
-  <GoldButton onPress={handleAddSale}>
+  <GoldButton onPress={() => setShowSaleModal(true)}>
     Add Sale
   </GoldButton>
 
@@ -125,6 +110,14 @@ const [showTransactionModal, setShowTransactionModal] = useState(false); // ⭐ 
       <div className="space-y-10 max-w-4xl mx-auto">
         <CostBreakdown />
         <SupplierPerformance />
+        <div className="text-center">
+          <Link
+            to="/bookkeeping/suppliers"
+            className="inline-block text-yellow-300 hover:text-yellow-200 font-semibold underline underline-offset-4"
+          >
+            View Full Supplier Analytics →
+          </Link>
+        </div>
       </div>
 
       {/* TRANSACTION MODAL BUTTON */}

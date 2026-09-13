@@ -7,7 +7,7 @@ import { SupernovaSectionDivider } from "@/components/supernova/SupernovaSection
 import { SupernovaInput } from "@/components/supernova/SupernovaInput";
 import { SupernovaGlowButton } from "@/components/supernova/SupernovaGlowButton";
 
-import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
+import { useInventory } from "@/context/InventoryProvider";
 import { fetchMOT } from "@/features/vehicles/api/mot";
 import { autoFormatReg } from "@/features/vehicles/ui/SupernovaUI.web";
 
@@ -16,7 +16,7 @@ import { calculateVat } from "@/bookkeeping/vatUtils";
 
 export default function NewVehicle() {
   const navigate = useNavigate();
-  const { addVehicle } = useVehicleHistory();
+  const { addManualVehicle } = useInventory();
   const { addPurchase } = useBookkeeping();
 
   const [title, setTitle] = useState("");
@@ -112,24 +112,25 @@ export default function NewVehicle() {
       vatReclaimable: true,
     });
 
-    const newVehicle = addVehicle({
-      title,
-      mot: {
-        ...(motData || {}),
-        reg: reg || motData?.reg || null,
-        make: make || motData?.make || null,
-        model: model || motData?.model || null,
-        year: year ? Number(year) : motData?.year || null,
-        colour: colour || motData?.colour || null,
-        mileage: mileage ? Number(mileage) : motData?.mileage || null,
-      },
-      engineSize: engineSize ? Number(engineSize) : null,
+    // Inventory's Vehicle type has no free-text "title" field — fall back
+    // to splitting it into make/model so nothing typed is lost if the
+    // dedicated Make/Model fields were left blank.
+    const [titleMake, ...titleRest] = title.trim().split(" ");
+    const resolvedMake = make || titleMake || "Unknown";
+    const resolvedModel = model || titleRest.join(" ") || "Unknown";
+
+    const newVehicle = addManualVehicle({
+      reg: reg || motData?.reg || null,
+      make: resolvedMake,
+      model: resolvedModel,
+      year: year ? Number(year) : motData?.year ?? null,
+      colour: colour || motData?.colour || null,
+      mileage: mileage ? Number(mileage) : motData?.mileage ?? null,
       buyPrice: buy,
       sellPrice: sell,
       notes: notes || null,
       images: images.length > 0 ? images : null,
-      favourite: false,
-      barcode: "manual-entry",
+      mot: motData || undefined,
     });
 
     addPurchase({
@@ -138,13 +139,19 @@ export default function NewVehicle() {
       purchasePrice: buy,
       supplier: supplier || "Unknown",
       date: purchaseDate,
-      vatRate: Number(vatRate),
+      // vatRate is a decimal fraction everywhere else in this module
+      // (calculateVat, AddPurchaseModal, BookkeepingProvider) — this UI
+      // uses a whole-number % dropdown ("20" for 20%), so it has to be
+      // divided down. Passing the raw 20 here made addPurchase's
+      // internal VAT recalculation produce nonsense (a £1000 purchase
+      // came out as £952 VAT / £47 net instead of ~£167 VAT / £833 net).
+      vatRate: Number(vatRate) / 100,
       vatIncluded,
       vatAmount: breakdown.vat,
       netAmount: breakdown.net,
     });
 
-    navigate(`/dealer/inventory/overview/${newVehicle.id}`);
+    navigate(`/dealer/inventory/${newVehicle.id}`);
   };
 
   return (

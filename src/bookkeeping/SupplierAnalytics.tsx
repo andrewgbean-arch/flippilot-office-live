@@ -2,7 +2,7 @@ import React, { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { useBookkeeping } from "@/bookkeeping/BookkeepingProvider";
-import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
+import { useInventory } from "@/context/InventoryProvider";
 
 import { SupernovaHeroHeader } from "@/components/supernova/SupernovaHeroHeader";
 import { SupernovaSectionDivider } from "@/components/supernova/SupernovaSectionDivider";
@@ -11,7 +11,7 @@ import { SupernovaGlowCard } from "@/components/supernova/SupernovaGlowCard";
 export default function SupplierAnalytics() {
   const navigate = useNavigate();
   const { purchases } = useBookkeeping();
-  const { vehicles } = useVehicleHistory();
+  const { vehicles } = useInventory();
 
   /* -------------------------------------------------------
      ⭐ Build Supplier Analytics

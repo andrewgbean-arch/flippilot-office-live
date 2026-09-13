@@ -1,10 +1,14 @@
 import React, { useState } from "react";
-import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
+import { useInventory } from "@/context/InventoryProvider";
+import { fetchMOT } from "@/features/vehicles/api/mot";
 import { SuperCard, SuperInput } from "@/features/vehicles/ui/SupernovaUI.web";
 
+// Was searching VehicleHistoryContext — a store real vehicles are never
+// written to (they live in InventoryProvider) — so this always said "No
+// vehicle found" for any actual inventory vehicle, and its refreshMot()
+// call didn't exist on that context's real API either.
 export default function MotLookup() {
-  // ⭐ FIX: include refreshMot
-  const { vehicles, refreshMot } = useVehicleHistory();
+  const { vehicles, updateVehicleMOT } = useInventory();
 
   const [reg, setReg] = useState("");
   const [status, setStatus] = useState("");
@@ -18,9 +22,14 @@ export default function MotLookup() {
 
     setStatus("Refreshing MOT…");
 
-    const result = await refreshMot(vehicle.id);
+    const motData = await fetchMOT(reg);
 
-    if (result.success) {
+    if (motData) {
+      updateVehicleMOT(vehicle.id, {
+        ...vehicle.mot,
+        ...motData,
+        expiry: motData.expiry ?? vehicle.mot?.expiry ?? "",
+      });
       setStatus("MOT updated successfully!");
     } else {
       setStatus("MOT lookup failed.");

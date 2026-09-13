@@ -1,8 +1,11 @@
+import { Navigate } from "react-router-dom";
+
+// This was a dead-end placeholder — DealerDashboard's "Bookkeeping
+// Module" card links straight to /bookkeeping/add-purchase, but the
+// real, working "Add Purchase" flow only ever existed as a modal inside
+// BookkeepingScreen (opened via a button there), never as its own
+// routed page. Redirecting here instead of showing static placeholder
+// text.
 export default function AddPurchaseScreen() {
-  return (
-    <div className="p-10 text-white">
-      <h1 className="text-2xl font-bold mb-4">Add Purchase</h1>
-      <p className="text-white/70">Placeholder screen for adding a purchase.</p>
-    </div>
-  );
+  return <Navigate to="/bookkeeping" replace />;
 }

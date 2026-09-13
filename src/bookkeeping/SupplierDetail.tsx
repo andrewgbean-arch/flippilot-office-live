@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { FiArrowLeft } from "react-icons/fi";
 
 import { useBookkeeping } from "@/bookkeeping/BookkeepingProvider";
-import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
+import { useInventory } from "@/context/InventoryProvider";
 
 import { SupernovaHeroHeader } from "@/components/supernova/SupernovaHeroHeader";
 import { SupernovaSectionDivider } from "@/components/supernova/SupernovaSectionDivider";
@@ -14,7 +14,7 @@ export default function SupplierDetail() {
   const navigate = useNavigate();
 
   const { purchases } = useBookkeeping();
-  const { vehicles } = useVehicleHistory();
+  const { vehicles } = useInventory();
 
   const supplierName = id ?? "Unknown";
 
@@ -133,11 +133,17 @@ export default function SupplierDetail() {
             No vehicles found for this supplier.
           </p>
         ) : (
-          stats.supplierVehicles.map((v) => (
+          stats.supplierVehicles.map((v) => {
+            const profit =
+              v!.sellPrice != null && v!.buyPrice != null
+                ? v!.sellPrice - v!.buyPrice
+                : null;
+
+            return (
             <div
               key={v!.id}
               className="cursor-pointer hover:bg-white/5 transition"
-              onClick={() => navigate(`/vehicles/overview/${v!.id}`)}
+              onClick={() => navigate(`/dealer/inventory/${v!.id}`)}
             >
               <SupernovaGlowCard>
                 <div className="flex gap-6">
@@ -157,7 +163,7 @@ export default function SupplierDetail() {
 
                   {/* ⭐ Main Info */}
                   <div className="flex-1">
-                    <h2 className="text-xl font-bold">{v!.title}</h2>
+                    <h2 className="text-xl font-bold">{v!.make} {v!.model}</h2>
 
                     <p className="text-white/70 text-sm">
                       {v!.mot?.make} {v!.mot?.model} • {v!.mot?.year}
@@ -168,8 +174,8 @@ export default function SupplierDetail() {
                     </p>
 
                     {/* ⭐ Profit */}
-                    <p className={`${profitColor(v!.profit ?? 0)} font-bold mt-2`}>
-                      {v!.profit != null ? `£${v!.profit}` : "No sale yet"}
+                    <p className={`${profitColor(profit ?? 0)} font-bold mt-2`}>
+                      {profit != null ? `£${profit}` : "No sale yet"}
                     </p>
                   </div>
 
@@ -178,16 +184,17 @@ export default function SupplierDetail() {
                     {/* ⭐ MOT Badge */}
                     <span
                       className={`px-3 py-1 rounded-lg text-xs font-bold ${motExpiryBadge(
-                        v!.mot?.expiryDate ?? v!.mot?.motExpiry
+                        v!.mot?.expiry
                       )}`}
                     >
-                      MOT: {v!.mot?.expiryDate ?? v!.mot?.motExpiry ?? "—"}
+                      MOT: {v!.mot?.expiry || "—"}
                     </span>
                   </div>
                 </div>
               </SupernovaGlowCard>
             </div>
-          ))
+            );
+          })
         )}
       </div>
     </div>

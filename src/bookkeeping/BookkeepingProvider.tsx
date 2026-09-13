@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode } from "react";
+import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import {
   CostEntry,
   PurchaseEntry,
@@ -10,6 +10,40 @@ import {
   MonthlyReport,
 } from "./types";
 import { calculateVat } from "./vatUtils";
+
+const STORAGE_KEY = "dealer_bookkeeping";
+
+type BookkeepingState = {
+  costs: CostEntry[];
+  purchases: PurchaseEntry[];
+  sales: SaleEntry[];
+  transactions: TransactionEntry[];
+  suppliers: Supplier[];
+  categories: Category[];
+};
+
+const EMPTY_STATE: BookkeepingState = {
+  costs: [],
+  purchases: [],
+  sales: [],
+  transactions: [],
+  suppliers: [],
+  categories: [],
+};
+
+function loadState(): BookkeepingState {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return EMPTY_STATE;
+    return { ...EMPTY_STATE, ...JSON.parse(raw) };
+  } catch {
+    return EMPTY_STATE;
+  }
+}
+
+function saveState(state: BookkeepingState) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
 
 interface BookkeepingContextValue {
   costs: CostEntry[];
@@ -63,12 +97,23 @@ interface BookkeepingProviderProps {
 }
 
 export function BookkeepingProvider({ children }: BookkeepingProviderProps) {
-  const [costs, setCosts] = useState<CostEntry[]>([]);
-  const [purchases, setPurchases] = useState<PurchaseEntry[]>([]);
-  const [sales, setSales] = useState<SaleEntry[]>([]);
-  const [transactions, setTransactions] = useState<TransactionEntry[]>([]);
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
+  // Lazy initializers run once, synchronously, before the first paint —
+  // so state starts out already populated from localStorage. Loading via
+  // a useEffect instead (as this used to) meant the very first render
+  // had empty state, and the "persist on any change" effect below ran
+  // on that SAME initial commit with the still-empty values, immediately
+  // overwriting real saved data with {} on every full page reload.
+  const [costs, setCosts] = useState<CostEntry[]>(() => loadState().costs);
+  const [purchases, setPurchases] = useState<PurchaseEntry[]>(() => loadState().purchases);
+  const [sales, setSales] = useState<SaleEntry[]>(() => loadState().sales);
+  const [transactions, setTransactions] = useState<TransactionEntry[]>(() => loadState().transactions);
+  const [suppliers, setSuppliers] = useState<Supplier[]>(() => loadState().suppliers);
+  const [categories, setCategories] = useState<Category[]>(() => loadState().categories);
+
+  // PERSIST ON ANY CHANGE
+  useEffect(() => {
+    saveState({ costs, purchases, sales, transactions, suppliers, categories });
+  }, [costs, purchases, sales, transactions, suppliers, categories]);
 
   // COSTS
   const addCost = (entry: CostEntry) => {

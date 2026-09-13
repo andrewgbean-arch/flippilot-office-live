@@ -2,38 +2,58 @@ import React, { useState } from "react";
 import { PurchaseEntry } from "./types";
 import { calculateVat } from "./vatUtils";
 import { useBookkeeping } from "./BookkeepingProvider";
+import { useInventory } from "@/context/InventoryProvider";
 
 interface AddPurchaseModalProps {
-  vehicleId: string | null; // now allowed
+  vehicleId: string | null;
   onClose: () => void;
 }
 
-export default function AddPurchaseModal({ vehicleId, onClose }: AddPurchaseModalProps) {
+export default function AddPurchaseModal({ onClose }: AddPurchaseModalProps) {
   const { addPurchase } = useBookkeeping();
+  const { addManualVehicle } = useInventory();
 
-  const [purchasePrice, setPurchasePrice] = useState<number>(0);
-  const [vatRate, setVatRate] = useState<number>(0.2);
+  const [reg, setReg] = useState<string>("");
+  const [make, setMake] = useState<string>("");
+  const [model, setModel] = useState<string>("");
+  const [purchasePrice, setPurchasePrice] = useState<string>("");
+  const [vatRate, setVatRate] = useState<string>("20");
   const [vatIncluded, setVatIncluded] = useState<boolean>(true);
   const [supplier, setSupplier] = useState<string>("");
   const [date, setDate] = useState<string>(new Date().toISOString().slice(0, 10));
 
   function handleSave() {
-    // ⭐ ALWAYS CREATE A NEW VEHICLE ID
-    const newVehicleId = crypto.randomUUID();
+    if (!make.trim() || !model.trim()) return;
 
-    const breakdown = calculateVat(purchasePrice, {
-      vatRate,
+    const numericPrice = Number(purchasePrice) || 0;
+    const numericVatRate = (Number(vatRate) || 0) / 100;
+
+    const breakdown = calculateVat(numericPrice, {
+      vatRate: numericVatRate,
       vatIncluded,
-      vatReclaimable: true, // purchases reclaim VAT
+      vatReclaimable: true,
+    });
+
+    // This used to record the purchase against a brand new random UUID
+    // that had no corresponding vehicle anywhere — the ledger would show
+    // a meaningless ID forever, and the "vehicle" it referred to never
+    // actually existed in the real inventory. Now it creates a real
+    // vehicle (same as the New Vehicle screen) so a purchase made here
+    // actually shows up in stock.
+    const newVehicle = addManualVehicle({
+      reg: reg || null,
+      make,
+      model,
+      buyPrice: numericPrice,
     });
 
     const entry: PurchaseEntry = {
       id: crypto.randomUUID(),
-      vehicleId: newVehicleId, // ⭐ FIXED — always a string
-      purchasePrice,
+      vehicleId: newVehicle.id,
+      purchasePrice: numericPrice,
       supplier,
       date,
-      vatRate,
+      vatRate: numericVatRate,
       vatIncluded,
       vatAmount: breakdown.vat,
       netAmount: breakdown.net,
@@ -44,26 +64,58 @@ export default function AddPurchaseModal({ vehicleId, onClose }: AddPurchaseModa
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-      <div className="bg-black/80 border border-white/10 p-6 rounded-xl w-full max-w-lg">
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+      <div className="bg-black/80 border border-white/10 p-6 rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <h2 className="text-white/80 text-xl font-semibold mb-4">Add Vehicle Purchase</h2>
+
+        {/* REGISTRATION */}
+        <label className="text-white/60 text-sm">Registration (optional)</label>
+        <input
+          type="text"
+          value={reg}
+          onChange={(e) => setReg(e.target.value.toUpperCase())}
+          placeholder="AB12 CDE"
+          className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-4"
+        />
+
+        {/* MAKE */}
+        <label className="text-white/60 text-sm">Make</label>
+        <input
+          type="text"
+          value={make}
+          onChange={(e) => setMake(e.target.value)}
+          placeholder="Ford"
+          className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-4"
+        />
+
+        {/* MODEL */}
+        <label className="text-white/60 text-sm">Model</label>
+        <input
+          type="text"
+          value={model}
+          onChange={(e) => setModel(e.target.value)}
+          placeholder="Fiesta"
+          className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-4"
+        />
 
         {/* PURCHASE PRICE */}
         <label className="text-white/60 text-sm">Purchase Price</label>
         <input
           type="number"
           value={purchasePrice}
-          onChange={(e) => setPurchasePrice(Number(e.target.value))}
+          onChange={(e) => setPurchasePrice(e.target.value)}
+          placeholder="0.00"
           className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-4"
         />
 
         {/* VAT RATE */}
-        <label className="text-white/60 text-sm">VAT Rate</label>
+        <label className="text-white/60 text-sm">VAT Rate (%)</label>
         <input
           type="number"
-          step="0.01"
+          step="1"
           value={vatRate}
-          onChange={(e) => setVatRate(Number(e.target.value))}
+          onChange={(e) => setVatRate(e.target.value)}
+          placeholder="20"
           className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-4"
         />
 
@@ -84,6 +136,7 @@ export default function AddPurchaseModal({ vehicleId, onClose }: AddPurchaseModa
           type="text"
           value={supplier}
           onChange={(e) => setSupplier(e.target.value)}
+          placeholder="Trade-in, Auction, Private Sale, BCA..."
           className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-4"
         />
 
@@ -107,7 +160,12 @@ export default function AddPurchaseModal({ vehicleId, onClose }: AddPurchaseModa
 
           <button
             onClick={handleSave}
-            className="px-4 py-2 rounded bg-blue-500 text-black font-semibold hover:bg-blue-400"
+            disabled={!make.trim() || !model.trim()}
+            className={`px-4 py-2 rounded font-semibold ${
+              make.trim() && model.trim()
+                ? "bg-blue-500 text-black hover:bg-blue-400"
+                : "bg-gray-600 text-gray-300 cursor-not-allowed"
+            }`}
           >
             Save Purchase
           </button>

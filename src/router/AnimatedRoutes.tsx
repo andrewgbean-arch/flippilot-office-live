@@ -55,6 +55,9 @@ import AddCostScreen from "@/bookkeeping/AddCostScreen";
 import AddPurchaseScreen from "@/bookkeeping/AddPurchaseScreen";
 import AddSaleScreen from "@/bookkeeping/AddSaleScreen";
 import AddTransactionScreen from "@/bookkeeping/AddTransactionScreen";
+import BookkeepingEntryScreen from "@/bookkeeping/BookkeepingEntryScreen";
+import SupplierAnalytics from "@/bookkeeping/SupplierAnalytics";
+import SupplierDetail from "@/bookkeeping/SupplierDetail";
 
 /* STAFF */
 import { StaffDashboard } from "@/staff/StaffDashboard";
@@ -169,6 +172,9 @@ export default function AnimatedRoutes() {
         <Route path="bookkeeping/add-purchase" element={<AddPurchaseScreen />} />
         <Route path="bookkeeping/add-sale" element={<AddSaleScreen />} />
         <Route path="bookkeeping/add-transaction" element={<AddTransactionScreen />} />
+        <Route path="bookkeeping/entry/:vehicleId" element={<BookkeepingEntryScreen />} />
+        <Route path="bookkeeping/suppliers" element={<SupplierAnalytics />} />
+        <Route path="supplier/:id" element={<SupplierDetail />} />
 
         {/* STAFF */}
         <Route path="dealer/staff" element={<StaffDashboard />} />

@@ -1,6 +1,7 @@
 import { FiChevronRight } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 import { useBookkeeping } from "./BookkeepingProvider";
+import { useInventory } from "@/context/InventoryProvider";
 
 export interface BookkeepingTableProps {
   vehicleId?: string;
@@ -14,16 +15,18 @@ export default function BookkeepingTable({ vehicleId }: BookkeepingTableProps) {
     getTotalCostForVehicle,
     getProfitForVehicle,
   } = useBookkeeping();
+  const { vehicles } = useInventory();
 
   // Build dynamic ledger from provider data
   const ledger = purchases.map((p) => {
     const sale = sales.find((s) => s.vehicleId === p.vehicleId);
     const totalCost = getTotalCostForVehicle(p.vehicleId);
     const profitSummary = getProfitForVehicle(p.vehicleId);
+    const vehicle = vehicles.find((v) => v.id === p.vehicleId);
 
     return {
       id: p.vehicleId,
-      vehicle: p.vehicleId, // replace with actual vehicle name later
+      vehicle: vehicle ? `${vehicle.make} ${vehicle.model}` : "Unknown vehicle",
       purchase: p.purchasePrice,
       totalCost,
       expectedSale: sale?.salePrice ?? 0,
@@ -61,7 +64,7 @@ export default function BookkeepingTable({ vehicleId }: BookkeepingTableProps) {
           {ledger.map((row) => (
             <tr
               key={row.id}
-              onClick={() => navigate(`/dealer/bookkeeping/entry/${row.id}`)}
+              onClick={() => navigate(`/bookkeeping/entry/${row.id}`)}
               className="border-t border-white/10 hover:bg-white/5 transition cursor-pointer"
             >
               <td className="p-3">{row.vehicle}</td>

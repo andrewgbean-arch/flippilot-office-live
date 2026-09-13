@@ -1,6 +1,7 @@
 import React from "react";
 import { useParams } from "react-router-dom";
 import { useBookkeeping } from "./BookkeepingProvider";
+import { useInventory } from "@/context/InventoryProvider";
 import AddCostModal from "./AddCostModal";
 import AddSaleModal from "./AddSaleModal";
 
@@ -13,6 +14,10 @@ export default function BookkeepingEntryScreen() {
     getTotalCostForVehicle,
     getProfitForVehicle,
   } = useBookkeeping();
+  const { vehicles } = useInventory();
+
+  const vehicle = vehicles.find((v) => v.id === vehicleId);
+  const vehicleLabel = vehicle ? `${vehicle.make} ${vehicle.model}` : vehicleId;
 
   const purchase = purchases.find((p) => p.vehicleId === vehicleId);
   const vehicleCosts = costs.filter((c) => c.vehicleId === vehicleId);
@@ -56,7 +61,7 @@ export default function BookkeepingEntryScreen() {
 
       {/* HEADER */}
       <h1 className="text-3xl font-bold text-yellow-300 mb-6 drop-shadow-[0_0_12px_rgba(255,215,0,0.5)]">
-        Vehicle Ledger — {vehicleId}
+        Vehicle Ledger — {vehicleLabel}
       </h1>
 
       {/* PURCHASE CARD */}
