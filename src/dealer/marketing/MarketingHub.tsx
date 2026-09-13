@@ -3,11 +3,7 @@ import { SupernovaSectionDivider } from "@/components/supernova/SupernovaSection
 import { SupernovaGlowCard } from "@/components/supernova/SupernovaGlowCard";
 
 import DealerPublicPage from "@/dealer/public/DealerPublicPage";
-import DealerNeonHeader from "@/components/dealer/DealerNeonHeader";
-import DealerSectionGlow from "@/components/dealer/DealerSectionGlow";
 import DealerGridButton from "@/components/dealer/DealerGridButton";
-
-import DealerFab from "@/components/dealer/DealerFab";
 
 export default function MarketingHub() {
   return (
@@ -23,33 +19,24 @@ export default function MarketingHub() {
         <DealerPublicPage />
       </SupernovaGlowCard>
 
-      <SupernovaSectionDivider label="Brand Tools" />
-
-      <SupernovaGlowCard>
-        <DealerNeonHeader title="Branding Tools" />
-      </SupernovaGlowCard>
-
-      <SupernovaGlowCard>
-        <DealerSectionGlow title="Marketing Effects" />
-      </SupernovaGlowCard>
-
       <SupernovaSectionDivider label="Quick Actions" />
 
       <SupernovaGlowCard>
-<DealerGridButton
-  label="Boost Listing"
-  href="/dealer/marketing/boost"
-/>
-
-<DealerGridButton
-  label="Marketplace Sync"
-  href="/dealer/marketing/sync"
-/>
-
+        <DealerGridButton
+          label="Marketplace Sync"
+          href="/dealer/marketing/sync"
+        />
       </SupernovaGlowCard>
 
+      <SupernovaSectionDivider label="Not Available Yet" />
+
       <SupernovaGlowCard>
-        <DealerFab />
+        <h2 className="text-yellow-300 font-bold text-xl mb-3">Coming Soon</h2>
+        <ul className="space-y-3 text-white/70">
+          <li>• Listing boost / promotion</li>
+          <li>• Branding tools (logo, colour scheme, templates)</li>
+          <li>• Marketing effects and campaign scheduling</li>
+        </ul>
       </SupernovaGlowCard>
     </div>
   );
