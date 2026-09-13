@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useRef } from "react";
 
 import { ultraInventory } from "../dealer/ultraInventory";
 import { dummyVehicles } from "../dealer/dummyVehicles";
@@ -10,6 +10,10 @@ import type { Vehicle } from "../types/Vehicle";
 
 // ⭐ AI enrichment layer
 import { enrichVehicleWithAI } from "../dealer/intelligence/dealerAI";
+
+import { useDealerNotifications } from "@/features/dealer-notifications/DealerNotificationsContext";
+
+const MOT_WARNING_DAYS = 30;
 
 interface InventoryContextType {
   vehicles: Vehicle[];
@@ -41,6 +45,44 @@ const InventoryContext = createContext<InventoryContextType | undefined>(undefin
 export function InventoryProvider({ children }: { children: React.ReactNode }) {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
+  const { addNotification } = useDealerNotifications();
+  const motWarnedIds = useRef<Set<string>>(new Set());
+
+  // ⭐ MOT EXPIRY WARNINGS
+  //
+  // A "MOT" notification type already existed, but the only thing that
+  // ever used it was "MOT data refreshed" after a manual lookup — there
+  // was no proactive check anywhere for a real vehicle's MOT actually
+  // approaching (or past) expiry. This runs against the real inventory
+  // vehicles use everywhere else in the app, and only ever warns once
+  // per vehicle per browser session (motWarnedIds), so it doesn't spam
+  // the same alert on every unrelated inventory change.
+  useEffect(() => {
+    if (loading) return;
+
+    vehicles.forEach((v) => {
+      if (v.status === "sold") return;
+      if (!v.mot?.expiry) return;
+      if (motWarnedIds.current.has(v.id)) return;
+
+      const daysLeft = Math.ceil(
+        (new Date(v.mot.expiry).getTime() - Date.now()) / 86400000
+      );
+      if (daysLeft > MOT_WARNING_DAYS) return;
+
+      motWarnedIds.current.add(v.id);
+      const label = `${v.make} ${v.model}${v.reg ? ` (${v.reg})` : ""}`;
+
+      addNotification({
+        type: "MOT",
+        title: daysLeft < 0 ? "MOT Expired" : "MOT Expiring Soon",
+        message:
+          daysLeft < 0
+            ? `${label}'s MOT expired ${Math.abs(daysLeft)} day${Math.abs(daysLeft) === 1 ? "" : "s"} ago.`
+            : `${label}'s MOT expires in ${daysLeft} day${daysLeft === 1 ? "" : "s"}.`,
+      });
+    });
+  }, [vehicles, loading, addNotification]);
 
   // ⭐ SAFE LOAD — NEVER THROWS
   //
