@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import GlowPulseCard from "@/components/ui/GlowPulseCard";
+import GlowPulseCard from "@/components/ui/GlowPulseCard.web";
 
 export default function MarketHeatIndex() {
   const heat = Math.floor(65 + Math.random() * 25); // 65–90 range

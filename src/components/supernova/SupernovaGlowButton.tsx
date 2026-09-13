@@ -1,13 +1,15 @@
 import React, { ReactNode } from "react";
 
 interface SupernovaGlowButtonProps {
-  children: ReactNode;
+  children?: ReactNode;
+  label?: string;
   onClick?: () => void;
   className?: string;
 }
 
 export function SupernovaGlowButton({
   children,
+  label,
   onClick,
   className = "",
 }: SupernovaGlowButtonProps) {
@@ -24,7 +26,7 @@ export function SupernovaGlowButton({
         ${className}
       `}
     >
-      {children}
+      {children ?? label}
     </button>
   );
 }

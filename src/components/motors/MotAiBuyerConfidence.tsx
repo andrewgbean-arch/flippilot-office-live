@@ -1,6 +1,6 @@
 import React from "react";
 import { motion } from "framer-motion";
-import { MotAiResult } from "@/features/vehicles/ai/motAiEngine";
+import { MotAiResult } from "@/engines/motAiEngine";
 
 type Props = {
   ai?: MotAiResult;

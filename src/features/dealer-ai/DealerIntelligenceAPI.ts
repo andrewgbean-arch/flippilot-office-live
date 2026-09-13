@@ -1,7 +1,7 @@
 // src/features/dealer-ai/DealerIntelligenceAPI.ts
 
 import { FlipRecord } from "@/features/vehicles/models/FlipRecord";
-import { motAiEngine } from "@/features/vehicles/ai/motAiEngine";
+import { motAiEngine } from "@/engines/motAiEngine";
 import { matchEngine } from "@/features/dealer-ai/MatchEngine";
 import { DealerAI } from "@/features/dealer-ai/DealerAIContext";
 

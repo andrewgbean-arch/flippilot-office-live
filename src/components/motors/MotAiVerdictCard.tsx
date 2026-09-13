@@ -1,5 +1,5 @@
 import React from "react";
-import { MotAiResult } from "@/features/vehicles/ai/motAiEngine";
+import { MotAiResult } from "@/engines/motAiEngine";
 
 type Props = {
   ai: MotAiResult;

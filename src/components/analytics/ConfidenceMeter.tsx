@@ -1,5 +1,5 @@
 import React from "react";
-import GlowPulseCard from "../ui/GlowPulseCard";
+import GlowPulseCard from "../ui/GlowPulseCard.web";
 
 export default function ConfidenceMeter({ score }: { score: number }) {
   const width = Math.max(10, Math.min(score, 100));

@@ -1,4 +1,3 @@
-import { div, span } from "react";
 export default function DealProbabilityAI({ listing, prediction }: any) {
   const { price, score, vehicle, seller } = listing;
   let probability = 40; // base chance

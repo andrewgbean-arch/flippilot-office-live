@@ -1,4 +1,3 @@
-import { div, span } from "react";
 export default function SellerBadges({ seller }: any) {
   if (!seller) return null;
   const badges: string[] = [];

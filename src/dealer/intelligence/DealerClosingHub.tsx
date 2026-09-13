@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import SupernovaCard from "@/components/SupernovaCard";
-import SupernovaSectionHeader from "@/components/dealer/SupernovaSectionHeader";
+import SupernovaSectionHeader from "@/dealer/SupernovaSectionHeader";
 
 import {
   FiCheckCircle,
