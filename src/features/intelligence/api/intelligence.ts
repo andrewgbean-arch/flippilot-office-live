@@ -6,7 +6,7 @@ export async function fetchIntelligenceScore(vehicle: {
   expiry: string | null;
 }) {
   try {
-    const response = await fetch("http://localhost:3001/intelligence/score", {
+    const response = await fetch("http://localhost:4001/intelligence/score", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(vehicle),

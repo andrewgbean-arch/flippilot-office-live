@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Local backend data store (file-based persistence — real data, not seed/demo)
+src/backend/data/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

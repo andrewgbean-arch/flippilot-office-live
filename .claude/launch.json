@@ -24,6 +24,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev", "--", "--port", "5173"],
       "port": 5173
+    },
+    {
+      "name": "dealer-office-backend",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "cd /d C:/Users/andre/Desktop/flippilot-office-live/src/backend && npm run dev"],
+      "port": 4001
     }
   ]
 }

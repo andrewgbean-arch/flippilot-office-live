@@ -29,7 +29,7 @@ export interface MOTData {
 export async function fetchMOT(reg: string): Promise<MOTData | null> {
   try {
     const response = await fetch(
-      `http://localhost:3001/dvla?reg=${encodeURIComponent(reg)}`
+      `http://localhost:4001/dvla?reg=${encodeURIComponent(reg)}`
     );
 
     const data = await response.json();

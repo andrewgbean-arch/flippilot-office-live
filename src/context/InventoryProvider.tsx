@@ -4,6 +4,7 @@ import { ultraInventory } from "../dealer/ultraInventory";
 import { dummyVehicles } from "../dealer/dummyVehicles";
 
 import fetchMarketFromServer from "../lib/fetchMarketFromServer";
+import { loadInventoryFromServer, saveInventoryToServer } from "./inventoryStorage.web";
 
 import type { Vehicle } from "../types/Vehicle";
 
@@ -26,14 +27,30 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   // ⭐ SAFE LOAD — NEVER THROWS
+  //
+  // Previously this always rebuilt the list from local seed data on
+  // every load — nothing was ever actually persisted (createVehicleFromMOT/
+  // updateVehicleMOT only touched React state, so an added/edited vehicle
+  // vanished on refresh). Now the real backend is the source of truth:
+  // if it already has vehicles, use those; if it's empty (first run),
+  // seed it once from the local demo data so the nice sample inventory
+  // still shows up, but from then on the backend is authoritative.
   const loadInventory = async () => {
     setLoading(true);
 
     try {
+      const fromServer = await loadInventoryFromServer();
+
+      if (fromServer.length > 0) {
+        setVehicles(fromServer.map(v => enrichVehicleWithAI(v)));
+        setLoading(false);
+        return;
+      }
+
       const local = ultraInventory || [];
       const fallback = dummyVehicles || [];
 
-      // ⭐ Prevent crash if backend is offline
+      // ⭐ Prevent crash if market lookup is offline
       const market = await fetchMarketFromServer("default").catch(() => null);
 
       const mergedRaw = [
@@ -41,6 +58,8 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
         ...fallback,
         ...(market?.vehicles || [])
       ];
+
+      await saveInventoryToServer(mergedRaw);
 
       const merged = mergedRaw.map(v => enrichVehicleWithAI(v));
       setVehicles(merged);
@@ -69,13 +88,15 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
 
   // ⭐ UPDATE VEHICLE MOT
   function updateVehicleMOT(vehicleId: string, motData: Vehicle["mot"]) {
-    setVehicles(prev =>
-      prev.map(v =>
+    setVehicles(prev => {
+      const updated = prev.map(v =>
         v.id === vehicleId
           ? { ...v, mot: motData }
           : v
-      )
-    );
+      );
+      saveInventoryToServer(updated);
+      return updated;
+    });
   }
 
   // ⭐ AUTO‑CREATE VEHICLE FROM MOT LOOKUP
@@ -138,7 +159,11 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
     };
 
     const enriched = enrichVehicleWithAI(newVehicle);
-    setVehicles(prev => [...prev, enriched]);
+    setVehicles(prev => {
+      const updated = [...prev, enriched];
+      saveInventoryToServer(updated);
+      return updated;
+    });
 
     return enriched;
   }

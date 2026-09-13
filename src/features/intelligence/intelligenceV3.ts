@@ -4,7 +4,7 @@ export async function fetchIntelligenceV3(payload: {
   images: string[];
 }) {
   try {
-    const response = await fetch("http://localhost:3001/intelligence/v3", {
+    const response = await fetch("http://localhost:4001/intelligence/v3", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),

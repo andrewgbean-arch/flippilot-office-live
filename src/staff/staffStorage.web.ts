@@ -1,15 +1,31 @@
 import type { StaffRecord } from "@/staff/staffTypes";
 
-const STAFF_KEY = "dealer_staff";
+const BASE_URL = "http://localhost:4001";
 
+// Was localStorage-only — staff records never left the one browser they
+// were created in. Same function signatures, now backed by the real
+// backend (src/backend/src/routes/staff.ts) instead.
 export async function saveStaff(staff: StaffRecord[]) {
-  localStorage.setItem(STAFF_KEY, JSON.stringify(staff));
+  try {
+    await fetch(`${BASE_URL}/staff`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items: staff }),
+    });
+  } catch (err) {
+    console.error("saveStaff: backend unreachable", err);
+  }
 }
 
 export async function loadStaff(): Promise<StaffRecord[]> {
-  const raw = localStorage.getItem(STAFF_KEY);
-  if (!raw) return [];
-  return JSON.parse(raw);
+  try {
+    const res = await fetch(`${BASE_URL}/staff`);
+    const data = await res.json();
+    return Array.isArray(data.items) ? data.items : [];
+  } catch (err) {
+    console.error("loadStaff: backend unreachable", err);
+    return [];
+  }
 }
 
 export async function deleteStaff(id: string) {
