@@ -9,7 +9,6 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { AuthProvider } from "./context/AuthContext";
 
 // Providers
-import { DealerAIProvider } from "./features/dealer-ai/DealerAIStateProvider";
 import { VehicleHistoryProvider } from "./features/vehicles/context/VehicleHistoryContext";
 import { DealerNotificationsProvider } from "./features/dealer-notifications/DealerNotificationsContext";
 
@@ -30,15 +29,13 @@ createRoot(document.getElementById("root")!).render(
               <InventoryProvider>
                 <IntelligenceProvider>
                   <LeadsProvider>
-                    <DealerAIProvider>
-                      <VehicleHistoryProvider>
-                        <BookkeepingProvider>
-                          <StaffProvider>
-                            <App />
-                          </StaffProvider>
-                        </BookkeepingProvider>
-                      </VehicleHistoryProvider>
-                    </DealerAIProvider>
+                    <VehicleHistoryProvider>
+                      <BookkeepingProvider>
+                        <StaffProvider>
+                          <App />
+                        </StaffProvider>
+                      </BookkeepingProvider>
+                    </VehicleHistoryProvider>
                   </LeadsProvider>
                 </IntelligenceProvider>
               </InventoryProvider>
