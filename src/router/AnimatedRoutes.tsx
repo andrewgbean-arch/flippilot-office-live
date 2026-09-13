@@ -1,5 +1,10 @@
 import { Routes, Route } from "react-router-dom";
 import DealerLayout from "@/layouts/DealerLayout";
+import ProtectedRoute from "@/components/ProtectedRoute";
+
+/* AUTH */
+import LoginScreen from "@/screens/LoginScreen";
+import SignupScreen from "@/screens/SignupScreen";
 
 /* HOME */
 import HomeScreen from "@/screens/HomeScreen";
@@ -98,7 +103,18 @@ import NotFoundScreen from "@/screens/NotFoundScreen";
 export default function AnimatedRoutes() {
   return (
     <Routes>
-      <Route path="/" element={<DealerLayout />}>
+      {/* AUTH — outside DealerLayout, no sidebar/nav chrome */}
+      <Route path="/login" element={<LoginScreen />} />
+      <Route path="/signup" element={<SignupScreen />} />
+
+      <Route
+        path="/"
+        element={
+          <ProtectedRoute>
+            <DealerLayout />
+          </ProtectedRoute>
+        }
+      >
 
         {/* HOME */}
         <Route index element={<HomeScreen />} />

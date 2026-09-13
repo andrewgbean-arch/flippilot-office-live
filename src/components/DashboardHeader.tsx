@@ -1,7 +1,15 @@
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "@/context/AuthContext";
 
 export default function DashboardHeader() {
   const { pathname } = useLocation();
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+
+  function handleLogout() {
+    logout();
+    navigate("/login", { replace: true });
+  }
 
   const isHome =
     pathname === "/" ||
@@ -67,6 +75,19 @@ export default function DashboardHeader() {
           <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
           Sync AI
         </button>
+
+        {/* USER + LOGOUT */}
+        {user && (
+          <div className="flex items-center gap-3 pl-3 border-l border-white/10">
+            <span className="text-white/70 text-sm">{user.name}</span>
+            <button
+              onClick={handleLogout}
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-black/50 border border-white/20 text-white/70 hover:text-red-300 hover:border-red-400/40 transition"
+            >
+              Log Out
+            </button>
+          </div>
+        )}
       </div>
 
       {/* ANIMATIONS */}

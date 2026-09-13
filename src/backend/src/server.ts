@@ -1,3 +1,6 @@
+import dotenv from "dotenv";
+dotenv.config();
+
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
@@ -11,6 +14,8 @@ import registerLeadsRoute from "./routes/leads";
 import registerStaffRoute from "./routes/staff";
 import registerDVLA from "./dvla";
 import registerSyndicationRoute from "./routes/syndication";
+import registerAuthRoute from "./routes/auth";
+import { requireAuth } from "./auth";
 
 const app = express();
 // 3001 clashes with flippilotlatest's separate backend — this office
@@ -31,11 +36,19 @@ app.get("/", (_req, res) => {
   });
 });
 
+registerAuthRoute(app);
+
 registerSearchRoute(app);
 registerLookupRoute(app);
-registerInventoryRoute(app);
 registerIntelligenceRoute(app);
 registerIntelligenceV3(app);
+
+// The dealer's actual business data — previously these had zero access
+// control, so anyone who found the URL could read or overwrite
+// inventory/leads/staff. requireAuth runs before the route handlers
+// below for these exact paths.
+app.use(["/inventory", "/leads", "/staff"], requireAuth);
+registerInventoryRoute(app);
 registerLeadsRoute(app);
 registerStaffRoute(app);
 // NOTE: this calls a placeholder third-party domain

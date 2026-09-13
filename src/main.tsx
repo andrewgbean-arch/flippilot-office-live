@@ -6,6 +6,7 @@ import "./index.css";
 
 import App from "./App";
 import ErrorBoundary from "./components/ErrorBoundary";
+import { AuthProvider } from "./context/AuthContext";
 
 // Providers
 import { DealerAIProvider } from "./features/dealer-ai/DealerAIStateProvider";
@@ -23,25 +24,27 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <ErrorBoundary>
       <BrowserRouter>
-        <DealerNotificationsProvider>
-          <DealerContextProvider>
-            <InventoryProvider>
-              <IntelligenceProvider>
-                <LeadsProvider>
-                  <DealerAIProvider>
-                    <VehicleHistoryProvider>
-                      <BookkeepingProvider>
-                        <StaffProvider>
-                          <App />
-                        </StaffProvider>
-                      </BookkeepingProvider>
-                    </VehicleHistoryProvider>
-                  </DealerAIProvider>
-                </LeadsProvider>
-              </IntelligenceProvider>
-            </InventoryProvider>
-          </DealerContextProvider>
-        </DealerNotificationsProvider>
+        <AuthProvider>
+          <DealerNotificationsProvider>
+            <DealerContextProvider>
+              <InventoryProvider>
+                <IntelligenceProvider>
+                  <LeadsProvider>
+                    <DealerAIProvider>
+                      <VehicleHistoryProvider>
+                        <BookkeepingProvider>
+                          <StaffProvider>
+                            <App />
+                          </StaffProvider>
+                        </BookkeepingProvider>
+                      </VehicleHistoryProvider>
+                    </DealerAIProvider>
+                  </LeadsProvider>
+                </IntelligenceProvider>
+              </InventoryProvider>
+            </DealerContextProvider>
+          </DealerNotificationsProvider>
+        </AuthProvider>
       </BrowserRouter>
     </ErrorBoundary>
   </StrictMode>

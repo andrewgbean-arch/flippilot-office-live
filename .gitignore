@@ -15,6 +15,11 @@ dist-ssr
 # Local backend data store (file-based persistence — real data, not seed/demo)
 src/backend/data/
 
+# Secrets — JWT signing key etc.
+.env
+.env.*
+!.env.example
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
