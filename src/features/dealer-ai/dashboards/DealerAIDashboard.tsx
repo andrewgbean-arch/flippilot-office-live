@@ -7,7 +7,12 @@ type DealerDashboardProps = {
 };
 
 export default function DealerDashboard({ brain }: DealerDashboardProps) {
-  const core = brain.brain; // the REAL payload
+  // MasterBrainScreen already unwraps flipPilotMasterBrain's result down
+  // to just the mode's brain payload before passing it here (same as
+  // GroupDashboard/OEMDashboard/GlobalDashboard/PlanetDashboard all
+  // expect) — reading `brain.brain` again was a leftover double-unwrap
+  // that made this undefined and crashed on `core.health`.
+  const core = brain;
 
   return (
     <div className="space-y-6">
@@ -18,7 +23,7 @@ export default function DealerDashboard({ brain }: DealerDashboardProps) {
 
       <SupernovaCard title="Status">
         <pre className="text-white text-sm">
-          {JSON.stringify({ status: brain.status }, null, 2)}
+          {JSON.stringify({ status: "🟢 Dealer AI Active" }, null, 2)}
         </pre>
       </SupernovaCard>
 

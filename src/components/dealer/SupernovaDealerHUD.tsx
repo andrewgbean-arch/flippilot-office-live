@@ -66,7 +66,7 @@ export default function SupernovaDealerHUD({
         <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-transparent via-yellow-400 to-transparent animate-pulse" />
       )}
 
-      <div className="px-6 py-3 flex items-center justify-between gap-4">
+      <div className="px-6 py-3 flex flex-wrap items-center justify-between gap-4">
 
         {/* LEFT CLUSTER */}
         <div className="flex items-center gap-3">
@@ -85,7 +85,7 @@ export default function SupernovaDealerHUD({
         </div>
 
         {/* CENTER CLUSTER */}
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
 
           {/* AI SYNC BADGE */}
           <div className={`${badgeBase} ${aiColor}`}>
@@ -112,7 +112,7 @@ export default function SupernovaDealerHUD({
         </div>
 
         {/* RIGHT CLUSTER */}
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <div className={`${badgeBase} ${riskColor}`}>
             <span>Risk: {riskLevel}</span>
           </div>

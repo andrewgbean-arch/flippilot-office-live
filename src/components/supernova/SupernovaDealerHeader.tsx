@@ -11,12 +11,14 @@ export default function SupernovaDealerHeader() {
       p-5 
       backdrop-blur-xl 
       shadow-[0_0_25px_rgba(255,215,0,0.25)]
-      flex 
-      items-center 
+      flex
+      flex-wrap
+      items-center
       justify-between
+      gap-4
       animate-fadeIn
     ">
-      
+
       <div>
         <h1 className="text-2xl font-bold text-yellow-300 tracking-wide">
           Dealer OS • Supernova V14 Cosmic
@@ -24,7 +26,7 @@ export default function SupernovaDealerHeader() {
         <p className="text-white/60 text-sm">Operational Intelligence Layer</p>
       </div>
 
-      <div className="flex items-center gap-6 text-white/80">
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-white/80">
 
         <div className="flex items-center gap-2">
           <FiCpu className="text-yellow-300" />

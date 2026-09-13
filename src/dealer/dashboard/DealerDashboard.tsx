@@ -160,7 +160,7 @@ export default function DealerDashboard({ brain }: Props) {
             {recentActivity.map((a) => (
               <button
                 key={a.id}
-                onClick={() => navigate(`/vehicles/overview/${a.id}`)}
+                onClick={() => navigate(`/dealer/inventory/${a.id}`)}
                 className="w-full text-left px-4 py-3 rounded-lg bg-black/30 border border-white/10 text-white/80 hover:bg-black/50 transition"
               >
                 <div className="font-semibold text-yellow-300">{a.title}</div>
@@ -182,7 +182,7 @@ export default function DealerDashboard({ brain }: Props) {
           accent="green"
         >
           <GoldButton onPress={() => navigate("/dealer/inventory")}>View Inventory</GoldButton>
-          <GoldButton onPress={() => navigate("/dealer/inventory/new")}>Add Vehicle</GoldButton>
+          <GoldButton onPress={() => navigate("/new-flip")}>Add Vehicle</GoldButton>
           <GoldButton onPress={() => navigate("/dealer/inventory/mot-lookup")}>MOT Lookup</GoldButton>
           <GoldButton onPress={() => navigate("/dealer/inventory/list")}>Vehicle List</GoldButton>
         </SupernovaCard>
@@ -192,7 +192,7 @@ export default function DealerDashboard({ brain }: Props) {
           icon={<FiUsers className="cosmic-pulse" />}
           accent="blue"
         >
-          <GoldButton onPress={() => navigate("/dealer/leads/new")}>Add Lead</GoldButton>
+          <GoldButton onPress={() => navigate("/dealer/sales/add")}>Add Lead</GoldButton>
           <GoldButton onPress={() => navigate("/dealer/sales/pipeline")}>Sales Pipeline</GoldButton>
           <GoldButton onPress={() => navigate("/dealer/intelligence/crm")}>CRM Intelligence</GoldButton>
         </SupernovaCard>
@@ -203,8 +203,8 @@ export default function DealerDashboard({ brain }: Props) {
           accent="gold"
         >
           <GoldButton onPress={() => navigate("/dealer/finance/calculator")}>Finance Calculator</GoldButton>
-          <GoldButton onPress={() => navigate("/dealer/finance/dealsheet")}>Deal Sheet</GoldButton>
-          <GoldButton onPress={() => navigate("/dealer/finance/lenders")}>Lender Comparison</GoldButton>
+          <GoldButton onPress={() => navigate("/dealer/finance/deal-sheet")}>Deal Sheet</GoldButton>
+          <GoldButton onPress={() => navigate("/dealer/finance/lender-comparison")}>Lender Comparison</GoldButton>
         </SupernovaCard>
 
         <SupernovaCard
@@ -212,7 +212,14 @@ export default function DealerDashboard({ brain }: Props) {
           icon={<FiTool className="cosmic-pulse" />}
           accent="red"
         >
-          <GoldButton onPress={() => navigate("/dealer/workflow/recon")}>Recon Workflow</GoldButton>
+          <GoldButton
+            onPress={() =>
+              reconNeeded[0]?.id &&
+              navigate(`/dealer/workflow/recon/${reconNeeded[0].id}`)
+            }
+          >
+            Recon Workflow
+          </GoldButton>
           <GoldButton onPress={() => navigate("/bookkeeping/add-cost")}>Add Cost</GoldButton>
           <GoldButton onPress={() => navigate("/dealer/inventory/parts-labour")}>Parts & Labour Log</GoldButton>
         </SupernovaCard>

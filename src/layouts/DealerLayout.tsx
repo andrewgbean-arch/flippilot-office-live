@@ -1,5 +1,6 @@
-import React from "react";
+import React, { useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
+import { FiMenu, FiX } from "react-icons/fi";
 
 import DealerSidebar from "../components/DealerSidebar";
 import DealerRightSidebar from "../components/DealerRightSidebar";
@@ -10,6 +11,7 @@ import DashboardFooter from "../components/DashboardFooter";
 
 export default function DealerLayout() {
   const { pathname } = useLocation();
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   const isHome =
     pathname === "/" ||
@@ -26,18 +28,52 @@ export default function DealerLayout() {
       <div className="absolute inset-0 bg-gradient-to-br from-black via-[#0A0A14] to-[#1A1A2A] opacity-80 pointer-events-none z-0" />
       <div className="absolute inset-0 sn-stars pointer-events-none z-0" />
 
-      {/* LEFT SIDEBAR */}
-      <aside className="w-60 h-screen fixed left-0 top-0 z-20 backdrop-blur-xl bg-black/40 border-r border-yellow-400/20">
+      {/* MOBILE MENU BUTTON — the fixed 240px+240px sidebars below don't
+          fit a phone/narrow window at all (they were overlapping the
+          whole viewport and squeezing content to nothing), so both
+          sidebars are hidden below the lg breakpoint and this toggles
+          the left one open as a full-height drawer instead. */}
+      <button
+        onClick={() => setMobileNavOpen(true)}
+        className="lg:hidden fixed top-4 left-4 z-40 p-2 rounded-lg bg-black/60 border border-yellow-400/30 text-yellow-300"
+        aria-label="Open menu"
+      >
+        <FiMenu size={22} />
+      </button>
+
+      {/* LEFT SIDEBAR — desktop */}
+      <aside className="hidden lg:block w-60 h-screen fixed left-0 top-0 z-20 backdrop-blur-xl bg-black/40 border-r border-yellow-400/20">
         <DealerSidebar />
       </aside>
 
-      {/* RIGHT SIDEBAR */}
-      <aside className="w-60 h-screen fixed right-0 top-0 z-20 backdrop-blur-xl bg-black/40 border-l border-yellow-400/20">
+      {/* LEFT SIDEBAR — mobile drawer */}
+      {mobileNavOpen && (
+        <div className="lg:hidden fixed inset-0 z-40 flex">
+          <div className="w-72 h-screen bg-black/95 backdrop-blur-xl border-r border-yellow-400/20 overflow-y-auto">
+            <button
+              onClick={() => setMobileNavOpen(false)}
+              className="absolute top-4 right-4 p-2 rounded-lg bg-black/60 border border-yellow-400/30 text-yellow-300"
+              aria-label="Close menu"
+            >
+              <FiX size={20} />
+            </button>
+            <DealerSidebar />
+          </div>
+          <div
+            className="flex-1 bg-black/60"
+            onClick={() => setMobileNavOpen(false)}
+          />
+        </div>
+      )}
+
+      {/* RIGHT SIDEBAR — desktop only; secondary status info, not worth
+          a second mobile drawer */}
+      <aside className="hidden lg:block w-60 h-screen fixed right-0 top-0 z-20 backdrop-blur-xl bg-black/40 border-l border-yellow-400/20">
         <DealerRightSidebar />
       </aside>
 
       {/* MAIN CONTENT */}
-      <div className="flex-1 ml-60 mr-60 min-h-screen overflow-y-auto relative z-10">
+      <div className="flex-1 lg:ml-60 lg:mr-60 min-h-screen overflow-y-auto relative z-10">
 
         <DashboardHeader />
 

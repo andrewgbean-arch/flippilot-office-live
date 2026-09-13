@@ -22,10 +22,16 @@ import SalesHub from "@/dealer/sales/SalesHub";
 import SalesPipeline from "@/dealer/leads/SalesPipeline";
 import LeadsDashboard from "@/dealer/leads/LeadsDashboard";
 import AddLead from "@/dealer/leads/AddLead";
+import LeadDetails from "@/dealer/leads/LeadDetails";
 
 /* FINANCE */
 import FinanceHub from "@/dealer/finance/FinanceHub";
 import FinanceCalculator from "@/dealer/finance/FinanceCalculator";
+import DealSheet from "@/dealer/finance/DealSheet";
+import LenderComparison from "@/dealer/finance/LenderComparison";
+import ProfitBreakdown from "@/dealer/finance/ProfitBreakdown";
+import TradeInValuation from "@/dealer/finance/TradeInValuation";
+import ContractGenerator from "@/dealer/finance/ContractGenerator";
 
 /* MARKETING */
 import MarketingHub from "@/dealer/marketing/MarketingHub";
@@ -47,12 +53,18 @@ import AddStaff from "@/staff/AddStaff";
 import PermissionsManager from "@/staff/PermissionsManager";
 import StaffDetail from "@/staff/StaffDetail";
 
-/* RISK + AI */
-import RiskHub from "@/dealer/risk/RiskHub";
+/* AI */
 import AIInsights from "@/dealer/AIInsights";
 
 /* ANALYTICS */
 import AnalyticsHub from "@/dealer/analytics/AnalyticsHub";
+import SalesAnalytics from "@/dealer/analytics/SalesAnalytics";
+import InventoryAnalytics from "@/dealer/analytics/InventoryAnalytics";
+import PricingAnalytics from "@/dealer/analytics/PricingAnalytics";
+import MarketTrends from "@/dealer/analytics/MarketTrends";
+import LeadConversionAnalytics from "@/dealer/analytics/LeadConversionAnalytics";
+import StaffAnalytics from "@/dealer/analytics/StaffAnalytics";
+import BranchComparison from "@/dealer/analytics/BranchComparison";
 
 /* INTELLIGENCE */
 import MarketIntelligence from "@/dealer/intelligence/MarketIntelligence";
@@ -60,6 +72,7 @@ import DealerMotorsDashboard from "@/dealer/intelligence/DealerMotorsDashboard";
 import PricingBrain from "@/dealer/intelligence/PricingBrain";
 import DealerCRMIntelligence from "@/dealer/intelligence/DealerCRMIntelligence";
 import DealerRiskHub from "@/dealer/intelligence/DealerRiskHub";
+import MasterBrainRoute from "@/dealer/intelligence/MasterBrainRoute";
 
 /* WORKFLOWS */
 import FinanceWorkflow from "@/dealer/workflow/FinanceWorkflow";
@@ -76,7 +89,10 @@ import MOTTimeline from "@/features/dealer-ai/mot/MOTTimeline";
 /* MISC */
 import NewVehicle from "@/bookkeeping/vehicles/NewVehicle";
 import MotScanner from "@/bookkeeping/vehicles/MotLookup";
-import DealerPublicPage from "@/dealer/marketplace/DealerPublicPage";
+import DealerPublicPage from "@/dealer/public/DealerPublicPage";
+
+/* NOT FOUND */
+import NotFoundScreen from "@/screens/NotFoundScreen";
 
 export default function AnimatedRoutes() {
   return (
@@ -105,10 +121,16 @@ export default function AnimatedRoutes() {
         <Route path="dealer/sales/pipeline" element={<SalesPipeline />} />
         <Route path="dealer/sales/crm" element={<DealerCRMIntelligence />} />
         <Route path="dealer/sales/leads" element={<LeadsDashboard />} />
+        <Route path="dealer/sales/leads/:id" element={<LeadDetails />} />
 
         {/* FINANCE */}
         <Route path="dealer/finance" element={<FinanceHub />} />
         <Route path="dealer/finance/calculator" element={<FinanceCalculator />} />
+        <Route path="dealer/finance/deal-sheet" element={<DealSheet />} />
+        <Route path="dealer/finance/lender-comparison" element={<LenderComparison />} />
+        <Route path="dealer/finance/profit-breakdown" element={<ProfitBreakdown />} />
+        <Route path="dealer/finance/trade-in" element={<TradeInValuation />} />
+        <Route path="dealer/finance/contract" element={<ContractGenerator />} />
 
         {/* MARKETING */}
         <Route path="dealer/marketing" element={<MarketingHub />} />
@@ -127,13 +149,13 @@ export default function AnimatedRoutes() {
         <Route path="bookkeeping/add-transaction" element={<AddTransactionScreen />} />
 
         {/* STAFF */}
-        <Route path="dealer/staff" element={<StaffDashboard brain={{}} />} />
+        <Route path="dealer/staff" element={<StaffDashboard />} />
         <Route path="dealer/staff/add" element={<AddStaff />} />
         <Route path="dealer/staff/permissions" element={<PermissionsManager />} />
         <Route path="dealer/staff/:id" element={<StaffDetail />} />
 
         {/* RISK */}
-        <Route path="dealer/risk" element={<RiskHub />} />
+        <Route path="dealer/risk" element={<DealerRiskHub />} />
 
         {/* AI */}
         <Route path="ai-insights" element={<AIInsights />} />
@@ -145,9 +167,17 @@ export default function AnimatedRoutes() {
         <Route path="dealer/intelligence/pricing" element={<PricingBrain />} />
         <Route path="dealer/intelligence/crm" element={<DealerCRMIntelligence />} />
         <Route path="dealer/intelligence/risk" element={<DealerRiskHub />} />
+        <Route path="dealer/intelligence/brain" element={<MasterBrainRoute />} />
 
         {/* ANALYTICS */}
         <Route path="dealer/analytics" element={<AnalyticsHub />} />
+        <Route path="dealer/analytics/sales" element={<SalesAnalytics />} />
+        <Route path="dealer/analytics/inventory" element={<InventoryAnalytics />} />
+        <Route path="dealer/analytics/pricing" element={<PricingAnalytics />} />
+        <Route path="dealer/analytics/market-trends" element={<MarketTrends />} />
+        <Route path="dealer/analytics/lead-conversion" element={<LeadConversionAnalytics />} />
+        <Route path="dealer/analytics/staff" element={<StaffAnalytics />} />
+        <Route path="dealer/analytics/branches" element={<BranchComparison />} />
 
         {/* WORKFLOWS */}
         <Route path="dealer/workflow/finance" element={<FinanceWorkflow />} />
@@ -165,6 +195,9 @@ export default function AnimatedRoutes() {
         <Route path="new-flip" element={<NewVehicle />} />
         <Route path="mot-scanner" element={<MotScanner />} />
         <Route path="marketplace" element={<DealerPublicPage />} />
+
+        {/* NOT FOUND */}
+        <Route path="*" element={<NotFoundScreen />} />
 
       </Route>
     </Routes>

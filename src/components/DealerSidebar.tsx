@@ -59,6 +59,11 @@ export default function DealerSidebar() {
       items: [
         { to: "/dealer/finance", label: "Finance Hub" },
         { to: "/dealer/finance/calculator", label: "Finance Calculator" },
+        { to: "/dealer/finance/deal-sheet", label: "Deal Sheet" },
+        { to: "/dealer/finance/lender-comparison", label: "Lender Comparison" },
+        { to: "/dealer/finance/profit-breakdown", label: "Profit Breakdown" },
+        { to: "/dealer/finance/trade-in", label: "Trade-In Valuation" },
+        { to: "/dealer/finance/contract", label: "Contract Generator" },
       ],
     },
 
@@ -81,6 +86,7 @@ export default function DealerSidebar() {
         { to: "/dealer/intelligence/pricing", label: "Pricing Brain" },
         { to: "/dealer/intelligence/crm", label: "CRM Intelligence" },
         { to: "/dealer/intelligence/risk", label: "Risk Intelligence" },
+        { to: "/dealer/intelligence/brain", label: "Master Brain" },
       ],
     },
 
@@ -89,6 +95,13 @@ export default function DealerSidebar() {
       icon: FiTrendingUp,
       items: [
         { to: "/dealer/analytics", label: "Analytics Hub" },
+        { to: "/dealer/analytics/sales", label: "Sales Analytics" },
+        { to: "/dealer/analytics/inventory", label: "Inventory Analytics" },
+        { to: "/dealer/analytics/pricing", label: "Pricing Analytics" },
+        { to: "/dealer/analytics/market-trends", label: "Market Trends" },
+        { to: "/dealer/analytics/lead-conversion", label: "Lead Conversion" },
+        { to: "/dealer/analytics/staff", label: "Staff Analytics" },
+        { to: "/dealer/analytics/branches", label: "Branch Comparison" },
       ],
     },
 
@@ -112,7 +125,7 @@ export default function DealerSidebar() {
       label: "Risk",
       icon: FiAlertTriangle,
       items: [
-        { to: "/dealer/intelligence/risk", label: "Risk Hub" },
+        { to: "/dealer/risk", label: "Risk Hub" },
       ],
     },
 

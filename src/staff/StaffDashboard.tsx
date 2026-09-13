@@ -1,13 +1,14 @@
 import { useNavigate } from "react-router-dom";
 import { useStaff } from "./StaffContext";
 import type { StaffRecord } from "./staffTypes";
+import { getWorkforceIntelligence } from "@/core/superbrain/SuperBrainEngine";
 import "./StaffDashboard.css";
 
 interface Props {
-  brain: any;
+  brain?: any;
 }
 
-export function StaffDashboard({ brain }: Props) {
+export function StaffDashboard({}: Props) {
   const { staff, removeStaff } = useStaff();
   const navigate = useNavigate();
 
@@ -17,11 +18,11 @@ export function StaffDashboard({ brain }: Props) {
   const sales = staff.filter(s => s.role === "sales");
   const trainees = staff.filter(s => s.role === "trainee");
 
-  // Supernova V13 Workforce Intelligence
-  const workforce = brain?.brain?.intelligenceSuite?.workforceIntel ?? {};
-  const performanceScore = workforce.performanceScore ?? 78;
-  const attritionRisk = workforce.attritionRisk ?? "Low";
-  const productivityIndex = workforce.productivityIndex ?? 64;
+  // Supernova V22 Workforce Intelligence — computed live from real staff
+  // data (this used to come from a `brain` prop that nothing ever
+  // populated, so it always showed hardcoded fallback numbers).
+  const { performanceScore, attritionRisk, productivityIndex, insight } =
+    getWorkforceIntelligence(staff);
 
   function handleOpen(id: string) {
     navigate(`/dealer/staff/${id}`);
@@ -97,7 +98,7 @@ export function StaffDashboard({ brain }: Props) {
               <strong>Attrition Risk:</strong> {attritionRisk}
             </p>
             <p className="sn-ai-line">
-              <strong>AI Insight:</strong> {workforce.insight ?? "Team stability is strong with balanced productivity."}
+              <strong>AI Insight:</strong> {insight}
             </p>
           </div>
         </section>

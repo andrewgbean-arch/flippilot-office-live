@@ -3328,9 +3328,15 @@ export function getPlanetaryAutomotiveAISuite(globalData: Parameters<typeof plan
 export function flipPilotMasterBrain(mode: FlipPilotMode, data: any) {
   switch (mode) {
     case "dealer":
+      // DealerAIDashboard.tsx (the component this feeds) reads
+      // core.health/growth/efficiency/strategy/pricing/rotation/profitMax/
+      // crm/lifecycle/acquisition directly — that's dealerAICommandCenter's
+      // shape, not getAutonomousDealershipBrain's (which nests everything
+      // under decisionEngine/marketIntelligence/etc. instead and caused a
+      // "Cannot read properties of undefined (reading 'health')" crash).
       return {
         mode,
-        brain: getAutonomousDealershipBrain(data.vehicles ?? [], data.leads ?? []),
+        brain: dealerAICommandCenter(data.vehicles ?? [], data.leads ?? []),
         status: "🟢 Dealer AI Active",
       };
 
@@ -3368,6 +3374,72 @@ export function flipPilotMasterBrain(mode: FlipPilotMode, data: any) {
         error: "❌ Unknown FlipPilot mode",
       };
   }
+}
+
+/* =======================================================
+   V22 — WORKFORCE INTELLIGENCE
+   Staff Dashboard expected this at
+   `brain.intelligenceSuite.workforceIntel` but nothing in this file
+   ever computed it (StaffDashboard.tsx always fell back to hardcoded
+   defaults: performanceScore 78, attritionRisk "Low", productivityIndex
+   64, regardless of actual staff). This is a real implementation based
+   on actual staff records instead of a stub.
+   ======================================================= */
+export type StaffLike = {
+  id: string;
+  role: string;
+  active: boolean;
+  joinedAt: string;
+  lastActive?: string;
+};
+
+export function getWorkforceIntelligence(staff: StaffLike[]) {
+  if (!staff.length) {
+    return { performanceScore: 0, attritionRisk: "Unknown", productivityIndex: 0 };
+  }
+
+  const active = staff.filter(s => s.active);
+  const activeRatio = active.length / staff.length;
+
+  const now = Date.now();
+  const avgTenureDays =
+    staff.reduce((sum, s) => {
+      const joined = new Date(s.joinedAt).getTime();
+      if (isNaN(joined)) return sum;
+      return sum + (now - joined) / 86400000;
+    }, 0) / staff.length;
+
+  const recentlyActive = staff.filter(s => {
+    if (!s.lastActive) return false;
+    const last = new Date(s.lastActive).getTime();
+    if (isNaN(last)) return false;
+    return (now - last) / 86400000 <= 14;
+  });
+  const engagementRatio = recentlyActive.length / staff.length;
+
+  const performanceScore = Math.round(
+    Math.max(0, Math.min(100, activeRatio * 50 + engagementRatio * 50))
+  );
+
+  const attritionRisk =
+    activeRatio < 0.6 || engagementRatio < 0.3
+      ? "High"
+      : activeRatio < 0.8 || engagementRatio < 0.5
+      ? "Medium"
+      : "Low";
+
+  const productivityIndex = Math.round(
+    Math.max(0, Math.min(100, engagementRatio * 60 + Math.min(avgTenureDays / 365, 1) * 40))
+  );
+
+  const insight =
+    attritionRisk === "High"
+      ? "Low engagement/activity detected — check in with staff who haven't been active recently."
+      : attritionRisk === "Medium"
+      ? "Team engagement is mixed — some staff may need re-engaging."
+      : "Team stability is strong with balanced productivity.";
+
+  return { performanceScore, attritionRisk, productivityIndex, insight };
 }
 
 /* Convenience default export object */
@@ -3409,6 +3481,9 @@ const SuperBrainEngine = {
 
   // master
   flipPilotMasterBrain,
+
+  // workforce
+  getWorkforceIntelligence,
 };
 
 export default SuperBrainEngine;
