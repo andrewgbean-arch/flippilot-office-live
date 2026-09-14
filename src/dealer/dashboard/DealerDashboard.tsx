@@ -78,12 +78,33 @@ export default function DealerDashboard({ brain }: Props) {
     timestamp: new Date().toLocaleString(),
   }));
 
+  // Real ticker content built from the same real per-vehicle signals
+  // the "Today's Actions" cards below already use — was previously a
+  // single hardcoded string with a fabricated "3.2%" that never changed.
+  const tickerItems = [
+    `🚗 ${safeVehicles.length} vehicle${safeVehicles.length === 1 ? "" : "s"} in stock`,
+    motAlerts.length > 0
+      ? `⚠️ ${motAlerts.length} vehicle${motAlerts.length === 1 ? "" : "s"} need MOT attention`
+      : null,
+    reconNeeded.length > 0
+      ? `🔧 ${reconNeeded.length} vehicle${reconNeeded.length === 1 ? "" : "s"} flagged for recon`
+      : null,
+    pricingNeeded.length > 0
+      ? `📉 ${pricingNeeded.length} vehicle${pricingNeeded.length === 1 ? "" : "s"} need pricing review`
+      : null,
+    photoNeeded.length > 0
+      ? `📷 ${photoNeeded.length} vehicle${photoNeeded.length === 1 ? "" : "s"} missing photos`
+      : null,
+    financeIssues.length > 0
+      ? `💰 ${financeIssues.length} vehicle${financeIssues.length === 1 ? "" : "s"} flagged for finance risk`
+      : null,
+  ].filter((item): item is string => item !== null);
 
   return (
     <div className="p-10 space-y-16">
 
       <SupernovaDealerHeader />
-      <SupernovaMarketTicker />
+      <SupernovaMarketTicker items={tickerItems} />
       <DealerModeToggle />
 
       {/* TODAY'S ACTIONS */}

@@ -1,6 +1,16 @@
 import React from "react";
 
-export default function SupernovaMarketTicker() {
+interface SupernovaMarketTickerProps {
+  items: string[];
+}
+
+// Was a single hardcoded string with a fabricated specific number
+// ("Auction Prices Up 3.2%") — scrolled forever, identical regardless
+// of what was actually in the dealer's inventory. Now takes real,
+// caller-computed facts and just handles the scrolling presentation.
+export default function SupernovaMarketTicker({ items }: SupernovaMarketTickerProps) {
+  const text = items.length > 0 ? items.join(" • ") + " •" : "No outstanding items across your fleet •";
+
   return (
     <div className="
       w-full 
@@ -19,7 +29,7 @@ export default function SupernovaMarketTicker() {
         py-3 
         px-4
       ">
-        🚗 Market Volatility Rising • 📈 Auction Prices Up 3.2% • ⚠️ Diesel Risk Medium • 🔧 Recon Costs Rising • 💰 EV Depreciation Slowing • 🔍 Pricing Brain Syncing New Data •
+        {text}
       </div>
 
       <style>{`
