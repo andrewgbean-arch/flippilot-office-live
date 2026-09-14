@@ -96,3 +96,37 @@ export function writeTenantCollection<T>(
     "utf-8"
   );
 }
+
+// Same tenant-scoped file storage as above, but for a single object
+// document rather than an array collection — used by bookkeeping, whose
+// costs/purchases/sales/transactions naturally belong together as one
+// per-dealership record rather than as separate array collections.
+export function readTenantDoc<T>(
+  dealershipId: string,
+  collection: string,
+  fallback: T
+): T {
+  ensureDataDir();
+  const file = tenantFilePath(dealershipId, collection);
+  if (!fs.existsSync(file)) return fallback;
+
+  try {
+    const raw = fs.readFileSync(file, "utf-8");
+    return JSON.parse(raw) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+export function writeTenantDoc<T>(
+  dealershipId: string,
+  collection: string,
+  data: T
+): void {
+  ensureDataDir();
+  fs.writeFileSync(
+    tenantFilePath(dealershipId, collection),
+    JSON.stringify(data, null, 2),
+    "utf-8"
+  );
+}

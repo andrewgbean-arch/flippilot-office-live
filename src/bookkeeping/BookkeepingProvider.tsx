@@ -10,40 +10,8 @@ import {
   MonthlyReport,
 } from "./types";
 import { calculateVat } from "./vatUtils";
-
-const STORAGE_KEY = "dealer_bookkeeping";
-
-type BookkeepingState = {
-  costs: CostEntry[];
-  purchases: PurchaseEntry[];
-  sales: SaleEntry[];
-  transactions: TransactionEntry[];
-  suppliers: Supplier[];
-  categories: Category[];
-};
-
-const EMPTY_STATE: BookkeepingState = {
-  costs: [],
-  purchases: [],
-  sales: [],
-  transactions: [],
-  suppliers: [],
-  categories: [],
-};
-
-function loadState(): BookkeepingState {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return EMPTY_STATE;
-    return { ...EMPTY_STATE, ...JSON.parse(raw) };
-  } catch {
-    return EMPTY_STATE;
-  }
-}
-
-function saveState(state: BookkeepingState) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-}
+import { loadBookkeeping, saveBookkeeping, type BookkeepingDoc } from "./bookkeepingStorage.web";
+import { useAuth } from "@/context/AuthContext";
 
 interface BookkeepingContextValue {
   costs: CostEntry[];
@@ -52,6 +20,7 @@ interface BookkeepingContextValue {
   transactions: TransactionEntry[];
   suppliers: Supplier[];
   categories: Category[];
+  loading: boolean;
 
   addCost: (entry: CostEntry) => void;
   updateCost: (id: string, entry: Partial<CostEntry>) => void;
@@ -97,23 +66,60 @@ interface BookkeepingProviderProps {
 }
 
 export function BookkeepingProvider({ children }: BookkeepingProviderProps) {
-  // Lazy initializers run once, synchronously, before the first paint —
-  // so state starts out already populated from localStorage. Loading via
-  // a useEffect instead (as this used to) meant the very first render
-  // had empty state, and the "persist on any change" effect below ran
-  // on that SAME initial commit with the still-empty values, immediately
-  // overwriting real saved data with {} on every full page reload.
-  const [costs, setCosts] = useState<CostEntry[]>(() => loadState().costs);
-  const [purchases, setPurchases] = useState<PurchaseEntry[]>(() => loadState().purchases);
-  const [sales, setSales] = useState<SaleEntry[]>(() => loadState().sales);
-  const [transactions, setTransactions] = useState<TransactionEntry[]>(() => loadState().transactions);
-  const [suppliers, setSuppliers] = useState<Supplier[]>(() => loadState().suppliers);
-  const [categories, setCategories] = useState<Category[]>(() => loadState().categories);
+  const [costs, setCosts] = useState<CostEntry[]>([]);
+  const [purchases, setPurchases] = useState<PurchaseEntry[]>([]);
+  const [sales, setSales] = useState<SaleEntry[]>([]);
+  const [transactions, setTransactions] = useState<TransactionEntry[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
 
-  // PERSIST ON ANY CHANGE
+  // Was pure localStorage — never left the browser it was entered in,
+  // no backup, invisible from a second device. Now loads from the real
+  // per-tenant backend, keyed on the authenticated user's dealershipId
+  // rather than firing once at mount — a plain `}, [])` here would have
+  // the exact same confirmed bug as InventoryProvider/LeadsContext/
+  // StaffContext: a real client-side login (no full page reload) would
+  // never re-trigger the fetch, leaving bookkeeping stuck on whatever
+  // the pre-login unauthenticated attempt got (empty). `loading` also
+  // guards every mutator below from persisting before a load completes
+  // — without it, a mutation fired before that resolves would save the
+  // still-empty starting state and silently wipe out whatever was
+  // really saved.
   useEffect(() => {
-    saveState({ costs, purchases, sales, transactions, suppliers, categories });
-  }, [costs, purchases, sales, transactions, suppliers, categories]);
+    if (!user?.dealershipId) {
+      setLoading(false);
+      return;
+    }
+
+    (async () => {
+      setLoading(true);
+      const doc = await loadBookkeeping();
+      setCosts(doc.costs);
+      setPurchases(doc.purchases);
+      setSales(doc.sales);
+      setTransactions(doc.transactions);
+      setSuppliers(doc.suppliers);
+      setCategories(doc.categories);
+      setLoading(false);
+    })();
+  }, [user?.dealershipId]);
+
+  // Saves the full combined document — called by every mutator below
+  // with whichever field(s) it just changed; everything else is taken
+  // from current state.
+  function persist(next: Partial<BookkeepingDoc>) {
+    if (loading) return;
+    saveBookkeeping({
+      costs: next.costs ?? costs,
+      purchases: next.purchases ?? purchases,
+      sales: next.sales ?? sales,
+      transactions: next.transactions ?? transactions,
+      suppliers: next.suppliers ?? suppliers,
+      categories: next.categories ?? categories,
+    });
+  }
 
   // COSTS
   const addCost = (entry: CostEntry) => {
@@ -129,17 +135,21 @@ export function BookkeepingProvider({ children }: BookkeepingProviderProps) {
       netAmount: vat.net,
     };
 
-    setCosts((prev) => [...prev, enriched]);
+    const updated = [...costs, enriched];
+    setCosts(updated);
+    persist({ costs: updated });
   };
 
   const updateCost = (id: string, patch: Partial<CostEntry>) => {
-    setCosts((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, ...patch } : c))
-    );
+    const updated = costs.map((c) => (c.id === id ? { ...c, ...patch } : c));
+    setCosts(updated);
+    persist({ costs: updated });
   };
 
   const deleteCost = (id: string) => {
-    setCosts((prev) => prev.filter((c) => c.id !== id));
+    const updated = costs.filter((c) => c.id !== id);
+    setCosts(updated);
+    persist({ costs: updated });
   };
 
   // PURCHASES
@@ -156,7 +166,9 @@ export function BookkeepingProvider({ children }: BookkeepingProviderProps) {
       netAmount: vat.net,
     };
 
-    setPurchases((prev) => [...prev, enriched]);
+    const updated = [...purchases, enriched];
+    setPurchases(updated);
+    persist({ purchases: updated });
   };
 
   // SALES
@@ -173,22 +185,30 @@ export function BookkeepingProvider({ children }: BookkeepingProviderProps) {
       netAmount: vat.net,
     };
 
-    setSales((prev) => [...prev, enriched]);
+    const updated = [...sales, enriched];
+    setSales(updated);
+    persist({ sales: updated });
   };
 
   // TRANSACTIONS
   const addTransaction = (entry: TransactionEntry) => {
-    setTransactions((prev) => [...prev, entry]);
+    const updated = [...transactions, entry];
+    setTransactions(updated);
+    persist({ transactions: updated });
   };
 
   // SUPPLIERS
   const addSupplier = (supplier: Supplier) => {
-    setSuppliers((prev) => [...prev, supplier]);
+    const updated = [...suppliers, supplier];
+    setSuppliers(updated);
+    persist({ suppliers: updated });
   };
 
   // CATEGORIES
   const addCategory = (category: Category) => {
-    setCategories((prev) => [...prev, category]);
+    const updated = [...categories, category];
+    setCategories(updated);
+    persist({ categories: updated });
   };
 
   // LEDGER
@@ -278,6 +298,7 @@ export function BookkeepingProvider({ children }: BookkeepingProviderProps) {
     sales,
     transactions,
     suppliers,
+    loading,
     categories,
 
     addCost,

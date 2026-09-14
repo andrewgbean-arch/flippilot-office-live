@@ -12,6 +12,7 @@ import type { Vehicle } from "../types/Vehicle";
 import { enrichVehicleWithAI } from "../dealer/intelligence/dealerAI";
 
 import { useDealerNotifications } from "@/features/dealer-notifications/DealerNotificationsContext";
+import { useAuth } from "@/context/AuthContext";
 
 const MOT_WARNING_DAYS = 30;
 
@@ -46,6 +47,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
   const { addNotification } = useDealerNotifications();
+  const { user } = useAuth();
   const motWarnedIds = useRef<Set<string>>(new Set());
 
   // ⭐ MOT EXPIRY WARNINGS
@@ -132,7 +134,23 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
   };
 
   // ⭐ STRICTMODE‑SAFE EFFECT (runs twice but never crashes)
+  //
+  // Was `}, [])` — fetched once at app boot and never again. Confirmed
+  // live: a real user logging in via the normal form (no full page
+  // reload) got stuck seeing only the 8-vehicle demo fallback forever,
+  // even though their real 16-vehicle inventory genuinely existed on
+  // the backend — the ONE fetch this ran happened during the brief
+  // unauthenticated moment before login, got no data, and silently
+  // reseeded/kept the local demo set. Depending on the authenticated
+  // user's dealershipId makes this re-run exactly when a real login
+  // completes (or a different account logs in over an old session in
+  // the same tab), instead of only on the very first page load.
   useEffect(() => {
+    if (!user?.dealershipId) {
+      setLoading(false);
+      return;
+    }
+
     (async () => {
       try {
         await loadInventory();
@@ -142,7 +160,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [user?.dealershipId]);
 
   // ⭐ UPDATE VEHICLE MOT
   function updateVehicleMOT(vehicleId: string, motData: Vehicle["mot"]) {

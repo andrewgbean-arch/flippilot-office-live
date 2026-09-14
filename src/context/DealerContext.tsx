@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { authHeaders } from "@/lib/authToken";
+import { useAuth } from "@/context/AuthContext";
 
 const BASE_URL = "http://localhost:4001";
 
@@ -33,8 +34,24 @@ const DealerContext = createContext<DealerContextType | undefined>(undefined);
 export function DealerContextProvider({ children }: { children: React.ReactNode }) {
   const [dealer, setDealer] = useState<DealerInfo | null>(null);
   const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
 
+  // Was `}, [])` — fetched once at app boot and never again. Since
+  // every provider like this one sits above the router and never
+  // unmounts, a real user who logs in via the normal client-side form
+  // (no full page reload) would be stuck forever with whatever this
+  // fetched during the brief unauthenticated moment before they logged
+  // in (a 401 in this case, silently leaving `dealer` at null) — the
+  // dealership name/phone/address would just never appear until they
+  // manually refreshed the page. Depending on the authenticated user's
+  // dealershipId makes this re-run exactly when a real login completes
+  // (or a different account logs in over an old session in the same tab).
   useEffect(() => {
+    if (!user?.dealershipId) {
+      setLoading(false);
+      return;
+    }
+
     (async () => {
       try {
         const res = await fetch(`${BASE_URL}/dealership/me`, { headers: authHeaders() });
@@ -53,7 +70,7 @@ export function DealerContextProvider({ children }: { children: React.ReactNode 
         setLoading(false);
       }
     })();
-  }, []);
+  }, [user?.dealershipId]);
 
   async function updateDealer(patch: { name?: string; phone?: string; address?: string }) {
     const res = await fetch(`${BASE_URL}/dealership/me`, {

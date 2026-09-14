@@ -13,6 +13,7 @@ import registerInventoryRoute from "./routes/inventory";
 import registerIntelligenceRoute from "./routes/intelligence";
 import registerLeadsRoute from "./routes/leads";
 import registerStaffRoute from "./routes/staff";
+import registerBookkeepingRoute from "./routes/bookkeeping";
 import registerDVLA from "./dvla";
 import registerSyndicationRoute from "./routes/syndication";
 import registerAuthRoute from "./routes/auth";
@@ -106,18 +107,14 @@ registerIntelligenceV3(app);
 // still valid) — /dealership/me and /billing/* deliberately only need
 // requireAuth, not the subscription gate, since a dealer with an
 // expired trial still needs to see their status and subscribe.
-app.use(["/inventory", "/leads", "/staff"], requireAuth, requireActiveSubscription);
+app.use(["/inventory", "/leads", "/staff", "/bookkeeping"], requireAuth, requireActiveSubscription);
 registerInventoryRoute(app);
 registerLeadsRoute(app);
 registerStaffRoute(app);
-// NOTE: this calls a placeholder third-party domain
-// (api.vehicleinfo.dev) that was never a real, working DVLA/MOT
-// provider — it's example code, not a functional lookup. Wiring it in
-// so it's at least reachable instead of silently dead, but it needs a
-// real provider before /dvla will actually return anything. FlipPilot's
-// main mobile app (C:\flippilotlatest\backend) already has a working
-// DVSA MOT History + DVLA Vehicle Enquiry Service integration with real
-// credentials — worth reusing that pattern here instead of this stub.
+registerBookkeepingRoute(app);
+// Real DVSA MOT History + DVLA Vehicle Enquiry Service integration
+// (ported from the sibling flippilotlatest backend's proven pattern) —
+// previously called a placeholder domain that was never a real provider.
 registerDVLA(app);
 registerSyndicationRoute(app);
 app.listen(PORT, "0.0.0.0", () => {
