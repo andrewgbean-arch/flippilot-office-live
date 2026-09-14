@@ -13,6 +13,7 @@ export default function AddLead() {
   const [vehicleInterest, setVehicleInterest] = useState("");
   const [status, setStatus] = useState<LeadStatus>("new");
   const [notes, setNotes] = useState("");
+  const [saved, setSaved] = useState(false);
 
   async function handleAdd() {
     if (!name.trim()) return;
@@ -38,6 +39,9 @@ export default function AddLead() {
     setVehicleInterest("");
     setStatus("new");
     setNotes("");
+
+    setSaved(true);
+    setTimeout(() => setSaved(false), 3000);
   }
 
   return (
@@ -111,9 +115,12 @@ export default function AddLead() {
           rows={3}
         />
 
-        <button className="sn-btn sn-btn--gold" onClick={handleAdd}>
-          Add Lead
-        </button>
+        <div className="sn-detail-actions">
+          <button className="sn-btn sn-btn--gold" onClick={handleAdd}>
+            Add Lead
+          </button>
+          {saved && <span className="sn-saved-note">Lead added</span>}
+        </div>
       </div>
     </div>
   );

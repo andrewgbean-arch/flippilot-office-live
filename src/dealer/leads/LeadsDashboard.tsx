@@ -1,113 +1,130 @@
-import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useLeads } from "@/context/LeadsContext";
+import type { Lead, LeadStatus } from "./leadTypes";
+import "@/staff/StaffDashboard.css";
 
-import { SupernovaHeroHeader } from "../../components/supernova/SupernovaHeroHeader";
-import { SupernovaGlowCard } from "../../components/supernova/SupernovaGlowCard";
-import { SupernovaGlowButton } from "../../components/supernova/SupernovaGlowButton";
-import { SupernovaInput } from "../../components/supernova/SupernovaInput";
-import { SupernovaSectionDivider } from "../../components/supernova/SupernovaSectionDivider";
-import { SupernovaMetricBar } from "../../components/supernova/SupernovaMetricBar";
+const STATUS_LABELS: Record<LeadStatus, string> = {
+  new: "New",
+  contacted: "Contacted",
+  viewing_booked: "Viewing Booked",
+  test_drive: "Test Drive",
+  negotiating: "Negotiating",
+  won: "Won",
+  lost: "Lost",
+};
 
-export default function AddLead() {
+export default function LeadsDashboard() {
+  const { leads, removeLead } = useLeads();
   const navigate = useNavigate();
 
-  const [form, setForm] = useState({
-    name: "",
-    source: "",
-    phone: "",
-    email: "",
-    notes: "",
-  });
+  const active = leads.filter(l => l.status !== "won" && l.status !== "lost");
+  const won = leads.filter(l => l.status === "won");
+  const lost = leads.filter(l => l.status === "lost");
 
-  const [score, setScore] = useState(0);
+  function handleOpen(id: string) {
+    navigate(`/dealer/sales/leads/${id}`);
+  }
 
-  const updateField = (key: string, value: string) => {
-    const updated = { ...form, [key]: value };
-    setForm(updated);
-
-    // AI Lead Score Preview (simple logic)
-    const base =
-      (updated.name.length > 2 ? 20 : 0) +
-      (updated.phone.length >= 10 ? 30 : 0) +
-      (updated.email.includes("@") ? 30 : 0) +
-      (updated.source.length > 0 ? 20 : 0);
-
-    setScore(Math.min(base, 100));
-  };
-
-  const handleSubmit = () => {
-    console.log("Lead submitted:", form);
-    navigate("/dealer/leads");
-  };
+  function handleRemove(e: React.MouseEvent, lead: Lead) {
+    e.stopPropagation();
+    if (window.confirm(`Remove ${lead.name || "this lead"}? This can't be undone.`)) {
+      removeLead(lead.id);
+    }
+  }
 
   return (
-    <div className="animate-fadeIn p-10 text-white relative z-10">
+    <div className="sn-dashboard sn-dashboard--cosmic">
 
-      <SupernovaHeroHeader
-        title="Add New Lead"
-        subtitle="Create a new customer lead and let AI estimate conversion potential."
-      />
+      <header className="sn-hero">
+        <div className="sn-hero__glow" />
+        <div className="sn-hero__content">
+          <h1 className="sn-hero__title">Leads Dashboard</h1>
+          <p className="sn-hero__subtitle">
+            All customer leads • Sales Pipeline Overview
+          </p>
+        </div>
+      </header>
 
-      <SupernovaSectionDivider label="Lead Information" />
+      <section className="sn-metrics-row">
+        <MetricCard label="Total Leads" value={leads.length} accent="primary" />
+        <MetricCard label="Active" value={active.length} accent="blue" />
+        <MetricCard label="Won" value={won.length} accent="success" />
+        <MetricCard label="Lost" value={lost.length} accent="gold" />
+      </section>
 
-      <SupernovaGlowCard className="space-y-6">
+      <main className="sn-grid">
+        <section className="sn-panel sn-panel--full">
+          <h2 className="sn-panel__title">All Leads</h2>
 
-        <SupernovaInput
-          label="Full Name"
-          placeholder="Enter lead name"
-          value={form.name}
-          onChange={(value) => updateField("name", value)}
-        />
-
-        <SupernovaInput
-          label="Lead Source"
-          placeholder="AutoTrader, Facebook Ads, Walk-In..."
-          value={form.source}
-          onChange={(value) => updateField("source", value)}
-        />
-
-        <SupernovaInput
-          label="Phone Number"
-          placeholder="07..."
-          value={form.phone}
-          onChange={(value) => updateField("phone", value)}
-        />
-
-        <SupernovaInput
-          label="Email Address"
-          placeholder="example@email.com"
-          value={form.email}
-          onChange={(value) => updateField("email", value)}
-        />
-
-        <SupernovaInput
-          label="Notes"
-          placeholder="Additional details about the lead..."
-          value={form.notes}
-          onChange={(value) => updateField("notes", value)}
-          multiline
-        />
-      </SupernovaGlowCard>
-
-      <SupernovaSectionDivider label="AI Lead Score Preview" />
-
-      <SupernovaGlowCard>
-        <SupernovaMetricBar
-          label="Predicted Lead Score"
-          value={score}
-          accent={score >= 85 ? "yellow" : score >= 60 ? "blue" : "red"}
-        />
-
-        <p className="text-white/70 mt-3">
-          This score is generated automatically based on the information you’ve entered.
-        </p>
-      </SupernovaGlowCard>
-
-      <div className="flex justify-end mt-10">
-        <SupernovaGlowButton onClick={handleSubmit}>
-          🚀 Save Lead
-        </SupernovaGlowButton>
-      </div>
+          {leads.length === 0 ? (
+            <p className="sn-empty">No leads yet. Add one to get started.</p>
+          ) : (
+            <div className="sn-staff-grid">
+              {leads.map(lead => (
+                <LeadCard
+                  key={lead.id}
+                  lead={lead}
+                  onOpen={handleOpen}
+                  onRemove={handleRemove}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+      </main>
     </div>
+  );
+}
+
+function MetricCard({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: number;
+  accent?: "primary" | "success" | "gold" | "blue" | "purple";
+}) {
+  return (
+    <div className={`sn-metric sn-metric--${accent ?? "primary"}`}>
+      <div className="sn-metric__value">{value}</div>
+      <div className="sn-metric__label">{label}</div>
+    </div>
+  );
+}
+
+function LeadCard({
+  lead,
+  onOpen,
+  onRemove,
+}: {
+  lead: Lead;
+  onOpen: (id: string) => void;
+  onRemove: (e: React.MouseEvent, lead: Lead) => void;
+}) {
+  return (
+    <article className="sn-staff-card">
+      <div className="sn-staff-card__header">
+        <span className="sn-staff-card__name">{lead.name}</span>
+        <span className="sn-staff-card__role">{STATUS_LABELS[lead.status]}</span>
+      </div>
+
+      {lead.source && (
+        <div className="sn-staff-card__branch">via {lead.source}</div>
+      )}
+
+      {lead.vehicleInterest && (
+        <div className="sn-staff-card__branch">{lead.vehicleInterest}</div>
+      )}
+
+      <div className="sn-staff-card__actions">
+        <button className="sn-staff-card__view" onClick={() => onOpen(lead.id)}>
+          View / Edit
+        </button>
+        <button className="sn-staff-card__remove" onClick={(e) => onRemove(e, lead)}>
+          Remove
+        </button>
+      </div>
+    </article>
   );
 }
