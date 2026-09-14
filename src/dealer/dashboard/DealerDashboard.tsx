@@ -1,5 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { useInventory } from "@/context/InventoryProvider";
+import { useJobs } from "@/context/JobsContext";
+import { toDateKey } from "@/planner/dateUtils";
 
 import SupernovaCard from "@/components/SupernovaCard";
 import { SupernovaSectionDivider } from "@/components/supernova/SupernovaSectionDivider";
@@ -19,6 +21,7 @@ import {
   FiDollarSign,
   FiBarChart2,
   FiSettings,
+  FiCheckSquare,
 } from "react-icons/fi";
 
 type Props = {
@@ -28,6 +31,7 @@ type Props = {
 export default function DealerDashboard({ brain }: Props) {
   const navigate = useNavigate();
   const { vehicles, loading } = useInventory();
+  const { jobs } = useJobs();
 
   const safeVehicles = vehicles ?? [];
 
@@ -66,6 +70,16 @@ export default function DealerDashboard({ brain }: Props) {
     brain?.workflow?.financeIssues ??
     safeVehicles.filter((v) => (v.auctionDelta ?? 0) > 20);
 
+  // The Jobs Board (day-to-day tasks assigned to real staff accounts)
+  // previously had no presence on the main dashboard at all — a manager
+  // had to remember to check /jobs separately from everything else
+  // they check first thing. Uses the same local-date-key helper as the
+  // rota planner (toDateKey) rather than toISOString(), which rolls a
+  // date back under UK BST — see dateUtils.ts for the bug that caused.
+  const todayKey = toDateKey(new Date());
+  const openJobs = jobs.filter((j) => j.status !== "done");
+  const overdueJobs = openJobs.filter((j) => j.dueDate && j.dueDate < todayKey);
+
  const recentActivity: {
   id: string;
   title: string;
@@ -97,6 +111,9 @@ export default function DealerDashboard({ brain }: Props) {
       : null,
     financeIssues.length > 0
       ? `💰 ${financeIssues.length} vehicle${financeIssues.length === 1 ? "" : "s"} flagged for finance risk`
+      : null,
+    overdueJobs.length > 0
+      ? `📋 ${overdueJobs.length} job${overdueJobs.length === 1 ? "" : "s"} overdue`
       : null,
   ].filter((item): item is string => item !== null);
 
@@ -167,6 +184,21 @@ export default function DealerDashboard({ brain }: Props) {
           to="/dealer/inventory"
         >
           <p className="text-white/70">{safeVehicles.length} vehicles in stock</p>
+        </SupernovaCard>
+      </div>
+
+      {/* THIRD ROW */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+        <SupernovaCard
+          title="Open Jobs"
+          icon={<FiCheckSquare className="cosmic-pulse" />}
+          accent={overdueJobs.length > 0 ? "red" : "blue"}
+          to="/jobs"
+        >
+          <p className="text-white/70">
+            {openJobs.length} open{overdueJobs.length > 0 ? ` • ${overdueJobs.length} overdue` : ""}
+          </p>
         </SupernovaCard>
       </div>
 
