@@ -92,13 +92,29 @@ export default function MotLookup() {
             </div>
 
             {result.history.length > 0 && (
-              <div className="mt-4 space-y-1">
+              <div className="mt-4 space-y-2">
                 <p className="text-white/60 text-xs uppercase tracking-wide">Test History</p>
                 {result.history.map((h, i) => (
-                  <p key={i} className="text-white/70 text-sm">
-                    {h.date ? new Date(h.date).toLocaleDateString() : "Unknown date"} — {h.result}
-                    {h.mileage ? ` — ${h.mileage.toLocaleString()} mi` : ""}
-                  </p>
+                  <div key={i}>
+                    <p className={`text-sm ${h.result === "FAIL" ? "text-red-300" : "text-white/70"}`}>
+                      {h.date ? new Date(h.date).toLocaleDateString() : "Unknown date"} — {h.result}
+                      {h.mileage ? ` — ${h.mileage.toLocaleString()} mi` : ""}
+                    </p>
+                    {h.failures.length > 0 && (
+                      <ul className="ml-4 list-disc text-red-300/80 text-xs">
+                        {h.failures.map((f, fi) => (
+                          <li key={fi}>{f}</li>
+                        ))}
+                      </ul>
+                    )}
+                    {h.advisories.length > 0 && (
+                      <ul className="ml-4 list-disc text-yellow-300/70 text-xs">
+                        {h.advisories.map((a, ai) => (
+                          <li key={ai}>{a}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
                 ))}
               </div>
             )}

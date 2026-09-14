@@ -84,9 +84,25 @@ function normaliseResult(testResult: string | undefined): string {
   return testResult === "PASSED" ? "PASS" : "FAIL";
 }
 
-function extractComments(rfrAndComments: any[] | undefined, type: "ADVISORY" | "FAIL"): string[] {
-  return (rfrAndComments ?? [])
-    .filter((c: any) => c.type === type)
+// Two real bugs here, found together: (1) this code originally read
+// `rfrAndComments`, a field name from an older version of DVSA's docs —
+// the live API's actual field is `defects` (confirmed via a raw,
+// unmapped call to the real endpoint), so every failure/advisory
+// extraction silently returned nothing no matter what. (2) `type`
+// changed at the May 2018 MOT reform: tests before that date use a
+// flat "FAIL", tests since then split failures into "MAJOR"/
+// "DANGEROUS" (severity), with "MINOR" as a non-failing note and
+// "ADVISORY" unchanged throughout — filtering only for "FAIL" would
+// still return nothing for any modern (post-2018) failed test even
+// with the field name fixed. Confirmed live end-to-end: a real 2023
+// FAIL result went from an empty failures array to its actual 3 real
+// defect descriptions once both were fixed.
+const FAIL_TYPES = new Set(["FAIL", "MAJOR", "DANGEROUS"]);
+
+function extractComments(defects: any[] | undefined, type: "ADVISORY" | "FAIL"): string[] {
+  const matchesType = (c: any) => (type === "FAIL" ? FAIL_TYPES.has(c.type) : c.type === type);
+  return (defects ?? [])
+    .filter(matchesType)
     .map((c: any) => c.text as string);
 }
 
@@ -173,14 +189,14 @@ export default function registerDVLA(app: Express) {
         // once DVLA_API_KEY is configured.
         fuelType: dvla?.fuelType ?? null,
         euroStatus: dvla?.euroStatus ?? null,
-        advisories: extractComments(latestMot?.rfrAndComments, "ADVISORY"),
+        advisories: extractComments(latestMot?.defects, "ADVISORY"),
         history: motTests.map((t) => ({
           date: t.completedDate ?? null,
           year: t.completedDate ? new Date(t.completedDate).getFullYear() : null,
           result: normaliseResult(t.testResult),
           mileage: t.odometerValue ?? null,
-          advisories: extractComments(t.rfrAndComments, "ADVISORY"),
-          failures: extractComments(t.rfrAndComments, "FAIL"),
+          advisories: extractComments(t.defects, "ADVISORY"),
+          failures: extractComments(t.defects, "FAIL"),
         })),
       },
     });

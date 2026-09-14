@@ -31,6 +31,9 @@ export default function MOTLookup() {
     createVehicleFromMOT,
   } = useInventory();
 
+  const [matchedVehicle, setMatchedVehicle] = useState<{ id: string; make: string; model: string } | null>(null);
+  const [added, setAdded] = useState(false);
+
   const theme = {
     card: "#0A0F1F",
     accent: "#FFD700",
@@ -47,34 +50,45 @@ export default function MOTLookup() {
     const result = await fetchMOT(reg.trim().toUpperCase());
     setMot(result);
     setLoading(false);
+    setAdded(false);
 
     if (!result) return;
 
-    // ⭐ AUTO‑MATCH VEHICLE BY REG
-    const matchedVehicle = inventoryVehicles.find(
+    const match = inventoryVehicles.find(
       (v) => v.reg?.toUpperCase() === reg.trim().toUpperCase()
     );
 
-    const mapped = {
-      expiry: result.expiry ?? "",
-      advisories: result.advisories ?? [],
-      historyScore: result.historyScore ?? 0,
-      history: result.history ?? [],
-      reg: result.reg ?? null,
-      make: result.make ?? null,
-      model: result.model ?? null,
-      year: result.year ?? null,
-      colour: result.colour ?? null,
-      mileage: result.mileage ?? null,
-    };
-
-    if (matchedVehicle) {
-      // ⭐ UPDATE EXISTING VEHICLE
-      updateVehicleMOT(matchedVehicle.id, mapped);
+    if (match) {
+      // A vehicle you already own — refreshing its real MOT data is a
+      // safe, non-destructive enrichment, so this stays automatic.
+      const mapped = {
+        expiry: result.expiry ?? "",
+        advisories: result.advisories ?? [],
+        historyScore: result.historyScore ?? 0,
+        history: result.history ?? [],
+        reg: result.reg ?? null,
+        make: result.make ?? null,
+        model: result.model ?? null,
+        year: result.year ?? null,
+        colour: result.colour ?? null,
+        mileage: result.mileage ?? null,
+      };
+      updateVehicleMOT(match.id, mapped);
+      setMatchedVehicle({ id: match.id, make: match.make, model: match.model });
     } else {
-      // ⭐ AUTO‑CREATE NEW VEHICLE
-      createVehicleFromMOT(result);
+      // Not one of your vehicles — this used to silently ADD it as a
+      // new inventory item on every lookup, which would pollute real
+      // stock with any car someone happened to check (a customer's own
+      // car on an MOT booking, a trade-in you decided not to take).
+      // Now it's a real, explicit choice instead.
+      setMatchedVehicle(null);
     }
+  }
+
+  function handleAddAsNewVehicle() {
+    if (!mot) return;
+    createVehicleFromMOT(mot);
+    setAdded(true);
   }
 
   if (!mot) {
@@ -192,6 +206,27 @@ export default function MOTLookup() {
       <MOTMileageHistory history={safeHistory} />
 
       <MOTInsightsPanel mot={motWithStatus} />
+
+      {matchedVehicle && (
+        <p className="mt-4 text-emerald-300 text-sm">
+          Updated {matchedVehicle.make} {matchedVehicle.model}'s MOT record in your inventory.
+        </p>
+      )}
+
+      {!matchedVehicle && (
+        <div className="mt-4 rounded-xl border border-yellow-400/40 bg-black/40 p-4">
+          <p className="text-white/70 text-sm mb-3">
+            This reg isn't in your current stock — this was a read-only lookup.
+          </p>
+          <button
+            onClick={handleAddAsNewVehicle}
+            disabled={added}
+            className="px-4 py-3 bg-yellow-400 text-black font-bold rounded-xl hover:bg-yellow-300 transition disabled:opacity-50"
+          >
+            {added ? "Added to Inventory" : "Add as New Vehicle"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
