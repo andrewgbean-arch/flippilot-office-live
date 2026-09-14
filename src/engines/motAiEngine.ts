@@ -33,28 +33,40 @@ export function motAiEngine(mot: any, history: any[]): MotAiResult {
     failureSeverity * 0.65 -
     mileageRisk * 0.25;
 
-  const healthScore = Math.max(0, Math.min(100, Math.round(baseHealth)));
+  // This engine used to only ever look at advisory/failure history and
+  // mileage — a vehicle with a clean record but a genuinely EXPIRED MOT
+  // scored as perfectly healthy, because nothing here ever checked the
+  // one fact that actually matters most: is it currently roadworthy
+  // right now. Caught live: the HUD showed "MOT: good" in green while
+  // real vehicles in the same inventory were sitting with expired MOTs.
+  // An expired MOT overrides everything else below — it's not a
+  // "future risk prediction", it's a current fact.
+  const isExpired = mot?.expiry ? new Date(mot.expiry).getTime() < Date.now() : false;
 
-  const predictedPassChance =
+  const healthScore = isExpired ? 0 : Math.max(0, Math.min(100, Math.round(baseHealth)));
+
+  const predictedPassChance = isExpired ? 0 :
     healthScore >= 90 ? 97 :
     healthScore >= 75 ? 90 :
     healthScore >= 60 ? 78 :
     healthScore >= 45 ? 62 :
     healthScore >= 30 ? 45 : 25;
 
-  const riskLevel =
+  const riskLevel: "low" | "medium" | "high" = isExpired ? "high" :
     healthScore >= 70 ? "low" :
     healthScore >= 45 ? "medium" : "high";
 
-  const nextTestRisk =
-    riskLevel === "low"
+  const nextTestRisk = isExpired
+    ? "MOT has already expired — this vehicle cannot legally be driven on the road until it's retested."
+    : riskLevel === "low"
       ? "Strong chance of passing next MOT with no major issues."
       : riskLevel === "medium"
       ? "Moderate risk — advisories or wear may cause MOT complications."
       : "High risk — failures or severe wear likely to cause MOT failure.";
 
-  const verdict =
-    riskLevel === "low"
+  const verdict = isExpired
+    ? "MOT has expired. Not currently roadworthy — book a retest before selling or driving."
+    : riskLevel === "low"
       ? "Vehicle MOT condition is healthy. No critical issues detected."
       : riskLevel === "medium"
       ? "Vehicle shows signs of wear. Advisories should be addressed soon."

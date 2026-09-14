@@ -67,7 +67,13 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
       rs[v.id] = computeRiskScore(v);
 
       // ⭐ MOT AI
+      // Was missing expiry entirely — every other real caller of
+      // motAiEngine passes the full mot object (which already has it),
+      // this was the one place stripping it down and losing it, which
+      // is why the HUD could say "MOT: good" for a fleet with vehicles
+      // sitting on expired MOTs.
       const motData = {
+        expiry: v.mot?.expiry ?? null,
         advisories: v.mot?.advisories ?? [],
         failures: (v.mot as any)?.failures ?? [],
       };
