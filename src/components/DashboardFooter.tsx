@@ -9,6 +9,15 @@ import {
 import { FaCarSide } from "react-icons/fa";
 import { FiTrendingUp } from "react-icons/fi";
 import { useDealerNotifications } from "@/features/dealer-notifications/DealerNotificationsContext";
+// The notification dropdown's actual styling (.sn-alerts-dropdown etc.)
+// only ever lived in the Staff module's stylesheet, even though this
+// footer — rendered on nearly every page — is what actually uses it.
+// Without this import, the dropdown rendered with zero styling (no
+// position, no background, no size) on any page reached without first
+// visiting a staff screen in the same session, making the bell look
+// completely broken — it was toggling real state the whole time, just
+// invisibly.
+import "@/staff/StaffDashboard.css";
 
 export default function DashboardFooter() {
   const { pathname } = useLocation();
@@ -69,13 +78,21 @@ export default function DashboardFooter() {
         border-t border-yellow-400/20
         shadow-[0_0_25px_rgba(255,215,0,0.25)]
         py-2 px-3 lg:px-6 flex justify-between items-center
-        overflow-x-auto
         animate-fadeIn
       "
     >
 
-      {/* LEFT — MAIN ACTIONS */}
-      <div className="flex gap-4 lg:gap-12">
+      {/* LEFT — MAIN ACTIONS
+          overflow-x-auto lives here now, not on the footer's outer
+          wrapper — CSS forces overflow-y to also become "auto" (never
+          fully "visible") whenever overflow-x isn't "visible", which
+          was silently clipping the alerts dropdown below: it's
+          absolutely positioned to pop UP above the footer bar, and the
+          outer wrapper's implicit vertical clip was cutting it off
+          entirely, even though it computed a perfectly correct
+          position/size/z-index. Only the icon row actually needs to
+          scroll horizontally on narrow screens. */}
+      <div className="flex gap-4 lg:gap-12 overflow-x-auto">
         {mainActions.map((a, i) => (
           <Link
             key={i}
