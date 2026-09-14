@@ -65,6 +65,7 @@ import AddPurchaseScreen from "@/bookkeeping/AddPurchaseScreen";
 import AddSaleScreen from "@/bookkeeping/AddSaleScreen";
 import AddTransactionScreen from "@/bookkeeping/AddTransactionScreen";
 import BookkeepingEntryScreen from "@/bookkeeping/BookkeepingEntryScreen";
+import Invoice from "@/bookkeeping/Invoice";
 import SupplierAnalytics from "@/bookkeeping/SupplierAnalytics";
 import SupplierDetail from "@/bookkeeping/SupplierDetail";
 
@@ -197,6 +198,7 @@ export default function AnimatedRoutes() {
         <Route path="bookkeeping/add-sale" element={<AddSaleScreen />} />
         <Route path="bookkeeping/add-transaction" element={<AddTransactionScreen />} />
         <Route path="bookkeeping/entry/:vehicleId" element={<BookkeepingEntryScreen />} />
+        <Route path="bookkeeping/invoice/:vehicleId" element={<Invoice />} />
         <Route path="bookkeeping/suppliers" element={<SupplierAnalytics />} />
         <Route path="supplier/:id" element={<SupplierDetail />} />
 

@@ -53,6 +53,11 @@ export interface Dealership {
   stripeSubscriptionId?: string;
   phone?: string;
   address?: string;
+  // Shown on customer invoices when set. Optional — not every dealer
+  // is VAT-registered (below the threshold, or a sole trader), and an
+  // invoice with no VAT number is legitimate; it just can't be called
+  // a "VAT Invoice".
+  vatNumber?: string;
 }
 
 export async function hashPassword(password: string): Promise<string> {

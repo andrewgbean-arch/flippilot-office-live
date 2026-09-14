@@ -1,5 +1,5 @@
 import React from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { useBookkeeping } from "./BookkeepingProvider";
 import { useInventory } from "@/context/InventoryProvider";
 import AddCostModal from "./AddCostModal";
@@ -7,6 +7,7 @@ import AddSaleModal from "./AddSaleModal";
 
 export default function BookkeepingEntryScreen() {
   const { vehicleId } = useParams();
+  const navigate = useNavigate();
   const {
     purchases,
     costs,
@@ -55,6 +56,7 @@ export default function BookkeepingEntryScreen() {
       {showSaleModal && (
         <AddSaleModal
           vehicleId={vehicleId!}
+          {...(sale ? { existing: sale } : {})}
           onClose={() => setShowSaleModal(false)}
         />
       )}
@@ -135,11 +137,29 @@ export default function BookkeepingEntryScreen() {
 
         {sale ? (
           <>
+            <p><span className="text-white/60">Invoice No:</span> {sale.invoiceNumber}</p>
             <p><span className="text-white/60">Sale Price:</span> £{sale.salePrice.toLocaleString()}</p>
-            <p><span className="text-white/60">Buyer:</span> {sale.buyer}</p>
+            <p><span className="text-white/60">Buyer:</span> {sale.buyer || "—"}</p>
+            {sale.buyerEmail && <p><span className="text-white/60">Email:</span> {sale.buyerEmail}</p>}
+            {sale.buyerPhone && <p><span className="text-white/60">Phone:</span> {sale.buyerPhone}</p>}
             <p><span className="text-white/60">Date:</span> {sale.date}</p>
             <p><span className="text-white/60">VAT:</span> £{sale.vatAmount.toLocaleString()}</p>
             <p><span className="text-white/60">Net:</span> £{sale.netAmount.toLocaleString()}</p>
+
+            <div className="flex gap-3 mt-4">
+              <button
+                onClick={() => navigate(`/bookkeeping/invoice/${vehicleId}`)}
+                className="px-3 py-2 bg-yellow-500 text-black rounded hover:bg-yellow-400"
+              >
+                View / Print Invoice
+              </button>
+              <button
+                onClick={() => setShowSaleModal(true)}
+                className="px-3 py-2 bg-white/10 text-white/70 rounded hover:bg-white/20"
+              >
+                Edit Sale
+              </button>
+            </div>
           </>
         ) : (
           <p className="text-white/60">No sale recorded yet.</p>

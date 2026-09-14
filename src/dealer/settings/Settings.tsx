@@ -147,6 +147,7 @@ function EditDealerProfileModal({ onClose }: { onClose: () => void }) {
   const [name, setName] = useState(dealer?.name ?? "");
   const [phone, setPhone] = useState(dealer?.phone ?? "");
   const [address, setAddress] = useState(dealer?.address ?? "");
+  const [vatNumber, setVatNumber] = useState(dealer?.vatNumber ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -158,7 +159,7 @@ function EditDealerProfileModal({ onClose }: { onClose: () => void }) {
     setSaving(true);
     setError(null);
     try {
-      await updateDealer({ name: name.trim(), phone: phone.trim(), address: address.trim() });
+      await updateDealer({ name: name.trim(), phone: phone.trim(), address: address.trim(), vatNumber: vatNumber.trim() });
       onClose();
     } catch (err: any) {
       setError(err.message || "Failed to save changes.");
@@ -196,6 +197,18 @@ function EditDealerProfileModal({ onClose }: { onClose: () => void }) {
           placeholder="Unit 4, Motor Park, Paignton, Devon"
           className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-4"
         />
+
+        <label className="text-white/60 text-sm">VAT Number (optional)</label>
+        <input
+          type="text"
+          value={vatNumber}
+          onChange={(e) => setVatNumber(e.target.value)}
+          placeholder="GB123456789"
+          className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-4"
+        />
+        <p className="text-white/40 text-xs -mt-3 mb-4">
+          Shown on customer invoices if set. Leave blank if you're not VAT-registered.
+        </p>
 
         {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
 

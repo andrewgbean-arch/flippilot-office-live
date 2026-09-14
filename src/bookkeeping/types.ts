@@ -71,6 +71,14 @@ export interface SaleEntry {
   vehicleId: string;
   salePrice: number;
   buyer?: string;
+  buyerEmail?: string;
+  buyerPhone?: string;
+  buyerAddress?: string;
+  // Assigned once at creation (see invoiceUtils.ts's nextInvoiceNumber)
+  // and never recalculated — deleting or editing other sales must
+  // never renumber an invoice that's already been issued to a
+  // customer.
+  invoiceNumber: string;
   date: string;
 
   // "margin" (the UK VAT Margin Scheme — VAT on profit margin, not sale

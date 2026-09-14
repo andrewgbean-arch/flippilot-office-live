@@ -24,3 +24,28 @@
 .animate-drift {
   animation: drift 18s ease-in-out infinite;
 }
+
+/* -------------------------------------------------------
+   ⭐ PRINT ISOLATION
+   No print stylesheet existed anywhere in this app — clicking
+   "Print / Save as PDF" (ContractGenerator, now also Invoice) printed
+   the ENTIRE page: sidebar, header, HUD, everything, not just the
+   document. Any printable element gets the `printable-invoice` class;
+   this hides everything else only inside the print media query, so
+   the normal on-screen layout is completely untouched.
+------------------------------------------------------- */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .printable-invoice,
+  .printable-invoice * {
+    visibility: visible;
+  }
+  .printable-invoice {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+}

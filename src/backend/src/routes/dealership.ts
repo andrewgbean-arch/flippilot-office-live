@@ -23,7 +23,7 @@ export default function registerDealershipRoute(app: Express) {
   // subscription fields stay untouched regardless of what's posted.
   app.put("/dealership/me", requireAuth, requireOwner, (req, res) => {
     const user = (req as Request & { user: AuthUser }).user;
-    const { name, phone, address } = req.body ?? {};
+    const { name, phone, address, vatNumber } = req.body ?? {};
 
     if (name !== undefined && !String(name).trim()) {
       return res.status(400).json({ ok: false, error: "Dealership name can't be empty" });
@@ -46,6 +46,11 @@ export default function registerDealershipRoute(app: Express) {
       const trimmed = String(address).trim();
       if (trimmed) dealership.address = trimmed;
       else delete dealership.address;
+    }
+    if (vatNumber !== undefined) {
+      const trimmed = String(vatNumber).trim();
+      if (trimmed) dealership.vatNumber = trimmed;
+      else delete dealership.vatNumber;
     }
 
     writeCollection("dealerships", dealerships);

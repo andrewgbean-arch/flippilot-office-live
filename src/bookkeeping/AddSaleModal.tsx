@@ -1,27 +1,33 @@
 import React, { useState, useMemo } from "react";
 import { SaleEntry } from "./types";
 import { calculateVat, calculateMarginVat } from "./vatUtils";
+import { nextInvoiceNumber } from "./invoiceUtils";
 import { useBookkeeping } from "./BookkeepingProvider";
 import { useInventory } from "@/context/InventoryProvider";
+import { toDateKey } from "@/planner/dateUtils";
 import VehiclePicker from "./VehiclePicker";
 
 interface AddSaleModalProps {
   vehicleId: string | null;
+  existing?: SaleEntry;
   onClose: () => void;
 }
 
-export default function AddSaleModal({ vehicleId: initialVehicleId, onClose }: AddSaleModalProps) {
-  const { addSale, getPurchaseForVehicle } = useBookkeeping();
+export default function AddSaleModal({ vehicleId: initialVehicleId, existing, onClose }: AddSaleModalProps) {
+  const { sales, addSale, updateSale, getPurchaseForVehicle } = useBookkeeping();
   const { vehicles, updateVehicleSale } = useInventory();
 
   // Was a fixed prop with no way to change it — now an editable
   // selection, defaulting to whatever the caller suggested.
-  const [vehicleId, setVehicleId] = useState<string | null>(initialVehicleId);
-  const [salePrice, setSalePrice] = useState<string>("");
-  const [vatRate, setVatRate] = useState<string>("20");
-  const [vatIncluded, setVatIncluded] = useState<boolean>(true);
-  const [buyer, setBuyer] = useState<string>("");
-  const [date, setDate] = useState<string>(new Date().toISOString().slice(0, 10));
+  const [vehicleId, setVehicleId] = useState<string | null>(existing?.vehicleId ?? initialVehicleId);
+  const [salePrice, setSalePrice] = useState<string>(existing ? String(existing.salePrice) : "");
+  const [vatRate, setVatRate] = useState<string>(existing ? String(existing.vatRate * 100) : "20");
+  const [vatIncluded, setVatIncluded] = useState<boolean>(existing?.vatIncluded ?? true);
+  const [buyer, setBuyer] = useState<string>(existing?.buyer ?? "");
+  const [buyerEmail, setBuyerEmail] = useState<string>(existing?.buyerEmail ?? "");
+  const [buyerPhone, setBuyerPhone] = useState<string>(existing?.buyerPhone ?? "");
+  const [buyerAddress, setBuyerAddress] = useState<string>(existing?.buyerAddress ?? "");
+  const [date, setDate] = useState<string>(existing?.date ?? toDateKey(new Date()));
 
   const vehicle = vehicles.find((v) => v.id === vehicleId) ?? null;
   const purchase = vehicleId ? getPurchaseForVehicle(vehicleId) : undefined;
@@ -63,11 +69,40 @@ export default function AddSaleModal({ vehicleId: initialVehicleId, onClose }: A
       netAmount = breakdown.net;
     }
 
+    // Only includes a contact field when it has a value — matches this
+    // project's established optional-field convention under
+    // exactOptionalPropertyTypes. One real limitation this brings when
+    // editing an existing sale: blanking a field back out won't clear
+    // it (there's nothing to distinguish "leave unchanged" from
+    // "clear it" in a plain conditional spread) — typing a replacement
+    // value works fine, only intentionally emptying an already-set
+    // field doesn't take effect.
+    const contactFields = {
+      ...(buyer.trim() ? { buyer: buyer.trim() } : {}),
+      ...(buyerEmail.trim() ? { buyerEmail: buyerEmail.trim() } : {}),
+      ...(buyerPhone.trim() ? { buyerPhone: buyerPhone.trim() } : {}),
+      ...(buyerAddress.trim() ? { buyerAddress: buyerAddress.trim() } : {}),
+    };
+
+    if (existing) {
+      updateSale(existing.id, {
+        vehicleId,
+        salePrice: numericPrice,
+        date,
+        vatScheme: isMarginScheme ? "margin" : "standard",
+        vatRate: numericVatRate,
+        vatIncluded,
+        ...contactFields,
+      });
+      onClose();
+      return;
+    }
+
     const entry: SaleEntry = {
       id: crypto.randomUUID(),
       vehicleId,
       salePrice: numericPrice,
-      buyer,
+      invoiceNumber: nextInvoiceNumber(sales),
       date,
       vatScheme: isMarginScheme ? "margin" : "standard",
       vatRate: numericVatRate,
@@ -75,6 +110,7 @@ export default function AddSaleModal({ vehicleId: initialVehicleId, onClose }: A
       vatAmount,
       netAmount,
       ...(isMarginScheme && purchase ? { marginPurchasePrice: purchase.purchasePrice } : {}),
+      ...contactFields,
     };
 
     addSale(entry);
@@ -85,7 +121,7 @@ export default function AddSaleModal({ vehicleId: initialVehicleId, onClose }: A
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
       <div className="bg-black/80 border border-white/10 p-6 rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <h2 className="text-white/80 text-xl font-semibold mb-4">Record Vehicle Sale</h2>
+        <h2 className="text-white/80 text-xl font-semibold mb-4">{existing ? "Edit Sale" : "Record Vehicle Sale"}</h2>
 
         {/* VEHICLE */}
         <label className="text-white/60 text-sm">Vehicle</label>
@@ -168,11 +204,36 @@ export default function AddSaleModal({ vehicleId: initialVehicleId, onClose }: A
         )}
 
         {/* BUYER */}
-        <label className="text-white/60 text-sm">Buyer</label>
+        <label className="text-white/60 text-sm">Buyer Name</label>
         <input
           type="text"
           value={buyer}
           onChange={(e) => setBuyer(e.target.value)}
+          className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-4"
+        />
+
+        <label className="text-white/60 text-sm">Buyer Email (optional — needed to email an invoice)</label>
+        <input
+          type="email"
+          value={buyerEmail}
+          onChange={(e) => setBuyerEmail(e.target.value)}
+          placeholder="customer@example.com"
+          className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-4"
+        />
+
+        <label className="text-white/60 text-sm">Buyer Phone (optional)</label>
+        <input
+          type="text"
+          value={buyerPhone}
+          onChange={(e) => setBuyerPhone(e.target.value)}
+          className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-4"
+        />
+
+        <label className="text-white/60 text-sm">Buyer Address (optional)</label>
+        <textarea
+          value={buyerAddress}
+          onChange={(e) => setBuyerAddress(e.target.value)}
+          rows={2}
           className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-4"
         />
 
@@ -203,7 +264,7 @@ export default function AddSaleModal({ vehicleId: initialVehicleId, onClose }: A
                 : "bg-gray-600 text-gray-300 cursor-not-allowed"
             }`}
           >
-            Save Sale
+            {existing ? "Update Sale" : "Save Sale"}
           </button>
         </div>
       </div>

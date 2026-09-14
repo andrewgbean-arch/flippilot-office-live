@@ -10,6 +10,7 @@ interface DealerInfo {
   name: string;
   phone?: string;
   address?: string;
+  vatNumber?: string;
 }
 
 // Context shape
@@ -17,7 +18,7 @@ interface DealerContextType {
   dealer: DealerInfo | null;
   loading: boolean;
   setDealer: (dealer: DealerInfo) => void;
-  updateDealer: (patch: { name?: string; phone?: string; address?: string }) => Promise<void>;
+  updateDealer: (patch: { name?: string; phone?: string; address?: string; vatNumber?: string }) => Promise<void>;
 }
 
 // Create context
@@ -62,6 +63,7 @@ export function DealerContextProvider({ children }: { children: React.ReactNode 
             name: data.dealership.name,
             phone: data.dealership.phone,
             address: data.dealership.address,
+            vatNumber: data.dealership.vatNumber,
           });
         }
       } catch (err) {
@@ -72,7 +74,7 @@ export function DealerContextProvider({ children }: { children: React.ReactNode 
     })();
   }, [user?.dealershipId]);
 
-  async function updateDealer(patch: { name?: string; phone?: string; address?: string }) {
+  async function updateDealer(patch: { name?: string; phone?: string; address?: string; vatNumber?: string }) {
     const res = await fetch(`${BASE_URL}/dealership/me`, {
       method: "PUT",
       headers: { "Content-Type": "application/json", ...authHeaders() },
@@ -87,6 +89,7 @@ export function DealerContextProvider({ children }: { children: React.ReactNode 
       name: data.dealership.name,
       phone: data.dealership.phone,
       address: data.dealership.address,
+      vatNumber: data.dealership.vatNumber,
     });
   }
 

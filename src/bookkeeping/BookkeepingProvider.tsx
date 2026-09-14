@@ -28,6 +28,7 @@ interface BookkeepingContextValue {
 
   addPurchase: (entry: PurchaseEntry) => void;
   addSale: (entry: SaleEntry) => void;
+  updateSale: (id: string, patch: Partial<SaleEntry>) => void;
   addTransaction: (entry: TransactionEntry) => void;
 
   addSupplier: (supplier: Supplier) => void;
@@ -210,6 +211,40 @@ export function BookkeepingProvider({ children }: BookkeepingProviderProps) {
     persist({ sales: updated });
   };
 
+  // Edits an existing sale (e.g. adding the buyer's email after the
+  // fact, so an invoice can actually be emailed) and recomputes VAT
+  // the same way addSale does — if the price or scheme changes, the
+  // stored VAT/net figures must never go stale.
+  const updateSale = (id: string, patch: Partial<SaleEntry>) => {
+    const existing = sales.find((s) => s.id === id);
+    if (!existing) return;
+
+    const merged: SaleEntry = { ...existing, ...patch };
+    const purchase = getPurchaseForVehicle(merged.vehicleId);
+
+    let enriched: SaleEntry;
+    if (merged.vatScheme === "margin" && purchase) {
+      const margin = calculateMarginVat(merged.salePrice, purchase.purchasePrice, merged.vatRate);
+      enriched = {
+        ...merged,
+        vatAmount: margin.vat,
+        netAmount: merged.salePrice - margin.vat,
+        marginPurchasePrice: purchase.purchasePrice,
+      };
+    } else {
+      const vat = calculateVat(merged.salePrice, {
+        vatRate: merged.vatRate,
+        vatIncluded: merged.vatIncluded,
+        vatReclaimable: false,
+      });
+      enriched = { ...merged, vatScheme: "standard", vatAmount: vat.vat, netAmount: vat.net };
+    }
+
+    const updated = sales.map((s) => (s.id === id ? enriched : s));
+    setSales(updated);
+    persist({ sales: updated });
+  };
+
   // TRANSACTIONS
   const addTransaction = (entry: TransactionEntry) => {
     const updated = [...transactions, entry];
@@ -327,6 +362,7 @@ export function BookkeepingProvider({ children }: BookkeepingProviderProps) {
 
     addPurchase,
     addSale,
+    updateSale,
     addTransaction,
 
     addSupplier,
