@@ -1,7 +1,12 @@
 import { Vehicle } from "@/types/Vehicle";
 
 export function computeAiPrice(vehicle: Vehicle) {
-  const base = vehicle.sellPrice || vehicle.buyPrice || 0;
+  // priceRetail/priceTrade are the fields real vehicles are actually
+  // stored under (see types/Vehicle.ts) — sellPrice/buyPrice exist on
+  // the type but are never populated by either real vehicle-creation
+  // path, so reading them first silently produced £0 for every real
+  // vehicle until this was caught live via PricingBrain.tsx.
+  const base = vehicle.priceRetail || vehicle.priceTrade || vehicle.sellPrice || vehicle.buyPrice || 0;
 
   const demandBoost = (vehicle.market?.demandScore ?? 50) / 100;
 

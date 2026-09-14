@@ -82,7 +82,7 @@ export default function InventoryDashboard() {
         <div className="flex flex-wrap gap-4">
 
           <button
-            onClick={() => navigate("/dealer/inventory/new")}
+            onClick={() => navigate("/new-flip")}
             className="px-5 py-3 bg-yellow-500 text-black font-semibold rounded-lg hover:bg-yellow-400 transition"
           >
             Add Vehicle
@@ -96,7 +96,7 @@ export default function InventoryDashboard() {
           </button>
 
           <button
-            onClick={() => navigate("/dealer/risk-analysis")}
+            onClick={() => navigate("/dealer/risk")}
             className="px-5 py-3 bg-yellow-500 text-black font-semibold rounded-lg hover:bg-yellow-400 transition"
           >
             Run Risk Check
