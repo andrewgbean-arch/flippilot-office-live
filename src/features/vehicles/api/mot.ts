@@ -1,3 +1,5 @@
+import { authHeaders } from "@/lib/authToken";
+
 export interface MOTRecord {
   date?: string;
   year?: number;
@@ -33,8 +35,13 @@ export interface MOTData {
 
 export async function fetchMOT(reg: string): Promise<MOTData | null> {
   try {
+    // /dvla now requires auth (a security review found it was reachable
+    // by anyone, spending this app's real DVSA/DVLA API quota with no
+    // login at all) — needs the same auth header every other real data
+    // call already sends.
     const response = await fetch(
-      `http://localhost:4001/dvla?reg=${encodeURIComponent(reg)}`
+      `http://localhost:4001/dvla?reg=${encodeURIComponent(reg)}`,
+      { headers: authHeaders() }
     );
 
     const data = await response.json();

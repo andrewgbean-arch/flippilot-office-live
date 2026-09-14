@@ -42,8 +42,14 @@ async function getMotAccessToken(): Promise<string> {
 async function fetchMotHistory(reg: string): Promise<any | null> {
   const token = await getMotAccessToken();
 
+  // encodeURIComponent matters here — reg is only whitespace-stripped/
+  // uppercased before reaching this function (see the /dvla handler
+  // below), not restricted to a safe character set, and this URL is
+  // built by raw string interpolation. Without it, a crafted reg value
+  // could inject extra path segments into the real request sent to
+  // DVSA's own API.
   const res = await axios.get(
-    `https://history.mot.api.gov.uk/v1/trade/vehicles/registration/${reg}`,
+    `https://history.mot.api.gov.uk/v1/trade/vehicles/registration/${encodeURIComponent(reg)}`,
     {
       headers: {
         Authorization: `Bearer ${token}`,
@@ -104,6 +110,14 @@ export default function registerDVLA(app: Express) {
 
     if (!reg) {
       return res.status(400).json({ ok: false, error: "Missing reg" });
+    }
+
+    // Real UK registrations are alphanumeric only, no more than 7
+    // characters. Rejecting anything else here — on top of the
+    // encodeURIComponent below — stops a crafted value from reaching
+    // the outbound request to DVSA/DVLA's real APIs at all.
+    if (!/^[A-Z0-9]{1,7}$/.test(reg)) {
+      return res.status(400).json({ ok: false, error: "Invalid registration format" });
     }
 
     const motConfigured = missingMotEnv.length === 0;

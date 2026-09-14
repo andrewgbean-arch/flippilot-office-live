@@ -1,5 +1,5 @@
 import { Express } from "express";
-import { readCollection } from "../db";
+import { readTenantCollection } from "../db";
 
 /* --------------------------------------------------
    ⭐ Marketplace syndication
@@ -75,9 +75,23 @@ function vehiclesToCsv(vehicles: VehicleLike[]): string {
 export default function registerSyndicationRoute(app: Express) {
   // Works today, no external credentials needed — point a portal's feed
   // importer (or Motors.co.uk's daily feed intake) at this URL, or just
-  // download it for manual upload.
-  app.get("/syndication/feed.csv", (_req, res) => {
-    const vehicles = readCollection<VehicleLike>("vehicles");
+  // download it for manual upload. Scoped by dealershipId in the path
+  // rather than requireAuth: a portal's feed importer fetches this on a
+  // schedule with no login flow of its own, so the URL itself (built
+  // from a real UUID, same unguessable-by-design pattern as e.g. a
+  // private iCal feed link) is the access control here, not a session.
+  //
+  // A security review caught this reading from the GLOBAL `vehicles`
+  // collection — a completely different, disconnected data source from
+  // where real per-dealer inventory actually lives
+  // (data/dealerships/<id>/vehicles.json via readTenantCollection,
+  // same as /inventory uses). The global file was never populated by
+  // anything, so in practice this always returned an empty feed
+  // regardless of what was really in any dealer's stock — not a stub,
+  // just silently wired to the wrong place. Fixed to read the real,
+  // tenant-scoped inventory for the dealership named in the URL.
+  app.get("/syndication/:dealershipId/feed.csv", (req, res) => {
+    const vehicles = readTenantCollection<VehicleLike>(req.params.dealershipId, "vehicles");
     const csv = vehiclesToCsv(vehicles);
 
     res.setHeader("Content-Type", "text/csv; charset=utf-8");

@@ -107,7 +107,7 @@ registerIntelligenceV3(app);
 // still valid) — /dealership/me and /billing/* deliberately only need
 // requireAuth, not the subscription gate, since a dealer with an
 // expired trial still needs to see their status and subscribe.
-app.use(["/inventory", "/leads", "/staff", "/bookkeeping"], requireAuth, requireActiveSubscription);
+app.use(["/inventory", "/leads", "/staff", "/bookkeeping", "/dvla"], requireAuth, requireActiveSubscription);
 registerInventoryRoute(app);
 registerLeadsRoute(app);
 registerStaffRoute(app);
@@ -115,6 +115,11 @@ registerBookkeepingRoute(app);
 // Real DVSA MOT History + DVLA Vehicle Enquiry Service integration
 // (ported from the sibling flippilotlatest backend's proven pattern) —
 // previously called a placeholder domain that was never a real provider.
+// /dvla was missing from the auth gate above until a security review
+// caught it: real DVSA/DVLA credentials, with real usage limits, were
+// reachable by anyone on the internet with no login at all — every
+// call spent the business's own API quota for free, with nothing
+// stopping it being scraped at scale.
 registerDVLA(app);
 registerSyndicationRoute(app);
 app.listen(PORT, "0.0.0.0", () => {
