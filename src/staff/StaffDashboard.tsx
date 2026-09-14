@@ -43,6 +43,12 @@ export function StaffDashboard({}: Props) {
         </div>
       </header>
 
+      <div style={{ marginBottom: 24 }}>
+        <button className="sn-btn sn-btn--gold" onClick={() => navigate("/dealer/staff/planner")}>
+          Open Rota Planner →
+        </button>
+      </div>
+
       {/* METRICS STRIP */}
       <section className="sn-metrics-row">
         <MetricCard label="Total Staff" value={staff.length} accent="primary" />

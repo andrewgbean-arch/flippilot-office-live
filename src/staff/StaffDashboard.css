@@ -933,3 +933,98 @@
   color: #f5f7ff;
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
 }
+
+/* ============================
+   GENERIC / GHOST BUTTON
+   (sn-btn--gold and sn-btn--danger were already defined above; a base
+   .sn-btn and the --ghost variant were used across this app's staff
+   screens with no styles at all, rendering as unstyled default
+   buttons — added here since this file is the shared staff stylesheet.)
+============================ */
+
+.sn-btn {
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+
+.sn-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.sn-btn--ghost {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #c7d0ff;
+}
+
+.sn-btn--ghost:hover {
+  border-color: rgba(255, 215, 0, 0.4);
+  color: #fdf6d0;
+}
+
+/* ============================
+   ROTA PLANNER
+============================ */
+
+.sn-rota-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.sn-rota-week-nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.sn-rota-week-label {
+  font-size: 13px;
+  color: #c7d0ff;
+  min-width: 160px;
+  text-align: center;
+}
+
+.sn-rota-table th,
+.sn-rota-table td {
+  white-space: nowrap;
+}
+
+.sn-rota-cell {
+  font-size: 12px;
+}
+
+.sn-rota-cell--shift {
+  color: #fdf6d0;
+}
+
+.sn-rota-cell--leave {
+  color: #ffb84d;
+  font-style: italic;
+}
+
+.sn-rota-cell--empty {
+  color: #5a6494;
+}
+
+.sn-leave-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.sn-leave-badge--declined {
+  background: rgba(255, 92, 92, 0.12);
+  border: 1px solid rgba(255, 92, 92, 0.4);
+  color: #ff8080;
+}

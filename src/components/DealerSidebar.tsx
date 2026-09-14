@@ -82,6 +82,7 @@ export default function DealerSidebar() {
       items: [
         { to: "/dealer/staff", label: "Staff Dashboard" },
         { to: "/dealer/staff/add", label: "Add Staff" },
+        { to: "/dealer/staff/planner", label: "Rota Planner" },
         { to: "/dealer/staff/permissions", label: "Permissions" },
       ],
     },

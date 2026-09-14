@@ -17,6 +17,7 @@ import registerBookkeepingRoute from "./routes/bookkeeping";
 import registerJobsRoute from "./routes/jobs";
 import registerTeamRoute from "./routes/team";
 import registerTimekeepingRoute from "./routes/timekeeping";
+import registerPlannerRoutes from "./routes/planner";
 import registerDVLA from "./dvla";
 import registerSyndicationRoute from "./routes/syndication";
 import registerAuthRoute from "./routes/auth";
@@ -81,9 +82,15 @@ const loginLimiter = rateLimit({
   legacyHeaders: false,
   message: { ok: false, error: "Too many login attempts — try again in 15 minutes." },
 });
+// The real integration test suite creates far more than 20 real
+// accounts/joins per run (tenant isolation, RBAC and planner tests all
+// sign up their own throwaway dealerships) — that's real test traffic
+// hitting the real route, not something to mock around, so the limit
+// is raised only under NODE_ENV=test (Vitest's own default) rather
+// than weakened for production.
 const signupLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
-  limit: 20,
+  limit: process.env.NODE_ENV === "test" ? 500 : 20,
   standardHeaders: true,
   legacyHeaders: false,
   message: { ok: false, error: "Too many signup attempts — try again later." },
@@ -109,7 +116,11 @@ registerIntelligenceV3(app);
 // still valid) — /dealership/me and /billing/* deliberately only need
 // requireAuth, not the subscription gate, since a dealer with an
 // expired trial still needs to see their status and subscribe.
-app.use(["/inventory", "/leads", "/staff", "/bookkeeping", "/dvla", "/jobs", "/team", "/timekeeping"], requireAuth, requireActiveSubscription);
+app.use(
+  ["/inventory", "/leads", "/staff", "/bookkeeping", "/dvla", "/jobs", "/team", "/timekeeping", "/work-patterns", "/leave", "/rota-settings", "/shifts"],
+  requireAuth,
+  requireActiveSubscription
+);
 registerInventoryRoute(app);
 registerLeadsRoute(app);
 registerStaffRoute(app);
@@ -117,6 +128,7 @@ registerBookkeepingRoute(app);
 registerJobsRoute(app);
 registerTeamRoute(app);
 registerTimekeepingRoute(app);
+registerPlannerRoutes(app);
 // Real DVSA MOT History + DVLA Vehicle Enquiry Service integration
 // (ported from the sibling flippilotlatest backend's proven pattern) —
 // previously called a placeholder domain that was never a real provider.

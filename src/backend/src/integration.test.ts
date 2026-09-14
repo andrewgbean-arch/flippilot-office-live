@@ -69,6 +69,10 @@ describe("unauthenticated access is blocked on real data routes", () => {
     ["GET", "/jobs"],
     ["GET", "/team"],
     ["GET", "/timekeeping"],
+    ["GET", "/work-patterns"],
+    ["GET", "/leave"],
+    ["GET", "/rota-settings"],
+    ["GET", "/shifts"],
   ])("%s %s returns 401 with no token", async (method, url) => {
     const res = await (request(app) as any)[method.toLowerCase()](url);
     expect(res.status).toBe(401);
@@ -229,6 +233,179 @@ describe("timekeeping — self-service clock in/out, server-derived identity and
       .set("Authorization", `Bearer ${owner.token}`)
       .send({ clockOut: new Date().toISOString() });
     expect(allowedRes.status).toBe(200);
+  });
+});
+
+describe("planner — work patterns, leave requests, rota settings, auto-generated shifts", () => {
+  let joinCounter = 0;
+  async function inviteAndJoin(ownerToken: string, staffRole: string) {
+    joinCounter += 1;
+    const inviteRes = await request(app)
+      .post("/dealership/invite")
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .send({ inviteeName: "Planner Tester", staffRole });
+    const email = `integration-test-${runId}-planner-${joinCounter}@test.local`;
+    const joinRes = await request(app).post("/auth/join").send({
+      token: inviteRes.body.token,
+      name: "Planner Tester",
+      email,
+      password: "plannertestpass123",
+    });
+    trackUser(email);
+    if (!joinRes.body.token) {
+      throw new Error(`inviteAndJoin failed: ${JSON.stringify(joinRes.body)}`);
+    }
+    return joinRes.body.token as string;
+  }
+
+  it("a non-manager cannot set work patterns, but the owner can", async () => {
+    const owner = await signup("planner-wp-owner");
+    const salesToken = await inviteAndJoin(owner.token, "sales");
+
+    const blocked = await request(app)
+      .put("/work-patterns")
+      .set("Authorization", `Bearer ${salesToken}`)
+      .send({ items: [] });
+    expect(blocked.status).toBe(403);
+
+    const allowed = await request(app)
+      .put("/work-patterns")
+      .set("Authorization", `Bearer ${owner.token}`)
+      .send({
+        items: [
+          { userId: "u1", userName: "Full Timer", employmentType: "full_time", targetWeeklyHours: 40, availableDays: ["mon", "tue", "wed", "thu", "fri"] },
+        ],
+      });
+    expect(allowed.status).toBe(200);
+    expect(allowed.body.items).toHaveLength(1);
+  });
+
+  it("sick leave is auto-approved; holiday starts pending and needs a manager decision", async () => {
+    const owner = await signup("planner-leave-owner");
+    const salesToken = await inviteAndJoin(owner.token, "sales");
+
+    const sickRes = await request(app)
+      .post("/leave")
+      .set("Authorization", `Bearer ${salesToken}`)
+      .send({ type: "sick", startDate: "2030-02-04", endDate: "2030-02-04" });
+    expect(sickRes.status).toBe(200);
+    expect(sickRes.body.entry.status).toBe("approved");
+
+    const holidayRes = await request(app)
+      .post("/leave")
+      .set("Authorization", `Bearer ${salesToken}`)
+      .send({ type: "holiday", startDate: "2030-03-01", endDate: "2030-03-05" });
+    expect(holidayRes.status).toBe(200);
+    expect(holidayRes.body.entry.status).toBe("pending");
+
+    const blockedApprove = await request(app)
+      .put(`/leave/${holidayRes.body.entry.id}`)
+      .set("Authorization", `Bearer ${salesToken}`)
+      .send({ status: "approved" });
+    expect(blockedApprove.status).toBe(403);
+
+    const approve = await request(app)
+      .put(`/leave/${holidayRes.body.entry.id}`)
+      .set("Authorization", `Bearer ${owner.token}`)
+      .send({ status: "approved" });
+    expect(approve.status).toBe(200);
+    const updated = approve.body.items.find((l: any) => l.id === holidayRes.body.entry.id);
+    expect(updated.status).toBe("approved");
+    expect(updated.decidedByName).toBe(owner.user.name);
+  });
+
+  it("a staff member can withdraw their own pending request but not once it's approved", async () => {
+    const owner = await signup("planner-cancel-owner");
+    const salesToken = await inviteAndJoin(owner.token, "sales");
+
+    const holidayRes = await request(app)
+      .post("/leave")
+      .set("Authorization", `Bearer ${salesToken}`)
+      .send({ type: "holiday", startDate: "2030-04-01", endDate: "2030-04-02" });
+    const id = holidayRes.body.entry.id;
+
+    await request(app)
+      .put(`/leave/${id}`)
+      .set("Authorization", `Bearer ${owner.token}`)
+      .send({ status: "approved" });
+
+    const blockedDelete = await request(app)
+      .delete(`/leave/${id}`)
+      .set("Authorization", `Bearer ${salesToken}`);
+    expect(blockedDelete.status).toBe(403);
+
+    const holiday2 = await request(app)
+      .post("/leave")
+      .set("Authorization", `Bearer ${salesToken}`)
+      .send({ type: "holiday", startDate: "2030-05-01", endDate: "2030-05-02" });
+    const ownDelete = await request(app)
+      .delete(`/leave/${holiday2.body.entry.id}`)
+      .set("Authorization", `Bearer ${salesToken}`);
+    expect(ownDelete.status).toBe(200);
+  });
+
+  it("rota settings default sensibly and can be updated by a manager", async () => {
+    const { token } = await signup("planner-settings");
+    const defaults = await request(app).get("/rota-settings").set("Authorization", `Bearer ${token}`);
+    expect(defaults.body.settings.openDays).toContain("mon");
+
+    const updateRes = await request(app)
+      .put("/rota-settings")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ openDays: ["mon", "tue"], openTime: "08:00", closeTime: "16:00" });
+    expect(updateRes.status).toBe(200);
+    expect(updateRes.body.settings.closeTime).toBe("16:00");
+  });
+
+  it("auto-generate builds shifts from work patterns, skips approved leave, and never double-books an existing shift", async () => {
+    const owner = await signup("planner-generate");
+    const dealershipId = owner.user.dealershipId;
+
+    await request(app)
+      .put("/work-patterns")
+      .set("Authorization", `Bearer ${owner.token}`)
+      .send({
+        items: [
+          {
+            userId: owner.user.id,
+            userName: owner.user.name,
+            employmentType: "part_time",
+            targetWeeklyHours: 10,
+            availableDays: ["mon", "tue", "wed"],
+          },
+        ],
+      });
+
+    // Approved leave on the Tuesday of the target week should be skipped.
+    const leaveRes = await request(app)
+      .post("/leave")
+      .set("Authorization", `Bearer ${owner.token}`)
+      .send({ type: "sick", startDate: "2030-01-08", endDate: "2030-01-08" });
+    expect(leaveRes.body.entry.status).toBe("approved");
+
+    const generateRes = await request(app)
+      .post("/shifts/generate")
+      .set("Authorization", `Bearer ${owner.token}`)
+      .send({ weekStart: "2030-01-07" }); // Mon 2030-01-07 .. Sun 2030-01-13
+    expect(generateRes.status).toBe(200);
+
+    const dates = generateRes.body.generated.map((s: any) => s.date);
+    expect(dates).toContain("2030-01-07"); // Monday
+    expect(dates).not.toContain("2030-01-08"); // Tuesday — on leave
+    expect(dates).toContain("2030-01-09"); // Wednesday
+    expect(dates).not.toContain("2030-01-10"); // Thursday — not an available day
+
+    // Re-running for the same week must not create duplicate shifts for
+    // days already filled.
+    const secondRun = await request(app)
+      .post("/shifts/generate")
+      .set("Authorization", `Bearer ${owner.token}`)
+      .send({ weekStart: "2030-01-07" });
+    expect(secondRun.body.generated).toEqual([]);
+
+    const finalShifts = await request(app).get("/shifts").set("Authorization", `Bearer ${owner.token}`);
+    expect(finalShifts.body.items.filter((s: any) => s.date === "2030-01-07")).toHaveLength(1);
+    trackDealership(dealershipId);
   });
 });
 
