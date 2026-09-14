@@ -138,6 +138,53 @@ export default function MOTWorkflow() {
         )}
       </SupernovaGlowCard>
 
+      {/* FULL TEST HISTORY — every real MOT test on record, in order,
+          with what actually happened at each one. The Advisories/
+          Failures sections above are flat, deduplicated lists with no
+          sense of when or how often something came up; this is the
+          real chronological picture. */}
+      <SupernovaSectionDivider label="Full Test History" />
+
+      <SupernovaGlowCard>
+        {!mot.history || mot.history.length === 0 ? (
+          <p className="text-white/60">No test history on record.</p>
+        ) : (
+          <ul className="space-y-4">
+            {mot.history.map((h, i) => (
+              <li key={i} className="border-b border-white/10 pb-3 last:border-0 last:pb-0">
+                <div className="flex items-center justify-between">
+                  <span className="text-white/80 text-sm">
+                    {h.date ? new Date(h.date).toLocaleDateString() : "Unknown date"}
+                    {h.mileage ? ` — ${h.mileage.toLocaleString()} mi` : ""}
+                  </span>
+                  <span
+                    className={`px-2 py-0.5 rounded text-xs font-bold ${
+                      h.result === "FAIL" ? "bg-red-600 text-white" : "bg-green-600 text-white"
+                    }`}
+                  >
+                    {h.result}
+                  </span>
+                </div>
+                {(h.failures?.length ?? 0) > 0 && (
+                  <ul className="mt-1 ml-4 list-disc text-red-400 text-sm">
+                    {(h.failures ?? []).map((f, fi) => (
+                      <li key={fi}>{f}</li>
+                    ))}
+                  </ul>
+                )}
+                {(h.advisories?.length ?? 0) > 0 && (
+                  <ul className="mt-1 ml-4 list-disc text-yellow-300/80 text-sm">
+                    {(h.advisories ?? []).map((a, ai) => (
+                      <li key={ai}>{a}</li>
+                    ))}
+                  </ul>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </SupernovaGlowCard>
+
       {/* WORKFLOW BUTTONS */}
       <SupernovaSectionDivider label="Next Steps" />
 
