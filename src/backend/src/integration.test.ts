@@ -76,6 +76,7 @@ describe("unauthenticated access is blocked on real data routes", () => {
     ["GET", "/notifications"],
     ["GET", "/feedback"],
     ["GET", "/consumables"],
+    ["GET", "/appointments"],
   ])("%s %s returns 401 with no token", async (method, url) => {
     const res = await (request(app) as any)[method.toLowerCase()](url);
     expect(res.status).toBe(401);
@@ -609,6 +610,141 @@ describe("consumables — open to any authenticated staff, tenant-scoped", () =>
 
     const list = await request(app).get("/consumables").set("Authorization", `Bearer ${token}`);
     expect(list.body.items).toEqual([]);
+  });
+});
+
+describe("public booking — the one part of the app reachable with no account at all", () => {
+  it("info and vehicles 404 for a dealership that doesn't exist, rather than leaking anything", async () => {
+    const infoRes = await request(app).get("/public/00000000-not-real/info");
+    expect(infoRes.status).toBe(404);
+
+    const vehiclesRes = await request(app).get("/public/00000000-not-real/vehicles");
+    expect(vehiclesRes.status).toBe(404);
+  });
+
+  it("returns only the requested dealership's own name and vehicles, never another's", async () => {
+    const dealerA = await signup("public-a");
+    const dealerB = await signup("public-b");
+
+    await request(app)
+      .put("/inventory")
+      .set("Authorization", `Bearer ${dealerA.token}`)
+      .send({ items: [{ id: "veh-a", make: "Ford", model: "Fiesta", reg: "AB12CDE", year: 2020, mileage: 30000, priceRetail: 7000 }] });
+
+    const infoRes = await request(app).get(`/public/${dealerA.user.dealershipId}/info`);
+    expect(infoRes.status).toBe(200);
+    expect(infoRes.body.name).toBe("Integration Test Dealership public-a");
+
+    const vehiclesA = await request(app).get(`/public/${dealerA.user.dealershipId}/vehicles`);
+    const vehiclesB = await request(app).get(`/public/${dealerB.user.dealershipId}/vehicles`);
+    expect(vehiclesA.body.items).toHaveLength(1);
+    expect(vehiclesA.body.items[0].make).toBe("Ford");
+    expect(vehiclesB.body.items).toEqual([]);
+
+    // Never leaks internal-only fields a customer shouldn't see.
+    expect(vehiclesA.body.items[0]).not.toHaveProperty("buyPrice");
+    expect(vehiclesA.body.items[0]).not.toHaveProperty("purchasePrice");
+  });
+
+  it("a real booking creates a real appointment, matches/creates a real lead, and notifies real staff", async () => {
+    const owner = await signup("public-booking");
+    const dealershipId = owner.user.dealershipId;
+
+    await request(app)
+      .put("/inventory")
+      .set("Authorization", `Bearer ${owner.token}`)
+      .send({ items: [{ id: "veh-booking", make: "Vauxhall", model: "Corsa", reg: "BD19XYZ" }] });
+
+    const bookRes = await request(app).post(`/public/${dealershipId}/appointments`).send({
+      vehicleId: "veh-booking",
+      customerName: "Test Customer",
+      customerEmail: "test.customer@example.test",
+      type: "test_drive",
+      requestedDate: "2030-01-07",
+      requestedTime: "10:00",
+    });
+    expect(bookRes.status).toBe(200);
+    expect(bookRes.body.appointment.status).toBe("pending");
+    expect(bookRes.body.appointment.vehicleLabel).toContain("Corsa");
+
+    const appointmentsRes = await request(app).get("/appointments").set("Authorization", `Bearer ${owner.token}`);
+    expect(appointmentsRes.body.items).toHaveLength(1);
+
+    const leadsRes = await request(app).get("/leads").set("Authorization", `Bearer ${owner.token}`);
+    expect(leadsRes.body.items).toHaveLength(1);
+    expect(leadsRes.body.items[0].status).toBe("test_drive");
+    expect(leadsRes.body.items[0].email).toBe("test.customer@example.test");
+
+    // The owner gets a real notification in their own inbox — same
+    // cross-account delivery mechanism as the rota planner, not just a
+    // row sitting in a collection nobody's told about.
+    const notifRes = await request(app).get("/notifications").set("Authorization", `Bearer ${owner.token}`);
+    expect(notifRes.body.items.some((n: any) => n.title.includes("test drive"))).toBe(true);
+  });
+
+  it("rejects a booking for a vehicle that doesn't belong to that dealership", async () => {
+    const dealerA = await signup("public-cross-a");
+    const dealerB = await signup("public-cross-b");
+
+    await request(app)
+      .put("/inventory")
+      .set("Authorization", `Bearer ${dealerB.token}`)
+      .send({ items: [{ id: "veh-b-only", make: "Audi", model: "A3" }] });
+
+    const res = await request(app).post(`/public/${dealerA.user.dealershipId}/appointments`).send({
+      vehicleId: "veh-b-only",
+      customerName: "Test Customer",
+      customerEmail: "cross@example.test",
+      type: "viewing",
+      requestedDate: "2030-01-07",
+      requestedTime: "10:00",
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("requires at least a phone or an email so the dealer can actually confirm the booking", async () => {
+    const owner = await signup("public-no-contact");
+    await request(app)
+      .put("/inventory")
+      .set("Authorization", `Bearer ${owner.token}`)
+      .send({ items: [{ id: "veh-no-contact", make: "Kia", model: "Picanto" }] });
+
+    const res = await request(app).post(`/public/${owner.user.dealershipId}/appointments`).send({
+      vehicleId: "veh-no-contact",
+      customerName: "No Contact",
+      type: "viewing",
+      requestedDate: "2030-01-07",
+      requestedTime: "10:00",
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("only an authenticated staff member can confirm or decline an appointment", async () => {
+    const owner = await signup("public-decide");
+    await request(app)
+      .put("/inventory")
+      .set("Authorization", `Bearer ${owner.token}`)
+      .send({ items: [{ id: "veh-decide", make: "Seat", model: "Ibiza" }] });
+
+    const bookRes = await request(app).post(`/public/${owner.user.dealershipId}/appointments`).send({
+      vehicleId: "veh-decide",
+      customerName: "Decide Test",
+      customerPhone: "07700900000",
+      type: "viewing",
+      requestedDate: "2030-01-07",
+      requestedTime: "10:00",
+    });
+    const id = bookRes.body.appointment.id;
+
+    const unauthedRes = await request(app).put(`/appointments/${id}/status`).send({ status: "confirmed" });
+    expect(unauthedRes.status).toBe(401);
+
+    const confirmRes = await request(app)
+      .put(`/appointments/${id}/status`)
+      .set("Authorization", `Bearer ${owner.token}`)
+      .send({ status: "confirmed" });
+    expect(confirmRes.status).toBe(200);
+    expect(confirmRes.body.items[0].status).toBe("confirmed");
   });
 });
 

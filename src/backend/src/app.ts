@@ -21,6 +21,8 @@ import registerPlannerRoutes from "./routes/planner";
 import registerNotificationsRoute from "./routes/notifications";
 import registerFeedbackRoute from "./routes/feedback";
 import registerConsumablesRoute from "./routes/consumables";
+import registerPublicBookingRoute from "./routes/publicBooking";
+import registerAppointmentsRoute from "./routes/appointments";
 import registerDVLA from "./dvla";
 import registerSyndicationRoute from "./routes/syndication";
 import registerAuthRoute from "./routes/auth";
@@ -136,6 +138,7 @@ app.use(
     "/notifications",
     "/feedback",
     "/consumables",
+    "/appointments",
   ],
   requireAuth,
   requireActiveSubscription
@@ -151,6 +154,13 @@ registerPlannerRoutes(app);
 registerNotificationsRoute(app);
 registerFeedbackRoute(app);
 registerConsumablesRoute(app);
+registerAppointmentsRoute(app);
+// Deliberately OUTSIDE the requireAuth gate above — this is the one
+// part of the app a stranger on the internet reaches with no account
+// at all (a customer booking a viewing/test drive). Rate-limited
+// inside the route file itself since the risk here is abuse volume,
+// not identity.
+registerPublicBookingRoute(app);
 // Real DVSA MOT History + DVLA Vehicle Enquiry Service integration
 // (ported from the sibling flippilotlatest backend's proven pattern) —
 // previously called a placeholder domain that was never a real provider.

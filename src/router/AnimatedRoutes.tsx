@@ -20,6 +20,10 @@ import PrivacyScreen from "@/screens/PrivacyScreen";
 /* HOME */
 import HomeScreen from "@/screens/HomeScreen";
 
+/* PUBLIC BOOKING */
+import PublicBookingPage from "@/public/PublicBookingPage";
+import AppointmentsBoard from "@/appointments/AppointmentsBoard";
+
 /* DASHBOARD */
 import DealerDashboard from "@/dealer/dashboard/DealerDashboard";
 
@@ -125,6 +129,10 @@ import NotFoundScreen from "@/screens/NotFoundScreen";
 export default function AnimatedRoutes() {
   return (
     <Routes>
+      {/* PUBLIC BOOKING — no account, no sidebar/nav chrome, the one
+          page a customer reaches directly */}
+      <Route path="/book/:dealershipId" element={<PublicBookingPage />} />
+
       {/* AUTH — outside DealerLayout, no sidebar/nav chrome */}
       <Route path="/login" element={<LoginScreen />} />
       <Route path="/signup" element={<SignupScreen />} />
@@ -201,6 +209,7 @@ export default function AnimatedRoutes() {
         <Route path="feedback" element={<FeedbackBoard />} />
         <Route path="consumables" element={<ConsumablesBoard />} />
         <Route path="workshop-calendar" element={<WorkshopCalendar />} />
+        <Route path="appointments" element={<AppointmentsBoard />} />
         <Route path="bookkeeping/add-cost" element={<AddCostScreen />} />
         <Route path="bookkeeping/add-purchase" element={<AddPurchaseScreen />} />
         <Route path="bookkeeping/add-sale" element={<AddSaleScreen />} />

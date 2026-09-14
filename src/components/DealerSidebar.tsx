@@ -78,6 +78,7 @@ export default function DealerSidebar() {
         { to: "/dealer/sales/add", label: "Add Lead" },
         { to: "/dealer/sales/leads", label: "Leads Dashboard" },
         { to: "/dealer/sales/pipeline", label: "Sales Pipeline" },
+        { to: "/appointments", label: "Viewing & Test Drive Requests" },
       ],
     },
 
