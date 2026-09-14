@@ -73,6 +73,10 @@ export default function AddStaff() {
           <option value="sales">Sales</option>
           <option value="admin">Admin</option>
           <option value="trainee">Trainee</option>
+          <option value="cleaner">Cleaner</option>
+          <option value="office">Office Staff</option>
+          <option value="mot_tester">MOT Tester / Inspector</option>
+          <option value="staff">Other / General Staff</option>
         </select>
 
         <label>Branch</label>

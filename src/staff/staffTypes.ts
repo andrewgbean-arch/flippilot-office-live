@@ -1,4 +1,4 @@
-export type StaffRole = "manager" | "sales" | "admin" | "trainee" | "staff";
+export type StaffRole = "manager" | "sales" | "admin" | "trainee" | "staff" | "cleaner" | "office" | "mot_tester";
 
 export type StaffRecord = {
   id: string;

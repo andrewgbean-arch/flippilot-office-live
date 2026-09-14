@@ -18,6 +18,9 @@ export function StaffDashboard({}: Props) {
   const managers = staff.filter(s => s.role === "manager");
   const sales = staff.filter(s => s.role === "sales");
   const trainees = staff.filter(s => s.role === "trainee");
+  const cleaners = staff.filter(s => s.role === "cleaner");
+  const officeStaff = staff.filter(s => s.role === "office");
+  const motTesters = staff.filter(s => s.role === "mot_tester");
 
   // Supernova V22 Workforce Intelligence — computed live from real staff
   // data (this used to come from a `brain` prop that nothing ever
@@ -75,6 +78,9 @@ export function StaffDashboard({}: Props) {
             <RoleBar label="Managers" count={managers.length} total={staff.length} />
             <RoleBar label="Sales" count={sales.length} total={staff.length} />
             <RoleBar label="Trainees" count={trainees.length} total={staff.length} />
+            <RoleBar label="Cleaners" count={cleaners.length} total={staff.length} />
+            <RoleBar label="Office Staff" count={officeStaff.length} total={staff.length} />
+            <RoleBar label="MOT Testers" count={motTesters.length} total={staff.length} />
           </div>
         </section>
 
