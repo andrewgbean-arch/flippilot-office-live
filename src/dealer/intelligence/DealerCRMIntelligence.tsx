@@ -193,10 +193,6 @@ export default function DealerCRMIntelligence() {
           </div>
         )}
       </SupernovaCard>
-
-      <div className="mt-8 text-center text-white/40 text-xs">
-        Powered by FlipPilot Supernova V2 • CRM Intelligence Hub
-      </div>
     </div>
   );
 }

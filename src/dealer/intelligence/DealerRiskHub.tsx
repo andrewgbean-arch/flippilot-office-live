@@ -129,10 +129,6 @@ export default function DealerRiskHub() {
           </SupernovaCard>
         </>
       )}
-
-      <div className="mt-8 text-center text-white/40 text-xs">
-        Powered by FlipPilot Supernova V2 • Dealer Risk Hub
-      </div>
     </div>
   );
 }

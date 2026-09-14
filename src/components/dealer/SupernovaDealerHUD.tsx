@@ -1,4 +1,5 @@
 import React from "react";
+import { Link } from "react-router-dom";
 
 type HudProps = {
   aiSync?: "idle" | "syncing" | "error" | "running";
@@ -10,7 +11,7 @@ type HudProps = {
 };
 
 const badgeBase =
-  "px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1";
+  "px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1 transition hover:brightness-125 hover:scale-105";
 
 export default function SupernovaDealerHUD({
   aiSync = "idle",
@@ -100,30 +101,30 @@ export default function SupernovaDealerHUD({
             </div>
           )}
 
-          {/* MARKET */}
-          <div className={`${badgeBase} ${marketColor}`}>
+          {/* MARKET — real fleet demand trend, links to the page it's computed from */}
+          <Link to="/dealer/intelligence/market" className={`${badgeBase} ${marketColor}`}>
             <span>Market: {marketTrend}</span>
-          </div>
+          </Link>
 
-          {/* BRAIN MODE */}
-          <div className={`${badgeBase} bg-blue-500/20 text-blue-300 border border-blue-500/60`}>
+          {/* BRAIN MODE — links to the actual Pricing Brain tool this badge names */}
+          <Link to="/dealer/intelligence/pricing" className={`${badgeBase} bg-blue-500/20 text-blue-300 border border-blue-500/60`}>
             <span>Brain: {brainMode}</span>
-          </div>
+          </Link>
         </div>
 
         {/* RIGHT CLUSTER */}
         <div className="flex flex-wrap items-center gap-3">
-          <div className={`${badgeBase} ${riskColor}`}>
+          <Link to="/dealer/intelligence/risk" className={`${badgeBase} ${riskColor}`}>
             <span>Risk: {riskLevel}</span>
-          </div>
+          </Link>
 
-          <div className={`${badgeBase} bg-purple-500/20 text-purple-300 border border-purple-500/60`}>
+          <Link to="/ai-insights" className={`${badgeBase} bg-purple-500/20 text-purple-300 border border-purple-500/60`}>
             <span>FlipScore: {flipScore}/100</span>
-          </div>
+          </Link>
 
-          <div className={`${badgeBase} ${motColor}`}>
+          <Link to="/dealer/workflow/mot" className={`${badgeBase} ${motColor}`}>
             <span>MOT: {motHealth}</span>
-          </div>
+          </Link>
         </div>
       </div>
     </div>

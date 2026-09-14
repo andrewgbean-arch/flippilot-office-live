@@ -198,10 +198,6 @@ export default function DealerAICommandHub({ brain }: Props) {
           <li>Forecast alignment boosts AI confidence scores.</li>
         </ul>
       </SupernovaCard>
-
-      <div className="mt-8 text-center text-white/40 text-xs">
-        Powered by FlipPilot Supernova V5 • AI Command Hub
-      </div>
     </div>
   );
 }

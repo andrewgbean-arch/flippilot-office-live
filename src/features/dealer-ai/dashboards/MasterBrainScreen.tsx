@@ -45,7 +45,7 @@ export default function MasterBrainScreen({ data }: MasterBrainScreenProps) {
       {/* Cosmic Header */}
       <SupernovaHeroHeader
         title="FlipPilot Master Brain"
-        subtitle="Supernova V12 Fusion Intelligence — Dealer, Group, OEM, Global, Planetary"
+        subtitle="Fusion Intelligence — Dealer, Group, OEM, Global, Planetary"
       />
 
       {/* Fusion Summary */}

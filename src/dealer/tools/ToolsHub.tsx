@@ -48,7 +48,7 @@ export default function ToolsHub() {
       {/* HEADER */}
       <SupernovaHeroHeader
         title="Tools Command Center"
-        subtitle="FlipPilot Dealer OS • Supernova V12"
+        subtitle="FlipPilot Dealer OS"
       />
 
       {/* BADGE */}

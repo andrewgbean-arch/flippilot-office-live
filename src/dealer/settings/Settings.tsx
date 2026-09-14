@@ -354,13 +354,6 @@ export default function Settings() {
         subtitle="Configure your FlipPilot Dealer OS experience, preferences, and system behaviour."
       />
 
-      {/* Badge */}
-      <div className="mb-10">
-        <span className="inline-block px-4 py-2 bg-black/40 border border-yellow-400 rounded-lg text-yellow-300 text-sm">
-          FlipPilot OS • Supernova V12
-        </span>
-      </div>
-
       {/* Settings Grid */}
       <SupernovaSectionDivider label="Settings" />
 

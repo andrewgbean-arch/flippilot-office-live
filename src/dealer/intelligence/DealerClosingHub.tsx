@@ -180,10 +180,6 @@ export default function DealerClosingHub({ brain }: Props) {
           <li>Lead quality spikes correlate with seasonal demand cycles.</li>
         </ul>
       </SupernovaCard>
-
-      <div className="mt-8 text-center text-white/40 text-xs">
-        Powered by FlipPilot Supernova V2 • Closing Hub
-      </div>
     </div>
   );
 }

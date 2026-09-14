@@ -222,7 +222,6 @@ export default function DealerSidebar() {
           <h1 className="text-2xl font-bold text-yellow-300 tracking-wide drop-shadow-lg">
             Dealer OS
           </h1>
-          <p className="text-yellow-200/70 text-sm">Supernova V14 Cosmic</p>
         </div>
       )}
 

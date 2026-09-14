@@ -7,7 +7,6 @@ import SupernovaCard from "@/components/SupernovaCard";
 import { SupernovaSectionDivider } from "@/components/supernova/SupernovaSectionDivider";
 import GoldButton from "@/components/ui/GoldButton.web";
 
-import SupernovaDealerHeader from "@/components/supernova/SupernovaDealerHeader";
 import SupernovaMarketTicker from "@/components/supernova/SupernovaMarketTicker";
 import DealerModeToggle from "@/components/supernova/DealerModeToggle";
 
@@ -120,7 +119,6 @@ export default function DealerDashboard({ brain }: Props) {
   return (
     <div className="p-10 space-y-16">
 
-      <SupernovaDealerHeader />
       <SupernovaMarketTicker items={tickerItems} />
       <DealerModeToggle />
 
@@ -297,10 +295,6 @@ export default function DealerDashboard({ brain }: Props) {
           <GoldButton onPress={() => navigate("/bookkeeping/add-transaction")}>Add Transaction</GoldButton>
         </SupernovaCard>
 
-      </div>
-
-      <div className="text-white/40 text-xs pt-10">
-        FlipPilot Dealer OS • Workflow Engine • Supernova V14 Cosmic
       </div>
 
       <style>{`
