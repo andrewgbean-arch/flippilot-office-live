@@ -7,6 +7,7 @@ import { SupernovaHeroHeader } from "@/components/supernova/SupernovaHeroHeader"
 import { SupernovaSectionDivider } from "@/components/supernova/SupernovaSectionDivider";
 
 import { motAiEngine } from "@/engines/motAiEngine";
+import { getUlezStatus } from "@/features/vehicles/utils/ulezUtils";
 
 
 export default function VehicleList() {
@@ -43,6 +44,7 @@ export default function VehicleList() {
           }
 
           const ai = mot ? motAiEngine(mot, mot.history ?? []) : null;
+          const ulez = getUlezStatus(mot?.fuelType, mot?.euroStatus);
 
           return (
             <SupernovaGlowCard key={v.id}>
@@ -84,6 +86,20 @@ export default function VehicleList() {
 
                     <p className="text-white/60 text-xs">
                       Expiry: {motExpiry ?? "Unknown"}
+                    </p>
+
+                    <p className="text-xs">
+                      <span
+                        className={
+                          ulez.status === "compliant"
+                            ? "text-green-300"
+                            : ulez.status === "non-compliant"
+                            ? "text-red-400"
+                            : "text-white/40"
+                        }
+                      >
+                        {ulez.label}
+                      </span>
                     </p>
 
                     {ai && (

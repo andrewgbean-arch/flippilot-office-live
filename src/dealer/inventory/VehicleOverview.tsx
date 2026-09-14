@@ -21,6 +21,7 @@ import { MarketIntelligencePanel } from "@/features/dealer-ai/market/MarketIntel
 import { DealerNegotiationPanel } from "@/features/dealer-ai/negotiation/DealerNegotiationPanel";
 
 import { motAiEngine } from "@/engines/motAiEngine";
+import { getUlezStatus } from "@/features/vehicles/utils/ulezUtils";
 
 
 import type { Vehicle } from "@/types/Vehicle";
@@ -55,6 +56,7 @@ export default function VehicleOverview() {
 
   const mot = vehicle.mot;
   const ai = mot ? motAiEngine(mot, mot.history ?? []) : null;
+  const ulez = getUlezStatus(mot?.fuelType, mot?.euroStatus);
 
   const motStatus = (() => {
     if (!mot?.expiry) return "Unknown";
@@ -171,6 +173,21 @@ export default function VehicleOverview() {
                 <p>
                   <span className="text-white/60">Failures:</span>{" "}
                   {failures.length}
+                </p>
+
+                <p>
+                  <span className="text-white/60">ULEZ/CAZ:</span>{" "}
+                  <span
+                    className={
+                      ulez.status === "compliant"
+                        ? "text-green-300"
+                        : ulez.status === "non-compliant"
+                        ? "text-red-400"
+                        : "text-white/40"
+                    }
+                  >
+                    {ulez.label}
+                  </span>
                 </p>
               </>
             )}

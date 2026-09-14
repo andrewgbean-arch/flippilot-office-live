@@ -58,6 +58,12 @@ export interface Vehicle {
     mileage?: number | null;
 
     motStatus?: "Pass" | "Fail" | "Advisory"; // ⭐ REQUIRED
+
+    // From the DVLA Vehicle Enquiry Service — needed to compute real
+    // ULEZ/CAZ compliance (see ulezUtils.ts). Only populated once
+    // DVLA_API_KEY is configured; null/undefined until then.
+    fuelType?: string | null;
+    euroStatus?: string | null;
   };
 
   // Service history (optional)

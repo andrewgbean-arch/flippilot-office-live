@@ -154,6 +154,11 @@ export default function registerDVLA(app: Express) {
         // motExpiryDate is the more current/authoritative field when
         // available, falling back to the latest MOT test's own expiry.
         expiry: dvla?.motExpiryDate ?? latestMot?.expiryDate ?? null,
+        // DVLA-only fields (not part of MOT history) — needed to
+        // compute real ULEZ/CAZ compliance client-side. Only present
+        // once DVLA_API_KEY is configured.
+        fuelType: dvla?.fuelType ?? null,
+        euroStatus: dvla?.euroStatus ?? null,
         advisories: extractComments(latestMot?.rfrAndComments, "ADVISORY"),
         history: motTests.map((t) => ({
           date: t.completedDate ?? null,

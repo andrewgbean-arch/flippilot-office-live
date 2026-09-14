@@ -248,6 +248,8 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
         year: mot.year ?? null,
         colour: mot.colour ?? null,
         mileage: mot.mileage ?? null,
+        fuelType: mot.fuelType ?? null,
+        euroStatus: mot.euroStatus ?? null,
       },
 
       serviceHistory: [],
@@ -341,6 +343,8 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
         year: data.year ?? data.mot?.year ?? null,
         colour: data.colour ?? data.mot?.colour ?? null,
         mileage: data.mileage ?? data.mot?.mileage ?? null,
+        fuelType: data.mot?.fuelType ?? null,
+        euroStatus: data.mot?.euroStatus ?? null,
       },
 
       serviceHistory: [],

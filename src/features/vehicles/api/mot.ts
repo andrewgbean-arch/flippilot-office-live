@@ -16,6 +16,11 @@ export interface MOTData {
   mileage: number | null;
   expiry: string | null;
 
+  // Matches Vehicle.mot.fuelType/euroStatus — only populated once
+  // DVLA_API_KEY is configured, null until then.
+  fuelType: string | null;
+  euroStatus: string | null;
+
   // Matches Vehicle.mot.historyScore
   historyScore: number;
 
@@ -48,6 +53,8 @@ export async function fetchMOT(reg: string): Promise<MOTData | null> {
       colour: v.colour ?? null,
       mileage: v.mileage ?? null,
       expiry: v.expiry ?? null,
+      fuelType: v.fuelType ?? null,
+      euroStatus: v.euroStatus ?? null,
 
       historyScore: v.historyScore ?? 0,
       advisories: v.advisories ?? [],
