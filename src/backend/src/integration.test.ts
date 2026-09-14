@@ -1,8 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import request from "supertest";
-import fs from "fs";
-import path from "path";
 import app from "./app.js";
+import { readCollection, writeCollection, deleteTenantData } from "./db.js";
 
 // Real HTTP-level integration tests against the actual Express app —
 // exactly the class of test that would have caught both bugs a manual
@@ -14,9 +13,12 @@ import app from "./app.js";
 // Uses real throwaway accounts (unique per test run via Date.now()) and
 // cleans them up in afterAll — same "create real data via the real
 // flow, then delete it" pattern used for manual browser testing all
-// session, just automated.
+// session, just automated. Cleanup goes through the real db.ts
+// functions (SQLite-backed) rather than touching files directly — this
+// used to write straight to data/users.json /data/dealerships.json,
+// which stopped meaning anything once storage moved to SQLite: the
+// cleanup would silently no-op while leaving real rows behind.
 
-const DATA_DIR = path.join(__dirname, "..", "data");
 const runId = Date.now();
 const cleanupEmails: string[] = [];
 const cleanupDealershipIds: string[] = [];
@@ -30,25 +32,14 @@ function trackDealership(id: string) {
 
 afterAll(() => {
   try {
-    const usersFile = path.join(DATA_DIR, "users.json");
-    if (fs.existsSync(usersFile)) {
-      const users = JSON.parse(fs.readFileSync(usersFile, "utf-8"));
-      fs.writeFileSync(
-        usersFile,
-        JSON.stringify(users.filter((u: any) => !cleanupEmails.includes(u.email)), null, 2)
-      );
-    }
-    const dealershipsFile = path.join(DATA_DIR, "dealerships.json");
-    if (fs.existsSync(dealershipsFile)) {
-      const dealerships = JSON.parse(fs.readFileSync(dealershipsFile, "utf-8"));
-      fs.writeFileSync(
-        dealershipsFile,
-        JSON.stringify(dealerships.filter((d: any) => !cleanupDealershipIds.includes(d.id)), null, 2)
-      );
-    }
+    const users = readCollection<any>("users");
+    writeCollection("users", users.filter(u => !cleanupEmails.includes(u.email)));
+
+    const dealerships = readCollection<any>("dealerships");
+    writeCollection("dealerships", dealerships.filter(d => !cleanupDealershipIds.includes(d.id)));
+
     for (const id of cleanupDealershipIds) {
-      const dir = path.join(DATA_DIR, "dealerships", id);
-      if (fs.existsSync(dir)) fs.rmSync(dir, { recursive: true, force: true });
+      deleteTenantData(id);
     }
   } catch (err) {
     console.error("Integration test cleanup failed:", err);
