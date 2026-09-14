@@ -11,6 +11,10 @@ export interface BookingSettings {
   // How long one viewing/test drive is assumed to take — the unit the
   // public page's available slots are generated in.
   slotMinutes: number;
+  // One-off closures (bank holidays, a short-staffed day) that override
+  // openDays for that specific date, even on an otherwise-open weekday.
+  // yyyy-mm-dd strings.
+  closedDates: string[];
 }
 
 export const DEFAULT_BOOKING_SETTINGS: BookingSettings = {
@@ -18,6 +22,7 @@ export const DEFAULT_BOOKING_SETTINGS: BookingSettings = {
   openTime: "09:00",
   closeTime: "18:00",
   slotMinutes: 30,
+  closedDates: [],
 };
 
 function dealershipId(req: Request): string {
@@ -36,17 +41,19 @@ export default function registerBookingSettingsRoute(app: Express) {
   });
 
   app.put("/booking-settings", requireStaffRole("manager"), (req, res) => {
-    const { openDays, openTime, closeTime, slotMinutes } = req.body ?? {};
+    const { openDays, openTime, closeTime, slotMinutes, closedDates } = req.body ?? {};
     if (
       !Array.isArray(openDays) ||
       typeof openTime !== "string" ||
       typeof closeTime !== "string" ||
       typeof slotMinutes !== "number" ||
-      slotMinutes < 5
+      slotMinutes < 5 ||
+      (closedDates !== undefined &&
+        (!Array.isArray(closedDates) || closedDates.some((d: unknown) => typeof d !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(d))))
     ) {
-      return res.status(400).json({ ok: false, error: "openDays, openTime, closeTime and slotMinutes (>=5) are required" });
+      return res.status(400).json({ ok: false, error: "openDays, openTime, closeTime, slotMinutes (>=5) and closedDates (yyyy-mm-dd[]) are required" });
     }
-    const settings: BookingSettings = { openDays, openTime, closeTime, slotMinutes };
+    const settings: BookingSettings = { openDays, openTime, closeTime, slotMinutes, closedDates: closedDates ?? [] };
     writeTenantDoc(dealershipId(req), "bookingSettings", settings);
     res.json({ ok: true, settings });
   });

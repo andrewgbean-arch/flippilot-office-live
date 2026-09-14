@@ -129,14 +129,30 @@ function AvailabilitySettings({ canEdit }: { canEdit: boolean }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [newClosedDate, setNewClosedDate] = useState("");
 
   useEffect(() => {
     (async () => {
       setLoading(true);
-      setSettings(await loadBookingSettings());
+      const loaded = await loadBookingSettings();
+      // Settings saved before closedDates existed won't have it.
+      setSettings(loaded ? { ...loaded, closedDates: loaded.closedDates ?? [] } : null);
       setLoading(false);
     })();
   }, []);
+
+  function addClosedDate() {
+    if (!settings || !newClosedDate || settings.closedDates.includes(newClosedDate)) return;
+    setSettings({ ...settings, closedDates: [...settings.closedDates, newClosedDate].sort() });
+    setNewClosedDate("");
+    setSaved(false);
+  }
+
+  function removeClosedDate(date: string) {
+    if (!settings) return;
+    setSettings({ ...settings, closedDates: settings.closedDates.filter(d => d !== date) });
+    setSaved(false);
+  }
 
   function toggleDay(day: WeekDay) {
     if (!settings) return;
@@ -220,6 +236,58 @@ function AvailabilitySettings({ canEdit }: { canEdit: boolean }) {
               />
             </label>
           </div>
+
+          <div style={{ marginBottom: 14 }}>
+            <label style={{ fontSize: 13, color: "#9aa5c9", display: "block", marginBottom: 6 }}>
+              Closed Dates (bank holidays, one-off closures)
+            </label>
+            {settings.closedDates.length > 0 && (
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+                {settings.closedDates.map(d => (
+                  <span
+                    key={d}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                      padding: "4px 8px",
+                      borderRadius: 6,
+                      background: "rgba(255,255,255,0.05)",
+                      border: "1px solid rgba(255,255,255,0.1)",
+                      fontSize: 13,
+                      color: "#e6ebff",
+                    }}
+                  >
+                    {d}
+                    {canEdit && (
+                      <button
+                        type="button"
+                        onClick={() => removeClosedDate(d)}
+                        style={{ background: "none", border: "none", color: "#f87171", cursor: "pointer", fontSize: 13, padding: 0 }}
+                        aria-label={`Remove closed date ${d}`}
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </span>
+                ))}
+              </div>
+            )}
+            {canEdit && (
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <input
+                  type="date"
+                  value={newClosedDate}
+                  onChange={e => setNewClosedDate(e.target.value)}
+                  style={{ padding: "6px 10px", borderRadius: 6, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "#e6ebff" }}
+                />
+                <button type="button" className="sn-btn sn-btn--ghost" style={{ padding: "6px 12px", fontSize: 13 }} onClick={addClosedDate}>
+                  Add Closed Date
+                </button>
+              </div>
+            )}
+          </div>
+
           {error && <p style={{ color: "#f87171", fontSize: 13, marginBottom: 10 }}>{error}</p>}
           {canEdit ? (
             <button className="sn-btn sn-btn--gold" onClick={handleSave} disabled={saving}>

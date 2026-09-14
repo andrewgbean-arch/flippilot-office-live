@@ -98,6 +98,7 @@ function availableSlotsFor(dealershipId: string, date: string): string[] {
   const weekday = weekdayFor(date);
   if (!weekday) return [];
   const settings = readTenantDoc<BookingSettings>(dealershipId, "bookingSettings", DEFAULT_BOOKING_SETTINGS);
+  if (settings.closedDates?.includes(date)) return [];
   const all = allSlotsFor(settings, weekday);
   if (all.length === 0) return [];
 

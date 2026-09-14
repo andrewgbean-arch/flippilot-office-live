@@ -720,6 +720,41 @@ describe("public booking — the one part of the app reachable with no account a
     expect(mondayRes.body.slots).toEqual(["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00"]);
   });
 
+  it("a one-off closed date (bank holiday) overrides an otherwise-open weekday", async () => {
+    const owner = await signup("public-closed-date");
+    await request(app)
+      .put("/inventory")
+      .set("Authorization", `Bearer ${owner.token}`)
+      .send({ items: [{ id: "veh-closed-date", make: "Vauxhall", model: "Corsa" }] });
+
+    // 2030-01-07 is a Monday, open by default.
+    const beforeClosure = await request(app).get(`/public/${owner.user.dealershipId}/available-slots?date=2030-01-07`);
+    expect(beforeClosure.body.slots.length).toBeGreaterThan(0);
+
+    const setRes = await request(app)
+      .put("/booking-settings")
+      .set("Authorization", `Bearer ${owner.token}`)
+      .send({ openDays: ["mon", "tue", "wed", "thu", "fri", "sat"], openTime: "09:00", closeTime: "18:00", slotMinutes: 30, closedDates: ["2030-01-07"] });
+    expect(setRes.status).toBe(200);
+
+    const afterClosure = await request(app).get(`/public/${owner.user.dealershipId}/available-slots?date=2030-01-07`);
+    expect(afterClosure.body.slots).toEqual([]);
+
+    // A different open Monday is unaffected.
+    const otherMonday = await request(app).get(`/public/${owner.user.dealershipId}/available-slots?date=2030-01-14`);
+    expect(otherMonday.body.slots.length).toBeGreaterThan(0);
+
+    const bookAttempt = await request(app).post(`/public/${owner.user.dealershipId}/appointments`).send({
+      vehicleId: "veh-closed-date",
+      customerName: "Bank Holiday Test",
+      customerPhone: "07700900007",
+      type: "viewing",
+      requestedDate: "2030-01-07",
+      requestedTime: "10:00",
+    });
+    expect(bookAttempt.status).toBe(409);
+  });
+
   it("books an MOT against the customer's own reg, not dealer stock — no vehicleId, no DVSA lookup needed", async () => {
     const owner = await signup("public-mot");
 

@@ -9,6 +9,9 @@ export interface BookingSettings {
   openTime: string;
   closeTime: string;
   slotMinutes: number;
+  // One-off closures (bank holidays, a short-staffed day) that override
+  // openDays for that specific date. yyyy-mm-dd strings.
+  closedDates: string[];
 }
 
 export async function loadBookingSettings(): Promise<BookingSettings | null> {
