@@ -38,6 +38,7 @@ interface InventoryContextType {
     notes?: string | null;
     images?: string[] | null;
     mot?: Partial<Vehicle["mot"]>;
+    vatScheme?: "standard" | "margin";
   }) => Vehicle;
 }
 
@@ -307,6 +308,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
     notes?: string | null;
     images?: string[] | null;
     mot?: Partial<Vehicle["mot"]>;
+    vatScheme?: "standard" | "margin";
   }): Vehicle {
     const newVehicle: Vehicle = {
       id: crypto.randomUUID(),
@@ -363,7 +365,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
       images: data.images ?? null,
 
       costs: [],
-      vatScheme: "margin",
+      vatScheme: data.vatScheme ?? "margin",
 
       img: data.images?.[0] ?? "/placeholder-car.png",
       status: "new",

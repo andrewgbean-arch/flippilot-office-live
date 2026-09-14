@@ -17,6 +17,7 @@ export default function AddPurchaseModal({ onClose }: AddPurchaseModalProps) {
   const [make, setMake] = useState<string>("");
   const [model, setModel] = useState<string>("");
   const [purchasePrice, setPurchasePrice] = useState<string>("");
+  const [vatScheme, setVatScheme] = useState<"margin" | "standard">("margin");
   const [vatRate, setVatRate] = useState<string>("20");
   const [vatIncluded, setVatIncluded] = useState<boolean>(true);
   const [supplier, setSupplier] = useState<string>("");
@@ -45,6 +46,7 @@ export default function AddPurchaseModal({ onClose }: AddPurchaseModalProps) {
       make,
       model,
       buyPrice: numericPrice,
+      vatScheme,
     });
 
     const entry: PurchaseEntry = {
@@ -108,8 +110,19 @@ export default function AddPurchaseModal({ onClose }: AddPurchaseModalProps) {
           className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-4"
         />
 
+        {/* VAT SCHEME */}
+        <label className="text-white/60 text-sm">VAT Scheme (for when this vehicle is sold)</label>
+        <select
+          value={vatScheme}
+          onChange={(e) => setVatScheme(e.target.value as "margin" | "standard")}
+          className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-4"
+        >
+          <option value="margin">Margin Scheme — no VAT invoice on purchase (private seller, trade-in, most used cars)</option>
+          <option value="standard">Standard VAT — VAT invoice received on purchase</option>
+        </select>
+
         {/* VAT RATE */}
-        <label className="text-white/60 text-sm">VAT Rate (%)</label>
+        <label className="text-white/60 text-sm">VAT Rate on this Purchase (%)</label>
         <input
           type="number"
           step="1"

@@ -38,6 +38,7 @@ export default function NewVehicle() {
   const [profit, setProfit] = useState<number | null>(null);
 
   const [supplier, setSupplier] = useState("");
+  const [vatScheme, setVatScheme] = useState<"margin" | "standard">("margin");
   const [vatRate, setVatRate] = useState("20");
   const [vatIncluded, setVatIncluded] = useState(true);
   const [purchaseDate, setPurchaseDate] = useState(
@@ -131,6 +132,7 @@ export default function NewVehicle() {
       notes: notes || null,
       images: images.length > 0 ? images : null,
       mot: motData || undefined,
+      vatScheme,
     });
 
     addPurchase({
@@ -237,15 +239,27 @@ export default function NewVehicle() {
           </div>
 
           <div className="mt-4">
-            <label className="text-white/70 text-sm mb-1 block">VAT Rate</label>
+            <label className="text-white/70 text-sm mb-1 block">VAT Scheme (for when this vehicle is sold)</label>
+            <select
+              value={vatScheme}
+              onChange={(e) => setVatScheme(e.target.value as "margin" | "standard")}
+              className="bg-black/40 border border-white/20 rounded-xl px-4 py-3 text-white w-full"
+            >
+              <option value="margin">Margin Scheme — no VAT invoice on purchase (private seller, trade-in, most used cars)</option>
+              <option value="standard">Standard VAT — VAT invoice received on purchase</option>
+            </select>
+          </div>
+
+          <div className="mt-4">
+            <label className="text-white/70 text-sm mb-1 block">VAT Rate on this Purchase</label>
             <select
               value={vatRate}
               onChange={(e) => setVatRate(e.target.value)}
               className="bg-black/40 border border-white/20 rounded-xl px-4 py-3 text-white w-full"
             >
               <option value="20">20% (Standard)</option>
-              <option value="0">0% (Margin Scheme)</option>
               <option value="5">5% (Reduced)</option>
+              <option value="0">0% (Zero-rated / no VAT invoice)</option>
             </select>
           </div>
 

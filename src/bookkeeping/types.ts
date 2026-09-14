@@ -73,10 +73,20 @@ export interface SaleEntry {
   buyer?: string;
   date: string;
 
+  // "margin" (the UK VAT Margin Scheme — VAT on profit margin, not sale
+  // price) mirrors the vehicle's own Vehicle.vatScheme at the time of
+  // sale; "standard" charges VAT on the sale price like any other good.
+  vatScheme: "standard" | "margin";
+
   vatRate: number;
   vatIncluded: boolean;
   vatAmount: number;
   netAmount: number;
+
+  // Only meaningful when vatScheme is "margin" — the purchase price
+  // used to compute the margin, kept alongside the result so the
+  // ledger can show its working rather than just a final VAT figure.
+  marginPurchasePrice?: number;
 }
 
 

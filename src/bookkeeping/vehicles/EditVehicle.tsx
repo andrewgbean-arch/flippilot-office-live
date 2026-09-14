@@ -40,6 +40,12 @@ export default function EditVehicle({ vehicleId }: EditVehicleProps) {
 
   const [priceTrade, setPriceTrade] = useState(vehicle.priceTrade?.toString() || "");
   const [priceRetail, setPriceRetail] = useState(vehicle.priceRetail?.toString() || "");
+  // Vehicle.vatScheme's type still allows a legacy "trade" value that
+  // nothing in the app ever actually sets or reads — treat it the same
+  // as unset (defaulting to the more common Margin Scheme).
+  const [vatScheme, setVatScheme] = useState<"margin" | "standard">(
+    vehicle.vatScheme === "standard" ? "standard" : "margin"
+  );
 
   const [notes, setNotes] = useState(vehicle.notes || "");
   const [images, setImages] = useState<string[]>(vehicle.images || []);
@@ -103,6 +109,7 @@ export default function EditVehicle({ vehicleId }: EditVehicleProps) {
 
       priceTrade: priceTrade ? Number(priceTrade) : null,
       priceRetail: priceRetail ? Number(priceRetail) : null,
+      vatScheme,
 
       notes: notes || null,
       images: images.length > 0 ? images : null,
@@ -184,6 +191,18 @@ export default function EditVehicle({ vehicleId }: EditVehicleProps) {
           <div className="grid grid-cols-2 gap-4">
             <SupernovaInput label="Trade Price (£)" value={priceTrade} onChange={setPriceTrade} type="number" />
             <SupernovaInput label="Retail Price (£)" value={priceRetail} onChange={setPriceRetail} type="number" />
+          </div>
+
+          <div className="mt-4">
+            <label className="text-white/70 text-sm mb-1 block">VAT Scheme (for when this vehicle is sold)</label>
+            <select
+              value={vatScheme}
+              onChange={(e) => setVatScheme(e.target.value as "margin" | "standard")}
+              className="bg-black/40 border border-white/20 rounded-xl px-4 py-3 text-white w-full"
+            >
+              <option value="margin">Margin Scheme — no VAT invoice on purchase</option>
+              <option value="standard">Standard VAT — VAT invoice received on purchase</option>
+            </select>
           </div>
 
           <div className="mt-6">

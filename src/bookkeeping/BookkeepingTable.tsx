@@ -34,6 +34,8 @@ export default function BookkeepingTable({ vehicleId }: BookkeepingTableProps) {
       margin: profitSummary?.margin ?? 0,
       supplier: p.supplier ?? "Unknown",
       date: p.date,
+      vatDue: sale?.vatAmount,
+      vatScheme: sale?.vatScheme,
     };
   });
 
@@ -54,6 +56,7 @@ export default function BookkeepingTable({ vehicleId }: BookkeepingTableProps) {
             <th className="p-3 text-left">Sale</th>
             <th className="p-3 text-left">Profit</th>
             <th className="p-3 text-left">Margin</th>
+            <th className="p-3 text-left">VAT Due</th>
             <th className="p-3 text-left">Supplier</th>
             <th className="p-3 text-left">Date</th>
             <th className="p-3"></th>
@@ -73,6 +76,24 @@ export default function BookkeepingTable({ vehicleId }: BookkeepingTableProps) {
               <td className="p-3">£{row.expectedSale.toLocaleString()}</td>
               <td className="p-3 text-green-300">£{row.profit.toLocaleString()}</td>
               <td className="p-3">{row.margin.toFixed(1)}%</td>
+              <td className="p-3">
+                {row.vatDue != null ? (
+                  <>
+                    £{row.vatDue.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                    <span
+                      className={`ml-2 text-xs px-1.5 py-0.5 rounded ${
+                        row.vatScheme === "margin"
+                          ? "bg-yellow-500/20 text-yellow-300"
+                          : "bg-blue-500/20 text-blue-300"
+                      }`}
+                    >
+                      {row.vatScheme === "margin" ? "Margin" : "Standard"}
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-white/30">—</span>
+                )}
+              </td>
               <td className="p-3">{row.supplier}</td>
               <td className="p-3">{row.date}</td>
               <td className="p-3">

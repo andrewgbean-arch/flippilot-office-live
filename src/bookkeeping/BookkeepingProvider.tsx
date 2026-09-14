@@ -9,7 +9,7 @@ import {
   ProfitSummary,
   MonthlyReport,
 } from "./types";
-import { calculateVat } from "./vatUtils";
+import { calculateVat, calculateMarginVat } from "./vatUtils";
 import { loadBookkeeping, saveBookkeeping, type BookkeepingDoc } from "./bookkeepingStorage.web";
 import { useAuth } from "@/context/AuthContext";
 
@@ -172,18 +172,38 @@ export function BookkeepingProvider({ children }: BookkeepingProviderProps) {
   };
 
   // SALES
+  //
+  // Margin Scheme sales need the vehicle's purchase price to compute
+  // the margin VAT is actually due on — completely different maths
+  // from calculateVat() (see vatUtils.ts). Falls back to standard VAT
+  // if no purchase record exists yet (margin can't be computed without
+  // a purchase price), so a sale never silently loses its VAT figure.
   const addSale = (entry: SaleEntry) => {
-    const vat = calculateVat(entry.salePrice, {
-      vatRate: entry.vatRate,
-      vatIncluded: entry.vatIncluded,
-      vatReclaimable: false,
-    });
+    let enriched: SaleEntry;
 
-    const enriched: SaleEntry = {
-      ...entry,
-      vatAmount: vat.vat,
-      netAmount: vat.net,
-    };
+    const purchase = getPurchaseForVehicle(entry.vehicleId);
+
+    if (entry.vatScheme === "margin" && purchase) {
+      const margin = calculateMarginVat(entry.salePrice, purchase.purchasePrice, entry.vatRate);
+      enriched = {
+        ...entry,
+        vatAmount: margin.vat,
+        netAmount: entry.salePrice - margin.vat,
+        marginPurchasePrice: purchase.purchasePrice,
+      };
+    } else {
+      const vat = calculateVat(entry.salePrice, {
+        vatRate: entry.vatRate,
+        vatIncluded: entry.vatIncluded,
+        vatReclaimable: false,
+      });
+      enriched = {
+        ...entry,
+        vatScheme: "standard",
+        vatAmount: vat.vat,
+        netAmount: vat.net,
+      };
+    }
 
     const updated = [...sales, enriched];
     setSales(updated);
