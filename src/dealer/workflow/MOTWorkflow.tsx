@@ -154,15 +154,15 @@ export default function MOTWorkflow() {
               <li key={i} className="border-b border-white/10 pb-3 last:border-0 last:pb-0">
                 <div className="flex items-center justify-between">
                   <span className="text-white/80 text-sm">
-                    {h.date ? new Date(h.date).toLocaleDateString() : "Unknown date"}
+                    {h.date ? new Date(h.date).toLocaleDateString() : h.year ? String(h.year) : "Unknown date"}
                     {h.mileage ? ` — ${h.mileage.toLocaleString()} mi` : ""}
                   </span>
                   <span
                     className={`px-2 py-0.5 rounded text-xs font-bold ${
-                      h.result === "FAIL" ? "bg-red-600 text-white" : "bg-green-600 text-white"
+                      h.result?.toUpperCase() === "FAIL" ? "bg-red-600 text-white" : "bg-green-600 text-white"
                     }`}
                   >
-                    {h.result}
+                    {h.result?.toUpperCase()}
                   </span>
                 </div>
                 {(h.failures?.length ?? 0) > 0 && (

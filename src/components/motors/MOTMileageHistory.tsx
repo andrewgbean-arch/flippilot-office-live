@@ -6,6 +6,7 @@ const SILVER = "#AAB4C3";
 
 type Entry = {
   date?: string;
+  year?: number;
   mileage: number;
 };
 
@@ -53,7 +54,7 @@ export default function MOTMileageHistory({
               className="text-sm flex items-center gap-2"
               style={{ color: SILVER }}
             >
-              {h.date || "Unknown date"}:{" "}
+              {h.date ? new Date(h.date).toLocaleDateString() : h.year ? String(h.year) : "Unknown date"}:{" "}
               {h.mileage.toLocaleString()} miles {trend}
             </p>
           );

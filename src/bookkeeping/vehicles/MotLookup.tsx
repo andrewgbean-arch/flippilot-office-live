@@ -97,7 +97,7 @@ export default function MotLookup() {
                 {result.history.map((h, i) => (
                   <div key={i}>
                     <p className={`text-sm ${h.result === "FAIL" ? "text-red-300" : "text-white/70"}`}>
-                      {h.date ? new Date(h.date).toLocaleDateString() : "Unknown date"} — {h.result}
+                      {h.date ? new Date(h.date).toLocaleDateString() : h.year ? String(h.year) : "Unknown date"} — {h.result}
                       {h.mileage ? ` — ${h.mileage.toLocaleString()} mi` : ""}
                     </p>
                     {h.failures.length > 0 && (

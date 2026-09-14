@@ -165,6 +165,7 @@ export default function MOTLookup() {
 
   const safeHistory = (mot.history ?? []).map((h: any) => ({
     date: h.date,
+    year: h.year,
     mileage: h.mileage ?? mot.mileage ?? 0,
   }));
 

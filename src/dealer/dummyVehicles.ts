@@ -19,8 +19,8 @@ export const dummyVehicles: Vehicle[] = [
       advisories: ["Rear tyre close to limit"],
       historyScore: 70,
       history: [
-        { year: 2024, result: "Pass", advisories: ["Rear tyre close to limit"] },
-        { year: 2023, result: "Pass", advisories: [] }
+        { date: "2024-04-10", year: 2024, result: "PASS", mileage: 62000, advisories: ["Rear tyre close to legal limit"], failures: [] },
+        { date: "2023-04-08", year: 2023, result: "PASS", mileage: 54500, advisories: [], failures: [] }
       ]
     },
     depreciationCurve: [8500, 7800, 7200, 6995],
@@ -50,8 +50,8 @@ export const dummyVehicles: Vehicle[] = [
       advisories: [],
       historyScore: 78,
       history: [
-        { year: 2024, result: "Pass", advisories: [] },
-        { year: 2023, result: "Pass", advisories: [] }
+        { date: "2024-09-02", year: 2024, result: "PASS", mileage: 54000, advisories: [], failures: [] },
+        { date: "2023-08-30", year: 2023, result: "PASS", mileage: 46500, advisories: [], failures: [] }
       ]
     },
     depreciationCurve: [9500, 8800, 8200, 7995],
@@ -81,8 +81,8 @@ export const dummyVehicles: Vehicle[] = [
       advisories: ["Front pads worn"],
       historyScore: 65,
       history: [
-        { year: 2024, result: "Pass", advisories: ["Front pads worn"] },
-        { year: 2023, result: "Fail", advisories: ["Brake imbalance"] }
+        { date: "2024-02-20", year: 2024, result: "PASS", mileage: 72000, advisories: ["Front brake pads worn"], failures: [] },
+        { date: "2023-02-18", year: 2023, result: "FAIL", mileage: 65500, advisories: [], failures: ["Front brake performance imbalanced across axle"] }
       ]
     },
     depreciationCurve: [7500, 6900, 6400, 5995],
