@@ -23,6 +23,7 @@ import registerFeedbackRoute from "./routes/feedback";
 import registerConsumablesRoute from "./routes/consumables";
 import registerPublicBookingRoute from "./routes/publicBooking";
 import registerAppointmentsRoute from "./routes/appointments";
+import registerBookingSettingsRoute from "./routes/bookingSettings";
 import registerDVLA from "./dvla";
 import registerSyndicationRoute from "./routes/syndication";
 import registerAuthRoute from "./routes/auth";
@@ -139,6 +140,7 @@ app.use(
     "/feedback",
     "/consumables",
     "/appointments",
+    "/booking-settings",
   ],
   requireAuth,
   requireActiveSubscription
@@ -155,6 +157,7 @@ registerNotificationsRoute(app);
 registerFeedbackRoute(app);
 registerConsumablesRoute(app);
 registerAppointmentsRoute(app);
+registerBookingSettingsRoute(app);
 // Deliberately OUTSIDE the requireAuth gate above — this is the one
 // part of the app a stranger on the internet reaches with no account
 // at all (a customer booking a viewing/test drive). Rate-limited

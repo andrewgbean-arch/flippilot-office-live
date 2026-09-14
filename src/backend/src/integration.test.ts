@@ -622,6 +622,135 @@ describe("public booking — the one part of the app reachable with no account a
     expect(vehiclesRes.status).toBe(404);
   });
 
+  it("available-slots respects opening days/hours and excludes an already-booked time", async () => {
+    const owner = await signup("public-slots");
+    await request(app)
+      .put("/inventory")
+      .set("Authorization", `Bearer ${owner.token}`)
+      .send({ items: [{ id: "veh-slots", make: "Renault", model: "Clio" }] });
+
+    // Default settings: Mon–Sat, 09:00–18:00, 30-minute slots. 2030-01-06
+    // is a Sunday (closed), 2030-01-07 a Monday (open).
+    const closedDayRes = await request(app).get(`/public/${owner.user.dealershipId}/available-slots?date=2030-01-06`);
+    expect(closedDayRes.status).toBe(200);
+    expect(closedDayRes.body.slots).toEqual([]);
+
+    const openDayRes = await request(app).get(`/public/${owner.user.dealershipId}/available-slots?date=2030-01-07`);
+    expect(openDayRes.status).toBe(200);
+    expect(openDayRes.body.slots[0]).toBe("09:00");
+    expect(openDayRes.body.slots).toContain("10:00");
+    expect(openDayRes.body.slots).not.toContain("18:00"); // a slot starting exactly at close doesn't fit
+
+    await request(app).post(`/public/${owner.user.dealershipId}/appointments`).send({
+      vehicleId: "veh-slots",
+      customerName: "Slot Test",
+      customerPhone: "07700900002",
+      type: "viewing",
+      requestedDate: "2030-01-07",
+      requestedTime: "10:00",
+    });
+
+    const afterBookingRes = await request(app).get(`/public/${owner.user.dealershipId}/available-slots?date=2030-01-07`);
+    expect(afterBookingRes.body.slots).not.toContain("10:00");
+    expect(afterBookingRes.body.slots).toContain("10:30");
+  });
+
+  it("rejects a booking for a time that isn't actually available (closed day or already taken)", async () => {
+    const owner = await signup("public-slot-reject");
+    await request(app)
+      .put("/inventory")
+      .set("Authorization", `Bearer ${owner.token}`)
+      .send({ items: [{ id: "veh-reject", make: "Nissan", model: "Micra" }] });
+
+    const closedDayBooking = await request(app).post(`/public/${owner.user.dealershipId}/appointments`).send({
+      vehicleId: "veh-reject",
+      customerName: "Sunday Test",
+      customerPhone: "07700900003",
+      type: "viewing",
+      requestedDate: "2030-01-06", // Sunday — closed by default
+      requestedTime: "10:00",
+    });
+    expect(closedDayBooking.status).toBe(409);
+
+    const outsideHoursBooking = await request(app).post(`/public/${owner.user.dealershipId}/appointments`).send({
+      vehicleId: "veh-reject",
+      customerName: "Too Early Test",
+      customerPhone: "07700900004",
+      type: "viewing",
+      requestedDate: "2030-01-07",
+      requestedTime: "07:00", // before opening
+    });
+    expect(outsideHoursBooking.status).toBe(409);
+  });
+
+  it("only a manager/owner can change booking-availability settings, and the change takes effect for customers", async () => {
+    const owner = await signup("public-settings-change");
+    const inviteRes = await request(app)
+      .post("/dealership/invite")
+      .set("Authorization", `Bearer ${owner.token}`)
+      .send({ inviteeName: "Settings Sales", staffRole: "sales" });
+    const email = `integration-test-${runId}-settings-sales@test.local`;
+    const joinRes = await request(app).post("/auth/join").send({
+      token: inviteRes.body.token,
+      name: "Settings Sales",
+      email,
+      password: "settingstestpass123",
+    });
+    trackUser(email);
+    const salesToken = joinRes.body.token as string;
+
+    const blocked = await request(app)
+      .put("/booking-settings")
+      .set("Authorization", `Bearer ${salesToken}`)
+      .send({ openDays: ["mon"], openTime: "09:00", closeTime: "17:00", slotMinutes: 60 });
+    expect(blocked.status).toBe(403);
+
+    const allowed = await request(app)
+      .put("/booking-settings")
+      .set("Authorization", `Bearer ${owner.token}`)
+      .send({ openDays: ["mon"], openTime: "09:00", closeTime: "17:00", slotMinutes: 60 });
+    expect(allowed.status).toBe(200);
+
+    // 2030-01-08 is a Tuesday — no longer an open day under the new settings.
+    const tuesdayRes = await request(app).get(`/public/${owner.user.dealershipId}/available-slots?date=2030-01-08`);
+    expect(tuesdayRes.body.slots).toEqual([]);
+
+    // Monday now uses 60-minute slots instead of the default 30.
+    const mondayRes = await request(app).get(`/public/${owner.user.dealershipId}/available-slots?date=2030-01-07`);
+    expect(mondayRes.body.slots).toEqual(["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00"]);
+  });
+
+  it("books an MOT against the customer's own reg, not dealer stock — no vehicleId, no DVSA lookup needed", async () => {
+    const owner = await signup("public-mot");
+
+    const missingReg = await request(app).post(`/public/${owner.user.dealershipId}/appointments`).send({
+      customerName: "No Reg Given",
+      customerPhone: "07700900005",
+      type: "mot",
+      requestedDate: "2030-01-07",
+      requestedTime: "10:00",
+    });
+    expect(missingReg.status).toBe(400);
+
+    const bookRes = await request(app).post(`/public/${owner.user.dealershipId}/appointments`).send({
+      customerVehicleReg: "ab12 cde",
+      customerName: "MOT Customer",
+      customerPhone: "07700900006",
+      type: "mot",
+      requestedDate: "2030-01-07",
+      requestedTime: "10:00",
+    });
+    expect(bookRes.status).toBe(200);
+    expect(bookRes.body.appointment.vehicleId).toBeUndefined();
+    expect(bookRes.body.appointment.customerVehicleReg).toBe("AB12CDE");
+    expect(bookRes.body.appointment.vehicleLabel).toBe("AB12CDE");
+
+    const staffView = await request(app).get("/appointments").set("Authorization", `Bearer ${owner.token}`);
+    const motAppt = staffView.body.items.find((a: any) => a.id === bookRes.body.appointment.id);
+    expect(motAppt.type).toBe("mot");
+    expect(motAppt.customerVehicleReg).toBe("AB12CDE");
+  });
+
   it("returns only the requested dealership's own name and vehicles, never another's", async () => {
     const dealerA = await signup("public-a");
     const dealerB = await signup("public-b");

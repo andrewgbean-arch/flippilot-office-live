@@ -1,16 +1,22 @@
 import { randomUUID } from "crypto";
 import { Express, Request } from "express";
 import rateLimit from "express-rate-limit";
-import { readCollection, readTenantCollection, writeTenantCollection } from "../db";
+import { readCollection, readTenantCollection, writeTenantCollection, readTenantDoc } from "../db";
 import type { StoredUser, Dealership } from "../auth";
+import { DEFAULT_BOOKING_SETTINGS, type BookingSettings, type WeekDay } from "./bookingSettings";
 
-export type AppointmentType = "viewing" | "test_drive";
+export type AppointmentType = "viewing" | "test_drive" | "mot";
 export type AppointmentStatus = "pending" | "confirmed" | "declined" | "completed";
 
 export interface Appointment {
   id: string;
-  vehicleId: string;
+  // Only set for "viewing"/"test_drive" — a real vehicle from this
+  // dealership's own stock. An "mot" booking is the CUSTOMER's own car
+  // coming in for a test, not a car the dealer is selling, so it has
+  // no vehicleId at all — see customerVehicleReg instead.
+  vehicleId?: string;
   vehicleLabel: string;
+  customerVehicleReg?: string;
   customerName: string;
   customerPhone?: string;
   customerEmail?: string;
@@ -52,6 +58,56 @@ function findDealership(dealershipId: string): Dealership | undefined {
   return readCollection<Dealership>("dealerships").find(d => d.id === dealershipId);
 }
 
+const WEEKDAY_BY_GETDAY: WeekDay[] = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+
+// Built from the y/m/d components directly rather than parsing the
+// string or round-tripping through toISOString() — see this session's
+// rota planner work for the exact UTC-rollback bug that pattern causes
+// under a positive timezone offset (true for the UK under BST).
+function weekdayFor(dateStr: string): WeekDay | null {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  if (!y || !m || !d) return null;
+  return WEEKDAY_BY_GETDAY[new Date(y, m - 1, d).getDay()] ?? null;
+}
+
+function toMinutes(hhmm: string): number {
+  const [h, m] = hhmm.split(":").map(Number);
+  return (h ?? 0) * 60 + (m ?? 0);
+}
+
+function toHHMM(mins: number): string {
+  const h = Math.floor(mins / 60).toString().padStart(2, "0");
+  const m = Math.round(mins % 60).toString().padStart(2, "0");
+  return `${h}:${m}`;
+}
+
+// The full set of slot start times within opening hours — callers
+// filter out ones already booked. A closed day returns no slots at
+// all rather than a day's worth of times nobody can actually take.
+function allSlotsFor(settings: BookingSettings, weekday: WeekDay): string[] {
+  if (!settings.openDays.includes(weekday)) return [];
+  const slots: string[] = [];
+  const end = toMinutes(settings.closeTime);
+  for (let mins = toMinutes(settings.openTime); mins + settings.slotMinutes <= end; mins += settings.slotMinutes) {
+    slots.push(toHHMM(mins));
+  }
+  return slots;
+}
+
+function availableSlotsFor(dealershipId: string, date: string): string[] {
+  const weekday = weekdayFor(date);
+  if (!weekday) return [];
+  const settings = readTenantDoc<BookingSettings>(dealershipId, "bookingSettings", DEFAULT_BOOKING_SETTINGS);
+  const all = allSlotsFor(settings, weekday);
+  if (all.length === 0) return [];
+
+  const appointments = readTenantCollection<Appointment>(dealershipId, "appointments");
+  const taken = new Set(
+    appointments.filter(a => a.requestedDate === date && a.status !== "declined").map(a => a.requestedTime)
+  );
+  return all.filter(s => !taken.has(s));
+}
+
 export default function registerPublicBookingRoute(app: Express) {
   app.get("/public/:dealershipId/info", (req, res) => {
     const dealershipId = req.params.dealershipId;
@@ -89,6 +145,34 @@ export default function registerPublicBookingRoute(app: Express) {
     res.json({ ok: true, items: publicVehicles });
   });
 
+  app.get("/public/:dealershipId/booking-settings", (req, res) => {
+    const dealershipId = req.params.dealershipId;
+    if (!dealershipId) return res.status(400).json({ ok: false, error: "Missing dealership id" });
+
+    const dealership = findDealership(dealershipId);
+    if (!dealership) {
+      return res.status(404).json({ ok: false, error: "Dealership not found" });
+    }
+    res.json({ ok: true, settings: readTenantDoc<BookingSettings>(dealershipId, "bookingSettings", DEFAULT_BOOKING_SETTINGS) });
+  });
+
+  app.get("/public/:dealershipId/available-slots", (req, res) => {
+    const dealershipId = req.params.dealershipId;
+    if (!dealershipId) return res.status(400).json({ ok: false, error: "Missing dealership id" });
+
+    const dealership = findDealership(dealershipId);
+    if (!dealership) {
+      return res.status(404).json({ ok: false, error: "Dealership not found" });
+    }
+
+    const date = req.query.date;
+    if (typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return res.status(400).json({ ok: false, error: "date (yyyy-mm-dd) query param is required" });
+    }
+
+    res.json({ ok: true, slots: availableSlotsFor(dealershipId, date) });
+  });
+
   app.post("/public/:dealershipId/appointments", bookingLimiter, (req, res) => {
     const dealershipId = req.params.dealershipId;
     if (!dealershipId) return res.status(400).json({ ok: false, error: "Missing dealership id" });
@@ -98,14 +182,13 @@ export default function registerPublicBookingRoute(app: Express) {
       return res.status(404).json({ ok: false, error: "Dealership not found" });
     }
 
-    const { vehicleId, customerName, customerPhone, customerEmail, type, requestedDate, requestedTime, notes } =
+    const { vehicleId, customerVehicleReg, customerName, customerPhone, customerEmail, type, requestedDate, requestedTime, notes } =
       req.body ?? {};
 
     if (
-      typeof vehicleId !== "string" ||
       typeof customerName !== "string" ||
       !customerName.trim() ||
-      (type !== "viewing" && type !== "test_drive") ||
+      (type !== "viewing" && type !== "test_drive" && type !== "mot") ||
       typeof requestedDate !== "string" ||
       !/^\d{4}-\d{2}-\d{2}$/.test(requestedDate) ||
       typeof requestedTime !== "string" ||
@@ -117,12 +200,45 @@ export default function registerPublicBookingRoute(app: Express) {
       return res.status(400).json({ ok: false, error: "A phone number or email is required so we can confirm the booking" });
     }
 
-    const vehicles = readTenantCollection<any>(dealershipId, "vehicles");
-    const vehicle = vehicles.find(v => v.id === vehicleId);
-    if (!vehicle) {
-      return res.status(400).json({ ok: false, error: "That vehicle is no longer available" });
+    // An MOT booking is the customer's OWN car, not a vehicle from this
+    // dealership's stock — a different field, and deliberately not
+    // looked up against DVSA here (that endpoint requires a real login
+    // specifically so a stranger can't spend the dealer's own API
+    // quota for free; staff can verify the reg themselves when they
+    // review the booking, via the existing internal MOT Lookup tool).
+    let vehicleId_: string | undefined;
+    let vehicleLabel: string;
+    let normalisedCustomerReg: string | undefined;
+
+    if (type === "mot") {
+      if (typeof customerVehicleReg !== "string" || !customerVehicleReg.trim()) {
+        return res.status(400).json({ ok: false, error: "Your vehicle registration is required for an MOT booking" });
+      }
+      normalisedCustomerReg = customerVehicleReg.trim().toUpperCase().replace(/\s+/g, "");
+      if (!/^[A-Z0-9]{1,7}$/.test(normalisedCustomerReg)) {
+        return res.status(400).json({ ok: false, error: "That doesn't look like a valid registration" });
+      }
+      vehicleLabel = normalisedCustomerReg;
+    } else {
+      if (typeof vehicleId !== "string") {
+        return res.status(400).json({ ok: false, error: "Missing or invalid booking details" });
+      }
+      const vehicles = readTenantCollection<any>(dealershipId, "vehicles");
+      const vehicle = vehicles.find(v => v.id === vehicleId);
+      if (!vehicle) {
+        return res.status(400).json({ ok: false, error: "That vehicle is no longer available" });
+      }
+      vehicleId_ = vehicleId;
+      vehicleLabel = `${vehicle.reg ? vehicle.reg + " — " : ""}${vehicle.make} ${vehicle.model}`;
     }
-    const vehicleLabel = `${vehicle.reg ? vehicle.reg + " — " : ""}${vehicle.make} ${vehicle.model}`;
+
+    // Re-checked server-side, not just trusted from whatever the page
+    // showed when the customer loaded it — a slot can go stale between
+    // loading the form and submitting (someone else booked it, or it's
+    // simply outside opening hours/a closed day for this dealership).
+    if (!availableSlotsFor(dealershipId, requestedDate).includes(requestedTime)) {
+      return res.status(409).json({ ok: false, error: "That time is no longer available — please choose another." });
+    }
 
     // Match an existing lead by phone or email before creating a new
     // one — a returning customer booking a second viewing shouldn't
@@ -131,7 +247,7 @@ export default function registerPublicBookingRoute(app: Express) {
     let lead = leads.find(
       l => (customerEmail && l.email === customerEmail) || (customerPhone && l.phone === customerPhone)
     );
-    const leadStatus = type === "test_drive" ? "test_drive" : "viewing_booked";
+    const leadStatus = type === "test_drive" ? "test_drive" : type === "mot" ? "mot_booked" : "viewing_booked";
     if (lead) {
       lead.status = leadStatus;
       lead.vehicleInterest = vehicleLabel;
@@ -153,7 +269,8 @@ export default function registerPublicBookingRoute(app: Express) {
     const appointments = readTenantCollection<Appointment>(dealershipId, "appointments");
     const appointment: Appointment = {
       id: randomUUID(),
-      vehicleId,
+      ...(vehicleId_ ? { vehicleId: vehicleId_ } : {}),
+      ...(normalisedCustomerReg ? { customerVehicleReg: normalisedCustomerReg } : {}),
       vehicleLabel,
       customerName: customerName.trim(),
       ...(customerPhone ? { customerPhone } : {}),
@@ -176,10 +293,11 @@ export default function registerPublicBookingRoute(app: Express) {
       u => u.dealershipId === dealershipId && (u.role === "owner" || u.staffRole === "manager" || u.staffRole === "sales")
     );
     const notifications = readTenantCollection<any>(dealershipId, "notifications");
+    const typeLabel = type === "test_drive" ? "test drive" : type === "mot" ? "MOT" : "viewing";
     const newNotifications = staffToNotify.map(staff => ({
       id: randomUUID(),
       userId: staff.id,
-      title: `New ${type === "test_drive" ? "test drive" : "viewing"} request`,
+      title: `New ${typeLabel} request`,
       message: `${customerName.trim()} — ${vehicleLabel} — ${requestedDate} ${requestedTime}`,
       type: "info" as const,
       createdAt: new Date().toISOString(),

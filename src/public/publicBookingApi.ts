@@ -36,14 +36,26 @@ export async function loadPublicVehicles(dealershipId: string): Promise<PublicVe
   }
 }
 
+export async function loadAvailableSlots(dealershipId: string, date: string): Promise<string[]> {
+  try {
+    const res = await fetch(`${BASE_URL}/public/${dealershipId}/available-slots?date=${encodeURIComponent(date)}`);
+    const data = await res.json();
+    return Array.isArray(data.slots) ? data.slots : [];
+  } catch (err) {
+    console.error("loadAvailableSlots: backend unreachable", err);
+    return [];
+  }
+}
+
 export async function submitBooking(
   dealershipId: string,
   input: {
-    vehicleId: string;
+    vehicleId?: string;
+    customerVehicleReg?: string;
     customerName: string;
     customerPhone?: string;
     customerEmail?: string;
-    type: "viewing" | "test_drive";
+    type: "viewing" | "test_drive" | "mot";
     requestedDate: string;
     requestedTime: string;
     notes?: string;

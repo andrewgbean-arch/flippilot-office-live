@@ -21,6 +21,7 @@ export default function AppointmentReviewModal({ appointment, onClose }: Appoint
   const [savedStatus, setSavedStatus] = useState<AppointmentStatus | null>(null);
 
   const timeChanged = date !== appointment.requestedDate || time !== appointment.requestedTime;
+  const typeLabel = appointment.type === "test_drive" ? "test drive" : appointment.type === "mot" ? "MOT" : "viewing";
 
   async function handleSave(status?: AppointmentStatus) {
     setSaving(true);
@@ -42,15 +43,15 @@ export default function AppointmentReviewModal({ appointment, onClose }: Appoint
   if (savedStatus) {
     const mailto = appointment.customerEmail
       ? `mailto:${appointment.customerEmail}?subject=${encodeURIComponent(
-          `Your ${appointment.type === "test_drive" ? "test drive" : "viewing"} — ${appointment.vehicleLabel}`
+          `Your ${typeLabel} — ${appointment.vehicleLabel}`
         )}&body=${encodeURIComponent(
           [
             `Hi ${appointment.customerName},`,
             ``,
             savedStatus === "confirmed"
               ? timeChanged
-                ? `We'd like to confirm your ${appointment.type === "test_drive" ? "test drive" : "viewing"} for ${date} at ${time} (your original request was ${appointment.requestedDate} at ${appointment.requestedTime}). Let us know if that works.`
-                : `Your ${appointment.type === "test_drive" ? "test drive" : "viewing"} is confirmed for ${date} at ${time}.`
+                ? `We'd like to confirm your ${typeLabel} for ${date} at ${time} (your original request was ${appointment.requestedDate} at ${appointment.requestedTime}). Let us know if that works.`
+                : `Your ${typeLabel} is confirmed for ${date} at ${time}.`
               : `Unfortunately we're unable to confirm your requested slot — please get in touch and we'll find a time that works.`,
             ``,
             `Thanks,`,
@@ -92,7 +93,8 @@ export default function AppointmentReviewModal({ appointment, onClose }: Appoint
       <div className="bg-black/80 border border-white/10 p-6 rounded-xl w-full max-w-sm">
         <h2 className="text-white/80 text-xl font-semibold mb-1">{appointment.customerName}</h2>
         <p className="text-white/50 text-sm mb-4">
-          {appointment.vehicleLabel} · {appointment.type === "test_drive" ? "Test Drive" : "Viewing"}
+          {appointment.type === "mot" ? `Reg: ${appointment.vehicleLabel}` : appointment.vehicleLabel} ·{" "}
+          {appointment.type === "test_drive" ? "Test Drive" : appointment.type === "mot" ? "MOT" : "Viewing"}
         </p>
 
         <label className="text-white/60 text-sm">Date</label>
