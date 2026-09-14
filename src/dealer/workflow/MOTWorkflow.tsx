@@ -127,28 +127,6 @@ export default function MOTWorkflow() {
         )}
       </SupernovaGlowCard>
 
-      {/* PAST FAILURES — grouped by the test date it happened at */}
-      <SupernovaSectionDivider label="Past Failures" />
-
-      <SupernovaGlowCard>
-        {failedTests.length === 0 ? (
-          <p className="text-white/60">No failures recorded.</p>
-        ) : (
-          <>
-            <p className="text-white/40 text-xs mb-3">
-              Historical — this car has since passed a later test. Not a current issue.
-            </p>
-            <div>
-              {sortedHistory
-                .filter(h => h.result?.toUpperCase() === "FAIL" && (h.failures?.length ?? 0) > 0)
-                .map((h, i) => (
-                  <MotTestCard key={i} h={h} />
-                ))}
-            </div>
-          </>
-        )}
-      </SupernovaGlowCard>
-
       {/* FULL TEST HISTORY — every real MOT test on record, sorted most
           recent first, with what actually happened at each one. */}
       <SupernovaSectionDivider label="Full Test History — most recent first" />

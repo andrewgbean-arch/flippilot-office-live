@@ -8,7 +8,6 @@ import { useInventory } from "@/context/InventoryProvider";
 import MOTStatusCard from "@/components/motors/MOTStatusCard";
 import MOTExpiryCountdownCard from "@/components/motors/MOTExpiryCountdownCard";
 import MOTAdvisoriesList from "@/components/motors/MOTAdvisoriesList";
-import MOTFailuresList from "@/components/motors/MOTFailuresList";
 import MOTMileageHistory from "@/components/motors/MOTMileageHistory";
 import MOTHealthScore from "@/components/motors/MOTHealthScore";
 import MOTInsightsPanel from "@/components/motors/MOTInsightsPanel";
@@ -158,12 +157,6 @@ export default function MOTLookup() {
     );
   }
 
-  const failedTests = mot.history
-    ? mot.history
-        .filter((h: any) => h.result?.toLowerCase() === "fail" && (h.failures?.length ?? 0) > 0)
-        .map((h: any) => ({ date: h.date, year: h.year, mileage: h.mileage, testNumber: h.testNumber, failures: h.failures }))
-    : [];
-
   const safeHistory = (mot.history ?? []).map((h: any) => ({
     date: h.date,
     year: h.year,
@@ -209,7 +202,6 @@ export default function MOTLookup() {
       <MotAiVerdictCard ai={motAi} theme={theme} />
 
       <MOTAdvisoriesList advisories={mot.advisories ?? []} />
-      <MOTFailuresList failedTests={failedTests} />
       <MOTMileageHistory history={safeHistory} />
 
       {mot.history && mot.history.length > 0 && (
