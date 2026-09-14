@@ -42,7 +42,7 @@ export default function MOTWorkflow() {
   const failedTests = mot.history
     ? mot.history
         .filter((h) => h.result?.toUpperCase() === "FAIL" && (h.failures?.length ?? 0) > 0)
-        .map((h) => ({ date: h.date, year: h.year, failures: h.failures ?? [] }))
+        .map((h) => ({ date: h.date, year: h.year, mileage: h.mileage, testNumber: h.testNumber, failures: h.failures ?? [] }))
     : [];
   const failureCount = failedTests.reduce((sum, t) => sum + t.failures.length, 0);
 
@@ -137,17 +137,39 @@ export default function MOTWorkflow() {
             <p className="text-white/40 text-xs mb-3">
               Historical — this car has since passed a later test. Not a current issue.
             </p>
-            <div className="space-y-3">
+            <div className="space-y-4">
               {failedTests.map((t, ti) => (
-                <div key={ti}>
-                  <p className="text-red-300 text-sm font-semibold">
+                <div key={ti} className="pb-4 last:pb-0 border-b border-red-500/20 last:border-0">
+                  <p className="text-white/50 text-xs">Date tested</p>
+                  <p className="text-white text-sm font-semibold mb-2">
                     {t.date
                       ? new Date(t.date).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" })
                       : t.year
                         ? String(t.year)
                         : "Unknown date"}
                   </p>
-                  <ul className="space-y-1 mt-1">
+
+                  <span className="inline-block px-3 py-1 rounded bg-red-600 text-white text-xs font-bold mb-2">
+                    FAIL
+                  </span>
+
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-2 mt-2 text-sm">
+                    {t.mileage != null && (
+                      <div>
+                        <p className="text-white/50 text-xs">Mileage</p>
+                        <p className="text-white/90">{t.mileage.toLocaleString()} mi</p>
+                      </div>
+                    )}
+                    {t.testNumber && (
+                      <div>
+                        <p className="text-white/50 text-xs">MOT test number</p>
+                        <p className="text-white/90">{t.testNumber}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  <p className="text-white/50 text-xs mt-3 mb-1">Failed on</p>
+                  <ul className="space-y-1">
                     {t.failures.map((f, i) => (
                       <li key={i} className="text-red-400 text-sm">• {f}</li>
                     ))}

@@ -102,16 +102,37 @@ export default function MotLookup() {
                 {result.history
                   .filter(h => h.result === "FAIL")
                   .map((h, i) => (
-                    <div key={i} className="mb-3 last:mb-0">
-                      <p className="text-red-200 text-sm font-semibold">
+                    <div key={i} className="mb-4 last:mb-0 pb-4 last:pb-0 border-b border-red-500/20 last:border-0">
+                      <p className="text-white/50 text-xs">Date tested</p>
+                      <p className="text-white text-sm font-semibold mb-2">
                         {h.date
                           ? new Date(h.date).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" })
                           : h.year
                             ? String(h.year)
                             : "Unknown date"}
-                        {h.mileage ? ` — ${h.mileage.toLocaleString()} mi` : ""}
                       </p>
-                      <ul className="ml-4 list-disc text-red-300/90 text-xs mt-1">
+
+                      <span className="inline-block px-3 py-1 rounded bg-red-600 text-white text-xs font-bold mb-2">
+                        FAIL
+                      </span>
+
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-2 mt-2 text-sm">
+                        {h.mileage != null && (
+                          <div>
+                            <p className="text-white/50 text-xs">Mileage</p>
+                            <p className="text-white/90">{h.mileage.toLocaleString()} mi</p>
+                          </div>
+                        )}
+                        {h.testNumber && (
+                          <div>
+                            <p className="text-white/50 text-xs">MOT test number</p>
+                            <p className="text-white/90">{h.testNumber}</p>
+                          </div>
+                        )}
+                      </div>
+
+                      <p className="text-white/50 text-xs mt-3 mb-1">Failed on</p>
+                      <ul className="ml-4 list-disc text-red-300/90 text-sm">
                         {h.failures.map((f, fi) => (
                           <li key={fi}>{f}</li>
                         ))}

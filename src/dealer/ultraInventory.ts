@@ -107,7 +107,7 @@ export const ultraInventory: Vehicle[] = [
       historyScore: 72,
       history: [
         { date: "2024-09-18", year: 2024, result: "PASS", mileage: 62000, advisories: ["Minor oil leak, not excessive"], failures: [] },
-        { date: "2023-09-20", year: 2023, result: "FAIL", mileage: 52000, advisories: [], failures: ["Nearside rear tyre worn below legal limit"] },
+        { date: "2023-09-20", year: 2023, result: "FAIL", mileage: 52000, advisories: [], failures: ["Nearside rear tyre worn below legal limit"], testNumber: "847215936402" },
         { date: "2023-09-20", year: 2023, result: "PASS", mileage: 52000, advisories: [], failures: [] },
         { date: "2022-09-21", year: 2022, result: "PASS", mileage: 42500, advisories: [], failures: [] },
         { date: "2021-09-19", year: 2021, result: "PASS", mileage: 33000, advisories: [], failures: [] },

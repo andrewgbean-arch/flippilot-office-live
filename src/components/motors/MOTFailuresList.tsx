@@ -8,6 +8,8 @@ const SILVER = "#AAB4C3";
 type FailedTest = {
   date?: string;
   year?: number;
+  mileage?: number | null;
+  testNumber?: string | null;
   failures: string[];
 };
 
@@ -72,17 +74,39 @@ export default function MOTFailuresList({
         Historical — this car has since passed a later test. Not a current issue.
       </p>
 
-      <div className="space-y-3">
+      <div className="space-y-4">
         {failedTests.map((t, ti) => (
-          <div key={ti}>
-            <p className="text-sm font-semibold" style={{ color: RED }}>
+          <div key={ti} className="pb-4 last:pb-0 border-b last:border-0" style={{ borderColor: "rgba(244,67,54,0.2)" }}>
+            <p className="text-xs" style={{ color: SILVER }}>Date tested</p>
+            <p className="text-sm font-semibold mb-2" style={{ color: "#e6ebff" }}>
               {t.date
                 ? new Date(t.date).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" })
                 : t.year
                   ? String(t.year)
                   : "Unknown date"}
             </p>
-            <div className="space-y-1 mt-1">
+
+            <span className="inline-block px-3 py-1 rounded bg-red-600 text-white text-xs font-bold mb-2">
+              FAIL
+            </span>
+
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2 mt-2 text-sm">
+              {t.mileage != null && (
+                <div>
+                  <p className="text-xs" style={{ color: SILVER }}>Mileage</p>
+                  <p style={{ color: "#e6ebff" }}>{t.mileage.toLocaleString()} mi</p>
+                </div>
+              )}
+              {t.testNumber && (
+                <div>
+                  <p className="text-xs" style={{ color: SILVER }}>MOT test number</p>
+                  <p style={{ color: "#e6ebff" }}>{t.testNumber}</p>
+                </div>
+              )}
+            </div>
+
+            <p className="text-xs mt-3 mb-1" style={{ color: SILVER }}>Failed on</p>
+            <div className="space-y-1">
               {t.failures.map((f, i) => (
                 <p
                   key={i}

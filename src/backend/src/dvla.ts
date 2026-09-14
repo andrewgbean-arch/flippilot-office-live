@@ -197,6 +197,11 @@ export default function registerDVLA(app: Express) {
           mileage: t.odometerValue ?? null,
           advisories: extractComments(t.defects, "ADVISORY"),
           failures: extractComments(t.defects, "FAIL"),
+          // The two fields the real GOV.UK MOT history checker shows per
+          // test alongside date/result/mileage that this app never
+          // captured before — real DVSA fields, not derived.
+          testNumber: t.motTestNumber ?? null,
+          expiryDate: t.expiryDate ?? null,
         })),
       },
     });

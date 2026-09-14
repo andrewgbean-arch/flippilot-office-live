@@ -48,6 +48,8 @@ export interface Vehicle {
       advisories: string[];
       mileage?: number | null;
       failures?: string[]; // ⭐ REQUIRED
+      testNumber?: string | null;
+      expiryDate?: string | null;
     }[];
 
     reg?: string | null;

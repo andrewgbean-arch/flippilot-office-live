@@ -160,7 +160,7 @@ export default function MOTLookup() {
   const failedTests = mot.history
     ? mot.history
         .filter((h: any) => h.result?.toLowerCase() === "fail" && (h.failures?.length ?? 0) > 0)
-        .map((h: any) => ({ date: h.date, year: h.year, failures: h.failures }))
+        .map((h: any) => ({ date: h.date, year: h.year, mileage: h.mileage, testNumber: h.testNumber, failures: h.failures }))
     : [];
 
   const safeHistory = (mot.history ?? []).map((h: any) => ({

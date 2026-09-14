@@ -82,7 +82,7 @@ export const dummyVehicles: Vehicle[] = [
       historyScore: 65,
       history: [
         { date: "2024-02-20", year: 2024, result: "PASS", mileage: 72000, advisories: ["Front brake pads worn"], failures: [] },
-        { date: "2023-02-18", year: 2023, result: "FAIL", mileage: 65500, advisories: [], failures: ["Front brake performance imbalanced across axle"] }
+        { date: "2023-02-18", year: 2023, result: "FAIL", mileage: 65500, advisories: [], failures: ["Front brake performance imbalanced across axle"], testNumber: "391847265013" }
       ]
     },
     depreciationCurve: [7500, 6900, 6400, 5995],

@@ -7,6 +7,8 @@ export interface MOTRecord {
   mileage?: number | null;
   advisories: string[];
   failures: string[];
+  testNumber?: string | null;
+  expiryDate?: string | null;
 }
 
 export interface MOTData {
@@ -73,6 +75,8 @@ export async function fetchMOT(reg: string): Promise<MOTData | null> {
         mileage: h.mileage ?? null,
         advisories: h.advisories ?? [],
         failures: h.failures ?? [],
+        testNumber: h.testNumber ?? null,
+        expiryDate: h.expiryDate ?? null,
       })),
     };
   } catch (err) {
