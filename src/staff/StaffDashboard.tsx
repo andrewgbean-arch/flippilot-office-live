@@ -2,6 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { useStaff } from "./StaffContext";
 import type { StaffRecord } from "./staffTypes";
 import { getWorkforceIntelligence } from "@/core/superbrain/SuperBrainEngine";
+import TimeClockPanel from "./TimeClockPanel";
 import "./StaffDashboard.css";
 
 interface Props {
@@ -57,6 +58,9 @@ export function StaffDashboard({}: Props) {
 
       {/* GRID LAYOUT */}
       <main className="sn-grid">
+
+        {/* TIME CLOCK */}
+        <TimeClockPanel />
 
         {/* ROLE DISTRIBUTION */}
         <section className="sn-panel sn-panel--wide">

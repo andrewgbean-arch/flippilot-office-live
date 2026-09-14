@@ -597,3 +597,339 @@
   flex: 1;
   margin-top: 0;
 }
+.sn-quick-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.sn-recent-lead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: linear-gradient(145deg, #0a1128, #050814);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+}
+
+.sn-recent-lead:hover {
+  border-color: rgba(255, 215, 0, 0.4);
+}
+
+.sn-recent-lead__name {
+  font-size: 13px;
+  color: #fdf6d0;
+  font-weight: 600;
+}
+
+.sn-recent-lead__status {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #a9b4ff;
+}
+.sn-alerts-dropdown {
+  position: absolute;
+  bottom: 40px;
+  right: 0;
+  width: 280px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 12px;
+  border-radius: 14px;
+  background: linear-gradient(145deg, #0a1128, #050814);
+  border: 1px solid rgba(255, 215, 0, 0.25);
+  box-shadow: 0 0 30px rgba(0, 0, 0, 0.8);
+}
+
+.sn-alert-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  margin-bottom: 6px;
+}
+
+.sn-alert-item__type {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #a9b4ff;
+}
+
+.sn-alert-item__message {
+  font-size: 13px;
+  color: #f5f7ff;
+}
+/* ============================
+   LENDER COMPARISON
+============================ */
+
+.sn-lender-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 14px;
+  margin-top: 20px;
+}
+
+.sn-lender-card {
+  position: relative;
+  padding: 16px;
+  border-radius: 14px;
+  background: linear-gradient(145deg, #0a1128, #050814);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.sn-lender-card--best {
+  border-color: rgba(0, 220, 140, 0.5);
+  box-shadow: 0 0 20px rgba(0, 220, 140, 0.2);
+}
+
+.sn-lender-name {
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: #fdf6d0;
+  font-weight: 700;
+  font-size: 15px;
+  margin-bottom: 10px;
+  padding: 2px 0;
+}
+
+.sn-lender-name:focus {
+  outline: none;
+  border-bottom: 1px solid rgba(255, 215, 0, 0.4);
+}
+
+.sn-lender-apr-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #a9b4ff;
+  margin-bottom: 10px;
+}
+
+.sn-lender-apr-input {
+  width: 60px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #f5f7ff;
+  font-size: 12px;
+}
+
+.sn-lender-payment {
+  font-size: 22px;
+  font-weight: 700;
+  color: #fdf6d0;
+}
+
+.sn-lender-payment__label {
+  font-size: 11px;
+  color: #a9b4ff;
+  margin-left: 4px;
+}
+
+.sn-lender-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  background: rgba(0, 220, 140, 0.15);
+  border: 1px solid rgba(0, 220, 140, 0.4);
+  color: #00dc8c;
+}
+
+/* ============================
+   DEAL SHEET / PROFIT / TRADE-IN
+============================ */
+
+.sn-deal-summary {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.sn-deal-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  font-size: 13px;
+  color: #c7d0ff;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.sn-deal-row--total {
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 215, 0, 0.3);
+  font-size: 16px;
+  font-weight: 700;
+  color: #fdf6d0;
+}
+
+.sn-checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  font-size: 13px;
+  color: #c7d0ff;
+  cursor: pointer;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.sn-checkbox-row input[type="checkbox"] {
+  accent-color: #ffd700;
+}
+
+/* ============================
+   CONTRACT GENERATOR
+============================ */
+
+.sn-contract-preview {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.sn-contract-doc {
+  padding: 20px;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #111;
+  font-size: 13px;
+  line-height: 1.6;
+  max-width: 500px;
+}
+
+.sn-contract-doc hr {
+  margin: 10px 0;
+  border: none;
+  border-top: 1px solid #ddd;
+}
+
+/* ============================
+   NOTIFICATIONS DISMISS
+============================ */
+
+.sn-alert-item {
+  cursor: pointer;
+  transition: opacity 0.2s ease, background 0.2s ease;
+}
+
+.sn-alert-item:hover {
+  opacity: 0.6;
+  background: rgba(255, 60, 60, 0.08);
+}
+
+.sn-alerts-clear {
+  width: 100%;
+  margin-top: 6px;
+  padding: 6px;
+  font-size: 11px;
+  text-align: center;
+  border-radius: 8px;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #a9b4ff;
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+}
+
+.sn-alerts-clear:hover {
+  border-color: rgba(255, 215, 0, 0.4);
+}
+
+/* ============================
+   TIME CLOCK
+============================ */
+
+.sn-timeclock__status {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.sn-timeclock__badge {
+  padding: 8px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.sn-timeclock__badge--in {
+  background: rgba(0, 220, 140, 0.12);
+  border: 1px solid rgba(0, 220, 140, 0.4);
+  color: #00dc8c;
+}
+
+.sn-timeclock__badge--out {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #a9b4ff;
+}
+
+.sn-btn--danger {
+  background: linear-gradient(135deg, #ff5c5c, #c62828);
+  color: #fff;
+  border-radius: 10px;
+  padding: 10px 16px;
+  font-weight: 600;
+  transition: box-shadow 0.25s ease, transform 0.25s ease;
+}
+
+.sn-btn--danger:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 0 22px rgba(255, 92, 92, 0.45);
+}
+
+.sn-timeclock__error {
+  font-size: 13px;
+  color: #ff8080;
+  margin-bottom: 12px;
+}
+
+.sn-timeclock__subtitle {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #a9b4ff;
+  margin: 6px 0 10px;
+}
+
+.sn-timeclock__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.sn-timeclock__table th {
+  text-align: left;
+  padding: 8px 10px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #a9b4ff;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.sn-timeclock__table td {
+  padding: 8px 10px;
+  color: #f5f7ff;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}

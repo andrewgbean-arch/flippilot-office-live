@@ -16,6 +16,7 @@ import registerStaffRoute from "./routes/staff";
 import registerBookkeepingRoute from "./routes/bookkeeping";
 import registerJobsRoute from "./routes/jobs";
 import registerTeamRoute from "./routes/team";
+import registerTimekeepingRoute from "./routes/timekeeping";
 import registerDVLA from "./dvla";
 import registerSyndicationRoute from "./routes/syndication";
 import registerAuthRoute from "./routes/auth";
@@ -108,13 +109,14 @@ registerIntelligenceV3(app);
 // still valid) — /dealership/me and /billing/* deliberately only need
 // requireAuth, not the subscription gate, since a dealer with an
 // expired trial still needs to see their status and subscribe.
-app.use(["/inventory", "/leads", "/staff", "/bookkeeping", "/dvla", "/jobs", "/team"], requireAuth, requireActiveSubscription);
+app.use(["/inventory", "/leads", "/staff", "/bookkeeping", "/dvla", "/jobs", "/team", "/timekeeping"], requireAuth, requireActiveSubscription);
 registerInventoryRoute(app);
 registerLeadsRoute(app);
 registerStaffRoute(app);
 registerBookkeepingRoute(app);
 registerJobsRoute(app);
 registerTeamRoute(app);
+registerTimekeepingRoute(app);
 // Real DVSA MOT History + DVLA Vehicle Enquiry Service integration
 // (ported from the sibling flippilotlatest backend's proven pattern) —
 // previously called a placeholder domain that was never a real provider.

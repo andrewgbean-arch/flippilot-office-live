@@ -68,6 +68,7 @@ describe("unauthenticated access is blocked on real data routes", () => {
     ["GET", "/dvla?reg=AB12CDE"],
     ["GET", "/jobs"],
     ["GET", "/team"],
+    ["GET", "/timekeeping"],
   ])("%s %s returns 401 with no token", async (method, url) => {
     const res = await (request(app) as any)[method.toLowerCase()](url);
     expect(res.status).toBe(401);
@@ -151,6 +152,83 @@ describe("jobs board — real persistence and /team, added same session as this 
     expect(aRes.body.members[0].email).toBe(dealerA.email);
     expect(aRes.body.members[0].passwordHash).toBeUndefined();
     expect(bRes.body.members.some((m: any) => m.email === dealerA.email)).toBe(false);
+  });
+});
+
+describe("timekeeping — self-service clock in/out, server-derived identity and timestamps", () => {
+  it("a dealer can clock in, shows up as open, then clock out closes it", async () => {
+    const { token } = await signup("clock-a");
+
+    const inRes = await request(app).post("/timekeeping/clock-in").set("Authorization", `Bearer ${token}`);
+    expect(inRes.status).toBe(200);
+    expect(inRes.body.entry.clockOut).toBeNull();
+
+    const listAfterIn = await request(app).get("/timekeeping").set("Authorization", `Bearer ${token}`);
+    expect(listAfterIn.body.items).toHaveLength(1);
+    expect(listAfterIn.body.items[0].clockOut).toBeNull();
+
+    const outRes = await request(app).post("/timekeeping/clock-out").set("Authorization", `Bearer ${token}`);
+    expect(outRes.status).toBe(200);
+    expect(outRes.body.items[0].clockOut).not.toBeNull();
+  });
+
+  it("cannot clock in twice without clocking out first", async () => {
+    const { token } = await signup("clock-b");
+    await request(app).post("/timekeeping/clock-in").set("Authorization", `Bearer ${token}`);
+    const secondIn = await request(app).post("/timekeeping/clock-in").set("Authorization", `Bearer ${token}`);
+    expect(secondIn.status).toBe(409);
+  });
+
+  it("cannot clock out without an open entry", async () => {
+    const { token } = await signup("clock-c");
+    const res = await request(app).post("/timekeeping/clock-out").set("Authorization", `Bearer ${token}`);
+    expect(res.status).toBe(409);
+  });
+
+  it("one dealership's time entries are never visible to another", async () => {
+    const dealerA = await signup("clock-iso-a");
+    const dealerB = await signup("clock-iso-b");
+
+    await request(app).post("/timekeeping/clock-in").set("Authorization", `Bearer ${dealerA.token}`);
+
+    const aRes = await request(app).get("/timekeeping").set("Authorization", `Bearer ${dealerA.token}`);
+    const bRes = await request(app).get("/timekeeping").set("Authorization", `Bearer ${dealerB.token}`);
+
+    expect(aRes.body.items).toHaveLength(1);
+    expect(bRes.body.items).toEqual([]);
+  });
+
+  it("a non-manager cannot correct a time entry, but a manager/owner can", async () => {
+    const owner = await signup("clock-owner");
+    const clockInRes = await request(app)
+      .post("/timekeeping/clock-in")
+      .set("Authorization", `Bearer ${owner.token}`);
+    const entryId = clockInRes.body.entry.id;
+
+    const inviteRes = await request(app)
+      .post("/dealership/invite")
+      .set("Authorization", `Bearer ${owner.token}`)
+      .send({ inviteeName: "Sales Tester", staffRole: "sales" });
+    const joinRes = await request(app).post("/auth/join").send({
+      token: inviteRes.body.token,
+      name: "Sales Tester",
+      email: `integration-test-${runId}-clock-sales@test.local`,
+      password: "salestestpass123",
+    });
+    trackUser(`integration-test-${runId}-clock-sales@test.local`);
+    const salesToken = joinRes.body.token as string;
+
+    const blockedRes = await request(app)
+      .put(`/timekeeping/${entryId}`)
+      .set("Authorization", `Bearer ${salesToken}`)
+      .send({ clockOut: new Date().toISOString() });
+    expect(blockedRes.status).toBe(403);
+
+    const allowedRes = await request(app)
+      .put(`/timekeeping/${entryId}`)
+      .set("Authorization", `Bearer ${owner.token}`)
+      .send({ clockOut: new Date().toISOString() });
+    expect(allowedRes.status).toBe(200);
   });
 });
 

@@ -19,6 +19,7 @@ import { LeadsProvider } from "./context/LeadsContext";
 import { BookkeepingProvider } from "./bookkeeping/BookkeepingProvider";
 import { StaffProvider } from "./staff/StaffContext";
 import { JobsProvider } from "./context/JobsContext";
+import { TimeClockProvider } from "./context/TimeClockContext";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
@@ -34,7 +35,9 @@ createRoot(document.getElementById("root")!).render(
                       <BookkeepingProvider>
                         <StaffProvider>
                           <JobsProvider>
-                            <App />
+                            <TimeClockProvider>
+                              <App />
+                            </TimeClockProvider>
                           </JobsProvider>
                         </StaffProvider>
                       </BookkeepingProvider>
