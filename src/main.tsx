@@ -21,6 +21,8 @@ import { StaffProvider } from "./staff/StaffContext";
 import { JobsProvider } from "./context/JobsContext";
 import { TimeClockProvider } from "./context/TimeClockContext";
 import { PlannerProvider } from "./context/PlannerContext";
+import { FeedbackProvider } from "./context/FeedbackContext";
+import { ConsumablesProvider } from "./context/ConsumablesContext";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
@@ -38,7 +40,11 @@ createRoot(document.getElementById("root")!).render(
                           <JobsProvider>
                             <TimeClockProvider>
                               <PlannerProvider>
-                                <App />
+                                <FeedbackProvider>
+                                  <ConsumablesProvider>
+                                    <App />
+                                  </ConsumablesProvider>
+                                </FeedbackProvider>
                               </PlannerProvider>
                             </TimeClockProvider>
                           </JobsProvider>

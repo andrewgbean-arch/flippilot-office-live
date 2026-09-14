@@ -17,6 +17,8 @@ import {
   FiLayers,
   FiGrid,
   FiCheckSquare,
+  FiMessageSquare,
+  FiPackage,
 } from "react-icons/fi";
 
 export default function DealerSidebar() {
@@ -40,6 +42,22 @@ export default function DealerSidebar() {
       icon: FiCheckSquare,
       items: [
         { to: "/jobs", label: "Jobs Board" },
+      ],
+    },
+
+    {
+      label: "Consumables",
+      icon: FiPackage,
+      items: [
+        { to: "/consumables", label: "Stock & Ordering" },
+      ],
+    },
+
+    {
+      label: "Feedback",
+      icon: FiMessageSquare,
+      items: [
+        { to: "/feedback", label: "What Can We Do Better?" },
       ],
     },
 

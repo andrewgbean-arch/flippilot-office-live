@@ -19,6 +19,8 @@ import registerTeamRoute from "./routes/team";
 import registerTimekeepingRoute from "./routes/timekeeping";
 import registerPlannerRoutes from "./routes/planner";
 import registerNotificationsRoute from "./routes/notifications";
+import registerFeedbackRoute from "./routes/feedback";
+import registerConsumablesRoute from "./routes/consumables";
 import registerDVLA from "./dvla";
 import registerSyndicationRoute from "./routes/syndication";
 import registerAuthRoute from "./routes/auth";
@@ -132,6 +134,8 @@ app.use(
     "/rota-settings",
     "/shifts",
     "/notifications",
+    "/feedback",
+    "/consumables",
   ],
   requireAuth,
   requireActiveSubscription
@@ -145,6 +149,8 @@ registerTeamRoute(app);
 registerTimekeepingRoute(app);
 registerPlannerRoutes(app);
 registerNotificationsRoute(app);
+registerFeedbackRoute(app);
+registerConsumablesRoute(app);
 // Real DVSA MOT History + DVLA Vehicle Enquiry Service integration
 // (ported from the sibling flippilotlatest backend's proven pattern) —
 // previously called a placeholder domain that was never a real provider.

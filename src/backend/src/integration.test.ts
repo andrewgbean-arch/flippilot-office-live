@@ -74,6 +74,8 @@ describe("unauthenticated access is blocked on real data routes", () => {
     ["GET", "/rota-settings"],
     ["GET", "/shifts"],
     ["GET", "/notifications"],
+    ["GET", "/feedback"],
+    ["GET", "/consumables"],
   ])("%s %s returns 401 with no token", async (method, url) => {
     const res = await (request(app) as any)[method.toLowerCase()](url);
     expect(res.status).toBe(401);
@@ -515,6 +517,98 @@ describe("notifications — a real per-recipient inbox, not just a local UI stor
 
     const finalInbox = await request(app).get("/notifications").set("Authorization", `Bearer ${owner.token}`);
     expect(finalInbox.body.items).toEqual([]);
+  });
+});
+
+describe("feedback — internal suggestion box, anonymous means genuinely unlinkable", () => {
+  it("a named submission carries the real submitter, an anonymous one carries neither id nor name", async () => {
+    const { token, user } = await signup("feedback-a");
+
+    const namedRes = await request(app).post("/feedback").set("Authorization", `Bearer ${token}`).send({
+      message: "More parking for customers would help.",
+    });
+    expect(namedRes.status).toBe(200);
+    expect(namedRes.body.entry.userId).toBe(user.id);
+    expect(namedRes.body.entry.userName).toBe(user.name);
+    expect(namedRes.body.entry.status).toBe("new");
+
+    const anonRes = await request(app)
+      .post("/feedback")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ message: "Break room could use a new kettle.", anonymous: true });
+    expect(anonRes.status).toBe(200);
+    expect(anonRes.body.entry.userId).toBeNull();
+    expect(anonRes.body.entry.userName).toBeNull();
+  });
+
+  it("a non-manager cannot change a suggestion's status, but a manager/owner can", async () => {
+    const owner = await signup("feedback-b");
+    const inviteRes = await request(app)
+      .post("/dealership/invite")
+      .set("Authorization", `Bearer ${owner.token}`)
+      .send({ inviteeName: "Feedback Sales", staffRole: "sales" });
+    const email = `integration-test-${runId}-feedback-sales@test.local`;
+    const joinRes = await request(app).post("/auth/join").send({
+      token: inviteRes.body.token,
+      name: "Feedback Sales",
+      email,
+      password: "feedbacktestpass123",
+    });
+    trackUser(email);
+    const salesToken = joinRes.body.token as string;
+
+    const postRes = await request(app)
+      .post("/feedback")
+      .set("Authorization", `Bearer ${salesToken}`)
+      .send({ message: "Test suggestion" });
+    const id = postRes.body.entry.id;
+
+    const blocked = await request(app)
+      .put(`/feedback/${id}/status`)
+      .set("Authorization", `Bearer ${salesToken}`)
+      .send({ status: "reviewed" });
+    expect(blocked.status).toBe(403);
+
+    const allowed = await request(app)
+      .put(`/feedback/${id}/status`)
+      .set("Authorization", `Bearer ${owner.token}`)
+      .send({ status: "reviewed" });
+    expect(allowed.status).toBe(200);
+    expect(allowed.body.items.find((f: any) => f.id === id).status).toBe("reviewed");
+  });
+});
+
+describe("consumables — open to any authenticated staff, tenant-scoped", () => {
+  it("any staff can add and read consumables, but never another dealership's", async () => {
+    const dealerA = await signup("consumables-a");
+    const dealerB = await signup("consumables-b");
+
+    const addRes = await request(app)
+      .post("/consumables")
+      .set("Authorization", `Bearer ${dealerA.token}`)
+      .send({ name: "Screen wash", supplierEmail: "orders@supplier.test", currentStock: 2, reorderThreshold: 5 });
+    expect(addRes.status).toBe(200);
+    expect(addRes.body.entry.name).toBe("Screen wash");
+
+    const aList = await request(app).get("/consumables").set("Authorization", `Bearer ${dealerA.token}`);
+    const bList = await request(app).get("/consumables").set("Authorization", `Bearer ${dealerB.token}`);
+    expect(aList.body.items).toHaveLength(1);
+    expect(bList.body.items).toEqual([]);
+  });
+
+  it("can be deleted by any authenticated staff", async () => {
+    const { token } = await signup("consumables-c");
+    const addRes = await request(app)
+      .post("/consumables")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ name: "Oil filters", currentStock: 10, reorderThreshold: 3 });
+    const id = addRes.body.entry.id;
+
+    const delRes = await request(app).delete(`/consumables/${id}`).set("Authorization", `Bearer ${token}`);
+    expect(delRes.status).toBe(200);
+
+    const list = await request(app).get("/consumables").set("Authorization", `Bearer ${token}`);
+    expect(list.body.items).toEqual([]);
   });
 });
 
