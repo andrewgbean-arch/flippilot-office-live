@@ -21,7 +21,7 @@ const PRIORITY_COLOR: Record<string, string> = {
   high: "text-red-400",
 };
 
-function JobCard({ job }: { job: Job }) {
+function JobCard({ job, onEdit }: { job: Job; onEdit: (job: Job) => void }) {
   const { updateJob, removeJob } = useJobs();
   const navigate = useNavigate();
 
@@ -56,6 +56,15 @@ function JobCard({ job }: { job: Job }) {
         </button>
       )}
 
+      {job.scheduledDate && (
+        <p className="text-blue-300/80 text-xs mt-2">
+          🔧 {new Date(job.scheduledDate).toLocaleDateString()}
+          {job.scheduledStart ? ` ${job.scheduledStart}` : ""}
+          {job.scheduledEnd ? `–${job.scheduledEnd}` : ""}
+          {job.bay ? ` · ${job.bay}` : ""}
+        </p>
+      )}
+
       <div className="flex justify-between items-center mt-3 text-xs">
         <span className="text-white/50">
           {job.assignedToName ? `👤 ${job.assignedToName}` : "Unassigned"}
@@ -68,7 +77,7 @@ function JobCard({ job }: { job: Job }) {
         )}
       </div>
 
-      <div className="flex gap-2 mt-3">
+      <div className="flex gap-2 mt-3 flex-wrap">
         {COLUMNS.filter(c => c.status !== job.status).map(c => (
           <button
             key={c.status}
@@ -78,6 +87,12 @@ function JobCard({ job }: { job: Job }) {
             → {c.label}
           </button>
         ))}
+        <button
+          onClick={() => onEdit(job)}
+          className="text-xs px-2 py-1 rounded bg-white/5 hover:bg-white/10 text-white/60"
+        >
+          Edit
+        </button>
         <button
           onClick={() => removeJob(job.id)}
           className="text-xs px-2 py-1 rounded bg-red-500/10 hover:bg-red-500/20 text-red-300 ml-auto"
@@ -91,7 +106,9 @@ function JobCard({ job }: { job: Job }) {
 
 export default function JobsBoard() {
   const { jobs, loading } = useJobs();
+  const navigate = useNavigate();
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingJob, setEditingJob] = useState<Job | null>(null);
 
   return (
     <div className="min-h-screen bg-[#0A1128] text-white p-10 animate-fadeIn">
@@ -100,7 +117,13 @@ export default function JobsBoard() {
         subtitle="Day-to-day tasks for your team — MOTs to book, cars to prep, calls to make."
       />
 
-      <div className="flex justify-end max-w-6xl mx-auto mt-6 mb-6">
+      <div className="flex justify-end gap-3 max-w-6xl mx-auto mt-6 mb-6">
+        <button
+          onClick={() => navigate("/workshop-calendar")}
+          className="px-4 py-2 rounded-lg font-semibold bg-white/10 text-white/80 hover:bg-white/20"
+        >
+          Workshop Calendar
+        </button>
         <GoldButton onPress={() => setShowAddModal(true)}>Add Job</GoldButton>
       </div>
 
@@ -125,7 +148,7 @@ export default function JobsBoard() {
                   colJobs
                     .slice()
                     .reverse()
-                    .map(job => <JobCard key={job.id} job={job} />)
+                    .map(job => <JobCard key={job.id} job={job} onEdit={setEditingJob} />)
                 )}
               </SupernovaGlowCard>
             );
@@ -134,6 +157,7 @@ export default function JobsBoard() {
       )}
 
       {showAddModal && <AddJobModal onClose={() => setShowAddModal(false)} />}
+      {editingJob && <AddJobModal existing={editingJob} onClose={() => setEditingJob(null)} />}
     </div>
   );
 }

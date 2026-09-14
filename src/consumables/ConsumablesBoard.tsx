@@ -11,6 +11,19 @@ export default function ConsumablesBoard() {
   const [showAdd, setShowAdd] = useState(false);
   const [editing, setEditing] = useState<Consumable | null>(null);
 
+  // Not every low-stock item needs to go in THIS order — staff tick off
+  // exactly what they actually want sent today; unticked items just
+  // stay low and show up again next time. Defaults to checked (the
+  // common case is "order everything that's low"), keyed by item id so
+  // it survives items being added/removed from the low-stock set.
+  const [checked, setChecked] = useState<Record<string, boolean>>({});
+  function isChecked(id: string): boolean {
+    return checked[id] ?? true;
+  }
+  function toggleChecked(id: string) {
+    setChecked(prev => ({ ...prev, [id]: !isChecked(id) }));
+  }
+
   const lowStock = consumables.filter(c => c.currentStock <= c.reorderThreshold);
 
   function mailtoFor(item: (typeof consumables)[number]): string | null {
@@ -28,6 +41,41 @@ export default function ConsumablesBoard() {
     return `mailto:${item.supplierEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   }
 
+  // Staff top up stock levels as they notice things running low over
+  // however many days, rather than placing an order the moment one
+  // item dips — this groups whatever's currently low by supplier so
+  // there's one combined email per supplier to send when it's
+  // actually time to order, not one email per item.
+  const lowStockBySupplier = new Map<string, { supplierName: string; supplierEmail: string; items: Consumable[] }>();
+  const lowStockNoSupplier: Consumable[] = [];
+  for (const item of lowStock) {
+    if (!item.supplierEmail) {
+      lowStockNoSupplier.push(item);
+      continue;
+    }
+    const key = item.supplierEmail;
+    const group = lowStockBySupplier.get(key);
+    if (group) group.items.push(item);
+    else lowStockBySupplier.set(key, { supplierName: item.supplierName ?? item.supplierEmail, supplierEmail: item.supplierEmail, items: [item] });
+  }
+
+  function mailtoForSupplier(group: { supplierName: string; supplierEmail: string; items: Consumable[] }): string {
+    const subject = `Order Request — ${group.items.length} item${group.items.length === 1 ? "" : "s"}`;
+    const body = [
+      `Hi,`,
+      ``,
+      `Please could we order the following:`,
+      ``,
+      ...group.items.map(
+        i => `- ${i.name}${i.unit ? ` (${i.unit})` : ""} — currently ${i.currentStock}${i.unit ? ` ${i.unit}` : ""} in stock`
+      ),
+      ``,
+      `Thanks,`,
+      dealer?.name ?? "",
+    ].join("\n");
+    return `mailto:${group.supplierEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  }
+
   return (
     <div className="sn-dashboard sn-dashboard--cosmic">
       <header className="sn-hero">
@@ -39,6 +87,59 @@ export default function ConsumablesBoard() {
       </header>
 
       <main className="sn-grid">
+        {lowStock.length > 0 && (
+          <section className="sn-panel sn-panel--full">
+            <h2 className="sn-panel__title">Ready to Order</h2>
+            <p className="sn-timeclock__subtitle">
+              Everything currently low, grouped by supplier — one email covers a supplier's whole list.
+            </p>
+            <div className="sn-leave-list">
+              {Array.from(lowStockBySupplier.values()).map(group => {
+                const selectedItems = group.items.filter(i => isChecked(i.id));
+                return (
+                  <div key={group.supplierEmail} className="sn-recent-lead" style={{ alignItems: "flex-start", flexDirection: "column", gap: 10 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", width: "100%", alignItems: "flex-start" }}>
+                      <div className="sn-recent-lead__name">{group.supplierName}</div>
+                      {selectedItems.length > 0 ? (
+                        <a href={mailtoForSupplier({ ...group, items: selectedItems })} className="sn-btn sn-btn--gold" style={{ flexShrink: 0 }}>
+                          Email Order — {selectedItems.length} item{selectedItems.length === 1 ? "" : "s"}
+                        </a>
+                      ) : (
+                        <span className="sn-empty">Nothing ticked</span>
+                      )}
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      {group.items.map(item => (
+                        <label key={item.id} className="sn-checkbox-row" style={{ marginTop: 0 }}>
+                          <input
+                            type="checkbox"
+                            checked={isChecked(item.id)}
+                            onChange={() => toggleChecked(item.id)}
+                          />
+                          {item.name}
+                          {item.unit ? ` (${item.unit})` : ""} — {item.currentStock}
+                          {item.unit ? ` ${item.unit}` : ""} left
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+              {lowStockNoSupplier.length > 0 && (
+                <div className="sn-recent-lead" style={{ alignItems: "flex-start" }}>
+                  <div>
+                    <div className="sn-recent-lead__name">No supplier email set</div>
+                    <div className="sn-recent-lead__status" style={{ marginTop: 4 }}>
+                      {lowStockNoSupplier.map(i => i.name).join(" · ")}
+                    </div>
+                  </div>
+                  <span className="sn-empty">Add a supplier email to enable ordering</span>
+                </div>
+              )}
+            </div>
+          </section>
+        )}
+
         <section className="sn-panel sn-panel--full">
           <div className="sn-rota-header">
             <h2 className="sn-panel__title">

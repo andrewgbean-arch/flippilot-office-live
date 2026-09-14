@@ -26,6 +26,7 @@ import DealerDashboard from "@/dealer/dashboard/DealerDashboard";
 /* FEEDBACK & CONSUMABLES */
 import FeedbackBoard from "@/feedback/FeedbackBoard";
 import ConsumablesBoard from "@/consumables/ConsumablesBoard";
+import WorkshopCalendar from "@/jobs/WorkshopCalendar";
 
 /* INVENTORY */
 import InventoryDashboard from "@/dealer/inventory/InventoryDashboard";
@@ -199,6 +200,7 @@ export default function AnimatedRoutes() {
         <Route path="jobs" element={<JobsBoard />} />
         <Route path="feedback" element={<FeedbackBoard />} />
         <Route path="consumables" element={<ConsumablesBoard />} />
+        <Route path="workshop-calendar" element={<WorkshopCalendar />} />
         <Route path="bookkeeping/add-cost" element={<AddCostScreen />} />
         <Route path="bookkeeping/add-purchase" element={<AddPurchaseScreen />} />
         <Route path="bookkeeping/add-sale" element={<AddSaleScreen />} />

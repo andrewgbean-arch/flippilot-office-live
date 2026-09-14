@@ -42,6 +42,7 @@ export default function DealerSidebar() {
       icon: FiCheckSquare,
       items: [
         { to: "/jobs", label: "Jobs Board" },
+        { to: "/workshop-calendar", label: "Workshop Calendar" },
       ],
     },
 

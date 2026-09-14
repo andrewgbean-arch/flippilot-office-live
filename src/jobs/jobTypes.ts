@@ -20,6 +20,16 @@ export interface Job {
   priority: JobPriority;
   dueDate?: string | null;
 
+  // Workshop booking — separate from dueDate ("must be done by") since
+  // this is "the actual day/time slot the car is booked into the
+  // workshop for", a different thing a manager plans around a
+  // physical bay rather than just a deadline. All optional: a job can
+  // exist unscheduled and get slotted in later.
+  scheduledDate?: string | null;
+  scheduledStart?: string | null;
+  scheduledEnd?: string | null;
+  bay?: string | null;
+
   createdAt: string;
   createdByName: string;
   completedAt?: string | null;

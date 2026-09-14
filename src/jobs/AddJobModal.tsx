@@ -7,20 +7,28 @@ import VehiclePicker from "@/bookkeeping/VehiclePicker";
 import { useInventory } from "@/context/InventoryProvider";
 
 interface AddJobModalProps {
+  existing?: Job;
   onClose: () => void;
 }
 
-export default function AddJobModal({ onClose }: AddJobModalProps) {
-  const { addJob } = useJobs();
+export default function AddJobModal({ existing, onClose }: AddJobModalProps) {
+  const { addJob, updateJob } = useJobs();
   const { user } = useAuth();
   const { vehicles } = useInventory();
 
-  const [title, setTitle] = useState("");
-  const [notes, setNotes] = useState("");
-  const [priority, setPriority] = useState<JobPriority>("medium");
-  const [dueDate, setDueDate] = useState("");
-  const [assignedToUserId, setAssignedToUserId] = useState<string>("");
-  const [vehicleId, setVehicleId] = useState<string | null>(null);
+  const [title, setTitle] = useState(existing?.title ?? "");
+  const [notes, setNotes] = useState(existing?.notes ?? "");
+  const [priority, setPriority] = useState<JobPriority>(existing?.priority ?? "medium");
+  const [dueDate, setDueDate] = useState(existing?.dueDate ?? "");
+  const [assignedToUserId, setAssignedToUserId] = useState<string>(existing?.assignedToUserId ?? "");
+  const [vehicleId, setVehicleId] = useState<string | null>(existing?.vehicleId ?? null);
+
+  // Workshop booking — when the car's actually due in, not just the
+  // general "must be done by" dueDate above.
+  const [scheduledDate, setScheduledDate] = useState(existing?.scheduledDate ?? "");
+  const [scheduledStart, setScheduledStart] = useState(existing?.scheduledStart ?? "");
+  const [scheduledEnd, setScheduledEnd] = useState(existing?.scheduledEnd ?? "");
+  const [bay, setBay] = useState(existing?.bay ?? "");
 
   const [team, setTeam] = useState<TeamMember[]>([]);
   const [loadingTeam, setLoadingTeam] = useState(true);
@@ -38,19 +46,33 @@ export default function AddJobModal({ onClose }: AddJobModalProps) {
     const assignee = team.find(m => m.id === assignedToUserId);
     const vehicle = vehicleId ? vehicles.find(v => v.id === vehicleId) : undefined;
 
-    const job: Job = {
-      id: crypto.randomUUID(),
+    const fields = {
       title: title.trim(),
       ...(notes.trim() ? { notes: notes.trim() } : {}),
-      status: "todo",
       assignedToUserId: assignee?.id ?? null,
       assignedToName: assignee?.name ?? null,
       vehicleId: vehicleId ?? null,
       vehicleLabel: vehicle ? `${vehicle.reg ? vehicle.reg + " — " : ""}${vehicle.make} ${vehicle.model}` : null,
       priority,
       dueDate: dueDate || null,
+      scheduledDate: scheduledDate || null,
+      scheduledStart: scheduledStart || null,
+      scheduledEnd: scheduledEnd || null,
+      bay: bay.trim() || null,
+    };
+
+    if (existing) {
+      updateJob({ ...existing, ...fields });
+      onClose();
+      return;
+    }
+
+    const job: Job = {
+      id: crypto.randomUUID(),
+      status: "todo",
       createdAt: new Date().toISOString(),
       createdByName: user?.name ?? "Unknown",
+      ...fields,
     };
 
     addJob(job);
@@ -60,7 +82,7 @@ export default function AddJobModal({ onClose }: AddJobModalProps) {
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
       <div className="bg-black/80 border border-white/10 p-6 rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <h2 className="text-white/80 text-xl font-semibold mb-4">Add Job</h2>
+        <h2 className="text-white/80 text-xl font-semibold mb-4">{existing ? "Edit Job" : "Add Job"}</h2>
 
         <label className="text-white/60 text-sm">Title</label>
         <input
@@ -120,6 +142,48 @@ export default function AddJobModal({ onClose }: AddJobModalProps) {
           </div>
         </div>
 
+        <div className="border-t border-white/10 pt-4 mt-2 mb-4">
+          <p className="text-white/60 text-sm mb-2">Workshop Booking (optional)</p>
+
+          <label className="text-white/60 text-sm">Date</label>
+          <input
+            type="date"
+            value={scheduledDate}
+            onChange={e => setScheduledDate(e.target.value)}
+            className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-3"
+          />
+
+          <div className="grid grid-cols-2 gap-4 mb-3">
+            <div>
+              <label className="text-white/60 text-sm">Start Time</label>
+              <input
+                type="time"
+                value={scheduledStart}
+                onChange={e => setScheduledStart(e.target.value)}
+                className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80"
+              />
+            </div>
+            <div>
+              <label className="text-white/60 text-sm">End Time</label>
+              <input
+                type="time"
+                value={scheduledEnd}
+                onChange={e => setScheduledEnd(e.target.value)}
+                className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80"
+              />
+            </div>
+          </div>
+
+          <label className="text-white/60 text-sm">Bay / Location</label>
+          <input
+            type="text"
+            value={bay}
+            onChange={e => setBay(e.target.value)}
+            placeholder="Bay 1, Ramp 2, Outside..."
+            className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80"
+          />
+        </div>
+
         <div className="flex justify-end gap-3">
           <button
             onClick={onClose}
@@ -136,7 +200,7 @@ export default function AddJobModal({ onClose }: AddJobModalProps) {
                 : "bg-gray-600 text-gray-300 cursor-not-allowed"
             }`}
           >
-            Add Job
+            {existing ? "Save Changes" : "Add Job"}
           </button>
         </div>
       </div>
