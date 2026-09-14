@@ -21,6 +21,7 @@ export interface WorkPattern {
   employmentType: EmploymentType;
   targetWeeklyHours: number;
   availableDays: WeekDay[];
+  holidayEntitlementDays: number;
 }
 
 export type LeaveType = "holiday" | "sick" | "other";

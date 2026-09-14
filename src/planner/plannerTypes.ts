@@ -18,6 +18,10 @@ export interface WorkPattern {
   employmentType: EmploymentType;
   targetWeeklyHours: number;
   availableDays: WeekDay[];
+  // Days per year, set per person since this genuinely varies firm to
+  // firm (and sometimes person to person) — not derived from
+  // employmentType, always an explicit manager-set number.
+  holidayEntitlementDays: number;
 }
 
 export type LeaveType = "holiday" | "sick" | "other";

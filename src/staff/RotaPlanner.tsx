@@ -5,7 +5,7 @@ import { canManageStaff } from "@/lib/permissions";
 import { loadTeam } from "@/jobs/jobStorage.web";
 import type { TeamMember } from "@/jobs/jobTypes";
 import { WEEK_DAYS, WEEK_DAY_LABELS, type WorkPattern, type EmploymentType, type LeaveRequest } from "@/planner/plannerTypes";
-import { getMonday, addDays, toDateKey, formatDayLabel, formatWeekRange } from "@/planner/dateUtils";
+import { getMonday, addDays, toDateKey, formatDayLabel, formatWeekRange, countLeaveWorkingDays } from "@/planner/dateUtils";
 import ShiftEditModal from "./ShiftEditModal";
 import LeaveRequestModal from "./LeaveRequestModal";
 import "./StaffDashboard.css";
@@ -65,14 +65,45 @@ export default function RotaPlanner() {
 
   function handlePatternChange(member: TeamMember, changes: Partial<WorkPattern>) {
     const existing = workPatterns.find(p => p.userId === member.id);
+    // 28 days/year (5.6 weeks) is the UK statutory minimum for a
+    // 5-day-a-week worker — a sane starting default, always visible
+    // and editable per person since real entitlement varies firm to
+    // firm (and sometimes role to role).
     const base: WorkPattern = existing ?? {
       userId: member.id,
       userName: member.name,
       employmentType: "full_time",
       targetWeeklyHours: 0,
       availableDays: [],
+      holidayEntitlementDays: 28,
     };
     saveWorkPattern({ ...base, ...changes });
+  }
+
+  const currentYear = new Date().getFullYear();
+
+  // Holiday/sick balances are deliberately derived here, not a stored
+  // aggregate — they're always computed fresh from the same
+  // workPatterns + leave data already loaded, so they can never drift
+  // out of sync with an edited entitlement or a newly-approved request.
+  function leaveBalanceFor(member: TeamMember) {
+    const pattern = workPatterns.find(p => p.userId === member.id);
+    const entitlement = pattern?.holidayEntitlementDays ?? 28;
+    const availableDays = pattern?.availableDays ?? [];
+
+    const approvedThisYear = leave.filter(
+      l => l.userId === member.id && l.status === "approved" && l.startDate.slice(0, 4) === String(currentYear)
+    );
+
+    const takenDays = approvedThisYear
+      .filter(l => l.type === "holiday")
+      .reduce((sum, l) => sum + countLeaveWorkingDays(l.startDate, l.endDate, availableDays), 0);
+
+    const sickDays = approvedThisYear
+      .filter(l => l.type === "sick")
+      .reduce((sum, l) => sum + countLeaveWorkingDays(l.startDate, l.endDate, availableDays), 0);
+
+    return { entitlement, takenDays, remainingDays: entitlement - takenDays, sickDays };
   }
 
   const pendingLeave = leave.filter(l => l.status === "pending");
@@ -241,6 +272,62 @@ export default function RotaPlanner() {
             </div>
           </section>
         )}
+
+        {/* LEAVE BALANCES */}
+        <section className="sn-panel sn-panel--full">
+          <h2 className="sn-panel__title">Leave Balances — {currentYear}</h2>
+          <p className="sn-timeclock__subtitle">
+            Taken/remaining count only a person's actual working days (from their Work Pattern above), not weekends
+            or days off they'd never have worked anyway.
+          </p>
+          {team.length === 0 ? (
+            <p className="sn-empty">No team members yet.</p>
+          ) : (
+            <div style={{ overflowX: "auto" }}>
+              <table className="sn-timeclock__table sn-rota-table">
+                <thead>
+                  <tr>
+                    <th>Staff</th>
+                    <th>Entitlement (days/yr)</th>
+                    <th>Taken</th>
+                    <th>Remaining</th>
+                    <th>Sick Days ({currentYear})</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {team.map(member => {
+                    const { entitlement, takenDays, remainingDays, sickDays } = leaveBalanceFor(member);
+                    return (
+                      <tr key={member.id}>
+                        <td>{member.name}</td>
+                        <td>
+                          {isManager ? (
+                            <input
+                              type="number"
+                              min={0}
+                              max={365}
+                              className="sn-input"
+                              style={{ width: 80 }}
+                              defaultValue={entitlement}
+                              onBlur={e =>
+                                handlePatternChange(member, { holidayEntitlementDays: Number(e.target.value) || 0 })
+                              }
+                            />
+                          ) : (
+                            entitlement
+                          )}
+                        </td>
+                        <td>{takenDays}</td>
+                        <td style={remainingDays < 0 ? { color: "#ff8080" } : undefined}>{remainingDays}</td>
+                        <td>{sickDays}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
 
         {/* LEAVE */}
         <section className="sn-panel sn-panel--full">
