@@ -20,6 +20,8 @@ import MotAiRiskGauge from "@/components/motors/MotAiRiskGauge";
 import MotAiRadarChart from "@/components/motors/MotAiRadarChart";
 import MotAiVerdictCard from "@/components/motors/MotAiVerdictCard";
 
+const EMPTY_MOT_AI = motAiEngine({ advisories: [], history: [] } as any, []);
+
 export default function MOTLookup() {
   const [reg, setReg] = useState("");
   const [mot, setMot] = useState<any>(null);
@@ -42,6 +44,43 @@ export default function MOTLookup() {
     goldSoftGlow: "#FFD70055",
     blackSoft: "#1A1F2B",
   };
+
+  // Every hook below is called unconditionally on every render — the
+  // previous version put a conditional `if (!mot) return ...` BEFORE
+  // these useMemo calls, which is a genuine Rules-of-Hooks violation:
+  // the first render (mot === null) skips them entirely, then the very
+  // next render after a successful lookup reaches them for the first
+  // time, and React crashes with "Rendered more hooks than during the
+  // previous render." This is why a real, successful MOT lookup on
+  // this screen always ended in a hard crash, never actual results —
+  // confirmed live.
+  const motStatus = useMemo(() => {
+    const expiry = mot?.expiry;
+    if (!expiry) return "Unknown";
+
+    const exp = new Date(expiry);
+    const now = new Date();
+
+    if (exp < now) return "Expired";
+
+    const days = (exp.getTime() - now.getTime()) / 86400000;
+    if (days < 30) return "Expiring Soon";
+
+    return "Valid";
+  }, [mot?.expiry]);
+
+  const daysLeft = useMemo(() => {
+    const expiry = mot?.expiry;
+    if (!expiry) return null;
+
+    const exp = new Date(expiry);
+    const now = new Date();
+
+    const diff = exp.getTime() - now.getTime();
+    return Math.ceil(diff / 86400000);
+  }, [mot?.expiry]);
+
+  const motAi = useMemo(() => (mot ? motAiEngine(mot, mot.history ?? []) : EMPTY_MOT_AI), [mot]);
 
   async function handleLookup() {
     if (!reg.trim()) return;
@@ -118,50 +157,16 @@ export default function MOTLookup() {
     );
   }
 
-  // ⭐ MOT Status
-  const motStatus = useMemo(() => {
-    const expiry = mot.expiry;
-    if (!expiry) return "Unknown";
-
-    const exp = new Date(expiry);
-    const now = new Date();
-
-    if (exp < now) return "Expired";
-
-    const days = (exp.getTime() - now.getTime()) / 86400000;
-    if (days < 30) return "Expiring Soon";
-
-    return "Valid";
-  }, [mot.expiry]);
-
-  // ⭐ Days Left
-  const daysLeft = useMemo(() => {
-    const expiry = mot.expiry;
-    if (!expiry) return null;
-
-    const exp = new Date(expiry);
-    const now = new Date();
-
-    const diff = exp.getTime() - now.getTime();
-    return Math.ceil(diff / 86400000);
-  }, [mot.expiry]);
-
-  // ⭐ Failures derived from history
   const failures = mot.history
     ? mot.history
         .filter((h: any) => h.result?.toLowerCase() === "fail")
         .flatMap((h: any) => h.failures ?? [])
     : [];
 
-  // ⭐ Mileage history
-  const safeHistory = mot.history.map((h: any) => ({
+  const safeHistory = (mot.history ?? []).map((h: any) => ({
     date: h.date,
     mileage: h.mileage ?? mot.mileage ?? 0,
   }));
-
-  // ⭐ AI Data
- const motAi = useMemo(() => motAiEngine(mot, mot.history ?? []), [mot]);
-
 
   const motWithStatus = { ...mot, motStatus };
 
