@@ -18,6 +18,7 @@ import { IntelligenceProvider } from "./context/IntelligenceProvider";
 import { LeadsProvider } from "./context/LeadsContext";
 import { BookkeepingProvider } from "./bookkeeping/BookkeepingProvider";
 import { StaffProvider } from "./staff/StaffContext";
+import { JobsProvider } from "./context/JobsContext";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
@@ -32,7 +33,9 @@ createRoot(document.getElementById("root")!).render(
                     <VehicleHistoryProvider>
                       <BookkeepingProvider>
                         <StaffProvider>
-                          <App />
+                          <JobsProvider>
+                            <App />
+                          </JobsProvider>
                         </StaffProvider>
                       </BookkeepingProvider>
                     </VehicleHistoryProvider>

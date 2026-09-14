@@ -59,6 +59,7 @@ import Settings from "@/dealer/settings/Settings";
 
 /* BOOKKEEPING */
 import BookkeepingScreen from "@/bookkeeping/BookkeepingScreen";
+import JobsBoard from "@/jobs/JobsBoard";
 import AddCostScreen from "@/bookkeeping/AddCostScreen";
 import AddPurchaseScreen from "@/bookkeeping/AddPurchaseScreen";
 import AddSaleScreen from "@/bookkeeping/AddSaleScreen";
@@ -189,6 +190,7 @@ export default function AnimatedRoutes() {
 
         {/* BOOKKEEPING */}
         <Route path="bookkeeping" element={<BookkeepingScreen />} />
+        <Route path="jobs" element={<JobsBoard />} />
         <Route path="bookkeeping/add-cost" element={<AddCostScreen />} />
         <Route path="bookkeeping/add-purchase" element={<AddPurchaseScreen />} />
         <Route path="bookkeeping/add-sale" element={<AddSaleScreen />} />

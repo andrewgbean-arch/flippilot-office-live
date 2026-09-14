@@ -16,6 +16,7 @@ import {
   FiChevronRight,
   FiLayers,
   FiGrid,
+  FiCheckSquare,
 } from "react-icons/fi";
 
 export default function DealerSidebar() {
@@ -32,6 +33,14 @@ export default function DealerSidebar() {
       label: "Dashboard",
       icon: FiHome,
       items: [{ to: "/dealer-dashboard", label: "Dealer Dashboard" }],
+    },
+
+    {
+      label: "Jobs",
+      icon: FiCheckSquare,
+      items: [
+        { to: "/jobs", label: "Jobs Board" },
+      ],
     },
 
     {
@@ -197,6 +206,9 @@ export default function DealerSidebar() {
 
       {isHome && (
         <nav className="flex flex-col gap-4 mt-10">
+          <NavLink to="/jobs" className="text-white/80 hover:text-yellow-300 transition px-2 py-2">
+            Jobs
+          </NavLink>
           <NavLink to="/dealer/inventory" className="text-white/80 hover:text-yellow-300 transition px-2 py-2">
             Inventory
           </NavLink>

@@ -66,6 +66,8 @@ describe("unauthenticated access is blocked on real data routes", () => {
     ["GET", "/staff"],
     ["GET", "/bookkeeping"],
     ["GET", "/dvla?reg=AB12CDE"],
+    ["GET", "/jobs"],
+    ["GET", "/team"],
   ])("%s %s returns 401 with no token", async (method, url) => {
     const res = await (request(app) as any)[method.toLowerCase()](url);
     expect(res.status).toBe(401);
@@ -117,6 +119,38 @@ describe("signup → login → tenant isolation", () => {
     expect(aRes.body.items).toHaveLength(1);
     expect(aRes.body.items[0].make).toBe("Ford");
     expect(bRes.body.items).toEqual([]); // dealer B sees none of dealer A's stock
+  });
+});
+
+describe("jobs board — real persistence and /team, added same session as this test file", () => {
+  it("a job written by one dealership never appears in another's board", async () => {
+    const dealerA = await signup("jobs-a");
+    const dealerB = await signup("jobs-b");
+
+    const job = { id: "job-1", title: "Book MOT", status: "todo", priority: "high", createdAt: new Date().toISOString(), createdByName: "Tester" };
+    await request(app)
+      .put("/jobs")
+      .set("Authorization", `Bearer ${dealerA.token}`)
+      .send({ items: [job] });
+
+    const aRes = await request(app).get("/jobs").set("Authorization", `Bearer ${dealerA.token}`);
+    const bRes = await request(app).get("/jobs").set("Authorization", `Bearer ${dealerB.token}`);
+
+    expect(aRes.body.items).toHaveLength(1);
+    expect(bRes.body.items).toEqual([]);
+  });
+
+  it("/team lists only the caller's own dealership's real accounts, and never leaks a password hash", async () => {
+    const dealerA = await signup("team-a");
+    const dealerB = await signup("team-b");
+
+    const aRes = await request(app).get("/team").set("Authorization", `Bearer ${dealerA.token}`);
+    const bRes = await request(app).get("/team").set("Authorization", `Bearer ${dealerB.token}`);
+
+    expect(aRes.body.members).toHaveLength(1);
+    expect(aRes.body.members[0].email).toBe(dealerA.email);
+    expect(aRes.body.members[0].passwordHash).toBeUndefined();
+    expect(bRes.body.members.some((m: any) => m.email === dealerA.email)).toBe(false);
   });
 });
 
