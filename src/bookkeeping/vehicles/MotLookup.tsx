@@ -91,9 +91,39 @@ export default function MotLookup() {
               {result.advisories.length > 0 && <p>Advisories: {result.advisories.join("; ")}</p>}
             </div>
 
+            {result.history.some(h => h.result === "FAIL") && (
+              <div className="mt-4 border border-red-500/50 rounded-xl p-3 bg-red-950/20">
+                <p className="text-red-300 text-xs uppercase tracking-wide font-bold mb-2">
+                  Past MOT Failures — what this car has failed on before
+                </p>
+                <p className="text-white/50 text-xs mb-3">
+                  Historical only — the car has since passed a later test. Not a current issue.
+                </p>
+                {result.history
+                  .filter(h => h.result === "FAIL")
+                  .map((h, i) => (
+                    <div key={i} className="mb-3 last:mb-0">
+                      <p className="text-red-200 text-sm font-semibold">
+                        {h.date
+                          ? new Date(h.date).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" })
+                          : h.year
+                            ? String(h.year)
+                            : "Unknown date"}
+                        {h.mileage ? ` — ${h.mileage.toLocaleString()} mi` : ""}
+                      </p>
+                      <ul className="ml-4 list-disc text-red-300/90 text-xs mt-1">
+                        {h.failures.map((f, fi) => (
+                          <li key={fi}>{f}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+              </div>
+            )}
+
             {result.history.length > 0 && (
               <div className="mt-4 space-y-2">
-                <p className="text-white/60 text-xs uppercase tracking-wide">Test History</p>
+                <p className="text-white/60 text-xs uppercase tracking-wide">Full Test History</p>
                 {result.history.map((h, i) => (
                   <div key={i}>
                     <p className={`text-sm ${h.result === "FAIL" ? "text-red-300" : "text-white/70"}`}>

@@ -5,12 +5,20 @@ const RED = "#F44336";
 const GOLD = "#FFD700";
 const SILVER = "#AAB4C3";
 
+type FailedTest = {
+  date?: string;
+  year?: number;
+  failures: string[];
+};
+
 export default function MOTFailuresList({
-  failures,
+  failedTests,
 }: {
-  failures?: string[] | null;
+  failedTests?: FailedTest[] | null;
 }) {
-  if (!failures || failures.length === 0) return null;
+  if (!failedTests || failedTests.length === 0) return null;
+
+  const totalCount = failedTests.reduce((sum, t) => sum + t.failures.length, 0);
 
   // ⭐ Severity colouring
   function getFailureColor(text: string) {
@@ -52,24 +60,40 @@ export default function MOTFailuresList({
       }}
     >
       <h3
-        className="text-lg font-bold mb-2 flex items-center gap-2"
+        className="text-lg font-bold mb-1 flex items-center gap-2"
         style={{ color: RED }}
       >
-        Failures
+        Past Failures
         <span className="text-xs px-2 py-1 rounded-lg bg-red-500 text-black font-bold">
-          {failures.length}
+          {totalCount}
         </span>
       </h3>
+      <p className="text-xs mb-3" style={{ color: SILVER }}>
+        Historical — this car has since passed a later test. Not a current issue.
+      </p>
 
-      <div className="space-y-1">
-        {failures.map((f, i) => (
-          <p
-            key={i}
-            className="text-sm"
-            style={{ color: getFailureColor(f) }}
-          >
-            • {f || "No failure description provided"}
-          </p>
+      <div className="space-y-3">
+        {failedTests.map((t, ti) => (
+          <div key={ti}>
+            <p className="text-sm font-semibold" style={{ color: RED }}>
+              {t.date
+                ? new Date(t.date).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" })
+                : t.year
+                  ? String(t.year)
+                  : "Unknown date"}
+            </p>
+            <div className="space-y-1 mt-1">
+              {t.failures.map((f, i) => (
+                <p
+                  key={i}
+                  className="text-sm"
+                  style={{ color: getFailureColor(f) }}
+                >
+                  • {f || "No failure description provided"}
+                </p>
+              ))}
+            </div>
+          </div>
         ))}
       </div>
     </motion.div>

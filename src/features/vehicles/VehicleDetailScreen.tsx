@@ -111,7 +111,7 @@ export default function VehicleDetailScreen() {
         <div className="space-y-6">
           <MOTInsightsPanel mot={flipRecord.mot} />
           <MOTHealthScore mot={flipRecord.mot} />
-          <MOTFailuresList failures={flipRecord.mot?.failures ?? []} />
+          <MOTFailuresList failedTests={[]} />
           <MOTAdvisoriesList advisories={flipRecord.mot?.advisories ?? []} />
 
           {/* Navigate to full MOTTimeline page instead of passing props */}

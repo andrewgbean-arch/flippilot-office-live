@@ -157,10 +157,10 @@ export default function MOTLookup() {
     );
   }
 
-  const failures = mot.history
+  const failedTests = mot.history
     ? mot.history
-        .filter((h: any) => h.result?.toLowerCase() === "fail")
-        .flatMap((h: any) => h.failures ?? [])
+        .filter((h: any) => h.result?.toLowerCase() === "fail" && (h.failures?.length ?? 0) > 0)
+        .map((h: any) => ({ date: h.date, year: h.year, failures: h.failures }))
     : [];
 
   const safeHistory = (mot.history ?? []).map((h: any) => ({
@@ -208,7 +208,7 @@ export default function MOTLookup() {
       <MotAiVerdictCard ai={motAi} theme={theme} />
 
       <MOTAdvisoriesList advisories={mot.advisories ?? []} />
-      <MOTFailuresList failures={failures} />
+      <MOTFailuresList failedTests={failedTests} />
       <MOTMileageHistory history={safeHistory} />
 
       <MOTInsightsPanel mot={motWithStatus} />

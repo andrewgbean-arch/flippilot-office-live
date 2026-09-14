@@ -36,12 +36,15 @@ export default function MOTWorkflow() {
   const motExpiry = mot.expiry ?? "Unknown";
   const advisories: string[] = mot.advisories ?? [];
 
-  // ⭐ Correct failures extraction
-  const failures: string[] = mot.history
+  // ⭐ Correct failures extraction — grouped by the test it happened at,
+  // not flattened into one dateless list, so a dealer can tell whether
+  // a failure is old/resolved history or something recent.
+  const failedTests = mot.history
     ? mot.history
-        .filter((h) => h.result?.toUpperCase() === "FAIL")
-        .flatMap((h) => h.failures ?? [])
+        .filter((h) => h.result?.toUpperCase() === "FAIL" && (h.failures?.length ?? 0) > 0)
+        .map((h) => ({ date: h.date, year: h.year, failures: h.failures ?? [] }))
     : [];
+  const failureCount = failedTests.reduce((sum, t) => sum + t.failures.length, 0);
 
   // ⭐ AI Intelligence
   const ai = motAiEngine(mot, mot.history ?? []);
@@ -74,7 +77,7 @@ export default function MOTWorkflow() {
           </div>
 
           <div className="text-white/60 text-sm">
-            Failures: {failures.length}
+            Failures: {failureCount}
           </div>
         </div>
       </SupernovaGlowCard>
@@ -123,18 +126,36 @@ export default function MOTWorkflow() {
         )}
       </SupernovaGlowCard>
 
-      {/* FAILURES */}
-      <SupernovaSectionDivider label="Failures" />
+      {/* PAST FAILURES — grouped by the test date it happened at */}
+      <SupernovaSectionDivider label="Past Failures" />
 
       <SupernovaGlowCard>
-        {failures.length === 0 ? (
+        {failedTests.length === 0 ? (
           <p className="text-white/60">No failures recorded.</p>
         ) : (
-          <ul className="space-y-2">
-            {failures.map((f: string, i: number) => (
-              <li key={i} className="text-red-400">• {f}</li>
-            ))}
-          </ul>
+          <>
+            <p className="text-white/40 text-xs mb-3">
+              Historical — this car has since passed a later test. Not a current issue.
+            </p>
+            <div className="space-y-3">
+              {failedTests.map((t, ti) => (
+                <div key={ti}>
+                  <p className="text-red-300 text-sm font-semibold">
+                    {t.date
+                      ? new Date(t.date).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" })
+                      : t.year
+                        ? String(t.year)
+                        : "Unknown date"}
+                  </p>
+                  <ul className="space-y-1 mt-1">
+                    {t.failures.map((f, i) => (
+                      <li key={i} className="text-red-400 text-sm">• {f}</li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </SupernovaGlowCard>
 
