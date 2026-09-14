@@ -1,39 +1,52 @@
-import { SupernovaHeroHeader } from "@/components/supernova/SupernovaHeroHeader";
-import { SupernovaSectionDivider } from "@/components/supernova/SupernovaSectionDivider";
-import { SupernovaGlowCard } from "@/components/supernova/SupernovaGlowCard";
+import { useNavigate } from "react-router-dom";
+import "@/staff/StaffDashboard.css";
 
-import FinanceCalculator from "@/dealer/finance/FinanceCalculator";
-import DealerQuickTools from "@/components/dealer/DealerQuickTools";
-
-import { colors } from "@/styles/theme/colors";
-
-const dealerTheme = {
-  accent: colors.accent,
-  background: colors.background,
-  card: colors.card,
-  text: colors.text,
-  secondary: colors.muted,
-};
+const TOOLS = [
+  { label: "Finance Calculator", to: "/dealer/finance/calculator", desc: "Quick monthly payment estimates." },
+  { label: "Deal Sheet", to: "/dealer/finance/deal-sheet", desc: "Build a full deal summary for a customer." },
+  { label: "Lender Comparison", to: "/dealer/finance/lender-comparison", desc: "Compare rates across lenders." },
+  { label: "Profit Breakdown", to: "/dealer/finance/profit-breakdown", desc: "See real margin after all costs." },
+  { label: "Trade-In Valuation", to: "/dealer/finance/trade-in", desc: "Estimate a fair trade-in offer." },
+  { label: "Contract Generator", to: "/dealer/finance/contract", desc: "Generate a printable sale contract." },
+];
 
 export default function FinanceHub() {
+  const navigate = useNavigate();
+
   return (
-    <div className="px-6 py-10 space-y-10">
-      <SupernovaHeroHeader
-        title="Finance Hub"
-        subtitle="Deal structuring and quick finance tools."
-      />
+    <div className="sn-dashboard sn-dashboard--cosmic">
 
-      <SupernovaSectionDivider label="Finance Tools" />
+      <header className="sn-hero">
+        <div className="sn-hero__glow" />
+        <div className="sn-hero__content">
+          <h1 className="sn-hero__title">Finance Hub</h1>
+          <p className="sn-hero__subtitle">
+            Deal structuring and finance tools.
+          </p>
+        </div>
+      </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <SupernovaGlowCard>
-          <FinanceCalculator />
-        </SupernovaGlowCard>
+      <main className="sn-grid">
+        <section className="sn-panel sn-panel--full">
+          <h2 className="sn-panel__title">Tools</h2>
+          <div className="sn-staff-grid">
+            {TOOLS.map(tool => (
+              <div
+                key={tool.to}
+                className="sn-staff-card"
+                onClick={() => navigate(tool.to)}
+                style={{ cursor: "pointer" }}
+              >
+                <div className="sn-staff-card__header">
+                  <span className="sn-staff-card__name">{tool.label}</span>
+                </div>
+                <div className="sn-staff-card__branch">{tool.desc}</div>
+              </div>
+            ))}
+          </div>
+        </section>
+      </main>
 
-        <SupernovaGlowCard>
-          <DealerQuickTools />
-        </SupernovaGlowCard>
-      </div>
     </div>
   );
 }

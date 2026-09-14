@@ -19,7 +19,7 @@ export default function DealerQuickTools() {
           shadow-lg shadow-blue-500/40
           border border-white/10
         "
-        onClick={() => navigate("/dealer/inventory/add")}
+        onClick={() => navigate("/new-flip")}
       >
         + New Vehicle
       </motion.button>
@@ -59,4 +59,3 @@ export default function DealerQuickTools() {
     </div>
   );
 }
-
