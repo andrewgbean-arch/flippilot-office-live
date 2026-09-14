@@ -3,6 +3,7 @@ import { useAppointments } from "@/context/AppointmentsContext";
 import { useAuth } from "@/context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import type { Appointment, AppointmentStatus } from "./appointmentTypes";
+import AppointmentReviewModal from "./AppointmentReviewModal";
 import "@/staff/StaffDashboard.css";
 
 const STATUS_LABEL: Record<AppointmentStatus, string> = {
@@ -13,10 +14,11 @@ const STATUS_LABEL: Record<AppointmentStatus, string> = {
 };
 
 export default function AppointmentsBoard() {
-  const { appointments, loading, decide } = useAppointments();
+  const { appointments, loading, update } = useAppointments();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
+  const [reviewing, setReviewing] = useState<Appointment | null>(null);
 
   const bookingUrl = user?.dealershipId ? `${window.location.origin}/book/${user.dealershipId}` : "";
 
@@ -73,7 +75,7 @@ export default function AppointmentsBoard() {
           ) : (
             <div className="sn-leave-list">
               {pending.map(a => (
-                <AppointmentRow key={a.id} appointment={a} decide={decide} navigate={navigate} />
+                <AppointmentRow key={a.id} appointment={a} onReview={setReviewing} onQuickAction={update} navigate={navigate} />
               ))}
             </div>
           )}
@@ -86,23 +88,27 @@ export default function AppointmentsBoard() {
           ) : (
             <div className="sn-leave-list">
               {decided.map(a => (
-                <AppointmentRow key={a.id} appointment={a} decide={decide} navigate={navigate} />
+                <AppointmentRow key={a.id} appointment={a} onReview={setReviewing} onQuickAction={update} navigate={navigate} />
               ))}
             </div>
           )}
         </section>
       </main>
+
+      {reviewing && <AppointmentReviewModal appointment={reviewing} onClose={() => setReviewing(null)} />}
     </div>
   );
 }
 
 function AppointmentRow({
   appointment,
-  decide,
+  onReview,
+  onQuickAction,
   navigate,
 }: {
   appointment: Appointment;
-  decide: (id: string, status: AppointmentStatus) => Promise<string | null>;
+  onReview: (appointment: Appointment) => void;
+  onQuickAction: (id: string, patch: { status: AppointmentStatus }) => Promise<string | null>;
   navigate: (path: string) => void;
 }) {
   const badgeClass =
@@ -137,18 +143,13 @@ function AppointmentRow({
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
         <span className={`sn-timeclock__badge ${badgeClass}`}>{STATUS_LABEL[appointment.status]}</span>
-        {appointment.status === "pending" && (
-          <>
-            <button className="sn-btn sn-btn--gold" onClick={() => decide(appointment.id, "confirmed")}>
-              Confirm
-            </button>
-            <button className="sn-btn sn-btn--danger" onClick={() => decide(appointment.id, "declined")}>
-              Decline
-            </button>
-          </>
+        {(appointment.status === "pending" || appointment.status === "confirmed") && (
+          <button className="sn-btn sn-btn--gold" onClick={() => onReview(appointment)}>
+            {appointment.status === "pending" ? "Review" : "Change"}
+          </button>
         )}
         {appointment.status === "confirmed" && (
-          <button className="sn-btn sn-btn--ghost" onClick={() => decide(appointment.id, "completed")}>
+          <button className="sn-btn sn-btn--ghost" onClick={() => onQuickAction(appointment.id, { status: "completed" })}>
             Mark Completed
           </button>
         )}

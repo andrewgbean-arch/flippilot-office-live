@@ -14,20 +14,27 @@ export async function loadAppointments(): Promise<Appointment[]> {
   }
 }
 
-export async function updateAppointmentStatus(
+export interface AppointmentEdit {
+  status?: AppointmentStatus;
+  requestedDate?: string;
+  requestedTime?: string;
+  notes?: string;
+}
+
+export async function updateAppointment(
   id: string,
-  status: AppointmentStatus
+  patch: AppointmentEdit
 ): Promise<{ ok: boolean; error?: string; items: Appointment[] }> {
   try {
-    const res = await fetch(`${BASE_URL}/appointments/${id}/status`, {
+    const res = await fetch(`${BASE_URL}/appointments/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json", ...authHeaders() },
-      body: JSON.stringify({ status }),
+      body: JSON.stringify(patch),
     });
     const data = await res.json();
     return { ok: res.ok, error: data.error, items: Array.isArray(data.items) ? data.items : [] };
   } catch (err) {
-    console.error("updateAppointmentStatus: backend unreachable", err);
+    console.error("updateAppointment: backend unreachable", err);
     return { ok: false, error: "Network error", items: [] };
   }
 }

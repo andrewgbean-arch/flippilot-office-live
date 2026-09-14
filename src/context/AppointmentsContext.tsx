@@ -1,12 +1,12 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
-import type { Appointment, AppointmentStatus } from "@/appointments/appointmentTypes";
-import { loadAppointments, updateAppointmentStatus } from "@/appointments/appointmentStorage.web";
+import type { Appointment } from "@/appointments/appointmentTypes";
+import { loadAppointments, updateAppointment, type AppointmentEdit } from "@/appointments/appointmentStorage.web";
 import { useAuth } from "@/context/AuthContext";
 
 interface AppointmentsContextType {
   appointments: Appointment[];
   loading: boolean;
-  decide: (id: string, status: AppointmentStatus) => Promise<string | null>;
+  update: (id: string, patch: AppointmentEdit) => Promise<string | null>;
 }
 
 const AppointmentsContext = createContext<AppointmentsContextType | undefined>(undefined);
@@ -28,15 +28,13 @@ export function AppointmentsProvider({ children }: { children: React.ReactNode }
     })();
   }, [user?.dealershipId]);
 
-  async function decide(id: string, status: AppointmentStatus) {
-    const res = await updateAppointmentStatus(id, status);
+  async function update(id: string, patch: AppointmentEdit) {
+    const res = await updateAppointment(id, patch);
     if (res.ok) setAppointments(res.items);
     return res.ok ? null : res.error ?? "Could not update appointment";
   }
 
-  return (
-    <AppointmentsContext.Provider value={{ appointments, loading, decide }}>{children}</AppointmentsContext.Provider>
-  );
+  return <AppointmentsContext.Provider value={{ appointments, loading, update }}>{children}</AppointmentsContext.Provider>;
 }
 
 export function useAppointments() {

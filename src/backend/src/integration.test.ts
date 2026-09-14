@@ -736,15 +736,53 @@ describe("public booking — the one part of the app reachable with no account a
     });
     const id = bookRes.body.appointment.id;
 
-    const unauthedRes = await request(app).put(`/appointments/${id}/status`).send({ status: "confirmed" });
+    const unauthedRes = await request(app).put(`/appointments/${id}`).send({ status: "confirmed" });
     expect(unauthedRes.status).toBe(401);
 
     const confirmRes = await request(app)
-      .put(`/appointments/${id}/status`)
+      .put(`/appointments/${id}`)
       .set("Authorization", `Bearer ${owner.token}`)
       .send({ status: "confirmed" });
     expect(confirmRes.status).toBe(200);
     expect(confirmRes.body.items[0].status).toBe("confirmed");
+  });
+
+  it("a dealer can reschedule an appointment to a different time before confirming it", async () => {
+    const owner = await signup("public-reschedule");
+    await request(app)
+      .put("/inventory")
+      .set("Authorization", `Bearer ${owner.token}`)
+      .send({ items: [{ id: "veh-reschedule", make: "Skoda", model: "Fabia" }] });
+
+    const bookRes = await request(app).post(`/public/${owner.user.dealershipId}/appointments`).send({
+      vehicleId: "veh-reschedule",
+      customerName: "Reschedule Test",
+      customerPhone: "07700900001",
+      type: "viewing",
+      requestedDate: "2030-01-07",
+      requestedTime: "10:00",
+    });
+    const id = bookRes.body.appointment.id;
+
+    // Save a new time without deciding yet — stays pending.
+    const rescheduleRes = await request(app)
+      .put(`/appointments/${id}`)
+      .set("Authorization", `Bearer ${owner.token}`)
+      .send({ requestedDate: "2030-01-08", requestedTime: "14:00" });
+    expect(rescheduleRes.status).toBe(200);
+    const rescheduled = rescheduleRes.body.items.find((a: any) => a.id === id);
+    expect(rescheduled.requestedDate).toBe("2030-01-08");
+    expect(rescheduled.requestedTime).toBe("14:00");
+    expect(rescheduled.status).toBe("pending");
+
+    // Then confirm the new time in a separate call.
+    const confirmRes = await request(app)
+      .put(`/appointments/${id}`)
+      .set("Authorization", `Bearer ${owner.token}`)
+      .send({ status: "confirmed" });
+    const confirmed = confirmRes.body.items.find((a: any) => a.id === id);
+    expect(confirmed.status).toBe("confirmed");
+    expect(confirmed.requestedDate).toBe("2030-01-08"); // the rescheduled time, not the original request
   });
 });
 
