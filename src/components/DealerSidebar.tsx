@@ -100,6 +100,7 @@ export default function DealerSidebar() {
       label: "Staff",
       icon: FiUsers,
       items: [
+        { to: "/my-rota", label: "My Rota" },
         { to: "/dealer/staff", label: "Staff Dashboard" },
         { to: "/dealer/staff/add", label: "Add Staff" },
         { to: "/dealer/staff/planner", label: "Rota Planner" },

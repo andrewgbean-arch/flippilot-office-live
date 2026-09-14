@@ -84,6 +84,7 @@ import AddStaff from "@/staff/AddStaff";
 import PermissionsManager from "@/staff/PermissionsManager";
 import StaffDetail from "@/staff/StaffDetail";
 import RotaPlanner from "@/staff/RotaPlanner";
+import MyRota from "@/staff/MyRota";
 
 /* AI */
 import AIInsights from "@/dealer/AIInsights";
@@ -224,6 +225,7 @@ export default function AnimatedRoutes() {
         <Route path="dealer/staff/add" element={<AddStaff />} />
         <Route path="dealer/staff/permissions" element={<PermissionsManager />} />
         <Route path="dealer/staff/planner" element={<RotaPlanner />} />
+        <Route path="my-rota" element={<MyRota />} />
         <Route path="dealer/staff/:id" element={<StaffDetail />} />
 
         {/* RISK */}
