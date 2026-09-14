@@ -7,6 +7,7 @@ import { useBookkeeping } from "@/bookkeeping/BookkeepingProvider";
 import CostsTab from "@/bookkeeping/vehicles/CostsTab";
 import ProfitTab from "@/bookkeeping/vehicles/ProfitTab";
 import EditVehicle from "@/bookkeeping/vehicles/EditVehicle";
+import MOTWorkflow from "@/dealer/workflow/MOTWorkflow";
 
 import { SupernovaHeroHeader } from "@/components/supernova/SupernovaHeroHeader";
 import { SupernovaGlowCard } from "@/components/supernova/SupernovaGlowCard";
@@ -40,7 +41,7 @@ export default function VehicleOverview() {
   const sale = sales.find((s) => s.vehicleId === vehicleId);
 
   const [tab, setTab] = useState<
-    "overview" | "dealer-ai" | "costs" | "profit" | "edit"
+    "overview" | "mot" | "dealer-ai" | "costs" | "profit" | "edit"
   >("overview");
 
   if (!vehicle) {
@@ -96,7 +97,7 @@ export default function VehicleOverview() {
 
       {/* TABS */}
       <div className="flex flex-wrap gap-3 mb-6">
-        {["overview", "dealer-ai", "costs", "profit", "edit"].map((t) => (
+        {["overview", "mot", "dealer-ai", "costs", "profit", "edit"].map((t) => (
           <button
             key={t}
             onClick={() => setTab(t as any)}
@@ -207,10 +208,10 @@ export default function VehicleOverview() {
 
           <div className="flex gap-4">
             <button
-              onClick={() => navigate(`/dealer/workflow/mot/${vehicleId}`)}
+              onClick={() => setTab("mot")}
               className="px-4 py-2 bg-blue-500 text-black rounded-xl font-bold hover:bg-blue-400"
             >
-              MOT Workflow
+              Full MOT History
             </button>
 
             <button
@@ -222,6 +223,9 @@ export default function VehicleOverview() {
           </div>
         </div>
       )}
+
+      {/* MOT TAB */}
+      {tab === "mot" && <MOTWorkflow />}
 
       {/* DEALER AI TAB */}
       {tab === "dealer-ai" && (
