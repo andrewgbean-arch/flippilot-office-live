@@ -14,9 +14,13 @@ import AddTransactionModal from "./AddTransactionModal";
 import { SupernovaHeroHeader } from "@/components/supernova/SupernovaHeroHeader";
 import { SupernovaSectionDivider } from "@/components/supernova/SupernovaSectionDivider";
 import GoldButton from "@/components/ui/GoldButton.web";   // ⭐ FIXED
+import { useAuth } from "@/context/AuthContext";
+import { canWriteBookkeeping } from "@/lib/permissions";
 
 export default function BookkeepingScreen() {
   const { getTotalSpend, getTotalProfit, sales, purchases } = useBookkeeping();
+  const { user } = useAuth();
+  const canWrite = canWriteBookkeeping(user);
 
   const totalSpend = getTotalSpend();
   const totalProfit = getTotalProfit();
@@ -47,24 +51,35 @@ const [showTransactionModal, setShowTransactionModal] = useState(false); // ⭐ 
         subtitle="Track purchases, costs, sales, suppliers, and profit margins with Supernova intelligence."
       />
 
-      {/* MAIN ACTION BUTTONS */}
-<div className="grid grid-cols-2 gap-6 my-10 max-w-3xl mx-auto">
-  <GoldButton onPress={() => setShowPurchaseModal(true)}>
-    Add Purchase
-  </GoldButton>
+      {/* MAIN ACTION BUTTONS — recording purchases/costs/sales/
+          transactions needs the Finance or Manager role (or owner);
+          matches the real backend gate on PUT /bookkeeping, so a
+          Sales/General account never gets as far as a confusing 403
+          on submit. */}
+      {canWrite ? (
+        <div className="grid grid-cols-2 gap-6 my-10 max-w-3xl mx-auto">
+          <GoldButton onPress={() => setShowPurchaseModal(true)}>
+            Add Purchase
+          </GoldButton>
 
-  <GoldButton onPress={() => setShowCostModal(true)}>
-    Add Cost
-  </GoldButton>
+          <GoldButton onPress={() => setShowCostModal(true)}>
+            Add Cost
+          </GoldButton>
 
-  <GoldButton onPress={() => setShowSaleModal(true)}>
-    Add Sale
-  </GoldButton>
+          <GoldButton onPress={() => setShowSaleModal(true)}>
+            Add Sale
+          </GoldButton>
 
-  <GoldButton onPress={() => setShowTransactionModal(true)}>
-    Add Transaction
-  </GoldButton>
-</div>
+          <GoldButton onPress={() => setShowTransactionModal(true)}>
+            Add Transaction
+          </GoldButton>
+        </div>
+      ) : (
+        <div className="my-10 max-w-3xl mx-auto text-center px-4 py-3 rounded-xl bg-black/30 border border-white/10 text-white/60 text-sm">
+          Your account role ({user?.staffRole ?? "general"}) can view the books but not record
+          purchases, costs, sales, or transactions — that needs the Finance or Manager role.
+        </div>
+      )}
 
 
       {/* SUMMARY CARDS */}

@@ -14,6 +14,7 @@ export default function JoinScreen() {
   const [checkingInvite, setCheckingInvite] = useState(true);
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [greetingName, setGreetingName] = useState<string | null>(null);
+  const [staffRole, setStaffRole] = useState<string | null>(null);
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -33,6 +34,7 @@ export default function JoinScreen() {
       .then((data) => {
         if (data.ok) {
           setDealershipName(data.dealershipName);
+          setStaffRole(data.staffRole ?? null);
           if (data.inviteeName) {
             setGreetingName(data.inviteeName);
             setName(data.inviteeName);
@@ -86,6 +88,11 @@ export default function JoinScreen() {
                 {greetingName ? `Hi ${greetingName}, join ${dealershipName}` : `Join ${dealershipName}`}
               </h1>
               <p className="text-white/60 text-sm mt-1">Create your account to get started</p>
+              {staffRole && (
+                <p className="text-white/40 text-xs mt-2">
+                  You're being added as: <span className="text-yellow-300/80 capitalize">{staffRole}</span>
+                </p>
+              )}
             </div>
 
             {error && (

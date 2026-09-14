@@ -3,11 +3,14 @@ import { getAuthToken, setAuthToken, authHeaders } from "@/lib/authToken";
 
 const BASE_URL = "http://localhost:4001";
 
+export type StaffRole = "sales" | "finance" | "manager" | "general";
+
 export type AuthUser = {
   id: string;
   email: string;
   name: string;
   role: "owner" | "staff";
+  staffRole?: StaffRole;
   dealershipId: string;
 };
 

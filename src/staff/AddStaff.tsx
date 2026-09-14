@@ -1,10 +1,14 @@
 import { useState } from "react";
 import { StaffRecord, StaffRole } from "./staffTypes";
 import { useStaff } from "./StaffContext";
+import { useAuth } from "@/context/AuthContext";
+import { canManageStaff } from "@/lib/permissions";
 import "./StaffDashboard.css";
 
 export default function AddStaff() {
   const { addStaff } = useStaff();
+  const { user } = useAuth();
+  const canWrite = canManageStaff(user);
 
   const [name, setName] = useState("");
   const [role, setRole] = useState<StaffRole>("staff");
@@ -33,6 +37,18 @@ export default function AddStaff() {
     setBranch("");
     setEmail("");
     setPhone("");
+  }
+
+  if (!canWrite) {
+    return (
+      <div className="sn-panel sn-panel--full">
+        <h2 className="sn-panel__title">Add Staff Member</h2>
+        <p className="sn-form-note">
+          Your account role ({user?.staffRole ?? "general"}) can view the team but not add or
+          manage staff — that needs the Manager role.
+        </p>
+      </div>
+    );
   }
 
   return (

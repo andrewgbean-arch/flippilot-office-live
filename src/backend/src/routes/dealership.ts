@@ -1,6 +1,8 @@
 import { Express, Request } from "express";
 import { readCollection, writeCollection } from "../db";
-import { requireAuth, requireOwner, signInviteToken, type AuthUser, type Dealership } from "../auth";
+import { requireAuth, requireOwner, signInviteToken, type AuthUser, type Dealership, type StaffRole } from "../auth";
+
+const VALID_STAFF_ROLES: StaffRole[] = ["sales", "finance", "manager", "general"];
 
 export default function registerDealershipRoute(app: Express) {
   app.get("/dealership/me", requireAuth, (req, res) => {
@@ -56,7 +58,7 @@ export default function registerDealershipRoute(app: Express) {
   // pretending to email it.
   app.post("/dealership/invite", requireAuth, requireOwner, (req, res) => {
     const user = (req as Request & { user: AuthUser }).user;
-    const { inviteeName } = req.body ?? {};
+    const { inviteeName, staffRole } = req.body ?? {};
     const dealerships = readCollection<Dealership>("dealerships");
     const dealership = dealerships.find(d => d.id === user.dealershipId);
 
@@ -65,11 +67,15 @@ export default function registerDealershipRoute(app: Express) {
     }
 
     const trimmedName = typeof inviteeName === "string" ? inviteeName.trim() : "";
+    const resolvedStaffRole: StaffRole = VALID_STAFF_ROLES.includes(staffRole)
+      ? staffRole
+      : "general";
 
     const token = signInviteToken({
       dealershipId: dealership.id,
       dealershipName: dealership.name,
       role: "staff",
+      staffRole: resolvedStaffRole,
       ...(trimmedName ? { inviteeName: trimmedName } : {}),
     });
 

@@ -92,7 +92,12 @@ export default function registerAuthRoute(app: Express) {
     if (!payload) {
       return res.status(400).json({ ok: false, error: "This invite link is invalid or has expired" });
     }
-    res.json({ ok: true, dealershipName: payload.dealershipName, inviteeName: payload.inviteeName });
+    res.json({
+      ok: true,
+      dealershipName: payload.dealershipName,
+      inviteeName: payload.inviteeName,
+      staffRole: payload.staffRole,
+    });
   });
 
   // Creates a real account inside an EXISTING dealership from an invite
@@ -133,6 +138,7 @@ export default function registerAuthRoute(app: Express) {
       email: normalizedEmail,
       name: String(name).trim(),
       role: payload.role,
+      staffRole: payload.staffRole,
       dealershipId: payload.dealershipId,
       passwordHash: await hashPassword(password),
     };

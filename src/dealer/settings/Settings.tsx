@@ -11,8 +11,16 @@ import { authHeaders } from "@/lib/authToken";
 
 const BASE_URL = "http://localhost:4001";
 
+const STAFF_ROLE_OPTIONS: { value: "sales" | "finance" | "manager" | "general"; label: string; description: string }[] = [
+  { value: "sales", label: "Sales", description: "Leads/CRM and inventory — not bookkeeping or staff" },
+  { value: "finance", label: "Finance", description: "Bookkeeping and inventory — not staff management" },
+  { value: "manager", label: "Manager", description: "Broad access — bookkeeping, staff, inventory, leads" },
+  { value: "general", label: "General", description: "View access; can't record sales/costs or manage staff" },
+];
+
 function InviteTeammateModal({ onClose }: { onClose: () => void }) {
   const [inviteeName, setInviteeName] = useState("");
+  const [staffRole, setStaffRole] = useState<"sales" | "finance" | "manager" | "general">("general");
   const [link, setLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -25,7 +33,7 @@ function InviteTeammateModal({ onClose }: { onClose: () => void }) {
       const res = await fetch(`${BASE_URL}/dealership/invite`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({ inviteeName: inviteeName.trim() }),
+        body: JSON.stringify({ inviteeName: inviteeName.trim(), staffRole }),
       });
       const data = await res.json();
       if (!data.ok) {
@@ -63,6 +71,20 @@ function InviteTeammateModal({ onClose }: { onClose: () => void }) {
               placeholder="e.g. Sarah"
               className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-4"
             />
+
+            <label className="text-white/60 text-sm">Their Role</label>
+            <select
+              value={staffRole}
+              onChange={(e) => setStaffRole(e.target.value as typeof staffRole)}
+              className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-1"
+            >
+              {STAFF_ROLE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+            <p className="text-white/40 text-xs mb-4">
+              {STAFF_ROLE_OPTIONS.find((opt) => opt.value === staffRole)?.description}
+            </p>
 
             {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
 

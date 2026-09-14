@@ -1,6 +1,6 @@
 import { Express, Request } from "express";
 import { readTenantDoc, writeTenantDoc } from "../db";
-import type { AuthUser } from "../auth";
+import { requireStaffRole, type AuthUser } from "../auth";
 
 function dealershipId(req: Request): string {
   return (req as Request & { user: AuthUser }).user.dealershipId;
@@ -38,7 +38,10 @@ export default function registerBookkeepingRoute(app: Express) {
     res.json({ ok: true, ...EMPTY_BOOKKEEPING, ...data });
   });
 
-  app.put("/bookkeeping", (req, res) => {
+  // Recording purchases/costs/sales/VAT is finance/manager/owner
+  // territory — a "sales" or general staff account can see the books
+  // but not write to them.
+  app.put("/bookkeeping", requireStaffRole("finance", "manager"), (req, res) => {
     const body = req.body ?? {};
     const data: BookkeepingDoc = {
       costs: Array.isArray(body.costs) ? body.costs : [],

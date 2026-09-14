@@ -1,6 +1,6 @@
 import { Express, Request } from "express";
 import { readTenantCollection, writeTenantCollection } from "../db";
-import type { AuthUser } from "../auth";
+import { requireStaffRole, type AuthUser } from "../auth";
 
 function dealershipId(req: Request): string {
   return (req as Request & { user: AuthUser }).user.dealershipId;
@@ -13,7 +13,10 @@ export default function registerStaffRoute(app: Express) {
     res.json({ ok: true, items: readTenantCollection(dealershipId(req), "staff") });
   });
 
-  app.put("/staff", (req, res) => {
+  // Managing the staff roster is manager/owner territory — a "sales"
+  // or "finance" staff account can view the team but not add, remove,
+  // or reassign anyone.
+  app.put("/staff", requireStaffRole("manager"), (req, res) => {
     const items = Array.isArray(req.body?.items) ? req.body.items : [];
     writeTenantCollection(dealershipId(req), "staff", items);
     res.json({ ok: true, items });

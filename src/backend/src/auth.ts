@@ -17,11 +17,22 @@ function getJwtSecret(): string {
   return secret;
 }
 
+// Which feature areas a staff account can use — only meaningful when
+// role is "staff"; an owner always has full access regardless. Chosen
+// by the owner at invite time (see /dealership/invite), replacing the
+// old PermissionsManager checkboxes that toggled a `permissions`
+// array on a StaffRecord (an HR-directory entry) that was never
+// actually linked to any real login account, so nothing anywhere ever
+// checked it — this is the first version of "staff permissions" that
+// is actually tied to the account a person logs in with.
+export type StaffRole = "sales" | "finance" | "manager" | "general";
+
 export interface AuthUser {
   id: string;
   email: string;
   name: string;
   role: "owner" | "staff";
+  staffRole?: StaffRole;
   dealershipId: string;
 }
 
@@ -62,6 +73,7 @@ export function signToken(user: AuthUser): string {
       email: user.email,
       name: user.name,
       role: user.role,
+      ...(user.staffRole ? { staffRole: user.staffRole } : {}),
       dealershipId: user.dealershipId,
     },
     getJwtSecret(),
@@ -88,6 +100,7 @@ export interface InviteTokenPayload {
   dealershipId: string;
   dealershipName: string;
   role: "staff";
+  staffRole: StaffRole;
   inviteeName?: string;
 }
 
@@ -124,6 +137,27 @@ export function requireOwner(req: Request, res: Response, next: NextFunction) {
     return res.status(403).json({ ok: false, error: "Only the dealership owner can do this" });
   }
   next();
+}
+
+// Gates an action to specific staff roles — the owner always passes
+// regardless of the list, same as requireOwner is always satisfied by
+// the owner. A staff account with no staffRole set (accounts created
+// before this existed) is treated as "general", the most restrictive
+// non-owner tier, rather than silently granted access.
+export function requireStaffRole(...allowed: StaffRole[]) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const user = (req as Request & { user: AuthUser }).user;
+    if (user.role === "owner") return next();
+
+    const staffRole = user.staffRole ?? "general";
+    if (!allowed.includes(staffRole)) {
+      return res.status(403).json({
+        ok: false,
+        error: `Your account role (${staffRole}) doesn't have access to this.`,
+      });
+    }
+    next();
+  };
 }
 
 interface PasswordResetPayload {
