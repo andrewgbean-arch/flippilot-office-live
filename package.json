@@ -1,6 +1,5 @@
 {
   "name": "flippilot-office-live",
-
   "version": "0.0.0",
   "type": "module",
   "scripts": {
@@ -9,6 +8,8 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "check": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "patch-ai": "node scripts/patchVehicleAi.js",
     "import-flippilot": "node scripts/importFlippilotLatest.js"
   },
@@ -47,6 +48,7 @@
     "postcss": "^8.5.26",
     "tailwindcss": "^3.4.19",
     "typescript": "~6.0.2",
-    "vite": "^8.2.1"
+    "vite": "^8.2.1",
+    "vitest": "^5.0.0"
   }
 }

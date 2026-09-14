@@ -24,7 +24,15 @@ export function getUlezStatus(
     return { status: "unknown", label: "ULEZ: Unknown (no fuel type data)" };
   }
 
-  if (fuel.includes("ELECTRIC") || fuel.includes("HYDROGEN")) {
+  const isHybrid = fuel.includes("HYBRID");
+
+  // Must come AFTER the hybrid check — DVLA's real fuelType value for a
+  // petrol/diesel hybrid is literally "HYBRID ELECTRIC", which contains
+  // "ELECTRIC" as a substring. A naive `fuel.includes("ELECTRIC")` check
+  // here caught that and returned "always compliant" for every hybrid
+  // regardless of its actual (combustion) Euro standard — caught by the
+  // test suite, not manual testing, on the very first run.
+  if (!isHybrid && (fuel.includes("ELECTRIC") || fuel.includes("HYDROGEN"))) {
     return { status: "compliant", label: "ULEZ Compliant (zero emission)" };
   }
 
@@ -34,9 +42,8 @@ export function getUlezStatus(
   }
   const euro = Number(euroMatch[1]);
 
-  const isDiesel = fuel.includes("DIESEL");
-  const isPetrolOrHybrid =
-    fuel.includes("PETROL") || fuel.includes("HYBRID") || fuel.includes("GAS");
+  const isDiesel = fuel.includes("DIESEL") && !isHybrid;
+  const isPetrolOrHybrid = fuel.includes("PETROL") || isHybrid || fuel.includes("GAS");
 
   if (isDiesel) {
     return euro >= 6
