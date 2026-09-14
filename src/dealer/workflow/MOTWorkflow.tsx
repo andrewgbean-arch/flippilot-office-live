@@ -10,7 +10,7 @@ import { SupernovaMetricBar } from "@/components/supernova/SupernovaMetricBar";
 import { SupernovaGlowButton } from "@/components/supernova/SupernovaGlowButton";
 
 import { motAiEngine } from "@/engines/motAiEngine";
-
+import MotTestCard, { sortMotHistoryDesc } from "@/components/motors/MotTestCard";
 
 export default function MOTWorkflow() {
   const { id } = useParams();
@@ -36,14 +36,15 @@ export default function MOTWorkflow() {
   const motExpiry = mot.expiry ?? "Unknown";
   const advisories: string[] = mot.advisories ?? [];
 
+  // Most recent test first, regardless of what order it was stored in.
+  const sortedHistory = sortMotHistoryDesc(mot.history ?? []);
+
   // ⭐ Correct failures extraction — grouped by the test it happened at,
   // not flattened into one dateless list, so a dealer can tell whether
   // a failure is old/resolved history or something recent.
-  const failedTests = mot.history
-    ? mot.history
-        .filter((h) => h.result?.toUpperCase() === "FAIL" && (h.failures?.length ?? 0) > 0)
-        .map((h) => ({ date: h.date, year: h.year, mileage: h.mileage, testNumber: h.testNumber, failures: h.failures ?? [] }))
-    : [];
+  const failedTests = sortedHistory
+    .filter((h) => h.result?.toUpperCase() === "FAIL" && (h.failures?.length ?? 0) > 0)
+    .map((h) => ({ date: h.date, year: h.year, mileage: h.mileage, testNumber: h.testNumber, failures: h.failures ?? [] }));
   const failureCount = failedTests.reduce((sum, t) => sum + t.failures.length, 0);
 
   // ⭐ AI Intelligence
@@ -137,94 +138,30 @@ export default function MOTWorkflow() {
             <p className="text-white/40 text-xs mb-3">
               Historical — this car has since passed a later test. Not a current issue.
             </p>
-            <div className="space-y-4">
-              {failedTests.map((t, ti) => (
-                <div key={ti} className="pb-4 last:pb-0 border-b border-red-500/20 last:border-0">
-                  <p className="text-white/50 text-xs">Date tested</p>
-                  <p className="text-white text-sm font-semibold mb-2">
-                    {t.date
-                      ? new Date(t.date).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" })
-                      : t.year
-                        ? String(t.year)
-                        : "Unknown date"}
-                  </p>
-
-                  <span className="inline-block px-3 py-1 rounded bg-red-600 text-white text-xs font-bold mb-2">
-                    FAIL
-                  </span>
-
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-2 mt-2 text-sm">
-                    {t.mileage != null && (
-                      <div>
-                        <p className="text-white/50 text-xs">Mileage</p>
-                        <p className="text-white/90">{t.mileage.toLocaleString()} mi</p>
-                      </div>
-                    )}
-                    {t.testNumber && (
-                      <div>
-                        <p className="text-white/50 text-xs">MOT test number</p>
-                        <p className="text-white/90">{t.testNumber}</p>
-                      </div>
-                    )}
-                  </div>
-
-                  <p className="text-white/50 text-xs mt-3 mb-1">Failed on</p>
-                  <ul className="space-y-1">
-                    {t.failures.map((f, i) => (
-                      <li key={i} className="text-red-400 text-sm">• {f}</li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
+            <div>
+              {sortedHistory
+                .filter(h => h.result?.toUpperCase() === "FAIL" && (h.failures?.length ?? 0) > 0)
+                .map((h, i) => (
+                  <MotTestCard key={i} h={h} />
+                ))}
             </div>
           </>
         )}
       </SupernovaGlowCard>
 
-      {/* FULL TEST HISTORY — every real MOT test on record, in order,
-          with what actually happened at each one. The Advisories/
-          Failures sections above are flat, deduplicated lists with no
-          sense of when or how often something came up; this is the
-          real chronological picture. */}
-      <SupernovaSectionDivider label="Full Test History" />
+      {/* FULL TEST HISTORY — every real MOT test on record, sorted most
+          recent first, with what actually happened at each one. */}
+      <SupernovaSectionDivider label="Full Test History — most recent first" />
 
       <SupernovaGlowCard>
-        {!mot.history || mot.history.length === 0 ? (
+        {sortedHistory.length === 0 ? (
           <p className="text-white/60">No test history on record.</p>
         ) : (
-          <ul className="space-y-4">
-            {mot.history.map((h, i) => (
-              <li key={i} className="border-b border-white/10 pb-3 last:border-0 last:pb-0">
-                <div className="flex items-center justify-between">
-                  <span className="text-white/80 text-sm">
-                    {h.date ? new Date(h.date).toLocaleDateString() : h.year ? String(h.year) : "Unknown date"}
-                    {h.mileage ? ` — ${h.mileage.toLocaleString()} mi` : ""}
-                  </span>
-                  <span
-                    className={`px-2 py-0.5 rounded text-xs font-bold ${
-                      h.result?.toUpperCase() === "FAIL" ? "bg-red-600 text-white" : "bg-green-600 text-white"
-                    }`}
-                  >
-                    {h.result?.toUpperCase()}
-                  </span>
-                </div>
-                {(h.failures?.length ?? 0) > 0 && (
-                  <ul className="mt-1 ml-4 list-disc text-red-400 text-sm">
-                    {(h.failures ?? []).map((f, fi) => (
-                      <li key={fi}>{f}</li>
-                    ))}
-                  </ul>
-                )}
-                {(h.advisories?.length ?? 0) > 0 && (
-                  <ul className="mt-1 ml-4 list-disc text-yellow-300/80 text-sm">
-                    {(h.advisories ?? []).map((a, ai) => (
-                      <li key={ai}>{a}</li>
-                    ))}
-                  </ul>
-                )}
-              </li>
+          <div>
+            {sortedHistory.map((h, i) => (
+              <MotTestCard key={i} h={h} />
             ))}
-          </ul>
+          </div>
         )}
       </SupernovaGlowCard>
 

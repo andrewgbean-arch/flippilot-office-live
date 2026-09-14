@@ -12,6 +12,7 @@ import MOTFailuresList from "@/components/motors/MOTFailuresList";
 import MOTMileageHistory from "@/components/motors/MOTMileageHistory";
 import MOTHealthScore from "@/components/motors/MOTHealthScore";
 import MOTInsightsPanel from "@/components/motors/MOTInsightsPanel";
+import MotTestCard, { sortMotHistoryDesc } from "@/components/motors/MotTestCard";
 
 // AI Components
 import MotAiBuyerConfidence from "@/components/motors/MotAiBuyerConfidence";
@@ -87,7 +88,7 @@ export default function MOTLookup() {
 
     setLoading(true);
     const result = await fetchMOT(reg.trim().toUpperCase());
-    setMot(result);
+    setMot(result ? { ...result, history: sortMotHistoryDesc(result.history ?? []) } : result);
     setLoading(false);
     setAdded(false);
 
@@ -210,6 +211,17 @@ export default function MOTLookup() {
       <MOTAdvisoriesList advisories={mot.advisories ?? []} />
       <MOTFailuresList failedTests={failedTests} />
       <MOTMileageHistory history={safeHistory} />
+
+      {mot.history && mot.history.length > 0 && (
+        <div className="mt-3 rounded-xl p-4 border shadow-lg" style={{ backgroundColor: "#111827", borderColor: "#FFD700" }}>
+          <h3 className="text-lg font-bold mb-3" style={{ color: "#FFD700" }}>
+            Full Test History — most recent first
+          </h3>
+          {mot.history.map((h: any, i: number) => (
+            <MotTestCard key={i} h={h} />
+          ))}
+        </div>
+      )}
 
       <MOTInsightsPanel mot={motWithStatus} />
 

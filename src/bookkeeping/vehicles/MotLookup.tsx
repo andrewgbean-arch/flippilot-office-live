@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useInventory } from "@/context/InventoryProvider";
 import { fetchMOT, type MOTData } from "@/features/vehicles/api/mot";
 import { SuperCard, SuperInput } from "@/features/vehicles/ui/SupernovaUI.web";
+import MotTestCard, { sortMotHistoryDesc } from "@/components/motors/MotTestCard";
 
 // A genuine standalone reg lookup — not just a "refresh" for a vehicle
 // already in stock. Real uses this needs to cover: checking a walk-in
@@ -35,7 +36,7 @@ export default function MotLookup() {
       setError("No MOT/vehicle data found for that registration.");
       return;
     }
-    setResult(motData);
+    setResult({ ...motData, history: sortMotHistoryDesc(motData.history) });
   }
 
   function applyToVehicle() {
@@ -102,70 +103,18 @@ export default function MotLookup() {
                 {result.history
                   .filter(h => h.result === "FAIL")
                   .map((h, i) => (
-                    <div key={i} className="mb-4 last:mb-0 pb-4 last:pb-0 border-b border-red-500/20 last:border-0">
-                      <p className="text-white/50 text-xs">Date tested</p>
-                      <p className="text-white text-sm font-semibold mb-2">
-                        {h.date
-                          ? new Date(h.date).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" })
-                          : h.year
-                            ? String(h.year)
-                            : "Unknown date"}
-                      </p>
-
-                      <span className="inline-block px-3 py-1 rounded bg-red-600 text-white text-xs font-bold mb-2">
-                        FAIL
-                      </span>
-
-                      <div className="grid grid-cols-2 gap-x-4 gap-y-2 mt-2 text-sm">
-                        {h.mileage != null && (
-                          <div>
-                            <p className="text-white/50 text-xs">Mileage</p>
-                            <p className="text-white/90">{h.mileage.toLocaleString()} mi</p>
-                          </div>
-                        )}
-                        {h.testNumber && (
-                          <div>
-                            <p className="text-white/50 text-xs">MOT test number</p>
-                            <p className="text-white/90">{h.testNumber}</p>
-                          </div>
-                        )}
-                      </div>
-
-                      <p className="text-white/50 text-xs mt-3 mb-1">Failed on</p>
-                      <ul className="ml-4 list-disc text-red-300/90 text-sm">
-                        {h.failures.map((f, fi) => (
-                          <li key={fi}>{f}</li>
-                        ))}
-                      </ul>
-                    </div>
+                    <MotTestCard key={i} h={h} />
                   ))}
               </div>
             )}
 
             {result.history.length > 0 && (
-              <div className="mt-4 space-y-2">
-                <p className="text-white/60 text-xs uppercase tracking-wide">Full Test History</p>
+              <div className="mt-4 border border-white/10 rounded-xl p-3">
+                <p className="text-white/60 text-xs uppercase tracking-wide font-bold mb-3">
+                  Full Test History — most recent first
+                </p>
                 {result.history.map((h, i) => (
-                  <div key={i}>
-                    <p className={`text-sm ${h.result === "FAIL" ? "text-red-300" : "text-white/70"}`}>
-                      {h.date ? new Date(h.date).toLocaleDateString() : h.year ? String(h.year) : "Unknown date"} — {h.result}
-                      {h.mileage ? ` — ${h.mileage.toLocaleString()} mi` : ""}
-                    </p>
-                    {h.failures.length > 0 && (
-                      <ul className="ml-4 list-disc text-red-300/80 text-xs">
-                        {h.failures.map((f, fi) => (
-                          <li key={fi}>{f}</li>
-                        ))}
-                      </ul>
-                    )}
-                    {h.advisories.length > 0 && (
-                      <ul className="ml-4 list-disc text-yellow-300/70 text-xs">
-                        {h.advisories.map((a, ai) => (
-                          <li key={ai}>{a}</li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
+                  <MotTestCard key={i} h={h} />
                 ))}
               </div>
             )}
