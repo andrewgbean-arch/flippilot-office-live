@@ -6,6 +6,7 @@ import { loadTeam } from "@/jobs/jobStorage.web";
 import type { TeamMember } from "@/jobs/jobTypes";
 import { WEEK_DAYS, WEEK_DAY_LABELS, type WorkPattern, type EmploymentType, type LeaveRequest } from "@/planner/plannerTypes";
 import { getMonday, addDays, toDateKey, formatDayLabel, formatWeekRange, countLeaveWorkingDays } from "@/planner/dateUtils";
+import { sendNotification } from "@/notifications/notificationStorage.web";
 import ShiftEditModal from "./ShiftEditModal";
 import LeaveRequestModal from "./LeaveRequestModal";
 import "./StaffDashboard.css";
@@ -28,6 +29,8 @@ export default function RotaPlanner() {
   const [showLeaveModal, setShowLeaveModal] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [generateMessage, setGenerateMessage] = useState<string | null>(null);
+  const [publishing, setPublishing] = useState(false);
+  const [publishMessage, setPublishMessage] = useState<string | null>(null);
 
   useEffect(() => {
     loadTeam().then(setTeam);
@@ -60,6 +63,43 @@ export default function RotaPlanner() {
     setGenerating(false);
     setGenerateMessage(
       error ?? (generatedCount > 0 ? `Added ${generatedCount} shift${generatedCount === 1 ? "" : "s"}.` : "Nothing to add — every available day already has a shift or is covered by approved leave.")
+    );
+  }
+
+  // Sends every staff member with at least one shift this week their
+  // own full week's schedule in one notification — the "send the
+  // compiled rota to staff" ask. Mid-week changes after this don't
+  // need a re-publish: ShiftEditModal already notifies the specific
+  // person the moment their shift is added, changed, or removed.
+  async function handlePublish() {
+    setPublishing(true);
+    setPublishMessage(null);
+
+    const recipientIds = Array.from(new Set(shifts.filter(s => weekKeys.includes(s.date)).map(s => s.userId)));
+    let sentCount = 0;
+    for (const memberId of recipientIds) {
+      const member = team.find(m => m.id === memberId);
+      if (!member) continue;
+      const lines = weekKeys
+        .map(dateKey => ({ dateKey, shift: shiftFor(memberId, dateKey) }))
+        .filter((x): x is { dateKey: string; shift: NonNullable<typeof x.shift> } => Boolean(x.shift))
+        .map(({ dateKey, shift }) => `${dateKey}: ${shift.start}–${shift.end}`);
+      if (lines.length === 0) continue;
+
+      const ok = await sendNotification({
+        userId: memberId,
+        title: `Rota published — ${formatWeekRange(weekStart)}`,
+        message: lines.join(" | "),
+        type: "info",
+      });
+      if (ok) sentCount++;
+    }
+
+    setPublishing(false);
+    setPublishMessage(
+      sentCount > 0
+        ? `Sent this week's rota to ${sentCount} staff member${sentCount === 1 ? "" : "s"}.`
+        : "No shifts scheduled this week yet — nothing to send."
     );
   }
 
@@ -148,9 +188,15 @@ export default function RotaPlanner() {
                   {generating ? "Generating…" : "Auto-Generate Week"}
                 </button>
               )}
+              {isManager && (
+                <button className="sn-btn sn-btn--gold" onClick={handlePublish} disabled={publishing}>
+                  {publishing ? "Sending…" : "Publish Rota"}
+                </button>
+              )}
             </div>
           </div>
           {generateMessage && <p className="sn-timeclock__subtitle">{generateMessage}</p>}
+          {publishMessage && <p className="sn-timeclock__subtitle">{publishMessage}</p>}
 
           {team.length === 0 ? (
             <p className="sn-empty">No team members yet — invite staff from Settings first.</p>

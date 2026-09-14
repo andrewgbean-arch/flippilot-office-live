@@ -14,6 +14,7 @@ import {
   generateShifts as generateShiftsApi,
 } from "@/planner/plannerStorage.web";
 import { useAuth } from "@/context/AuthContext";
+import { sendNotification } from "@/notifications/notificationStorage.web";
 
 const DEFAULT_ROTA_SETTINGS: RotaSettings = {
   openDays: ["mon", "tue", "wed", "thu", "fri", "sat"],
@@ -92,8 +93,19 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function handleDecideLeave(id: string, status: "approved" | "declined") {
+    const target = leave.find(l => l.id === id);
     const res = await decideLeaveApi(id, status);
-    if (res.ok) setLeave(res.items);
+    if (res.ok) {
+      setLeave(res.items);
+      if (target && target.userId !== user?.id) {
+        sendNotification({
+          userId: target.userId,
+          title: status === "approved" ? "Leave request approved" : "Leave request declined",
+          message: `${target.type} — ${target.startDate} to ${target.endDate}`,
+          type: status === "approved" ? "success" : "warning",
+        }).catch(() => {});
+      }
+    }
     return res.ok ? null : res.error ?? "Could not update leave request";
   }
 

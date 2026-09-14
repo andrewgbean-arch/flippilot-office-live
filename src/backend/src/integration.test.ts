@@ -73,6 +73,7 @@ describe("unauthenticated access is blocked on real data routes", () => {
     ["GET", "/leave"],
     ["GET", "/rota-settings"],
     ["GET", "/shifts"],
+    ["GET", "/notifications"],
   ])("%s %s returns 401 with no token", async (method, url) => {
     const res = await (request(app) as any)[method.toLowerCase()](url);
     expect(res.status).toBe(401);
@@ -406,6 +407,114 @@ describe("planner — work patterns, leave requests, rota settings, auto-generat
     const finalShifts = await request(app).get("/shifts").set("Authorization", `Bearer ${owner.token}`);
     expect(finalShifts.body.items.filter((s: any) => s.date === "2030-01-07")).toHaveLength(1);
     trackDealership(dealershipId);
+  });
+});
+
+describe("notifications — a real per-recipient inbox, not just a local UI store", () => {
+  it("a notification sent to one user is invisible to another, even in the same dealership", async () => {
+    const owner = await signup("notif-a");
+    const sender = await signup("notif-b");
+
+    const sendRes = await request(app)
+      .post("/notifications")
+      .set("Authorization", `Bearer ${sender.token}`)
+      .send({ userId: owner.user.id, title: "Rota published", message: "Mon: 09:00-17:00", type: "info" });
+    expect(sendRes.status).toBe(200);
+
+    // Sent to owner.user.id, but from a DIFFERENT dealership than the
+    // owner's — never visible to anyone since it can never match a
+    // GET filter scoped to the owner's own dealership's collection.
+    const ownerInbox = await request(app).get("/notifications").set("Authorization", `Bearer ${owner.token}`);
+    expect(ownerInbox.body.items).toEqual([]);
+
+    const senderInbox = await request(app).get("/notifications").set("Authorization", `Bearer ${sender.token}`);
+    expect(senderInbox.body.items).toEqual([]); // sender isn't the recipient either
+  });
+
+  it("a notification actually reaches its recipient's own inbox within the same dealership", async () => {
+    const owner = await signup("notif-c");
+    const salesToken = await (async () => {
+      const inviteRes = await request(app)
+        .post("/dealership/invite")
+        .set("Authorization", `Bearer ${owner.token}`)
+        .send({ inviteeName: "Notif Sales", staffRole: "sales" });
+      const email = `integration-test-${runId}-notif-sales@test.local`;
+      const joinRes = await request(app).post("/auth/join").send({
+        token: inviteRes.body.token,
+        name: "Notif Sales",
+        email,
+        password: "notiftestpass123",
+      });
+      trackUser(email);
+      return joinRes.body.token as string;
+    })();
+
+    const meRes = await request(app).get("/team").set("Authorization", `Bearer ${salesToken}`);
+    const salesUserId = meRes.body.members.find((m: any) => m.email.includes("notif-sales")).id;
+
+    const sendRes = await request(app)
+      .post("/notifications")
+      .set("Authorization", `Bearer ${owner.token}`)
+      .send({ userId: salesUserId, title: "New shift added", message: "2026-09-14: 09:00–17:00", type: "info" });
+    expect(sendRes.status).toBe(200);
+
+    const salesInbox = await request(app).get("/notifications").set("Authorization", `Bearer ${salesToken}`);
+    expect(salesInbox.body.items).toHaveLength(1);
+    expect(salesInbox.body.items[0].title).toBe("New shift added");
+
+    const ownerInbox = await request(app).get("/notifications").set("Authorization", `Bearer ${owner.token}`);
+    expect(ownerInbox.body.items).toEqual([]); // the owner sent it, doesn't also receive it
+  });
+
+  it("only the recipient can mark their own notification read or dismiss it", async () => {
+    const owner = await signup("notif-d");
+
+    // A colleague in the SAME dealership — the 403 (not you) path only
+    // makes sense when the notification is visible in that
+    // dealership's own collection at all; a different dealership
+    // entirely hits 404 first (see the isolation test above).
+    const inviteRes = await request(app)
+      .post("/dealership/invite")
+      .set("Authorization", `Bearer ${owner.token}`)
+      .send({ inviteeName: "Notif Colleague", staffRole: "sales" });
+    const colleagueEmail = `integration-test-${runId}-notif-colleague@test.local`;
+    const joinRes = await request(app).post("/auth/join").send({
+      token: inviteRes.body.token,
+      name: "Notif Colleague",
+      email: colleagueEmail,
+      password: "notiftestpass123",
+    });
+    trackUser(colleagueEmail);
+    const other = { token: joinRes.body.token as string };
+
+    const sendRes = await request(app)
+      .post("/notifications")
+      .set("Authorization", `Bearer ${owner.token}`)
+      .send({ userId: owner.user.id, title: "Test", message: "Test", type: "info" });
+    const id = sendRes.body.entry.id;
+
+    const blockedRead = await request(app)
+      .put(`/notifications/${id}/read`)
+      .set("Authorization", `Bearer ${other.token}`);
+    expect(blockedRead.status).toBe(403);
+
+    const blockedDelete = await request(app)
+      .delete(`/notifications/${id}`)
+      .set("Authorization", `Bearer ${other.token}`);
+    expect(blockedDelete.status).toBe(403);
+
+    const okRead = await request(app)
+      .put(`/notifications/${id}/read`)
+      .set("Authorization", `Bearer ${owner.token}`);
+    expect(okRead.status).toBe(200);
+
+    const okDelete = await request(app)
+      .delete(`/notifications/${id}`)
+      .set("Authorization", `Bearer ${owner.token}`);
+    expect(okDelete.status).toBe(200);
+
+    const finalInbox = await request(app).get("/notifications").set("Authorization", `Bearer ${owner.token}`);
+    expect(finalInbox.body.items).toEqual([]);
   });
 });
 

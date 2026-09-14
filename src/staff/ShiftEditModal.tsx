@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { usePlanner } from "@/context/PlannerContext";
+import { useAuth } from "@/context/AuthContext";
+import { sendNotification } from "@/notifications/notificationStorage.web";
 import type { Shift } from "@/planner/plannerTypes";
 
 interface ShiftEditModalProps {
@@ -12,10 +14,22 @@ interface ShiftEditModalProps {
 
 export default function ShiftEditModal({ userId, userName, date, existing, onClose }: ShiftEditModalProps) {
   const { saveShift, removeShift } = usePlanner();
+  const { user } = useAuth();
   const [start, setStart] = useState(existing?.start ?? "09:00");
   const [end, setEnd] = useState(existing?.end ?? "17:00");
   const [notes, setNotes] = useState(existing?.notes ?? "");
   const [saving, setSaving] = useState(false);
+
+  // Every manual add/edit/remove here notifies the affected staff
+  // member directly — this is exactly the "mid-week update for
+  // sickness cover" case: a manager reshuffles the rota and the
+  // person whose shift changed finds out without having to check the
+  // grid themselves. Skipped when editing your own shift to avoid
+  // self-notifying.
+  function notifyIfNotSelf(title: string, message: string, type: "info" | "warning") {
+    if (userId === user?.id) return;
+    sendNotification({ userId, title, message, type }).catch(() => {});
+  }
 
   async function handleSave() {
     if (end <= start) return;
@@ -32,6 +46,11 @@ export default function ShiftEditModal({ userId, userName, date, existing, onClo
       createdAt: existing?.createdAt ?? new Date().toISOString(),
     };
     await saveShift(shift);
+    notifyIfNotSelf(
+      existing ? "Your shift was updated" : "New shift added",
+      `${date}: ${start}–${end}${notes.trim() ? ` (${notes.trim()})` : ""}`,
+      "info"
+    );
     setSaving(false);
     onClose();
   }
@@ -40,6 +59,7 @@ export default function ShiftEditModal({ userId, userName, date, existing, onClo
     if (!existing) return;
     setSaving(true);
     await removeShift(existing.id);
+    notifyIfNotSelf("Shift removed", `Your shift on ${date} (${existing.start}–${existing.end}) has been removed.`, "warning");
     setSaving(false);
     onClose();
   }
