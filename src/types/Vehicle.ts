@@ -103,6 +103,10 @@ export interface Vehicle {
 
   // Notes + Images
   notes?: string | null;
+  // Public-facing sales copy — distinct from `notes`, which is
+  // internal-only. Can be hand-written or AI-generated (see
+  // /ai/vehicle-description) from this vehicle's own real data.
+  listingDescription?: string | null;
   images?: string[] | null;
 
   // Bookkeeping linkage

@@ -11,6 +11,7 @@ import { useInventory } from "@/context/InventoryProvider";
 import { fetchMOT } from "@/features/vehicles/api/mot";
 import { autoFormatReg } from "@/features/vehicles/ui/SupernovaUI.web";
 import { compressImageFile } from "@/lib/imageCompress";
+import PhotoEditorModal from "@/lib/PhotoEditorModal";
 
 import { useBookkeeping } from "@/bookkeeping/BookkeepingProvider";
 import { calculateVat } from "@/bookkeeping/vatUtils";
@@ -34,6 +35,7 @@ export default function NewVehicle() {
   const [notes, setNotes] = useState("");
 
   const [images, setImages] = useState<string[]>([]);
+  const [editingImageIndex, setEditingImageIndex] = useState<number | null>(null);
   const [motData, setMotData] = useState<any>(null);
 
   const [profit, setProfit] = useState<number | null>(null);
@@ -355,6 +357,12 @@ export default function NewVehicle() {
                   >
                     X
                   </button>
+                  <button
+                    onClick={() => setEditingImageIndex(idx)}
+                    className="absolute bottom-2 right-2 bg-black/70 text-white px-2 py-1 rounded-md text-xs font-bold hover:bg-black/90"
+                  >
+                    Edit
+                  </button>
                   <img src={uri} className="w-64 h-40 object-cover" />
                 </div>
               ))}
@@ -400,6 +408,17 @@ export default function NewVehicle() {
           <SupernovaGlowButton label="Save Vehicle" onClick={saveVehicle} />
         </div>
       </div>
+
+      {editingImageIndex !== null && images[editingImageIndex] && (
+        <PhotoEditorModal
+          imageSrc={images[editingImageIndex]}
+          onClose={() => setEditingImageIndex(null)}
+          onSave={(edited) => {
+            setImages((prev) => prev.map((img, i) => (i === editingImageIndex ? edited : img)));
+            setEditingImageIndex(null);
+          }}
+        />
+      )}
     </div>
   );
 }

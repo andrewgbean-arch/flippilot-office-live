@@ -11,6 +11,8 @@ import { SupernovaGlowButton } from "@/components/supernova/SupernovaGlowButton"
 
 import { autoFormatReg } from "@/features/vehicles/ui/SupernovaUI.web";
 import { compressImageFile } from "@/lib/imageCompress";
+import { generateVehicleDescription } from "@/lib/aiDescription";
+import PhotoEditorModal from "@/lib/PhotoEditorModal";
 
 interface EditVehicleProps {
   vehicleId: string;
@@ -49,7 +51,11 @@ export default function EditVehicle({ vehicleId }: EditVehicleProps) {
   );
 
   const [notes, setNotes] = useState(vehicle.notes || "");
+  const [listingDescription, setListingDescription] = useState(vehicle.listingDescription || "");
+  const [generatingDescription, setGeneratingDescription] = useState(false);
+  const [descriptionError, setDescriptionError] = useState<string | null>(null);
   const [images, setImages] = useState<string[]>(vehicle.images || []);
+  const [editingImageIndex, setEditingImageIndex] = useState<number | null>(null);
 
   const [reg, setReg] = useState(vehicle.mot?.reg || "");
   const [colour, setColour] = useState(vehicle.mot?.colour || "");
@@ -100,6 +106,37 @@ export default function EditVehicle({ vehicleId }: EditVehicleProps) {
   };
 
   /* ============================================================
+     ⭐ AI Listing Description — real API call (Anthropic), built
+     only from this vehicle's own real data. Needs ANTHROPIC_API_KEY
+     configured server-side; shows the real "not configured" error
+     rather than faking a description when it isn't.
+  ============================================================ */
+  const handleGenerateDescription = async () => {
+    setGeneratingDescription(true);
+    setDescriptionError(null);
+
+    const res = await generateVehicleDescription({
+      make,
+      model,
+      year: year ? Number(year) : null,
+      mileage: mileage ? Number(mileage) : null,
+      colour: colour || null,
+      condition: vehicle.condition,
+      motStatus: vehicle.mot?.motStatus ?? null,
+      motExpiry: vehicle.mot?.expiry ?? null,
+      priceRetail: priceRetail ? Number(priceRetail) : null,
+      notes: notes || null,
+    });
+
+    setGeneratingDescription(false);
+    if (!res.ok || !res.description) {
+      setDescriptionError(res.error ?? "Could not generate a description.");
+      return;
+    }
+    setListingDescription(res.description);
+  };
+
+  /* ============================================================
      ⭐ Save Vehicle
   ============================================================ */
   const saveVehicle = () => {
@@ -114,6 +151,7 @@ export default function EditVehicle({ vehicleId }: EditVehicleProps) {
       vatScheme,
 
       notes: notes || null,
+      listingDescription: listingDescription || null,
       images: images.length > 0 ? images : null,
 
       mot: {
@@ -240,6 +278,30 @@ export default function EditVehicle({ vehicleId }: EditVehicleProps) {
           />
         </SupernovaGlowCard>
 
+        {/* ⭐ Listing Description */}
+        <SupernovaSectionDivider label="Listing Description" />
+
+        <SupernovaGlowCard>
+          <p className="text-white/50 text-sm mb-3">
+            Public-facing sales copy — separate from Notes above. Write your own, or generate a draft from this vehicle's real details.
+          </p>
+          <SupernovaInput
+            label="Listing Description"
+            value={listingDescription}
+            onChange={setListingDescription}
+            multiline
+          />
+          <div className="mt-3">
+            <SupernovaGlowButton
+              label={generatingDescription ? "Generating…" : "Generate with AI"}
+              onClick={handleGenerateDescription}
+            />
+          </div>
+          {descriptionError && (
+            <p className="text-red-400 text-sm mt-3">{descriptionError}</p>
+          )}
+        </SupernovaGlowCard>
+
         {/* ⭐ Images */}
         <SupernovaSectionDivider label="Images" />
 
@@ -260,6 +322,12 @@ export default function EditVehicle({ vehicleId }: EditVehicleProps) {
                     className="absolute top-2 right-2 bg-red-600 text-white px-2 py-1 rounded-md text-xs font-bold"
                   >
                     X
+                  </button>
+                  <button
+                    onClick={() => setEditingImageIndex(idx)}
+                    className="absolute bottom-2 right-2 bg-black/70 text-white px-2 py-1 rounded-md text-xs font-bold hover:bg-black/90"
+                  >
+                    Edit
                   </button>
                   <img src={uri} className="w-64 h-40 object-cover" />
                 </div>
@@ -329,6 +397,17 @@ export default function EditVehicle({ vehicleId }: EditVehicleProps) {
             Undo Delete
           </button>
         </div>
+      )}
+
+      {editingImageIndex !== null && images[editingImageIndex] && (
+        <PhotoEditorModal
+          imageSrc={images[editingImageIndex]}
+          onClose={() => setEditingImageIndex(null)}
+          onSave={(edited) => {
+            setImages((prev) => prev.map((img, i) => (i === editingImageIndex ? edited : img)));
+            setEditingImageIndex(null);
+          }}
+        />
       )}
     </div>
   );
