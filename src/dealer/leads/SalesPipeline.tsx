@@ -25,6 +25,17 @@ export default function SalesPipeline() {
   const conversionRate =
     leads.length > 0 ? Math.round((pipeline.sold / leads.length) * 100) : 0;
 
+  // SupernovaMetricBar is a percentage widget (renders "{value}%" and
+  // sizes its bar to value% wide) — passing it a raw lead COUNT showed
+  // nonsense like "3%" for 3 new leads out of, say, 5 total, with a
+  // near-invisible bar, and would overflow the bar entirely for any
+  // stage with more than 100 leads. Converted to each stage's real
+  // share of total leads, same treatment the Conversion Rate card
+  // below already correctly used — the raw count stays visible in each
+  // card's own description text so the actual number isn't lost.
+  const pipelinePct = (count: number) =>
+    leads.length > 0 ? Math.round((count / leads.length) * 100) : 0;
+
   return (
     <div className="animate-fadeIn p-10 text-white relative z-10">
 
@@ -43,11 +54,11 @@ export default function SalesPipeline() {
           <h2 className="text-xl font-bold text-yellow-400 mb-2">New Leads</h2>
           <SupernovaMetricBar
             label="New Leads"
-            value={pipeline.new}
+            value={pipelinePct(pipeline.new)}
             accent="yellow"
           />
           <p className="text-white/60 text-sm">
-            Fresh leads entering your pipeline today.
+            {pipeline.new} fresh lead{pipeline.new === 1 ? "" : "s"} entering your pipeline today.
           </p>
         </SupernovaGlowCard>
 
@@ -56,11 +67,11 @@ export default function SalesPipeline() {
           <h2 className="text-xl font-bold text-blue-400 mb-2">Contacted</h2>
           <SupernovaMetricBar
             label="Contacted"
-            value={pipeline.contacted}
+            value={pipelinePct(pipeline.contacted)}
             accent="blue"
           />
           <p className="text-white/60 text-sm">
-            Leads that have received initial communication.
+            {pipeline.contacted} lead{pipeline.contacted === 1 ? "" : "s"} that {pipeline.contacted === 1 ? "has" : "have"} received initial communication.
           </p>
         </SupernovaGlowCard>
 
@@ -69,11 +80,11 @@ export default function SalesPipeline() {
           <h2 className="text-xl font-bold text-red-400 mb-2">Hot Leads</h2>
           <SupernovaMetricBar
             label="Hot Leads"
-            value={pipeline.hot}
+            value={pipelinePct(pipeline.hot)}
             accent="red"
           />
           <p className="text-white/60 text-sm">
-            High‑intent leads showing strong buying signals.
+            {pipeline.hot} high‑intent lead{pipeline.hot === 1 ? "" : "s"} showing strong buying signals.
           </p>
         </SupernovaGlowCard>
 
@@ -82,11 +93,11 @@ export default function SalesPipeline() {
           <h2 className="text-xl font-bold text-yellow-400 mb-2">Viewing Booked</h2>
           <SupernovaMetricBar
             label="Viewing Booked"
-            value={pipeline.viewing}
+            value={pipelinePct(pipeline.viewing)}
             accent="yellow"
           />
           <p className="text-white/60 text-sm">
-            Leads with scheduled vehicle viewings.
+            {pipeline.viewing} lead{pipeline.viewing === 1 ? "" : "s"} with scheduled vehicle viewings.
           </p>
         </SupernovaGlowCard>
 
@@ -95,11 +106,11 @@ export default function SalesPipeline() {
           <h2 className="text-xl font-bold text-green-400 mb-2">Sold</h2>
           <SupernovaMetricBar
             label="Sold Vehicles"
-            value={pipeline.sold}
+            value={pipelinePct(pipeline.sold)}
             accent="yellow"
           />
           <p className="text-white/60 text-sm">
-            Completed deals from this pipeline.
+            {pipeline.sold} completed deal{pipeline.sold === 1 ? "" : "s"} from this pipeline.
           </p>
         </SupernovaGlowCard>
 
