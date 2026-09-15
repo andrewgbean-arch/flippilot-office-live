@@ -255,7 +255,7 @@ export default function DealerDashboard({ brain }: Props) {
           title="MOT Expiring Soon"
           icon={<FiAlertTriangle className="cosmic-pulse" />}
           accent="red"
-          to={`/dealer/workflow/mot/${motAlerts[0]?.id ?? ""}`}
+          {...(motAlerts[0]?.id ? { to: `/dealer/workflow/mot/${motAlerts[0].id}` } : {})}
         >
           <p className="text-white/70">{motAlerts.length} vehicles need MOT attention</p>
         </SupernovaCard>
@@ -264,7 +264,7 @@ export default function DealerDashboard({ brain }: Props) {
           title="Recon Needed"
           icon={<FiTool className="cosmic-pulse" />}
           accent="gold"
-          to={`/dealer/workflow/recon/${reconNeeded[0]?.id ?? ""}`}
+          {...(reconNeeded[0]?.id ? { to: `/dealer/workflow/recon/${reconNeeded[0].id}` } : {})}
         >
           <p className="text-white/70">{reconNeeded.length} vehicles need repairs</p>
         </SupernovaCard>
@@ -273,7 +273,7 @@ export default function DealerDashboard({ brain }: Props) {
           title="Pricing Needed"
           icon={<FiTrendingUp className="cosmic-pulse" />}
           accent="blue"
-          to={`/dealer/workflow/pricing/${pricingNeeded[0]?.id ?? ""}`}
+          {...(pricingNeeded[0]?.id ? { to: `/dealer/workflow/pricing/${pricingNeeded[0].id}` } : {})}
         >
           <p className="text-white/70">{pricingNeeded.length} vehicles need pricing review</p>
         </SupernovaCard>
@@ -286,7 +286,7 @@ export default function DealerDashboard({ brain }: Props) {
           title="Photos Needed"
           icon={<FiCamera className="cosmic-pulse" />}
           accent="purple"
-          to={`/dealer/workflow/photos/${photoNeeded[0]?.id ?? ""}`}
+          {...(photoNeeded[0]?.id ? { to: `/dealer/workflow/photos/${photoNeeded[0].id}` } : {})}
         >
           <p className="text-white/70">{photoNeeded.length} vehicles need photos</p>
         </SupernovaCard>
