@@ -3,12 +3,17 @@ import { TransactionEntry } from "./types";
 import { useBookkeeping } from "./BookkeepingProvider";
 
 type AddTransactionModalProps = {
-  vehicleId: string | null;
   onClose: () => void;
 };
 
+// TransactionEntry (types.ts) has no vehicleId field at all — these are
+// general business transactions (rent, insurance, etc), never tied to
+// a specific vehicle. This used to accept a vehicleId prop and display
+// it as "Vehicle: X" even though nothing about the transaction was
+// ever actually scoped to that vehicle — misleading, since the value
+// shown was just whichever vehicle happened to be most recently
+// purchased, with no way to change it and no real effect on save.
 export default function AddTransactionModal({
-  vehicleId,
   onClose,
 }: AddTransactionModalProps) {
   const { addTransaction } = useBookkeeping();
@@ -40,11 +45,6 @@ export default function AddTransactionModal({
         <h2 className="text-xl font-bold text-yellow-300 mb-4">
           Add Transaction
         </h2>
-
-        {/* VEHICLE INFO */}
-        <p className="text-white/60 text-sm mb-4">
-          Vehicle: {vehicleId ?? "None selected"}
-        </p>
 
         {/* FORM */}
         <div className="flex flex-col gap-4">

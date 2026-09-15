@@ -138,7 +138,6 @@ const [showTransactionModal, setShowTransactionModal] = useState(false); // ⭐ 
       {/* TRANSACTION MODAL BUTTON */}
       {showTransactionModal && (
   <AddTransactionModal
-    vehicleId={selectedVehicleId}
     onClose={() => setShowTransactionModal(false)}
   />
 )}
