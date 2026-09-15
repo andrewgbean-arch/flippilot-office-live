@@ -1,4 +1,4 @@
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import DealerLayout from "@/layouts/DealerLayout";
 import ProtectedRoute from "@/components/ProtectedRoute";
 
@@ -18,7 +18,6 @@ import TermsScreen from "@/screens/TermsScreen";
 import PrivacyScreen from "@/screens/PrivacyScreen";
 
 /* HOME */
-import HomeScreen from "@/screens/HomeScreen";
 import SearchScreen from "@/screens/SearchScreen";
 import ImportScreen from "@/screens/ImportScreen";
 
@@ -162,8 +161,16 @@ export default function AnimatedRoutes() {
         }
       >
 
-        {/* HOME */}
-        <Route index element={<HomeScreen />} />
+        {/* HOME — was a decorative launcher (HomeScreen.tsx) with three
+            hardcoded "Dealership Score 82 / Strong" style stat tiles and
+            a stale "Supernova Dealer Intelligence V12" tagline, sitting
+            apart from the real DealerDashboard that already computes all
+            of that for real. Redirecting instead of rendering it inline
+            keeps this at its own URL (/dealer-dashboard), so the global
+            footer/quick-links sidebar behave the same here as everywhere
+            else in the app rather than being suppressed by the "isHome"
+            checks that hid them specifically for the old launcher page. */}
+        <Route index element={<Navigate to="/dealer-dashboard" replace />} />
 
         {/* SEARCH */}
         <Route path="search" element={<SearchScreen />} />
