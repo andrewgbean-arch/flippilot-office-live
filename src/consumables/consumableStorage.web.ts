@@ -16,8 +16,11 @@ export async function loadConsumables(): Promise<Consumable[]> {
 
 export async function addConsumable(input: {
   name: string;
+  partNumber?: string;
+  description?: string;
   supplierName?: string;
   supplierEmail?: string;
+  supplierPhone?: string;
   unit?: string;
   currentStock: number;
   reorderThreshold: number;

@@ -10,6 +10,8 @@ interface AddConsumableModalProps {
 export default function AddConsumableModal({ existing, onClose }: AddConsumableModalProps) {
   const { addConsumable, updateConsumable } = useConsumables();
   const [name, setName] = useState(existing?.name ?? "");
+  const [partNumber, setPartNumber] = useState(existing?.partNumber ?? "");
+  const [description, setDescription] = useState(existing?.description ?? "");
   const [unit, setUnit] = useState(existing?.unit ?? "");
   const [currentStock, setCurrentStock] = useState(String(existing?.currentStock ?? 0));
   const [reorderThreshold, setReorderThreshold] = useState(String(existing?.reorderThreshold ?? 5));
@@ -27,6 +29,8 @@ export default function AddConsumableModal({ existing, onClose }: AddConsumableM
 
     const fields = {
       name: name.trim(),
+      ...(partNumber.trim() ? { partNumber: partNumber.trim() } : {}),
+      ...(description.trim() ? { description: description.trim() } : {}),
       ...(unit.trim() ? { unit: unit.trim() } : {}),
       currentStock: Number(currentStock) || 0,
       reorderThreshold: Number(reorderThreshold) || 0,
@@ -65,6 +69,29 @@ export default function AddConsumableModal({ existing, onClose }: AddConsumableM
           placeholder="Screen wash, oil filters, valeting shampoo..."
           className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-4"
         />
+
+        <div className="grid grid-cols-2 gap-4 mb-4">
+          <div>
+            <label className="text-white/60 text-sm">Part Number (optional)</label>
+            <input
+              type="text"
+              value={partNumber}
+              onChange={e => setPartNumber(e.target.value)}
+              placeholder="e.g. supplier's SKU/part code"
+              className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80"
+            />
+          </div>
+          <div>
+            <label className="text-white/60 text-sm">Description (optional)</label>
+            <input
+              type="text"
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              placeholder="What it is / spec, e.g. 5L 5W-30 synthetic"
+              className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80"
+            />
+          </div>
+        </div>
 
         <div className="grid grid-cols-2 gap-4 mb-4">
           <div>

@@ -24,6 +24,18 @@ export default function ConsumablesBoard() {
     setChecked(prev => ({ ...prev, [id]: !isChecked(id) }));
   }
 
+  // How many units to actually ask the supplier for — previously the
+  // order email just said "please could we order more X", with no
+  // quantity at all, leaving the supplier to guess. Defaults to enough
+  // to reach the reorder threshold again, staff can adjust per item.
+  const [orderQty, setOrderQty] = useState<Record<string, number>>({});
+  function qtyFor(item: Consumable): number {
+    return orderQty[item.id] ?? Math.max(item.reorderThreshold - item.currentStock, 1);
+  }
+  function setQty(id: string, value: number) {
+    setOrderQty(prev => ({ ...prev, [id]: Math.max(value, 1) }));
+  }
+
   const lowStock = consumables.filter(c => c.currentStock <= c.reorderThreshold);
 
   function mailtoFor(item: (typeof consumables)[number]): string | null {
@@ -32,7 +44,7 @@ export default function ConsumablesBoard() {
     const body = [
       `Hi,`,
       ``,
-      `Please could we order more ${item.name}${item.unit ? ` (${item.unit})` : ""}.`,
+      `Please could we order ${qtyFor(item)}${item.unit ? ` ${item.unit}` : ""} of ${item.name}${item.partNumber ? ` (Part No: ${item.partNumber})` : ""}.`,
       `Current stock: ${item.currentStock}${item.unit ? ` ${item.unit}` : ""} (reorder threshold: ${item.reorderThreshold}).`,
       ``,
       `Thanks,`,
@@ -67,7 +79,7 @@ export default function ConsumablesBoard() {
       `Please could we order the following:`,
       ``,
       ...group.items.map(
-        i => `- ${i.name}${i.unit ? ` (${i.unit})` : ""} — currently ${i.currentStock}${i.unit ? ` ${i.unit}` : ""} in stock`
+        i => `- ${qtyFor(i)}${i.unit ? ` ${i.unit}` : ""} x ${i.name}${i.partNumber ? ` (Part No: ${i.partNumber})` : ""} — currently ${i.currentStock}${i.unit ? ` ${i.unit}` : ""} in stock`
       ),
       ``,
       `Thanks,`,
@@ -110,16 +122,28 @@ export default function ConsumablesBoard() {
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                       {group.items.map(item => (
-                        <label key={item.id} className="sn-checkbox-row" style={{ marginTop: 0 }}>
+                        <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <label className="sn-checkbox-row" style={{ marginTop: 0, flex: 1 }}>
+                            <input
+                              type="checkbox"
+                              checked={isChecked(item.id)}
+                              onChange={() => toggleChecked(item.id)}
+                            />
+                            {item.name}
+                            {item.partNumber ? ` · ${item.partNumber}` : ""} — {item.currentStock}
+                            {item.unit ? ` ${item.unit}` : ""} left
+                          </label>
+                          <span className="sn-empty" style={{ fontSize: 12, flexShrink: 0 }}>Order qty:</span>
                           <input
-                            type="checkbox"
-                            checked={isChecked(item.id)}
-                            onChange={() => toggleChecked(item.id)}
+                            type="number"
+                            min={1}
+                            value={qtyFor(item)}
+                            onChange={e => setQty(item.id, Number(e.target.value) || 1)}
+                            className="sn-input"
+                            style={{ width: 60, flexShrink: 0 }}
                           />
-                          {item.name}
-                          {item.unit ? ` (${item.unit})` : ""} — {item.currentStock}
-                          {item.unit ? ` ${item.unit}` : ""} left
-                        </label>
+                          {item.unit && <span className="sn-empty" style={{ fontSize: 12, flexShrink: 0 }}>{item.unit}</span>}
+                        </div>
                       ))}
                     </div>
                   </div>
@@ -177,6 +201,11 @@ export default function ConsumablesBoard() {
                         <td style={low ? { color: "#ff8080", fontWeight: 600 } : undefined}>
                           {item.name}
                           {item.unit ? ` (${item.unit})` : ""}
+                          {(item.partNumber || item.description) && (
+                            <div className="sn-empty" style={{ fontSize: 12, fontWeight: 400 }}>
+                              {[item.partNumber, item.description].filter(Boolean).join(" · ")}
+                            </div>
+                          )}
                         </td>
                         <td>
                           <input

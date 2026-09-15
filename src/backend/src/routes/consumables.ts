@@ -6,6 +6,8 @@ import type { AuthUser } from "../auth";
 export interface Consumable {
   id: string;
   name: string;
+  partNumber?: string;
+  description?: string;
   supplierName?: string;
   supplierEmail?: string;
   supplierPhone?: string;
@@ -40,7 +42,7 @@ export default function registerConsumablesRoute(app: Express) {
 
   app.post("/consumables", (req, res) => {
     const user = authedUser(req);
-    const { name, supplierName, supplierEmail, supplierPhone, unit, currentStock, reorderThreshold, notes } =
+    const { name, partNumber, description, supplierName, supplierEmail, supplierPhone, unit, currentStock, reorderThreshold, notes } =
       req.body ?? {};
 
     if (typeof name !== "string" || !name.trim()) {
@@ -51,6 +53,8 @@ export default function registerConsumablesRoute(app: Express) {
     const entry: Consumable = {
       id: randomUUID(),
       name: name.trim(),
+      ...(typeof partNumber === "string" && partNumber.trim() ? { partNumber: partNumber.trim() } : {}),
+      ...(typeof description === "string" && description.trim() ? { description: description.trim() } : {}),
       ...(typeof supplierName === "string" && supplierName.trim() ? { supplierName: supplierName.trim() } : {}),
       ...(typeof supplierEmail === "string" && supplierEmail.trim() ? { supplierEmail: supplierEmail.trim() } : {}),
       ...(typeof supplierPhone === "string" && supplierPhone.trim() ? { supplierPhone: supplierPhone.trim() } : {}),

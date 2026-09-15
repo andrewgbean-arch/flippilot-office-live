@@ -13,6 +13,8 @@ interface ConsumablesContextType {
   loading: boolean;
   addConsumable: (input: {
     name: string;
+    partNumber?: string;
+    description?: string;
     supplierName?: string;
     supplierEmail?: string;
     supplierPhone?: string;
@@ -47,6 +49,8 @@ export function ConsumablesProvider({ children }: { children: React.ReactNode })
 
   async function addConsumable(input: {
     name: string;
+    partNumber?: string;
+    description?: string;
     supplierName?: string;
     supplierEmail?: string;
     supplierPhone?: string;
