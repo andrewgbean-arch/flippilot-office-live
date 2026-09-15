@@ -25,6 +25,7 @@ import DiaryBoard from "@/diary/DiaryBoard";
 
 /* PUBLIC BOOKING */
 import PublicBookingPage from "@/public/PublicBookingPage";
+import PublicDealerPage from "@/public/PublicDealerPage";
 import AppointmentsBoard from "@/appointments/AppointmentsBoard";
 
 /* DASHBOARD */
@@ -136,6 +137,7 @@ export default function AnimatedRoutes() {
       {/* PUBLIC BOOKING — no account, no sidebar/nav chrome, the one
           page a customer reaches directly */}
       <Route path="/book/:dealershipId" element={<PublicBookingPage />} />
+      <Route path="/store/:dealershipId" element={<PublicDealerPage />} />
 
       {/* AUTH — outside DealerLayout, no sidebar/nav chrome */}
       <Route path="/login" element={<LoginScreen />} />

@@ -14,13 +14,41 @@ export interface PublicVehicle {
   priceRetail: number | null;
 }
 
-export async function loadPublicDealerName(dealershipId: string): Promise<string | null> {
+export interface PublicDealerInfo {
+  name: string;
+  phone?: string;
+  address?: string;
+}
+
+export async function loadPublicDealerInfo(dealershipId: string): Promise<PublicDealerInfo | null> {
   try {
     const res = await fetch(`${BASE_URL}/public/${dealershipId}/info`);
     const data = await res.json();
-    return data.ok ? data.name : null;
+    if (!data.ok) return null;
+    return { name: data.name, ...(data.phone ? { phone: data.phone } : {}), ...(data.address ? { address: data.address } : {}) };
   } catch (err) {
-    console.error("loadPublicDealerName: backend unreachable", err);
+    console.error("loadPublicDealerInfo: backend unreachable", err);
+    return null;
+  }
+}
+
+// Kept for PublicBookingPage.tsx, which only ever needs the name.
+export async function loadPublicDealerName(dealershipId: string): Promise<string | null> {
+  const info = await loadPublicDealerInfo(dealershipId);
+  return info?.name ?? null;
+}
+
+export async function loadPublicBookingSettings(dealershipId: string): Promise<{
+  openDays: string[];
+  openTime: string;
+  closeTime: string;
+} | null> {
+  try {
+    const res = await fetch(`${BASE_URL}/public/${dealershipId}/booking-settings`);
+    const data = await res.json();
+    return data.ok ? data.settings : null;
+  } catch (err) {
+    console.error("loadPublicBookingSettings: backend unreachable", err);
     return null;
   }
 }

@@ -134,9 +134,16 @@ export default function registerPublicBookingRoute(app: Express) {
     if (!dealership) {
       return res.status(404).json({ ok: false, error: "Dealership not found" });
     }
-    // Only what a public page needs to render — never phone/address/
-    // subscription/billing fields from the same record.
-    res.json({ ok: true, name: dealership.name });
+    // Phone/address are genuinely public now that this also backs a
+    // real public dealer page (a customer needs to be able to find and
+    // call the place) — but subscription/billing/owner fields from the
+    // same record never leave this endpoint.
+    res.json({
+      ok: true,
+      name: dealership.name,
+      ...(dealership.phone ? { phone: dealership.phone } : {}),
+      ...(dealership.address ? { address: dealership.address } : {}),
+    });
   });
 
   app.get("/public/:dealershipId/vehicles", publicReadLimiter, (req, res) => {
