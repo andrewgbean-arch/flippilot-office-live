@@ -1,6 +1,12 @@
+import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useInventory } from "@/context/InventoryProvider";
 import { useJobs } from "@/context/JobsContext";
+import { useBookkeeping } from "@/bookkeeping/BookkeepingProvider";
+import { useLeads } from "@/context/LeadsContext";
+import { useAppointments } from "@/context/AppointmentsContext";
+import { useDealer } from "@/context/DealerContext";
+import { useAuth } from "@/context/AuthContext";
 import { toDateKey } from "@/planner/dateUtils";
 
 import SupernovaCard from "@/components/SupernovaCard";
@@ -21,16 +27,55 @@ import {
   FiBarChart2,
   FiSettings,
   FiCheckSquare,
+  FiCalendar,
 } from "react-icons/fi";
 
 type Props = {
   brain?: any;
 };
 
+const HERO_ACCENTS: Record<string, string> = {
+  green: "border-green-400/40 text-green-300 hover:shadow-[0_0_25px_rgba(74,222,128,0.35)]",
+  red: "border-red-400/40 text-red-300 hover:shadow-[0_0_25px_rgba(248,113,113,0.35)]",
+  blue: "border-blue-400/40 text-blue-300 hover:shadow-[0_0_25px_rgba(96,165,250,0.35)]",
+  gold: "border-yellow-400/40 text-yellow-300 hover:shadow-[0_0_25px_rgba(250,204,21,0.35)]",
+  purple: "border-purple-400/40 text-purple-300 hover:shadow-[0_0_25px_rgba(192,132,252,0.35)]",
+};
+
+function HeroStat({
+  label,
+  value,
+  icon,
+  accent,
+  onClick,
+}: {
+  label: string;
+  value: string | number;
+  icon: ReactNode;
+  accent: keyof typeof HERO_ACCENTS;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`text-left bg-black/30 border rounded-xl p-4 transition backdrop-blur-xl ${HERO_ACCENTS[accent]}`}
+    >
+      <div className="text-xl mb-2">{icon}</div>
+      <div className="text-2xl font-extrabold text-white">{value}</div>
+      <div className="text-xs text-white/50 mt-1">{label}</div>
+    </button>
+  );
+}
+
 export default function DealerDashboard({ brain }: Props) {
   const navigate = useNavigate();
   const { vehicles, loading } = useInventory();
   const { jobs } = useJobs();
+  const { sales, getProfitForVehicle } = useBookkeeping();
+  const { leads } = useLeads();
+  const { appointments } = useAppointments();
+  const { dealer } = useDealer();
+  const { user } = useAuth();
 
   const safeVehicles = vehicles ?? [];
 
@@ -79,6 +124,37 @@ export default function DealerDashboard({ brain }: Props) {
   const openJobs = jobs.filter((j) => j.status !== "done");
   const overdueJobs = openJobs.filter((j) => j.dueDate && j.dueDate < todayKey);
 
+  // ⭐ HEADLINE NUMBERS — the "at a glance" row a dealer actually wants
+  // the instant they log in: what my stock is worth, what I've made
+  // this month, and what needs a reply today. All computed from the
+  // same real bookkeeping/leads/appointments data used elsewhere in
+  // this app, not a separate "AI" framing of it.
+  const soldVehicleIds = new Set(sales.map((s) => s.vehicleId));
+  const stockValue = safeVehicles
+    .filter((v) => !soldVehicleIds.has(v.id))
+    .reduce((sum, v) => sum + (v.priceRetail ?? 0), 0);
+
+  const monthPrefix = new Date().toISOString().slice(0, 7); // "2026-09"
+  const salesThisMonth = sales.filter((s) => s.date?.startsWith(monthPrefix));
+  // A vehicle can be sold without a matching purchase record (e.g.
+  // imported from a CSV, which only creates the inventory row) — those
+  // just don't contribute a figure here rather than being counted as
+  // £0 profit, so this stays an honest (if occasionally partial) total
+  // rather than a silently wrong one.
+  const profitThisMonth = salesThisMonth.reduce(
+    (sum, s) => sum + (getProfitForVehicle(s.vehicleId)?.profit ?? 0),
+    0
+  );
+
+  const openLeads = leads.filter((l) => l.status !== "won" && l.status !== "lost");
+  const todaysAppointments = appointments.filter(
+    (a) => a.requestedDate === todayKey && a.status !== "declined"
+  );
+
+  const greetingName = user?.name?.split(" ")[0] || "there";
+  const hour = new Date().getHours();
+  const timeOfDay = hour < 12 ? "morning" : hour < 18 ? "afternoon" : "evening";
+
  const recentActivity: {
   id: string;
   title: string;
@@ -118,6 +194,55 @@ export default function DealerDashboard({ brain }: Props) {
 
   return (
     <div className="p-10 space-y-16">
+
+      {/* GREETING */}
+      <div>
+        <h1 className="text-3xl font-extrabold text-white">
+          Good {timeOfDay}, {greetingName}
+        </h1>
+        <p className="text-white/50 mt-1">
+          {dealer?.name ?? "Your dealership"} — here's where things stand today.
+        </p>
+      </div>
+
+      {/* HEADLINE NUMBERS */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <HeroStat
+          label="Stock Value"
+          value={`£${stockValue.toLocaleString()}`}
+          icon={<FiDollarSign />}
+          accent="green"
+          onClick={() => navigate("/dealer/inventory/list")}
+        />
+        <HeroStat
+          label="Profit This Month"
+          value={`£${profitThisMonth.toLocaleString()}`}
+          icon={<FiTrendingUp />}
+          accent={profitThisMonth >= 0 ? "green" : "red"}
+          onClick={() => navigate("/bookkeeping")}
+        />
+        <HeroStat
+          label="Sold This Month"
+          value={salesThisMonth.length}
+          icon={<FiCheckSquare />}
+          accent="blue"
+          onClick={() => navigate("/bookkeeping")}
+        />
+        <HeroStat
+          label="Open Leads"
+          value={openLeads.length}
+          icon={<FiUsers />}
+          accent="gold"
+          onClick={() => navigate("/dealer/sales")}
+        />
+        <HeroStat
+          label="Today's Appointments"
+          value={todaysAppointments.length}
+          icon={<FiCalendar />}
+          accent="purple"
+          onClick={() => navigate("/appointments")}
+        />
+      </div>
 
       <SupernovaMarketTicker items={tickerItems} />
       <DealerModeToggle />
