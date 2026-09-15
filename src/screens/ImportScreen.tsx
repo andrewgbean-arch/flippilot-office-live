@@ -52,6 +52,7 @@ export default function ImportScreen() {
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<{ imported: number; skipped: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showHelp, setShowHelp] = useState(false);
 
   const fields = type === "vehicles" ? VEHICLE_FIELDS : CONSUMABLE_FIELDS;
 
@@ -215,6 +216,49 @@ export default function ImportScreen() {
         />
         {fileName && <p className="text-white/40 text-xs mt-2">{fileName} — {rows.length} row{rows.length === 1 ? "" : "s"} found</p>}
         {error && <p className="text-red-400 text-sm mt-2">{error}</p>}
+
+        <button
+          onClick={() => setShowHelp((v) => !v)}
+          className="mt-4 px-4 py-2 rounded font-semibold bg-red-600 text-white hover:bg-red-500 transition"
+        >
+          {showHelp ? "Hide Help" : "Need Help? Step-by-Step Guide"}
+        </button>
+
+        {showHelp && (
+          <ol className="mt-4 space-y-3 text-white/70 text-sm list-decimal list-inside bg-black/30 border border-white/10 rounded-lg p-4">
+            <li>
+              Choose whether you're importing <strong className="text-white/90">Vehicle Inventory</strong> or{" "}
+              <strong className="text-white/90">Consumables / Parts</strong> using the two buttons above.
+            </li>
+            <li>
+              Make sure your file is saved as a <strong className="text-white/90">CSV</strong> file. If your
+              stock list is in Excel or Google Sheets, use "Save As" / "Export" and choose CSV — this screen
+              can't read a plain .xlsx file directly.
+            </li>
+            <li>
+              Click <strong className="text-white/90">Choose File</strong> above and pick your CSV from your
+              computer.
+            </li>
+            <li>
+              Check the <strong className="text-white/90">"Your file, as uploaded"</strong> table that
+              appears — this shows exactly what was read from your file, so you can confirm it's the right
+              one before doing anything else.
+            </li>
+            <li>
+              In <strong className="text-white/90">"Match your columns"</strong>, tell it which column in
+              your file matches each field. Most common column names are matched automatically — you only
+              need to fix any that show "— Not in file —".
+            </li>
+            <li>
+              Check the <strong className="text-white/90">Preview</strong> table — it shows exactly how many
+              rows are ready to import, and flags any row that's missing a required field.
+            </li>
+            <li>
+              Click <strong className="text-white/90">Import</strong>. Nothing is saved to your real stock
+              until you click this — everything before this step is just a preview.
+            </li>
+          </ol>
+        )}
       </div>
 
       {headers.length > 0 && (
