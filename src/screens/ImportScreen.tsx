@@ -219,6 +219,37 @@ export default function ImportScreen() {
 
       {headers.length > 0 && (
         <>
+          {/* Raw preview of the file exactly as uploaded — shown before
+              any mapping/import decisions, so a customer uploading their
+              real stock list for the first time gets an immediate "yep,
+              that's my file" confirmation rather than being dropped
+              straight into a column-matching form with no visual
+              context for what was actually read. */}
+          <div className="bg-black/40 border border-white/10 rounded-xl p-6 mb-6 overflow-x-auto">
+            <h2 className="text-white/80 font-semibold mb-1">Your file, as uploaded</h2>
+            <p className="text-white/40 text-xs mb-4">
+              Exactly what's in {fileName} — nothing changed or interpreted yet. Check this looks
+              like your stock list before mapping the columns below.
+            </p>
+            <table className="text-sm w-full">
+              <thead>
+                <tr className="text-white/50 text-left">
+                  {headers.map((h, i) => <th key={i} className="pr-4 pb-2 whitespace-nowrap">{h}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.slice(0, 5).map((row, i) => (
+                  <tr key={i} className="border-t border-white/10">
+                    {headers.map((_, j) => (
+                      <td key={j} className="pr-4 py-1 text-white/80 whitespace-nowrap">{row[j] || "—"}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {rows.length > 5 && <p className="text-white/40 text-xs mt-2">…and {rows.length - 5} more rows</p>}
+          </div>
+
           <div className="bg-black/40 border border-white/10 rounded-xl p-6 mb-6">
             <h2 className="text-white/80 font-semibold mb-4">Match your columns</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
