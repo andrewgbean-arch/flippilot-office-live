@@ -1,7 +1,7 @@
 import { Express, Request, Response } from "express";
 import Stripe from "stripe";
 import { readCollection, writeCollection } from "../db";
-import { requireAuth, type AuthUser, type Dealership } from "../auth";
+import { requireAuth, requireOwner, type AuthUser, type Dealership } from "../auth";
 
 const FRONTEND_URL = "http://localhost:5173";
 
@@ -95,7 +95,12 @@ export async function handleStripeWebhook(req: Request, res: Response) {
 }
 
 export default function registerBillingRoute(app: Express) {
-  app.post("/billing/create-checkout-session", requireAuth, async (req, res) => {
+  // Subscription/payment control is more sensitive than the dealership
+  // profile edits and team invites elsewhere in this app that already
+  // require the owner role — a plain staff account (sales/general/etc)
+  // must not be able to cancel the subscription or reach the real
+  // Stripe billing portal for the dealership's card details.
+  app.post("/billing/create-checkout-session", requireAuth, requireOwner, async (req, res) => {
     try {
       const user = (req as Request & { user: AuthUser }).user;
       const dealership = findDealership(user.dealershipId);
@@ -123,7 +128,7 @@ export default function registerBillingRoute(app: Express) {
     }
   });
 
-  app.post("/billing/portal", requireAuth, async (req, res) => {
+  app.post("/billing/portal", requireAuth, requireOwner, async (req, res) => {
     try {
       const user = (req as Request & { user: AuthUser }).user;
       const dealership = findDealership(user.dealershipId);

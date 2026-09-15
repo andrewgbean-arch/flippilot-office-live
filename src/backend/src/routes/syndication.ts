@@ -1,5 +1,19 @@
 import { Express } from "express";
+import rateLimit from "express-rate-limit";
 import { readTenantCollection } from "../db";
+
+// Same unauthenticated-by-design reasoning as the URL itself (see
+// below) — but with no limiter at all, a known feed URL could be
+// polled at unlimited rate to scrape a dealer's full live stock/
+// pricing forever. Real feed importers poll on a schedule (hourly/
+// daily at most), so this costs nothing for legitimate use.
+const feedLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  limit: process.env.NODE_ENV === "test" ? 1000 : 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { ok: false, error: "Too many requests — please try again shortly." },
+});
 
 /* --------------------------------------------------
    ⭐ Marketplace syndication
@@ -90,8 +104,11 @@ export default function registerSyndicationRoute(app: Express) {
   // regardless of what was really in any dealer's stock — not a stub,
   // just silently wired to the wrong place. Fixed to read the real,
   // tenant-scoped inventory for the dealership named in the URL.
-  app.get("/syndication/:dealershipId/feed.csv", (req, res) => {
-    const vehicles = readTenantCollection<VehicleLike>(req.params.dealershipId, "vehicles");
+  app.get("/syndication/:dealershipId/feed.csv", feedLimiter, (req, res) => {
+    const dealershipId = req.params.dealershipId;
+    if (!dealershipId) return res.status(400).json({ ok: false, error: "Missing dealership id" });
+
+    const vehicles = readTenantCollection<VehicleLike>(dealershipId, "vehicles");
     const csv = vehiclesToCsv(vehicles);
 
     res.setHeader("Content-Type", "text/csv; charset=utf-8");

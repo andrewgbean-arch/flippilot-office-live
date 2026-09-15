@@ -54,6 +54,22 @@ const bookingLimiter = rateLimit({
   message: { ok: false, error: "Too many booking requests — please try again later." },
 });
 
+// The GET routes below (info/vehicles/booking-settings/available-slots)
+// are also unauthenticated by the same design — the booking widget is
+// meant to be embedded on a dealer's own public website. But unlike
+// the write path above, they had no limiter at all, so once a widget
+// URL is known (which is the point — it's public), a scraper could
+// poll a dealer's live stock/pricing at unlimited rate. Generous
+// enough that a real visitor loading the page and flipping through a
+// few dates never notices it.
+const publicReadLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  limit: process.env.NODE_ENV === "test" ? 1000 : 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { ok: false, error: "Too many requests — please try again shortly." },
+});
+
 function findDealership(dealershipId: string): Dealership | undefined {
   return readCollection<Dealership>("dealerships").find(d => d.id === dealershipId);
 }
@@ -110,7 +126,7 @@ function availableSlotsFor(dealershipId: string, date: string): string[] {
 }
 
 export default function registerPublicBookingRoute(app: Express) {
-  app.get("/public/:dealershipId/info", (req, res) => {
+  app.get("/public/:dealershipId/info", publicReadLimiter, (req, res) => {
     const dealershipId = req.params.dealershipId;
     if (!dealershipId) return res.status(400).json({ ok: false, error: "Missing dealership id" });
 
@@ -123,7 +139,7 @@ export default function registerPublicBookingRoute(app: Express) {
     res.json({ ok: true, name: dealership.name });
   });
 
-  app.get("/public/:dealershipId/vehicles", (req, res) => {
+  app.get("/public/:dealershipId/vehicles", publicReadLimiter, (req, res) => {
     const dealershipId = req.params.dealershipId;
     if (!dealershipId) return res.status(400).json({ ok: false, error: "Missing dealership id" });
 
@@ -146,7 +162,7 @@ export default function registerPublicBookingRoute(app: Express) {
     res.json({ ok: true, items: publicVehicles });
   });
 
-  app.get("/public/:dealershipId/booking-settings", (req, res) => {
+  app.get("/public/:dealershipId/booking-settings", publicReadLimiter, (req, res) => {
     const dealershipId = req.params.dealershipId;
     if (!dealershipId) return res.status(400).json({ ok: false, error: "Missing dealership id" });
 
@@ -157,7 +173,7 @@ export default function registerPublicBookingRoute(app: Express) {
     res.json({ ok: true, settings: readTenantDoc<BookingSettings>(dealershipId, "bookingSettings", DEFAULT_BOOKING_SETTINGS) });
   });
 
-  app.get("/public/:dealershipId/available-slots", (req, res) => {
+  app.get("/public/:dealershipId/available-slots", publicReadLimiter, (req, res) => {
     const dealershipId = req.params.dealershipId;
     if (!dealershipId) return res.status(400).json({ ok: false, error: "Missing dealership id" });
 
