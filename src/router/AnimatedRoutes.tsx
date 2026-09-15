@@ -120,7 +120,6 @@ import MOTWorkflow from "@/dealer/workflow/MOTWorkflow";
 import MOTWorkflowPortfolio from "@/dealer/workflow/MOTWorkflowPortfolio";
 
 /* DEALER AI */
-import VehicleDetailScreen from "@/features/vehicles/VehicleDetailScreen";
 import MOTTimeline from "@/features/dealer-ai/mot/MOTTimeline";
 
 /* MISC */
@@ -281,7 +280,6 @@ export default function AnimatedRoutes() {
         <Route path="dealer/workflow/mot" element={<MOTWorkflowPortfolio />} />
 
         {/* DEALER AI */}
-        <Route path="dealer-ai/vehicle/:id" element={<VehicleDetailScreen />} />
         <Route path="dealer-ai/mot/:id" element={<MOTTimeline />} />
 
         {/* MISC */}

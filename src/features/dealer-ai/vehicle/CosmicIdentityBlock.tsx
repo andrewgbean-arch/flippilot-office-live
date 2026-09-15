@@ -4,9 +4,6 @@ import { FlipRecord } from "@/features/vehicles/models/FlipRecord";
 import { SupernovaGlowCard } from "@/components/supernova/SupernovaGlowCard";
 import { SupernovaSectionDivider } from "@/components/supernova/SupernovaSectionDivider";
 
-import FlipScoreMeter from "@/components/analytics/FlipScoreMeter";
-import MarketHeatIndex from "@/components/analytics/MarketHeatIndex";
-import ConfidenceMeter from "@/components/analytics/ConfidenceMeter";
 import MotAiRiskGauge from "@/components/motors/MotAiRiskGauge";
 
 interface CosmicIdentityBlockProps {
