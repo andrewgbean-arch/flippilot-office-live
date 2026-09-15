@@ -130,7 +130,7 @@ const [showTransactionModal, setShowTransactionModal] = useState(false); // ⭐ 
             to="/bookkeeping/suppliers"
             className="inline-block text-yellow-300 hover:text-yellow-200 font-semibold underline underline-offset-4"
           >
-            View Full Supplier Analytics →
+            View Full Purchase Source Analytics →
           </Link>
         </div>
       </div>

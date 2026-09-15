@@ -37,7 +37,7 @@ export default function NewVehicle() {
 
   const [profit, setProfit] = useState<number | null>(null);
 
-  const [supplier, setSupplier] = useState("");
+  const [source, setSource] = useState("");
   const [vatScheme, setVatScheme] = useState<"margin" | "standard">("margin");
   const [vatRate, setVatRate] = useState("20");
   const [vatIncluded, setVatIncluded] = useState(true);
@@ -139,7 +139,7 @@ export default function NewVehicle() {
       id: crypto.randomUUID(),
       vehicleId: newVehicle.id,
       purchasePrice: buy,
-      supplier: supplier || "Unknown",
+      source: source || "Unknown",
       date: purchaseDate,
       // vatRate is a decimal fraction everywhere else in this module
       // (calculateVat, AddPurchaseModal, BookkeepingProvider) — this UI
@@ -207,7 +207,7 @@ export default function NewVehicle() {
           </div>
         </SupernovaGlowCard>
 
-        <SupernovaSectionDivider label="Pricing & Supplier" />
+        <SupernovaSectionDivider label="Pricing & Source" />
 
         <SupernovaGlowCard>
           <div className="grid grid-cols-2 gap-4">
@@ -225,9 +225,9 @@ export default function NewVehicle() {
 
           <div className="grid grid-cols-2 gap-4 mt-4">
             <SupernovaInput
-              label="Supplier"
-              value={supplier}
-              onChange={setSupplier}
+              label="Purchased From"
+              value={source}
+              onChange={setSource}
               placeholder="Facebook Marketplace, Auction, Trade Seller..."
             />
             <SupernovaInput

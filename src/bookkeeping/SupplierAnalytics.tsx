@@ -16,11 +16,11 @@ export default function SupplierAnalytics() {
   /* -------------------------------------------------------
      ⭐ Build Supplier Analytics
   ------------------------------------------------------- */
-  const supplierStats = useMemo(() => {
+  const sourceStats = useMemo(() => {
     const map: Record<
       string,
       {
-        supplier: string;
+        source: string;
         totalSpend: number;
         totalProfit: number;
         avgBuy: number;
@@ -32,12 +32,12 @@ export default function SupplierAnalytics() {
     > = {};
 
     purchases.forEach((p) => {
-      const supplier = p.supplier ?? "Unknown";
+      const source = p.source ?? "Unknown";
       const vehicle = vehicles.find((v) => v.id === p.vehicleId);
 
-      if (!map[supplier]) {
-        map[supplier] = {
-          supplier,
+      if (!map[source]) {
+        map[source] = {
+          source,
           totalSpend: 0,
           totalProfit: 0,
           avgBuy: 0,
@@ -52,10 +52,10 @@ export default function SupplierAnalytics() {
       const sell = vehicle?.sellPrice ?? null;
       const profit = sell != null ? sell - buy : 0;
 
-      map[supplier].totalSpend += buy;
-      map[supplier].totalProfit += profit;
-      map[supplier].vatTotal += p.vatAmount ?? 0;
-      map[supplier].count += 1;
+      map[source].totalSpend += buy;
+      map[source].totalProfit += profit;
+      map[source].vatTotal += p.vatAmount ?? 0;
+      map[source].count += 1;
     });
 
     // Compute averages
@@ -63,15 +63,15 @@ export default function SupplierAnalytics() {
       s.avgBuy = s.totalSpend / s.count;
       s.avgProfit = s.totalProfit / s.count;
 
-      const supplierVehicles = purchases
-        .filter((p) => p.supplier === s.supplier)
+      const sourceVehicles = purchases
+        .filter((p) => p.source === s.source)
         .map((p) => vehicles.find((v) => v.id === p.vehicleId))
         .filter((v) => v?.sellPrice != null);
 
-      if (supplierVehicles.length > 0) {
+      if (sourceVehicles.length > 0) {
         s.avgSell =
-          supplierVehicles.reduce((sum, v) => sum + (v?.sellPrice ?? 0), 0) /
-          supplierVehicles.length;
+          sourceVehicles.reduce((sum, v) => sum + (v?.sellPrice ?? 0), 0) /
+          sourceVehicles.length;
       } else {
         s.avgSell = 0;
       }
@@ -83,30 +83,30 @@ export default function SupplierAnalytics() {
   return (
     <div className="text-white bg-[#0A1128] min-h-screen p-10 animate-fadeIn">
       <SupernovaHeroHeader
-        title="Supplier Analytics"
+        title="Purchase Source Analytics"
         subtitle="Bookkeeping Module • Performance Dashboard"
       />
 
       <div className="max-w-5xl mx-auto space-y-10">
-        <SupernovaSectionDivider label="Supplier Performance" />
+        <SupernovaSectionDivider label="Source Performance" />
 
-        {supplierStats.length === 0 ? (
+        {sourceStats.length === 0 ? (
           <p className="text-white/60 text-center text-lg">
-            No supplier data available yet.
+            No purchase data available yet.
           </p>
         ) : (
-          supplierStats.map((s) => (
+          sourceStats.map((s) => (
             <div
-              key={s.supplier}
+              key={s.source}
               className="cursor-pointer hover:bg-white/5 transition"
-              onClick={() => navigate(`/supplier/${s.supplier}`)}
+              onClick={() => navigate(`/supplier/${s.source}`)}
             >
               <SupernovaGlowCard>
                 <div className="flex justify-between items-center">
-                  
-                  {/* ⭐ Supplier Name */}
+
+                  {/* ⭐ Source Name */}
                   <div>
-                    <h2 className="text-xl font-bold">{s.supplier}</h2>
+                    <h2 className="text-xl font-bold">{s.source}</h2>
                     <p className="text-white/60 text-sm">
                       {s.count} vehicles purchased
                     </p>

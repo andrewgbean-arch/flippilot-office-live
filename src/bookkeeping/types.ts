@@ -53,7 +53,12 @@ export interface PurchaseEntry {
   id: string;
   vehicleId: string;
   purchasePrice: number;
-  supplier?: string;
+  // Where the vehicle actually came from — a trade-in, an auction, a
+  // private sale, or a real wholesale supplier. Named separately from
+  // CostEntry.supplier (parts/labour costs, where "supplier" is always
+  // accurate) since most vehicle acquisitions here aren't from a
+  // supplier at all.
+  source?: string;
   date: string;
 
   vatRate: number;

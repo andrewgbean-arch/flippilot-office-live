@@ -20,7 +20,7 @@ export default function AddPurchaseModal({ onClose }: AddPurchaseModalProps) {
   const [vatScheme, setVatScheme] = useState<"margin" | "standard">("margin");
   const [vatRate, setVatRate] = useState<string>("20");
   const [vatIncluded, setVatIncluded] = useState<boolean>(true);
-  const [supplier, setSupplier] = useState<string>("");
+  const [source, setSource] = useState<string>("");
   const [date, setDate] = useState<string>(new Date().toISOString().slice(0, 10));
 
   function handleSave() {
@@ -53,7 +53,7 @@ export default function AddPurchaseModal({ onClose }: AddPurchaseModalProps) {
       id: crypto.randomUUID(),
       vehicleId: newVehicle.id,
       purchasePrice: numericPrice,
-      supplier,
+      source,
       date,
       vatRate: numericVatRate,
       vatIncluded,
@@ -143,12 +143,12 @@ export default function AddPurchaseModal({ onClose }: AddPurchaseModalProps) {
           <option value="no">No (VAT added on top)</option>
         </select>
 
-        {/* SUPPLIER */}
-        <label className="text-white/60 text-sm">Supplier</label>
+        {/* PURCHASED FROM */}
+        <label className="text-white/60 text-sm">Purchased From</label>
         <input
           type="text"
-          value={supplier}
-          onChange={(e) => setSupplier(e.target.value)}
+          value={source}
+          onChange={(e) => setSource(e.target.value)}
           placeholder="Trade-in, Auction, Private Sale, BCA..."
           className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-4"
         />

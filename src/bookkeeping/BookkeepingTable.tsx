@@ -32,7 +32,7 @@ export default function BookkeepingTable({ vehicleId }: BookkeepingTableProps) {
       expectedSale: sale?.salePrice ?? 0,
       profit: profitSummary?.profit ?? 0,
       margin: profitSummary?.margin ?? 0,
-      supplier: p.supplier ?? "Unknown",
+      source: p.source ?? "Unknown",
       date: p.date,
       vatDue: sale?.vatAmount,
       vatScheme: sale?.vatScheme,
@@ -57,7 +57,7 @@ export default function BookkeepingTable({ vehicleId }: BookkeepingTableProps) {
             <th className="p-3 text-left">Profit</th>
             <th className="p-3 text-left">Margin</th>
             <th className="p-3 text-left">VAT Due</th>
-            <th className="p-3 text-left">Supplier</th>
+            <th className="p-3 text-left">Purchased From</th>
             <th className="p-3 text-left">Date</th>
             <th className="p-3"></th>
           </tr>
@@ -94,7 +94,7 @@ export default function BookkeepingTable({ vehicleId }: BookkeepingTableProps) {
                   <span className="text-white/30">—</span>
                 )}
               </td>
-              <td className="p-3">{row.supplier}</td>
+              <td className="p-3">{row.source}</td>
               <td className="p-3">{row.date}</td>
               <td className="p-3">
                 <FiChevronRight className="text-white/40 hover:text-yellow-300 transition" />

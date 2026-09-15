@@ -16,31 +16,31 @@ export default function SupplierDetail() {
   const { purchases } = useBookkeeping();
   const { vehicles } = useInventory();
 
-  const supplierName = id ?? "Unknown";
+  const sourceName = id ?? "Unknown";
 
   /* -------------------------------------------------------
-     ⭐ Build Supplier Stats
+     ⭐ Build Source Stats
   ------------------------------------------------------- */
   const stats = useMemo(() => {
-    const supplierPurchases = purchases.filter(
-      (p) => p.supplier?.toLowerCase() === supplierName.toLowerCase()
+    const sourcePurchases = purchases.filter(
+      (p) => p.source?.toLowerCase() === sourceName.toLowerCase()
     );
 
-    const supplierVehicles = supplierPurchases
+    const sourceVehicles = sourcePurchases
       .map((p) => vehicles.find((v) => v.id === p.vehicleId))
       .filter(Boolean);
 
-    const totalSpend = supplierPurchases.reduce(
+    const totalSpend = sourcePurchases.reduce(
       (sum, p) => sum + (p.purchasePrice ?? 0),
       0
     );
 
-    const totalVAT = supplierPurchases.reduce(
+    const totalVAT = sourcePurchases.reduce(
       (sum, p) => sum + (p.vatAmount ?? 0),
       0
     );
 
-    const totalProfit = supplierVehicles.reduce((sum, v) => {
+    const totalProfit = sourceVehicles.reduce((sum, v) => {
       if (v?.sellPrice != null && v?.buyPrice != null) {
         return sum + (v.sellPrice - v.buyPrice);
       }
@@ -48,13 +48,13 @@ export default function SupplierDetail() {
     }, 0);
 
     return {
-      supplierPurchases,
-      supplierVehicles,
+      sourcePurchases,
+      sourceVehicles,
       totalSpend,
       totalVAT,
       totalProfit,
     };
-  }, [purchases, vehicles, supplierName]);
+  }, [purchases, vehicles, sourceName]);
 
   const profitColor = (profit: number) => {
     if (profit < 0) return "text-red-400";
@@ -85,13 +85,13 @@ export default function SupplierDetail() {
       </button>
 
       <SupernovaHeroHeader
-        title={`Supplier: ${supplierName}`}
-        subtitle="Bookkeeping Module • Supplier Detail"
+        title={`Source: ${sourceName}`}
+        subtitle="Bookkeeping Module • Purchase Source Detail"
       />
 
       <div className="max-w-5xl mx-auto space-y-10">
         {/* ⭐ Summary */}
-        <SupernovaSectionDivider label="Supplier Summary" />
+        <SupernovaSectionDivider label="Source Summary" />
 
         <SupernovaGlowCard>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
@@ -119,21 +119,21 @@ export default function SupplierDetail() {
             <div>
               <p className="text-white/60 text-sm">Vehicles Purchased</p>
               <p className="text-white font-bold text-xl">
-                {stats.supplierVehicles.length}
+                {stats.sourceVehicles.length}
               </p>
             </div>
           </div>
         </SupernovaGlowCard>
 
         {/* ⭐ Vehicle List */}
-        <SupernovaSectionDivider label="Vehicles from this Supplier" />
+        <SupernovaSectionDivider label="Vehicles from this Source" />
 
-        {stats.supplierVehicles.length === 0 ? (
+        {stats.sourceVehicles.length === 0 ? (
           <p className="text-white/60 text-center text-lg">
-            No vehicles found for this supplier.
+            No vehicles found for this source.
           </p>
         ) : (
-          stats.supplierVehicles.map((v) => {
+          stats.sourceVehicles.map((v) => {
             const profit =
               v!.sellPrice != null && v!.buyPrice != null
                 ? v!.sellPrice - v!.buyPrice

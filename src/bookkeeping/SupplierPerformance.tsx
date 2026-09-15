@@ -18,7 +18,7 @@ export default function SupplierPerformance() {
     bySupplier[name].count += 1;
   };
 
-  purchases.forEach(p => record(p.supplier, p.purchasePrice));
+  purchases.forEach(p => record(p.source, p.purchasePrice));
   costs.forEach(c => record(c.supplier, c.amount));
 
   const rows = Object.entries(bySupplier).sort((a, b) => b[1].spend - a[1].spend);

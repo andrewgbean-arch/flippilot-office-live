@@ -86,7 +86,7 @@ export default function VehicleOverview() {
           <SupernovaGlowCard>
             <SupernovaSectionDivider label="Purchase Details" />
             <p><span className="text-white/60">Price:</span> £{purchase.purchasePrice.toLocaleString()}</p>
-            <p><span className="text-white/60">Supplier:</span> {purchase.supplier}</p>
+            <p><span className="text-white/60">Purchased From:</span> {purchase.source}</p>
             <p><span className="text-white/60">Date:</span> {purchase.date}</p>
             <p><span className="text-white/60">VAT:</span> £{purchase.vatAmount.toLocaleString()}</p>
             <p><span className="text-white/60">Net:</span> £{purchase.netAmount.toLocaleString()}</p>

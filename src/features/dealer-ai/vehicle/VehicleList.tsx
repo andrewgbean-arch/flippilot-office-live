@@ -120,7 +120,7 @@ export default function VehicleList() {
         ) : (
           filteredVehicles.map((v) => {
             const purchase = purchases.find((p) => p.vehicleId === v.id);
-            const supplier = purchase?.supplier ?? "Unknown";
+            const supplier = purchase?.source ?? "Unknown";
 
             return (
               <div
