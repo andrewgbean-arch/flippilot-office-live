@@ -12,7 +12,7 @@ interface DiaryContextType {
   entries: DiaryEntry[];
   loading: boolean;
   addEntry: (input: { date: string; text: string; isTask: boolean }) => Promise<string | null>;
-  updateEntry: (id: string, patch: { text?: string; done?: boolean }) => Promise<void>;
+  updateEntry: (id: string, patch: { text?: string; done?: boolean }) => Promise<string | null>;
   removeEntry: (id: string) => Promise<void>;
 }
 
@@ -45,7 +45,9 @@ export function DiaryProvider({ children }: { children: React.ReactNode }) {
     const res = await updateDiaryEntryApi(id, patch);
     if (res.ok && res.entry) {
       setEntries(prev => prev.map(e => (e.id === id ? res.entry! : e)));
+      return null;
     }
+    return res.error ?? "Could not update diary entry";
   }
 
   async function removeEntry(id: string) {

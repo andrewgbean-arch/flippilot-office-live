@@ -30,6 +30,11 @@ export default function DiaryBoard() {
     setText("");
   }
 
+  async function handleToggleDone(id: string, done: boolean) {
+    const err = await updateEntry(id, { done });
+    if (err) setError(err);
+  }
+
   return (
     <div className="sn-dashboard sn-dashboard--cosmic">
       <header className="sn-hero">
@@ -100,7 +105,7 @@ export default function DiaryBoard() {
                       <input
                         type="checkbox"
                         checked={entry.done}
-                        onChange={e => updateEntry(entry.id, { done: e.target.checked })}
+                        onChange={e => handleToggleDone(entry.id, e.target.checked)}
                       />
                     ) : (
                       <span style={{ width: 16, display: "inline-block", textAlign: "center" }}>•</span>
