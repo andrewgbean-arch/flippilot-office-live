@@ -176,6 +176,34 @@ export default function AIInsights() {
               )}
             </SupernovaCard>
           </section>
+
+          {/* Row 4 — dealerSummary already computes riskRadar and
+              profitConsistency (SuperBrainEngine.ts), same as every other
+              card on this page, but neither was actually displayed
+              anywhere until now. */}
+          <section className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8 relative z-10">
+            <SupernovaCard title="Risk Radar">
+              <div className="space-y-2 text-sm text-white/80">
+                <p>MOT failures on record: {dealerSummary.riskRadar.motFailures}</p>
+                <p>Heavy advisory count: {dealerSummary.riskRadar.motAdvisoriesHeavy}</p>
+                <p>Loss-making flips: {dealerSummary.riskRadar.lossMakingFlips}</p>
+              </div>
+            </SupernovaCard>
+
+            <SupernovaCard title="Profit Consistency">
+              <div className="space-y-2 text-sm text-white/80">
+                <p>Average profit per flip: £{dealerSummary.profitConsistency.avgProfit.toLocaleString()}</p>
+                <p>
+                  Best: £{dealerSummary.profitConsistency.bestProfit.toLocaleString()} • Worst: £
+                  {dealerSummary.profitConsistency.worstProfit.toLocaleString()}
+                </p>
+                <p>
+                  {dealerSummary.profitConsistency.profitableCount} profitable •{" "}
+                  {dealerSummary.profitConsistency.lossCount} loss-making
+                </p>
+              </div>
+            </SupernovaCard>
+          </section>
         </main>
 
         {/* FOOTER */}
