@@ -22,6 +22,22 @@ export default function ReconWorkflow() {
 
   const [newItem, setNewItem] = useState("");
   const [newCost, setNewCost] = useState("");
+  const [addError, setAddError] = useState<string | null>(null);
+
+  // ⭐ Filter recon costs for this vehicle — kept above the "vehicle not
+  // found" early return below so this hook always runs, every render,
+  // regardless of whether InventoryProvider has finished loading yet.
+  // It used to sit after the early return: on a fresh page load, the
+  // first render (before vehicles have loaded) hits that return with
+  // fewer hooks called than a later render once the real vehicle is
+  // found — React throws "Rendered more hooks than during the previous
+  // render" and the whole screen crashes to the error boundary, every
+  // single time this route is opened directly (not just an edge case).
+  const reconItems = vehicle ? costs.filter((c) => c.vehicleId === vehicle.id) : [];
+
+  const totalRecon = useMemo(() => {
+    return reconItems.reduce((sum, c) => sum + (c.amount ?? 0), 0);
+  }, [reconItems]);
 
   if (!vehicle) {
     return (
@@ -38,19 +54,14 @@ export default function ReconWorkflow() {
   }
 
   /* -------------------------------------------------------
-     ⭐ Filter recon costs for this vehicle
-  ------------------------------------------------------- */
-  const reconItems = costs.filter((c) => c.vehicleId === vehicle.id);
-
-  const totalRecon = useMemo(() => {
-    return reconItems.reduce((sum, c) => sum + (c.amount ?? 0), 0);
-  }, [reconItems]);
-
-  /* -------------------------------------------------------
      ⭐ Add Recon Item
   ------------------------------------------------------- */
   const handleAddRecon = () => {
-  if (!newItem.trim() || !newCost.trim()) return;
+  if (!newItem.trim() || !newCost.trim()) {
+    setAddError("Enter both an item description and a cost before adding.");
+    return;
+  }
+  setAddError(null);
 
   const amount = Number(newCost);
 
@@ -163,6 +174,7 @@ export default function ReconWorkflow() {
 
             <SupernovaGlowButton label="Add" onClick={handleAddRecon} />
           </div>
+          {addError && <p className="text-red-400 text-sm mt-3">{addError}</p>}
         </SupernovaGlowCard>
 
         {/* ⭐ Recon Items List */}

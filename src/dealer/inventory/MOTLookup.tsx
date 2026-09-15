@@ -35,6 +35,7 @@ export default function MOTLookup() {
 
   const [matchedVehicle, setMatchedVehicle] = useState<{ id: string; make: string; model: string } | null>(null);
   const [added, setAdded] = useState(false);
+  const [regError, setRegError] = useState<string | null>(null);
 
   const theme = {
     card: "#0A0F1F",
@@ -83,7 +84,11 @@ export default function MOTLookup() {
   const motAi = useMemo(() => (mot ? motAiEngine(mot, mot.history ?? []) : EMPTY_MOT_AI), [mot]);
 
   async function handleLookup() {
-    if (!reg.trim()) return;
+    if (!reg.trim()) {
+      setRegError("Enter a registration before looking it up.");
+      return;
+    }
+    setRegError(null);
 
     setLoading(true);
     const result = await fetchMOT(reg.trim().toUpperCase());
@@ -152,6 +157,7 @@ export default function MOTLookup() {
           </button>
         </div>
 
+        {regError && <p className="text-red-400 mb-4">{regError}</p>}
         <p className="text-white/60">Enter a reg to fetch MOT history.</p>
       </div>
     );
@@ -184,6 +190,8 @@ export default function MOTLookup() {
           Lookup
         </button>
       </div>
+
+      {regError && <p className="text-red-400 mb-4">{regError}</p>}
 
       <MOTStatusCard
         status={motStatus}

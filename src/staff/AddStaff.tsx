@@ -15,9 +15,15 @@ export default function AddStaff() {
   const [branch, setBranch] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
 
   async function handleAdd() {
-    if (!name.trim()) return;
+    if (!name.trim()) {
+      setError("Enter the staff member's name before saving.");
+      return;
+    }
+    setError(null);
 
     const newStaff: StaffRecord = {
       id: crypto.randomUUID(),
@@ -37,6 +43,9 @@ export default function AddStaff() {
     setBranch("");
     setEmail("");
     setPhone("");
+
+    setSaved(true);
+    setTimeout(() => setSaved(false), 3000);
   }
 
   if (!canWrite) {
@@ -100,9 +109,14 @@ export default function AddStaff() {
           onChange={e => setPhone(e.target.value)}
         />
 
-        <button className="sn-btn sn-btn--gold" onClick={handleAdd}>
-          Add Staff
-        </button>
+        {error && <p className="sn-form-note" style={{ color: "#ff8080" }}>{error}</p>}
+
+        <div className="sn-detail-actions">
+          <button className="sn-btn sn-btn--gold" onClick={handleAdd}>
+            Add Staff
+          </button>
+          {saved && <span className="sn-saved-note">Staff member added</span>}
+        </div>
 
         <p className="sn-form-note">
           You can add NI number, address, skills, and notes after creating the staff member.

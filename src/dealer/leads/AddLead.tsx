@@ -14,9 +14,14 @@ export default function AddLead() {
   const [status, setStatus] = useState<LeadStatus>("new");
   const [notes, setNotes] = useState("");
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleAdd() {
-    if (!name.trim()) return;
+    if (!name.trim()) {
+      setError("Enter the lead's name before saving.");
+      return;
+    }
+    setError(null);
 
     const newLead: Lead = {
       id: crypto.randomUUID(),
@@ -114,6 +119,8 @@ export default function AddLead() {
           onChange={e => setNotes(e.target.value)}
           rows={3}
         />
+
+        {error && <p className="sn-form-note" style={{ color: "#ff8080" }}>{error}</p>}
 
         <div className="sn-detail-actions">
           <button className="sn-btn sn-btn--gold" onClick={handleAdd}>
