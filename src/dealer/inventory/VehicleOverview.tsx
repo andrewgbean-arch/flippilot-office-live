@@ -212,7 +212,7 @@ export default function VehicleOverview() {
             </button>
 
             <button
-              onClick={() => navigate(`/dealer-ai/recon/${vehicleId}`)}
+              onClick={() => navigate(`/dealer/workflow/recon/${vehicleId}`)}
               className="px-4 py-2 bg-green-500 text-black rounded-xl font-bold hover:bg-green-400"
             >
               Recon Workflow

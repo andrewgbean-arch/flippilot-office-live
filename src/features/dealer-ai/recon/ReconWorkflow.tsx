@@ -2,7 +2,7 @@ import React, { useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { FiArrowLeft } from "react-icons/fi";
 
-import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
+import { useInventory } from "@/context/InventoryProvider";
 import { useBookkeeping } from "@/bookkeeping/BookkeepingProvider";
 
 import { SupernovaHeroHeader } from "@/components/supernova/SupernovaHeroHeader";
@@ -15,7 +15,7 @@ export default function ReconWorkflow() {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  const { vehicles } = useVehicleHistory();
+  const { vehicles } = useInventory();
   const { costs, addCost } = useBookkeeping();
 
   const vehicle = vehicles.find((v) => v.id === id);
@@ -102,7 +102,7 @@ export default function ReconWorkflow() {
       </button>
 
       <SupernovaHeroHeader
-        title={`Recon Workflow: ${vehicle.title}`}
+        title={`Recon Workflow: ${vehicle.make} ${vehicle.model}`}
         subtitle="Dealer AI • Vehicle Preparation & Costs"
       />
 
@@ -129,7 +129,7 @@ export default function ReconWorkflow() {
             <div>
               <p className="text-white/60 text-sm">AI Recon Estimate</p>
               <p className="text-white font-bold text-xl">
-                £{Math.max(150, (vehicle.mot?.mileage ?? 60000) / 10).toFixed(0)}
+                £{Math.max(150, (vehicle.mileage ?? vehicle.mot?.mileage ?? 60000) / 10).toFixed(0)}
               </p>
             </div>
 
