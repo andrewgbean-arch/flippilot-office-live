@@ -1,5 +1,23 @@
 import { Express, Request } from "express";
+import rateLimit from "express-rate-limit";
 import type { AuthUser } from "../auth";
+
+// Unlike this backend's other rate-limited routes, the cost here isn't
+// abuse volume on a free endpoint — it's real money. Once a real
+// ANTHROPIC_API_KEY is configured, every call to this route is a
+// billed API request. Being authenticated (requireAuth +
+// requireActiveSubscription already gate it) isn't enough on its own:
+// a compromised staff login, a frontend retry bug, or someone just
+// holding the "Generate" button down could still run up real spend
+// with no cap. Generous enough that listing several vehicles in one
+// session never gets close to it.
+const aiDescriptionLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: process.env.NODE_ENV === "test" ? 500 : 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { ok: false, error: "Too many AI description requests — please try again later." },
+});
 
 function authedUser(req: Request): AuthUser {
   return (req as Request & { user: AuthUser }).user;
@@ -47,7 +65,7 @@ function buildPrompt(v: VehicleDescriptionInput): string {
 // outbound email in this app. Every fact in the prompt comes from the
 // vehicle's own real stored data; nothing is invented server-side.
 export default function registerAiListingRoute(app: Express) {
-  app.post("/ai/vehicle-description", async (req, res) => {
+  app.post("/ai/vehicle-description", aiDescriptionLimiter, async (req, res) => {
     authedUser(req); // requireAuth already ran; just confirms a real session
 
     const apiKey = process.env.ANTHROPIC_API_KEY;
