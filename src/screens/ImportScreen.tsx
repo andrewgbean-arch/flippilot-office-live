@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useInventory } from "@/context/InventoryProvider";
 import { useConsumables } from "@/context/ConsumablesContext";
+import { useBookkeeping } from "@/bookkeeping/BookkeepingProvider";
 import { parseCSVWithHeaders, guessColumn } from "@/lib/csv";
 
 type ImportType = "vehicles" | "consumables";
@@ -41,6 +42,7 @@ const CONSUMABLE_FIELDS: FieldSpec[] = [
 export default function ImportScreen() {
   const { importVehicles } = useInventory();
   const { importConsumables } = useConsumables();
+  const { addPurchase } = useBookkeeping();
 
   const [type, setType] = useState<ImportType>("vehicles");
   const [fileName, setFileName] = useState<string | null>(null);
@@ -128,7 +130,30 @@ export default function ImportScreen() {
           sellPrice: r.values.sellPrice ? Number(r.values.sellPrice) || null : null,
           notes: r.values.notes || null,
         }));
-        importVehicles(payload);
+        const created = importVehicles(payload);
+        // Without this, an imported vehicle's buyPrice sits only on the
+        // Vehicle record — Pricing Workflow (and anything else keyed off
+        // bookkeeping.purchases, e.g. margin-scheme sale calculations)
+        // looks for a matching PurchaseEntry and finds none, so every
+        // imported car would show "Vehicle Not Found" there forever.
+        // Mirrors NewVehicle.tsx's manual add-vehicle flow. VAT is left
+        // at 0/not-included since the CSV carries no VAT information —
+        // better to under-claim than fabricate a reclaim that isn't real.
+        created.forEach((vehicle) => {
+          if (vehicle.buyPrice != null) {
+            addPurchase({
+              id: crypto.randomUUID(),
+              vehicleId: vehicle.id,
+              purchasePrice: vehicle.buyPrice,
+              source: "CSV Import",
+              date: new Date().toISOString(),
+              vatRate: 0,
+              vatIncluded: false,
+              vatAmount: 0,
+              netAmount: vehicle.buyPrice,
+            });
+          }
+        });
       } else {
         const payload = usable.map((r) => ({
           name: r.values.name ?? "",
