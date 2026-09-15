@@ -124,11 +124,19 @@ function daysBetween(start: string | null | undefined, end: string | null | unde
   return Math.ceil((e - s) / 86400000);
 }
 
+// Despite the name (kept to avoid touching every call site), this
+// never actually parsed a UK-formatted date — it split on "/" and
+// expected DD/MM/YYYY, but every real MOT expiry in this app is stored
+// ISO (YYYY-MM-DD, e.g. from DVSA or this app's own date pickers).
+// Splitting an ISO string on "/" produces a single non-numeric token,
+// so day/month/year all came out NaN and this silently returned null
+// for every real vehicle, every time — meaning expiredMOT/mot30Days/
+// mot60Days below were always 0 regardless of real data. A plain
+// `new Date(dateStr)` parses ISO correctly.
 function parseUkDate(dateStr?: string | null) {
   if (!dateStr) return null;
-  const [day, month, year] = dateStr.split("/").map(Number);
-  if (!day || !month || !year) return null;
-  return new Date(year, month - 1, day);
+  const d = new Date(dateStr);
+  return isNaN(d.getTime()) ? null : d;
 }
 
 function safeDivide(a: number, b: number, fallback = 0) {
@@ -183,14 +191,17 @@ export function getRiskRadarSummary(vehicles: FlipRecord[]): RiskRadarSummary {
   let motFailures = 0;
   let motAdvisoriesHeavy = 0;
   let lossMakingFlips = 0;
+  const now = new Date();
 
   vehicles.forEach(v => {
     const mot = v.mot ?? {};
     const failures = mot.failures ?? [];
     const advisories = mot.advisories ?? [];
     const status = mot.motStatus ?? "pass";
+    const expiry = parseUkDate(mot.motExpiry ?? mot.expiryDate ?? null);
+    const expired = expiry !== null && expiry.getTime() < now.getTime();
 
-    if (status === "fail" || failures.length > 0) motFailures++;
+    if (status === "fail" || failures.length > 0 || expired) motFailures++;
     if (advisories.length > 3) motAdvisoriesHeavy++;
 
     const profit = (v.sellPrice ?? v.valuation ?? 0) - (v.buyPrice ?? 0);
@@ -336,6 +347,7 @@ export function getPriceEfficiencySummary(vehicles: FlipRecord[]): PriceEfficien
 
 export function getSmartAlertsSummary(vehicles: FlipRecord[]): SmartAlertsSummary {
   const alerts: string[] = [];
+  const now = new Date();
 
   vehicles.forEach(v => {
     const mot = v.mot ?? {};
@@ -343,6 +355,16 @@ export function getSmartAlertsSummary(vehicles: FlipRecord[]): SmartAlertsSummar
     const advisories = mot.advisories ?? [];
     const status = mot.motStatus ?? "pass";
     const reg = mot.reg ?? v.title;
+
+    // A vehicle's last actual test can have passed even though today is
+    // past its expiry date — that's the far more common case (an MOT
+    // simply ran out) and getMotHealthSummary's "expired" count above
+    // already surfaces it, so alerts here need the same date check or
+    // the two panels contradict each other.
+    const expiry = parseUkDate(mot.motExpiry ?? mot.expiryDate ?? null);
+    if (expiry !== null && expiry.getTime() < now.getTime()) {
+      alerts.push(`⏰ ${reg}: MOT expired`);
+    }
 
     if (status === "fail") alerts.push(`❗ ${reg}: MOT failed`);
     if (advisories.length > 3) alerts.push(`⚠️ ${reg}: High advisory count`);

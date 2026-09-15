@@ -13,12 +13,12 @@ import MOTHealthScore from "@/components/motors/MOTHealthScore";
 import MOTFailuresList from "@/components/motors/MOTFailuresList";
 import MOTAdvisoriesList from "@/components/motors/MOTAdvisoriesList";
 
-import { CosmicRibbon } from "@/components/supernova/CosmicRibbon";
 import { CosmicIdentityBlock } from "@/features/dealer-ai/vehicle/CosmicIdentityBlock";
 
-import { ultraInventory } from "@/dealer/ultraInventory";
+import { useInventory } from "@/context/InventoryProvider";
 import { FlipRecord, FlipRecordDefaults } from "@/features/vehicles/models/FlipRecord";
 import { Vehicle } from "@/types/Vehicle";
+import { sortMotHistoryDesc } from "@/components/motors/MotTestCard";
 
 function vehicleToFlipRecord(v: Vehicle): FlipRecord {
   return {
@@ -46,29 +46,54 @@ function vehicleToFlipRecord(v: Vehicle): FlipRecord {
       year: v.year,
       reg: v.mot.reg ?? null,
       motExpiry: v.mot.expiry ?? null,
+      motStatus: v.mot.motStatus?.toLowerCase() ?? null,
       advisories: v.mot.advisories ?? [],
-      failures: [], // Vehicle.mot does NOT include failures
+      failures: latestFailures(v),
       colour: v.mot.colour ?? v.colour ?? null,
       keepers: null,
       mileage: v.mot.mileage ?? v.mileage ?? null,
     },
 
     flipScore: v.supernovaScore ?? null,
+    // No standalone AI valuation model exists yet — reuse the real,
+    // already-computed FlipScore as a stand-in confidence figure rather
+    // than a hardcoded constant.
+    aiValuation: {
+      ...FlipRecordDefaults.aiValuation,
+      estimatedValue: v.priceRetail ?? null,
+      confidence: v.supernovaScore ?? null,
+    },
     notes: v.notes ?? null,
   };
+}
+
+function latestFailures(v: Vehicle): string[] {
+  const latest = sortMotHistoryDesc(v.mot.history ?? [])[0];
+  return latest?.result?.toUpperCase() === "FAIL" ? latest.failures ?? [] : [];
 }
 
 export default function VehicleDetailScreen() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { vehicles } = useInventory();
 
-  const vehicle: Vehicle | undefined = ultraInventory.find(
+  const vehicle: Vehicle | undefined = vehicles.find(
     (v: Vehicle) => v.id === id
   );
 
   if (!vehicle) return <div>Vehicle not found.</div>;
 
   const flipRecord = vehicleToFlipRecord(vehicle);
+
+  const failedTests = sortMotHistoryDesc(vehicle.mot.history ?? [])
+    .filter((h) => h.result?.toUpperCase() === "FAIL" && (h.failures?.length ?? 0) > 0)
+    .map((h) => ({
+      ...(h.date ? { date: h.date } : {}),
+      ...(h.year !== undefined ? { year: h.year } : {}),
+      mileage: h.mileage ?? null,
+      testNumber: h.testNumber ?? null,
+      failures: h.failures ?? [],
+    }));
 
   const theme = {
     goldDeep: "#C99700",
@@ -79,7 +104,6 @@ export default function VehicleDetailScreen() {
 
   return (
       <div className="space-y-10">
-        <CosmicRibbon />
         <CosmicIdentityBlock vehicle={flipRecord} />
 
         <VehicleHeaderCard
@@ -111,7 +135,7 @@ export default function VehicleDetailScreen() {
         <div className="space-y-6">
           <MOTInsightsPanel mot={flipRecord.mot} />
           <MOTHealthScore mot={flipRecord.mot} />
-          <MOTFailuresList failedTests={[]} />
+          <MOTFailuresList failedTests={failedTests} />
           <MOTAdvisoriesList advisories={flipRecord.mot?.advisories ?? []} />
 
           {/* Navigate to full MOTTimeline page instead of passing props */}

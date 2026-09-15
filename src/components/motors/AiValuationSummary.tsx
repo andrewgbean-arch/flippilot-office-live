@@ -16,7 +16,7 @@ export default function AiValuationSummary({ vehicle }: Props) {
   const theme = defaultTheme;
 
   const aiValuation = vehicle.valuation
-    ? { estimatedValue: vehicle.valuation, confidence: 80 }
+    ? { estimatedValue: vehicle.valuation, confidence: vehicle.aiValuation?.confidence ?? 0 }
     : null;
 
   if (!aiValuation) return null;

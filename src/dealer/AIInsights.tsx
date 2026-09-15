@@ -14,6 +14,7 @@ import {
   getSmartAlertsSummary,
 } from "@/core/superbrain/SuperBrainEngine";
 import type { FlipRecord } from "@/features/vehicles/models/FlipRecord";
+import { sortMotHistoryDesc } from "@/components/motors/MotTestCard";
 
 export default function AIInsights() {
   const { vehicles, loading: inventoryLoading } = useInventory();
@@ -42,18 +43,29 @@ export default function AIInsights() {
 
   // Same Vehicle → FlipRecord mapping IntelligenceProvider uses, so the
   // fleet-level SuperBrainEngine summaries line up with the per-vehicle
-  // scores it already computed.
-  const flipRecords: FlipRecord[] = vehicles.map((v) => ({
-    id: v.id,
-    title: `${v.make} ${v.model}`,
-    buyPrice: v.priceTrade ?? 0,
-    sellPrice: v.priceRetail ?? null,
-    valuation: v.priceRetail ?? null,
-    mileage: v.mileage,
-    flipScore: flipScores[v.id] ?? 0,
-    timestamp: new Date().toISOString(),
-    mot: { motExpiry: v.mot?.expiry ?? null },
-  }));
+  // scores it already computed. getSmartAlertsSummary needs more than
+  // motExpiry to raise real alerts — motStatus/advisories/failures are
+  // derived from the same real mot.history the MOT Workflow screen uses.
+  const flipRecords: FlipRecord[] = vehicles.map((v) => {
+    const latestTest = sortMotHistoryDesc(v.mot?.history ?? [])[0];
+    return {
+      id: v.id,
+      title: `${v.make} ${v.model}`,
+      buyPrice: v.priceTrade ?? 0,
+      sellPrice: v.priceRetail ?? null,
+      valuation: v.priceRetail ?? null,
+      mileage: v.mileage,
+      flipScore: flipScores[v.id] ?? 0,
+      timestamp: new Date().toISOString(),
+      mot: {
+        reg: v.reg ?? null,
+        motExpiry: v.mot?.expiry ?? null,
+        motStatus: v.mot?.motStatus?.toLowerCase() ?? null,
+        advisories: v.mot?.advisories ?? [],
+        failures: latestTest?.result?.toUpperCase() === "FAIL" ? (latestTest.failures ?? []) : [],
+      },
+    };
+  });
 
   const dealerSummary = getDealerSummary(flipRecords);
   const businessScore = getBusinessScoreSummary(flipRecords);
