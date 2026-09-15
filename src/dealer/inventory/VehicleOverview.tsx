@@ -12,7 +12,6 @@ import MOTWorkflow from "@/dealer/workflow/MOTWorkflow";
 import { SupernovaHeroHeader } from "@/components/supernova/SupernovaHeroHeader";
 import { SupernovaGlowCard } from "@/components/supernova/SupernovaGlowCard";
 import { SupernovaSectionDivider } from "@/components/supernova/SupernovaSectionDivider";
-import { CosmicRibbon } from "@/components/supernova/CosmicRibbon";
 
 import { CosmicIdentityBlock } from "@/features/dealer-ai/vehicle/CosmicIdentityBlock";
 import { BuyOrWalkPanel } from "@/features/dealer-ai/buy-or-walk/BuyOrWalkPanel";
@@ -115,8 +114,6 @@ export default function VehicleOverview() {
       {/* OVERVIEW TAB */}
       {tab === "overview" && (
         <div className="space-y-10">
-          <CosmicRibbon />
-
           <SupernovaGlowCard>
             <SupernovaSectionDivider label="Vehicle Snapshot" />
             <p><span className="text-white/60">Make:</span> {vehicle.make}</p>

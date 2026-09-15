@@ -4,7 +4,6 @@ import {
   FiSearch,
   FiCpu,
   FiBell,
-  FiMessageSquare,
 } from "react-icons/fi";
 import { FaCarSide } from "react-icons/fa";
 import { FiTrendingUp } from "react-icons/fi";
@@ -56,19 +55,6 @@ export default function DashboardFooter() {
     },
   ];
 
-  const comms = [
-    {
-      label: "Messages",
-      icon: <FiMessageSquare className="text-yellow-300" />,
-      to: "/messages",
-    },
-    {
-      label: "Chat",
-      icon: <FiMessageSquare className="text-teal-300" />,
-      to: "/chat",
-    },
-  ];
-
   return (
     <div
       className="
@@ -108,28 +94,6 @@ export default function DashboardFooter() {
             </div>
             <span className="text-[10px] font-medium tracking-wide">
               {a.label}
-            </span>
-          </Link>
-        ))}
-      </div>
-
-      {/* CENTER — COMMS */}
-      <div className="flex gap-4 lg:gap-12">
-        {comms.map((c, i) => (
-          <Link
-            key={i}
-            to={c.to}
-            className="
-              flex flex-col items-center gap-1
-              text-white/80 hover:text-yellow-300 transition
-              group
-            "
-          >
-            <div className="text-xl group-hover:scale-125 transition drop-shadow-[0_0_8px_rgba(255,215,0,0.4)]">
-              {c.icon}
-            </div>
-            <span className="text-[10px] font-medium tracking-wide">
-              {c.label}
             </span>
           </Link>
         ))}

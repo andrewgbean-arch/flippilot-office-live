@@ -19,6 +19,7 @@ import PrivacyScreen from "@/screens/PrivacyScreen";
 
 /* HOME */
 import HomeScreen from "@/screens/HomeScreen";
+import SearchScreen from "@/screens/SearchScreen";
 
 /* PUBLIC BOOKING */
 import PublicBookingPage from "@/public/PublicBookingPage";
@@ -162,6 +163,9 @@ export default function AnimatedRoutes() {
 
         {/* HOME */}
         <Route index element={<HomeScreen />} />
+
+        {/* SEARCH */}
+        <Route path="search" element={<SearchScreen />} />
 
         {/* DASHBOARD */}
         <Route path="dealer-dashboard" element={<DealerDashboard />} />
