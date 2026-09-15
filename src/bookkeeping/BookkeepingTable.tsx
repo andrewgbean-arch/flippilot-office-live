@@ -17,8 +17,18 @@ export default function BookkeepingTable({ vehicleId }: BookkeepingTableProps) {
   } = useBookkeeping();
   const { vehicles } = useInventory();
 
-  // Build dynamic ledger from provider data
-  const ledger = purchases.map((p) => {
+  // Build dynamic ledger from provider data — scoped to vehicleId when
+  // given. Previously this prop was only used in the header text
+  // ("Vehicle ID: X"), while the table body below it still mapped over
+  // EVERY purchase regardless, so CostsTab.tsx (the real "Costs" tab on
+  // a vehicle's own overview page) showed every other vehicle's
+  // purchase/cost/profit rows mixed in under a header claiming to be
+  // scoped to just the one vehicle being viewed.
+  const scopedPurchases = vehicleId
+    ? purchases.filter((p) => p.vehicleId === vehicleId)
+    : purchases;
+
+  const ledger = scopedPurchases.map((p) => {
     const sale = sales.find((s) => s.vehicleId === p.vehicleId);
     const totalCost = getTotalCostForVehicle(p.vehicleId);
     const profitSummary = getProfitForVehicle(p.vehicleId);
