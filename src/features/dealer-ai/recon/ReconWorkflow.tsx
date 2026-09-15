@@ -17,7 +17,7 @@ export default function ReconWorkflow() {
   const navigate = useNavigate();
 
   const { vehicles } = useInventory();
-  const { costs, addCost } = useBookkeeping();
+  const { costs, addCost, deleteCost } = useBookkeeping();
   const { consumables, recordStockMovement } = useConsumables();
 
   const vehicle = vehicles.find((v) => v.id === id);
@@ -29,6 +29,7 @@ export default function ReconWorkflow() {
   const [qtyUsed, setQtyUsed] = useState("1");
   const [addError, setAddError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [removingId, setRemovingId] = useState<string | null>(null);
 
   const linkedConsumable = useStock ? consumables.find((c) => c.id === linkedConsumableId) ?? null : null;
 
@@ -128,7 +129,11 @@ export default function ReconWorkflow() {
     supplier: undefined,
     notes: undefined,
     ...(linkedConsumable
-      ? { consumableId: linkedConsumable.id, ...(linkedConsumable.partNumber ? { partNumber: linkedConsumable.partNumber } : {}) }
+      ? {
+          consumableId: linkedConsumable.id,
+          quantityUsed: qty,
+          ...(linkedConsumable.partNumber ? { partNumber: linkedConsumable.partNumber } : {}),
+        }
       : {}),
 
     // ⭐ Date
@@ -140,6 +145,31 @@ export default function ReconWorkflow() {
   setNewCost("");
   setLinkedConsumableId("");
   setQtyUsed("1");
+};
+
+/* -------------------------------------------------------
+   ⭐ Remove Recon Item — there was previously no way at all to
+   correct a mistake (wrong item, wrong quantity) once logged, even
+   though deleteCost already existed and was used elsewhere in this
+   app. Matters more now than it used to: a stock-linked entry's
+   deduction is real, so removing the cost without also giving the
+   stock back would leave Consumables permanently short by whatever
+   was wrongly logged.
+------------------------------------------------------- */
+const handleRemoveRecon = async (item: (typeof reconItems)[number]) => {
+  setRemovingId(item.id);
+  if (item.consumableId && item.quantityUsed) {
+    // Same sign convention as the deduction itself, just reversed —
+    // logged as its own real, visible "returned" entry in that item's
+    // stock history, not a silent correction.
+    await recordStockMovement(item.consumableId, {
+      type: "adjust",
+      quantity: item.quantityUsed,
+      note: `Recon item removed: ${item.label}`,
+    });
+  }
+  deleteCost(item.id);
+  setRemovingId(null);
 };
 
 
@@ -293,9 +323,18 @@ export default function ReconWorkflow() {
                     </p>
                   </div>
 
-                  <p className="text-yellow-300 font-bold text-xl">
-                    £{item.amount}
-                  </p>
+                  <div className="flex items-center gap-4">
+                    <p className="text-yellow-300 font-bold text-xl">
+                      £{item.amount}
+                    </p>
+                    <button
+                      onClick={() => handleRemoveRecon(item)}
+                      disabled={removingId === item.id}
+                      className="px-3 py-1 rounded text-xs font-semibold bg-red-500/20 text-red-300 hover:bg-red-500/30 disabled:opacity-50"
+                    >
+                      {removingId === item.id ? "Removing…" : "Remove"}
+                    </button>
+                  </div>
                 </div>
               </SupernovaGlowCard>
             );

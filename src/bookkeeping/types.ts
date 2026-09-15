@@ -48,8 +48,12 @@ export interface CostEntry {
   // set when the cost was raised against real stock (not a one-off
   // labour/misc line) so the part it used is traceable after the fact,
   // and so the stock count can be deducted automatically when logged.
+  // quantityUsed is the exact amount that was deducted, kept alongside
+  // consumableId so a later deletion of this cost entry can give that
+  // exact quantity back rather than guessing from the cost amount.
   partNumber?: string;
   consumableId?: string;
+  quantityUsed?: number;
 }
 
 
