@@ -2,14 +2,17 @@ import { useState } from "react";
 import { useConsumables } from "@/context/ConsumablesContext";
 import { useDealer } from "@/context/DealerContext";
 import AddConsumableModal from "./AddConsumableModal";
+import StockMovementModal from "./StockMovementModal";
 import type { Consumable } from "./consumableTypes";
 import "@/staff/StaffDashboard.css";
 
 export default function ConsumablesBoard() {
-  const { consumables, loading, updateStock, removeConsumable } = useConsumables();
+  const { consumables, loading, removeConsumable } = useConsumables();
   const { dealer } = useDealer();
   const [showAdd, setShowAdd] = useState(false);
   const [editing, setEditing] = useState<Consumable | null>(null);
+  const [stockItemId, setStockItemId] = useState<string | null>(null);
+  const stockItem = stockItemId ? consumables.find(c => c.id === stockItemId) ?? null : null;
 
   // Not every low-stock item needs to go in THIS order — staff tick off
   // exactly what they actually want sent today; unticked items just
@@ -143,6 +146,13 @@ export default function ConsumablesBoard() {
                             style={{ width: 60, flexShrink: 0 }}
                           />
                           {item.unit && <span className="sn-empty" style={{ fontSize: 12, flexShrink: 0 }}>{item.unit}</span>}
+                          <button
+                            className="sn-btn sn-btn--ghost"
+                            style={{ padding: "4px 10px", fontSize: 12, flexShrink: 0 }}
+                            onClick={() => setStockItemId(item.id)}
+                          >
+                            Stock arrived
+                          </button>
                         </div>
                       ))}
                     </div>
@@ -208,13 +218,13 @@ export default function ConsumablesBoard() {
                           )}
                         </td>
                         <td>
-                          <input
-                            type="number"
-                            className="sn-input"
-                            style={{ width: 80 }}
-                            defaultValue={item.currentStock}
-                            onBlur={e => updateStock(item.id, Number(e.target.value) || 0)}
-                          />
+                          <button
+                            className="sn-btn sn-btn--ghost"
+                            style={{ padding: "6px 12px", fontSize: 12 }}
+                            onClick={() => setStockItemId(item.id)}
+                          >
+                            {item.currentStock}{item.unit ? ` ${item.unit}` : ""}
+                          </button>
                         </td>
                         <td>{item.reorderThreshold}</td>
                         <td>
@@ -264,6 +274,7 @@ export default function ConsumablesBoard() {
 
       {showAdd && <AddConsumableModal onClose={() => setShowAdd(false)} />}
       {editing && <AddConsumableModal existing={editing} onClose={() => setEditing(null)} />}
+      {stockItem && <StockMovementModal item={stockItem} onClose={() => setStockItemId(null)} />}
     </div>
   );
 }

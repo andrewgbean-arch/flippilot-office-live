@@ -52,6 +52,24 @@ export async function saveConsumables(items: Consumable[]): Promise<void> {
   }
 }
 
+export async function recordStockMovement(
+  id: string,
+  input: { type: "receive" | "adjust"; quantity: number; date?: string; cost?: number; supplier?: string; note?: string }
+): Promise<{ ok: boolean; error?: string; item?: Consumable }> {
+  try {
+    const res = await fetch(`${BASE_URL}/consumables/${id}/movements`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify(input),
+    });
+    const data = await res.json();
+    return { ok: res.ok, error: data.error, item: data.item };
+  } catch (err) {
+    console.error("recordStockMovement: backend unreachable", err);
+    return { ok: false, error: "Network error" };
+  }
+}
+
 export async function deleteConsumable(id: string): Promise<void> {
   try {
     await fetch(`${BASE_URL}/consumables/${id}`, { method: "DELETE", headers: authHeaders() });

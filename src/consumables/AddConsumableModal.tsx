@@ -95,13 +95,19 @@ export default function AddConsumableModal({ existing, onClose }: AddConsumableM
 
         <div className="grid grid-cols-2 gap-4 mb-4">
           <div>
-            <label className="text-white/60 text-sm">Current Stock</label>
+            <label className="text-white/60 text-sm">
+              {existing ? "Current Stock" : "Starting Stock"}
+            </label>
             <input
               type="number"
               value={currentStock}
               onChange={e => setCurrentStock(e.target.value)}
-              className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80"
+              disabled={!!existing}
+              className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 disabled:opacity-50"
             />
+            {existing && (
+              <p className="text-white/40 text-xs mt-1">Use "Stock" on the item's row to log a delivery or correction.</p>
+            )}
           </div>
           <div>
             <label className="text-white/60 text-sm">Reorder Below</label>

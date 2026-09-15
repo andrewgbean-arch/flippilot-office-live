@@ -5,6 +5,7 @@ import {
   addConsumable as addConsumableApi,
   saveConsumables,
   deleteConsumable as deleteConsumableApi,
+  recordStockMovement as recordStockMovementApi,
 } from "@/consumables/consumableStorage.web";
 import { useAuth } from "@/context/AuthContext";
 
@@ -25,6 +26,10 @@ interface ConsumablesContextType {
   }) => Promise<string | null>;
   updateConsumable: (id: string, patch: Partial<Consumable>) => Promise<void>;
   updateStock: (id: string, currentStock: number) => Promise<void>;
+  recordStockMovement: (
+    id: string,
+    input: { type: "receive" | "adjust"; quantity: number; date?: string; cost?: number; supplier?: string; note?: string }
+  ) => Promise<string | null>;
   removeConsumable: (id: string) => Promise<void>;
 }
 
@@ -74,6 +79,18 @@ export function ConsumablesProvider({ children }: { children: React.ReactNode })
     await updateConsumable(id, { currentStock });
   }
 
+  async function recordStockMovement(
+    id: string,
+    input: { type: "receive" | "adjust"; quantity: number; date?: string; cost?: number; supplier?: string; note?: string }
+  ) {
+    const res = await recordStockMovementApi(id, input);
+    if (res.ok && res.item) {
+      setConsumables(prev => prev.map(c => (c.id === id ? res.item! : c)));
+      return null;
+    }
+    return res.error ?? "Could not record stock movement";
+  }
+
   async function removeConsumable(id: string) {
     setConsumables(prev => prev.filter(c => c.id !== id));
     await deleteConsumableApi(id);
@@ -81,7 +98,7 @@ export function ConsumablesProvider({ children }: { children: React.ReactNode })
 
   return (
     <ConsumablesContext.Provider
-      value={{ consumables, loading, addConsumable, updateConsumable, updateStock, removeConsumable }}
+      value={{ consumables, loading, addConsumable, updateConsumable, updateStock, recordStockMovement, removeConsumable }}
     >
       {children}
     </ConsumablesContext.Provider>
