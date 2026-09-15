@@ -10,6 +10,7 @@ import { SupernovaInput } from "@/components/supernova/SupernovaInput";
 import { SupernovaGlowButton } from "@/components/supernova/SupernovaGlowButton";
 
 import { autoFormatReg } from "@/features/vehicles/ui/SupernovaUI.web";
+import { compressImageFile } from "@/lib/imageCompress";
 
 interface EditVehicleProps {
   vehicleId: string;
@@ -82,15 +83,16 @@ export default function EditVehicle({ vehicleId }: EditVehicleProps) {
   /* ============================================================
      ⭐ Image Upload
   ============================================================ */
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      setImages((prev) => [...prev, reader.result as string]);
-    };
-    reader.readAsDataURL(file);
+    try {
+      const compressed = await compressImageFile(file);
+      setImages((prev) => [...prev, compressed]);
+    } catch (err) {
+      console.error("Could not process that image", err);
+    }
   };
 
   const deleteImage = (index: number) => {

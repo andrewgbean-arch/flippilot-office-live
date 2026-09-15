@@ -10,6 +10,7 @@ import { SupernovaGlowButton } from "@/components/supernova/SupernovaGlowButton"
 import { useInventory } from "@/context/InventoryProvider";
 import { fetchMOT } from "@/features/vehicles/api/mot";
 import { autoFormatReg } from "@/features/vehicles/ui/SupernovaUI.web";
+import { compressImageFile } from "@/lib/imageCompress";
 
 import { useBookkeeping } from "@/bookkeeping/BookkeepingProvider";
 import { calculateVat } from "@/bookkeeping/vatUtils";
@@ -38,6 +39,7 @@ export default function NewVehicle() {
   const [profit, setProfit] = useState<number | null>(null);
 
   const [source, setSource] = useState("");
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [vatScheme, setVatScheme] = useState<"margin" | "standard">("margin");
   const [vatRate, setVatRate] = useState("20");
   const [vatIncluded, setVatIncluded] = useState(true);
@@ -60,15 +62,16 @@ export default function NewVehicle() {
       ? "text-yellow-400"
       : "text-yellow-300";
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      setImages((prev) => [...prev, reader.result as string]);
-    };
-    reader.readAsDataURL(file);
+    try {
+      const compressed = await compressImageFile(file);
+      setImages((prev) => [...prev, compressed]);
+    } catch (err) {
+      console.error("Could not process that image", err);
+    }
   };
 
   const deleteImage = (index: number) => {
@@ -101,8 +104,27 @@ export default function NewVehicle() {
   };
 
   const saveVehicle = () => {
-    if (!title.trim()) return;
-    if (!buyPrice.trim()) return;
+    setSaveError(null);
+
+    // Inventory's Vehicle type has no free-text "title" field — fall back
+    // to splitting it into make/model so nothing typed is lost if the
+    // dedicated Make/Model fields were left blank (or vice versa: a
+    // dealer who only fills Make/Model and never touches the Title
+    // field shouldn't be silently blocked from saving — this used to
+    // hard-require a non-empty Title with no error shown, so clicking
+    // Save with Make/Model filled but Title blank did visibly nothing).
+    const [titleMake, ...titleRest] = title.trim().split(" ");
+    const resolvedMake = make.trim() || titleMake || "";
+    const resolvedModel = model.trim() || titleRest.join(" ") || "";
+
+    if (!resolvedMake || !resolvedModel) {
+      setSaveError("Enter at least a Make and Model (or a Vehicle Title) before saving.");
+      return;
+    }
+    if (!buyPrice.trim()) {
+      setSaveError("Enter a Buy Price before saving.");
+      return;
+    }
 
     const buy = Number(buyPrice);
     const sell = sellPrice ? Number(sellPrice) : null;
@@ -112,13 +134,6 @@ export default function NewVehicle() {
       vatIncluded,
       vatReclaimable: true,
     });
-
-    // Inventory's Vehicle type has no free-text "title" field — fall back
-    // to splitting it into make/model so nothing typed is lost if the
-    // dedicated Make/Model fields were left blank.
-    const [titleMake, ...titleRest] = title.trim().split(" ");
-    const resolvedMake = make || titleMake || "Unknown";
-    const resolvedModel = model || titleRest.join(" ") || "Unknown";
 
     const newVehicle = addManualVehicle({
       reg: reg || motData?.reg || null,
@@ -381,6 +396,7 @@ export default function NewVehicle() {
         )}
 
         <div className="sticky bottom-10">
+          {saveError && <p className="text-red-400 text-sm mb-2">{saveError}</p>}
           <SupernovaGlowButton label="Save Vehicle" onClick={saveVehicle} />
         </div>
       </div>
