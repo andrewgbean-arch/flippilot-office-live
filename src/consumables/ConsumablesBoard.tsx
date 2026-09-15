@@ -16,6 +16,18 @@ export default function ConsumablesBoard() {
   const [stockItemId, setStockItemId] = useState<string | null>(null);
   const stockItem = stockItemId ? consumables.find(c => c.id === stockItemId) ?? null : null;
 
+  // The main stock table had no way to find one item in a long list —
+  // fine at a handful of items, not at a real dealer's full parts
+  // shelf. Search narrows by name/part number/description/supplier;
+  // "Low stock only" reuses the same low-stock definition as the Ready
+  // to Order section above. Capping the unfiltered render (rather than
+  // true pagination) is enough to keep a very large list from being
+  // sluggish to render, without adding page-number UI nobody asked for.
+  const [search, setSearch] = useState("");
+  const [lowStockOnly, setLowStockOnly] = useState(false);
+  const [showAllRows, setShowAllRows] = useState(false);
+  const ROW_CAP = 200;
+
   // Not every low-stock item needs to go in THIS order — staff tick off
   // exactly what they actually want sent today; unticked items just
   // stay low and show up again next time. Defaults to checked (the
@@ -42,6 +54,16 @@ export default function ConsumablesBoard() {
   }
 
   const lowStock = consumables.filter(c => c.currentStock <= c.reorderThreshold);
+
+  const searchTerm = search.trim().toLowerCase();
+  const filteredConsumables = consumables.filter(c => {
+    if (lowStockOnly && c.currentStock > c.reorderThreshold) return false;
+    if (!searchTerm) return true;
+    return [c.name, c.partNumber, c.description, c.supplierName]
+      .filter(Boolean)
+      .some(field => field!.toLowerCase().includes(searchTerm));
+  });
+  const visibleConsumables = showAllRows ? filteredConsumables : filteredConsumables.slice(0, ROW_CAP);
 
   function mailtoFor(item: (typeof consumables)[number]): string | null {
     if (!item.supplierEmail) return null;
@@ -191,10 +213,36 @@ export default function ConsumablesBoard() {
             </div>
           </div>
 
+          {!loading && consumables.length > 0 && (
+            <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", marginBottom: 16 }}>
+              <input
+                type="text"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search by name, part number, description, or supplier..."
+                className="sn-input"
+                style={{ flex: "1 1 280px" }}
+              />
+              <label className="sn-checkbox-row" style={{ marginTop: 0, whiteSpace: "nowrap" }}>
+                <input
+                  type="checkbox"
+                  checked={lowStockOnly}
+                  onChange={e => setLowStockOnly(e.target.checked)}
+                />
+                Low stock only
+              </label>
+              <span className="sn-empty" style={{ fontSize: 13 }}>
+                {filteredConsumables.length} of {consumables.length} item{consumables.length === 1 ? "" : "s"}
+              </span>
+            </div>
+          )}
+
           {loading ? (
             <p className="sn-empty">Loading…</p>
           ) : consumables.length === 0 ? (
             <p className="sn-empty">No consumables tracked yet.</p>
+          ) : filteredConsumables.length === 0 ? (
+            <p className="sn-empty">No consumables match your search.</p>
           ) : (
             <div style={{ overflowX: "auto" }}>
               <table className="sn-timeclock__table sn-rota-table">
@@ -210,7 +258,7 @@ export default function ConsumablesBoard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {consumables.map(item => {
+                  {visibleConsumables.map(item => {
                     const low = item.currentStock <= item.reorderThreshold;
                     const mailto = mailtoFor(item);
                     return (
@@ -274,6 +322,13 @@ export default function ConsumablesBoard() {
                   })}
                 </tbody>
               </table>
+              {!showAllRows && filteredConsumables.length > ROW_CAP && (
+                <div style={{ textAlign: "center", marginTop: 12 }}>
+                  <button className="sn-btn sn-btn--ghost" onClick={() => setShowAllRows(true)}>
+                    Show all {filteredConsumables.length} items
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </section>
