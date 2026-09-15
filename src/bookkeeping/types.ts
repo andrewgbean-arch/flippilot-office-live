@@ -43,6 +43,13 @@ export interface CostEntry {
   supplier?: string;
   date: string;
   notes?: string;
+
+  // Links this cost to a real item in the Consumables stock list —
+  // set when the cost was raised against real stock (not a one-off
+  // labour/misc line) so the part it used is traceable after the fact,
+  // and so the stock count can be deducted automatically when logged.
+  partNumber?: string;
+  consumableId?: string;
 }
 
 

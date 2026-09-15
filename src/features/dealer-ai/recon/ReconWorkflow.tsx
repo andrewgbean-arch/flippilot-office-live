@@ -4,6 +4,7 @@ import { FiArrowLeft } from "react-icons/fi";
 
 import { useInventory } from "@/context/InventoryProvider";
 import { useBookkeeping } from "@/bookkeeping/BookkeepingProvider";
+import { useConsumables } from "@/context/ConsumablesContext";
 
 import { SupernovaHeroHeader } from "@/components/supernova/SupernovaHeroHeader";
 import { SupernovaSectionDivider } from "@/components/supernova/SupernovaSectionDivider";
@@ -17,12 +18,18 @@ export default function ReconWorkflow() {
 
   const { vehicles } = useInventory();
   const { costs, addCost } = useBookkeeping();
+  const { consumables, recordStockMovement } = useConsumables();
 
   const vehicle = vehicles.find((v) => v.id === id);
 
   const [newItem, setNewItem] = useState("");
   const [newCost, setNewCost] = useState("");
+  const [useStock, setUseStock] = useState(false);
+  const [linkedConsumableId, setLinkedConsumableId] = useState("");
+  const [qtyUsed, setQtyUsed] = useState("1");
   const [addError, setAddError] = useState<string | null>(null);
+
+  const linkedConsumable = useStock ? consumables.find((c) => c.id === linkedConsumableId) ?? null : null;
 
   // ⭐ Filter recon costs for this vehicle — kept above the "vehicle not
   // found" early return below so this hook always runs, every render,
@@ -56,9 +63,14 @@ export default function ReconWorkflow() {
   /* -------------------------------------------------------
      ⭐ Add Recon Item
   ------------------------------------------------------- */
-  const handleAddRecon = () => {
+  const handleAddRecon = async () => {
   if (!newItem.trim() || !newCost.trim()) {
     setAddError("Enter both an item description and a cost before adding.");
+    return;
+  }
+  const qty = Number(qtyUsed) || 1;
+  if (linkedConsumable && qty > linkedConsumable.currentStock) {
+    setAddError(`Only ${linkedConsumable.currentStock}${linkedConsumable.unit ? ` ${linkedConsumable.unit}` : ""} of ${linkedConsumable.name} left in stock.`);
     return;
   }
   setAddError(null);
@@ -91,13 +103,29 @@ export default function ReconWorkflow() {
     // ⭐ Optional fields
     supplier: undefined,
     notes: undefined,
+    ...(linkedConsumable
+      ? { consumableId: linkedConsumable.id, ...(linkedConsumable.partNumber ? { partNumber: linkedConsumable.partNumber } : {}) }
+      : {}),
 
     // ⭐ Date
     date: new Date().toISOString(),
   });
 
+  // Real accountability, not just a label: using a real stock item on
+  // this job actually deducts it, the same way a delivery adds to it —
+  // closing the loop the old free-text-only field never had a way to.
+  if (linkedConsumable) {
+    await recordStockMovement(linkedConsumable.id, {
+      type: "adjust",
+      quantity: -qty,
+      note: `Used on recon: ${vehicle.make} ${vehicle.model}`,
+    });
+  }
+
   setNewItem("");
   setNewCost("");
+  setLinkedConsumableId("");
+  setQtyUsed("1");
 };
 
 
@@ -157,6 +185,38 @@ export default function ReconWorkflow() {
         <SupernovaSectionDivider label="Add Recon Item" />
 
         <SupernovaGlowCard>
+          <label className="flex items-center gap-2 text-white/80 text-sm cursor-pointer mb-4">
+            <input
+              type="checkbox"
+              checked={useStock}
+              onChange={(e) => {
+                setUseStock(e.target.checked);
+                if (!e.target.checked) setLinkedConsumableId("");
+              }}
+            />
+            Use a real item from Consumables stock (unticked = direct/one-off, e.g. labour)
+          </label>
+
+          {useStock && (
+            <select
+              value={linkedConsumableId}
+              onChange={(e) => {
+                const consumableId = e.target.value;
+                setLinkedConsumableId(consumableId);
+                const c = consumables.find((x) => x.id === consumableId);
+                if (c) setNewItem(c.name);
+              }}
+              className="w-full p-2 rounded bg-black/40 border border-white/20 text-white/80 mb-4"
+            >
+              <option value="">— Choose a stock item —</option>
+              {consumables.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}{c.partNumber ? ` (${c.partNumber})` : ""} — {c.currentStock}{c.unit ? ` ${c.unit}` : ""} in stock
+                </option>
+              ))}
+            </select>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <SupernovaInput
               label="Recon Item"
@@ -164,6 +224,15 @@ export default function ReconWorkflow() {
               onChange={setNewItem}
               placeholder="Tyres, brakes, MOT prep..."
             />
+
+            {linkedConsumable && (
+              <SupernovaInput
+                label="Quantity Used"
+                value={qtyUsed}
+                onChange={setQtyUsed}
+                placeholder="1"
+              />
+            )}
 
             <SupernovaInput
               label="Cost (£)"
@@ -174,6 +243,11 @@ export default function ReconWorkflow() {
 
             <SupernovaGlowButton label="Add" onClick={handleAddRecon} />
           </div>
+          {linkedConsumable && (
+            <p className="text-white/50 text-xs mt-3">
+              Adding this will deduct {qtyUsed || 1}{linkedConsumable.unit ? ` ${linkedConsumable.unit}` : ""} from {linkedConsumable.name}'s stock ({linkedConsumable.currentStock} currently).
+            </p>
+          )}
           {addError && <p className="text-red-400 text-sm mt-3">{addError}</p>}
         </SupernovaGlowCard>
 
@@ -185,22 +259,33 @@ export default function ReconWorkflow() {
             No recon items added yet.
           </p>
         ) : (
-          reconItems.map((item) => (
-            <SupernovaGlowCard key={item.id}>
-              <div className="flex justify-between items-center">
-                <div>
-                  <p className="text-white font-bold">{item.label}</p>
-                  <p className="text-white/60 text-sm">
-                    {new Date(item.date).toLocaleDateString()}
+          reconItems.map((item) => {
+            const stockItem = item.consumableId ? consumables.find((c) => c.id === item.consumableId) : null;
+            return (
+              <SupernovaGlowCard key={item.id}>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <p className="text-white font-bold">
+                      {item.label}
+                      {item.partNumber && <span className="text-white/50 font-normal"> · {item.partNumber}</span>}
+                    </p>
+                    <p className="text-white/60 text-sm">
+                      {new Date(item.date).toLocaleDateString()}
+                      {stockItem && (
+                        <span className={stockItem.currentStock <= stockItem.reorderThreshold ? "text-red-400" : "text-white/60"}>
+                          {" "}· {stockItem.currentStock}{stockItem.unit ? ` ${stockItem.unit}` : ""} left in stock
+                        </span>
+                      )}
+                    </p>
+                  </div>
+
+                  <p className="text-yellow-300 font-bold text-xl">
+                    £{item.amount}
                   </p>
                 </div>
-
-                <p className="text-yellow-300 font-bold text-xl">
-                  £{item.amount}
-                </p>
-              </div>
-            </SupernovaGlowCard>
-          ))
+              </SupernovaGlowCard>
+            );
+          })
         )}
       </div>
     </div>
