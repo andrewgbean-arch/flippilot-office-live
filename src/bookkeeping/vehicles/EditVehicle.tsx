@@ -124,6 +124,7 @@ export default function EditVehicle({ vehicleId }: EditVehicleProps) {
      rather than faking a description when it isn't.
   ============================================================ */
   const handleGenerateDescription = async () => {
+    if (generatingDescription) return; // guards against a double-click firing two billed API calls
     setGeneratingDescription(true);
     setDescriptionError(null);
 
@@ -307,6 +308,7 @@ export default function EditVehicle({ vehicleId }: EditVehicleProps) {
             <SupernovaGlowButton
               label={generatingDescription ? "Generating…" : "Generate with AI"}
               onClick={handleGenerateDescription}
+              disabled={generatingDescription}
             />
           </div>
           {descriptionError && (
