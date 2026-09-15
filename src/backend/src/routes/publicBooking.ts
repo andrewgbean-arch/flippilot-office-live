@@ -155,7 +155,15 @@ export default function registerPublicBookingRoute(app: Express) {
       return res.status(404).json({ ok: false, error: "Dealership not found" });
     }
 
-    const vehicles = readTenantCollection<any>(dealershipId, "vehicles");
+    // This response used to feed only the internal booking-widget's
+    // vehicle picker (a logged-in-adjacent context where a sold car
+    // briefly still appearing was low-stakes). It now also drives
+    // PublicDealerPage.tsx's "Vehicles For Sale" grid on the genuinely
+    // public /store/:dealershipId page — showing an anonymous visitor
+    // a car that's already sold is a real, visible mistake there, not
+    // a cosmetic one.
+    const vehicles = readTenantCollection<any>(dealershipId, "vehicles")
+      .filter(v => String(v.status ?? "").toLowerCase() !== "sold");
     const publicVehicles: PublicVehicle[] = vehicles.map(v => ({
       id: v.id,
       ...(v.reg ? { reg: v.reg } : {}),

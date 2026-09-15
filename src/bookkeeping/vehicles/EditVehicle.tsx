@@ -24,41 +24,44 @@ export default function EditVehicle({ vehicleId }: EditVehicleProps) {
 
   const vehicle = vehicles.find((v) => v.id === vehicleId);
 
-  if (!vehicle) {
-    return (
-      <div className="min-h-screen bg-[#0A1128] p-10 text-white">
-        <h1 className="text-3xl font-bold text-red-500">Vehicle Not Found</h1>
-        <p className="text-white/60">This flip does not exist.</p>
-      </div>
-    );
-  }
-
+  // ⭐ All hooks below run unconditionally, every render, regardless of
+  // whether `vehicle` has been found yet — the "not found" early return
+  // sits AFTER every hook (right before the handler functions), not
+  // before them. It used to sit right here, before ~15 useState calls
+  // and a useEffect: on a fresh page load, before InventoryProvider has
+  // finished loading vehicles, the first render hits that early return
+  // with none of those hooks called; once vehicles load and a re-render
+  // finds the real vehicle, all of them run for the first time — React
+  // throws "Rendered more hooks than during the previous render" and
+  // the whole screen crashes. Exact same bug class already fixed this
+  // session in ReconWorkflow.tsx and (in an earlier session)
+  // MOTLookup.tsx — this file just hadn't been touched since.
   /* ============================================================
      ⭐ Local editable state
   ============================================================ */
-  const [make, setMake] = useState(vehicle.make || "");
-  const [model, setModel] = useState(vehicle.model || "");
-  const [year, setYear] = useState(vehicle.year?.toString() || "");
-  const [mileage, setMileage] = useState(vehicle.mileage?.toString() || "");
+  const [make, setMake] = useState(vehicle?.make || "");
+  const [model, setModel] = useState(vehicle?.model || "");
+  const [year, setYear] = useState(vehicle?.year?.toString() || "");
+  const [mileage, setMileage] = useState(vehicle?.mileage?.toString() || "");
 
-  const [priceTrade, setPriceTrade] = useState(vehicle.priceTrade?.toString() || "");
-  const [priceRetail, setPriceRetail] = useState(vehicle.priceRetail?.toString() || "");
+  const [priceTrade, setPriceTrade] = useState(vehicle?.priceTrade?.toString() || "");
+  const [priceRetail, setPriceRetail] = useState(vehicle?.priceRetail?.toString() || "");
   // Vehicle.vatScheme's type still allows a legacy "trade" value that
   // nothing in the app ever actually sets or reads — treat it the same
   // as unset (defaulting to the more common Margin Scheme).
   const [vatScheme, setVatScheme] = useState<"margin" | "standard">(
-    vehicle.vatScheme === "standard" ? "standard" : "margin"
+    vehicle?.vatScheme === "standard" ? "standard" : "margin"
   );
 
-  const [notes, setNotes] = useState(vehicle.notes || "");
-  const [listingDescription, setListingDescription] = useState(vehicle.listingDescription || "");
+  const [notes, setNotes] = useState(vehicle?.notes || "");
+  const [listingDescription, setListingDescription] = useState(vehicle?.listingDescription || "");
   const [generatingDescription, setGeneratingDescription] = useState(false);
   const [descriptionError, setDescriptionError] = useState<string | null>(null);
-  const [images, setImages] = useState<string[]>(vehicle.images || []);
+  const [images, setImages] = useState<string[]>(vehicle?.images || []);
   const [editingImageIndex, setEditingImageIndex] = useState<number | null>(null);
 
-  const [reg, setReg] = useState(vehicle.mot?.reg || "");
-  const [colour, setColour] = useState(vehicle.mot?.colour || "");
+  const [reg, setReg] = useState(vehicle?.mot?.reg || "");
+  const [colour, setColour] = useState(vehicle?.mot?.colour || "");
 
   const [profit, setProfit] = useState<number | null>(null);
 
@@ -76,6 +79,15 @@ export default function EditVehicle({ vehicleId }: EditVehicleProps) {
     const sell = Number(priceRetail);
     setProfit(!isNaN(buy) && !isNaN(sell) ? sell - buy : null);
   }, [priceTrade, priceRetail]);
+
+  if (!vehicle) {
+    return (
+      <div className="min-h-screen bg-[#0A1128] p-10 text-white">
+        <h1 className="text-3xl font-bold text-red-500">Vehicle Not Found</h1>
+        <p className="text-white/60">This flip does not exist.</p>
+      </div>
+    );
+  }
 
   const profitColor =
     profit == null

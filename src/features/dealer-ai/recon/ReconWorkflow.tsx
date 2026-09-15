@@ -28,6 +28,7 @@ export default function ReconWorkflow() {
   const [linkedConsumableId, setLinkedConsumableId] = useState("");
   const [qtyUsed, setQtyUsed] = useState("1");
   const [addError, setAddError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const linkedConsumable = useStock ? consumables.find((c) => c.id === linkedConsumableId) ?? null : null;
 
@@ -64,6 +65,8 @@ export default function ReconWorkflow() {
      ⭐ Add Recon Item
   ------------------------------------------------------- */
   const handleAddRecon = async () => {
+  if (submitting) return; // guards against a double-click firing this twice mid-request
+
   if (!newItem.trim() || !newCost.trim()) {
     setAddError("Enter both an item description and a cost before adding.");
     return;
@@ -74,8 +77,29 @@ export default function ReconWorkflow() {
     return;
   }
   setAddError(null);
+  setSubmitting(true);
 
   const amount = Number(newCost);
+
+  // Deduct stock FIRST, before logging the cost — recordStockMovement
+  // is the one call here with a real error to check (addCost is a
+  // synchronous, fire-and-forget local update, same as the rest of
+  // this bookkeeping module). Doing it this way round means a failed
+  // deduction stops the whole add rather than leaving a cost entry on
+  // record with no matching stock change — silently defeating the
+  // exact accountability this feature exists for.
+  if (linkedConsumable) {
+    const stockError = await recordStockMovement(linkedConsumable.id, {
+      type: "adjust",
+      quantity: -qty,
+      note: `Used on recon: ${vehicle.make} ${vehicle.model}`,
+    });
+    if (stockError) {
+      setAddError(`Could not update stock — nothing was logged. ${stockError}`);
+      setSubmitting(false);
+      return;
+    }
+  }
 
   addCost({
     id: crypto.randomUUID(),
@@ -111,17 +135,7 @@ export default function ReconWorkflow() {
     date: new Date().toISOString(),
   });
 
-  // Real accountability, not just a label: using a real stock item on
-  // this job actually deducts it, the same way a delivery adds to it —
-  // closing the loop the old free-text-only field never had a way to.
-  if (linkedConsumable) {
-    await recordStockMovement(linkedConsumable.id, {
-      type: "adjust",
-      quantity: -qty,
-      note: `Used on recon: ${vehicle.make} ${vehicle.model}`,
-    });
-  }
-
+  setSubmitting(false);
   setNewItem("");
   setNewCost("");
   setLinkedConsumableId("");
@@ -241,7 +255,7 @@ export default function ReconWorkflow() {
               placeholder="150"
             />
 
-            <SupernovaGlowButton label="Add" onClick={handleAddRecon} />
+            <SupernovaGlowButton label={submitting ? "Adding…" : "Add"} onClick={handleAddRecon} disabled={submitting} />
           </div>
           {linkedConsumable && (
             <p className="text-white/50 text-xs mt-3">

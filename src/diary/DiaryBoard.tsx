@@ -22,7 +22,11 @@ export default function DiaryBoard() {
       return;
     }
     setError(null);
-    await addEntry({ date: dateKey, text: text.trim(), isTask });
+    const err = await addEntry({ date: dateKey, text: text.trim(), isTask });
+    if (err) {
+      setError(err);
+      return;
+    }
     setText("");
   }
 
