@@ -31,6 +31,18 @@ interface ConsumablesContextType {
     input: { type: "receive" | "adjust"; quantity: number; date?: string; cost?: number; supplier?: string; note?: string }
   ) => Promise<string | null>;
   removeConsumable: (id: string) => Promise<void>;
+  importConsumables: (rows: {
+    name: string;
+    partNumber?: string;
+    description?: string;
+    supplierName?: string;
+    supplierEmail?: string;
+    supplierPhone?: string;
+    unit?: string;
+    currentStock: number;
+    reorderThreshold: number;
+    notes?: string;
+  }[]) => Promise<number>;
 }
 
 const ConsumablesContext = createContext<ConsumablesContextType | undefined>(undefined);
@@ -96,9 +108,46 @@ export function ConsumablesProvider({ children }: { children: React.ReactNode })
     await deleteConsumableApi(id);
   }
 
+  // Bulk create (CSV import) — builds every row client-side (this
+  // collection has no bulk-create backend endpoint, only single POST
+  // and whole-collection PUT) and saves once via the same PUT the
+  // rest of this context already uses for edits.
+  async function importConsumables(rows: {
+    name: string;
+    partNumber?: string;
+    description?: string;
+    supplierName?: string;
+    supplierEmail?: string;
+    supplierPhone?: string;
+    unit?: string;
+    currentStock: number;
+    reorderThreshold: number;
+    notes?: string;
+  }[]) {
+    const now = new Date().toISOString();
+    const newItems: Consumable[] = rows.map(r => ({
+      id: crypto.randomUUID(),
+      name: r.name,
+      ...(r.partNumber ? { partNumber: r.partNumber } : {}),
+      ...(r.description ? { description: r.description } : {}),
+      ...(r.supplierName ? { supplierName: r.supplierName } : {}),
+      ...(r.supplierEmail ? { supplierEmail: r.supplierEmail } : {}),
+      ...(r.supplierPhone ? { supplierPhone: r.supplierPhone } : {}),
+      ...(r.unit ? { unit: r.unit } : {}),
+      currentStock: r.currentStock,
+      reorderThreshold: r.reorderThreshold,
+      ...(r.notes ? { notes: r.notes } : {}),
+      updatedAt: now,
+    }));
+    const updated = [...consumables, ...newItems];
+    setConsumables(updated);
+    await saveConsumables(updated);
+    return newItems.length;
+  }
+
   return (
     <ConsumablesContext.Provider
-      value={{ consumables, loading, addConsumable, updateConsumable, updateStock, recordStockMovement, removeConsumable }}
+      value={{ consumables, loading, addConsumable, updateConsumable, updateStock, recordStockMovement, removeConsumable, importConsumables }}
     >
       {children}
     </ConsumablesContext.Provider>

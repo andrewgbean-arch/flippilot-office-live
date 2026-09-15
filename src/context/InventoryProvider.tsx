@@ -40,6 +40,20 @@ interface InventoryContextType {
     mot?: Partial<Vehicle["mot"]>;
     vatScheme?: "standard" | "margin";
   }) => Vehicle;
+  importVehicles: (rows: {
+    reg?: string | null;
+    make: string;
+    model: string;
+    year?: number | null;
+    colour?: string | null;
+    mileage?: number | null;
+    buyPrice?: number | null;
+    sellPrice?: number | null;
+    notes?: string | null;
+    images?: string[] | null;
+    mot?: Partial<Vehicle["mot"]>;
+    vatScheme?: "standard" | "margin";
+  }[]) => Vehicle[];
 }
 
 const InventoryContext = createContext<InventoryContextType | undefined>(undefined);
@@ -298,7 +312,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
   // showed up in the real Inventory List, AI Insights, the dashboard,
   // or anywhere else that reads from this provider. It just vanished
   // into a shadow store nothing else looked at.
-  function addManualVehicle(data: {
+  function buildVehicle(data: {
     reg?: string | null;
     make: string;
     model: string;
@@ -375,7 +389,11 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
       status: "new",
     };
 
-    const enriched = enrichVehicleWithAI(newVehicle);
+    return enrichVehicleWithAI(newVehicle);
+  }
+
+  function addManualVehicle(data: Parameters<typeof buildVehicle>[0]): Vehicle {
+    const enriched = buildVehicle(data);
     setVehicles(prev => {
       const updated = [...prev, enriched];
       saveInventoryToServer(updated);
@@ -383,6 +401,18 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
     });
 
     return enriched;
+  }
+
+  // Bulk create (CSV import etc.) — builds every vehicle first, then
+  // saves once, instead of one save-to-server call per row.
+  function importVehicles(rows: Parameters<typeof buildVehicle>[0][]): Vehicle[] {
+    const built = rows.map(buildVehicle);
+    setVehicles(prev => {
+      const updated = [...prev, ...built];
+      saveInventoryToServer(updated);
+      return updated;
+    });
+    return built;
   }
 
   return (
@@ -397,6 +427,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
         deleteVehicle,
         createVehicleFromMOT,
         addManualVehicle,
+        importVehicles,
       }}
     >
       {children}

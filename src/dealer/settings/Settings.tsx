@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 import { SupernovaGlowCard } from "@/components/supernova/SupernovaGlowCard";
 import { SupernovaHeroHeader } from "@/components/supernova/SupernovaHeroHeader";
@@ -341,6 +342,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
 
 export default function Settings() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -393,6 +395,17 @@ export default function Settings() {
             <SupernovaGlowButton label="Invite Teammate" onClick={() => setShowInviteModal(true)} />
           </SupernovaGlowCard>
         )}
+
+        {/* Data Import — switching from a spreadsheet or another
+            system shouldn't mean re-typing every vehicle/part by hand */}
+        <SupernovaGlowCard>
+          <h2 className="text-yellow-300 font-bold text-xl mb-3">Data Import</h2>
+          <p className="text-white/70 mb-4">
+            Bring in your existing vehicle stock or parts/consumables list from a CSV file.
+          </p>
+
+          <SupernovaGlowButton label="Import from CSV" onClick={() => navigate("/import")} />
+        </SupernovaGlowCard>
 
       </section>
 

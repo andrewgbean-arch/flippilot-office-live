@@ -22,6 +22,15 @@ export default function VehicleList() {
         subtitle="All vehicles currently in your inventory"
       />
 
+      <div className="max-w-3xl mx-auto flex justify-end mb-2">
+        <button
+          onClick={() => navigate("/import")}
+          className="text-sm px-3 py-1.5 rounded bg-white/10 text-white/70 hover:bg-white/20"
+        >
+          Import from CSV
+        </button>
+      </div>
+
       <SupernovaSectionDivider label="Inventory" />
 
       <div className="max-w-3xl mx-auto space-y-4">

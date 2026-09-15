@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useConsumables } from "@/context/ConsumablesContext";
 import { useDealer } from "@/context/DealerContext";
 import AddConsumableModal from "./AddConsumableModal";
@@ -9,6 +10,7 @@ import "@/staff/StaffDashboard.css";
 export default function ConsumablesBoard() {
   const { consumables, loading, removeConsumable } = useConsumables();
   const { dealer } = useDealer();
+  const navigate = useNavigate();
   const [showAdd, setShowAdd] = useState(false);
   const [editing, setEditing] = useState<Consumable | null>(null);
   const [stockItemId, setStockItemId] = useState<string | null>(null);
@@ -179,9 +181,14 @@ export default function ConsumablesBoard() {
             <h2 className="sn-panel__title">
               Stock{lowStock.length > 0 ? ` — ${lowStock.length} low` : ""}
             </h2>
-            <button className="sn-btn sn-btn--gold" onClick={() => setShowAdd(true)}>
-              Add Consumable
-            </button>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button className="sn-btn sn-btn--ghost" onClick={() => navigate("/import")}>
+                Import from CSV
+              </button>
+              <button className="sn-btn sn-btn--gold" onClick={() => setShowAdd(true)}>
+                Add Consumable
+              </button>
+            </div>
           </div>
 
           {loading ? (

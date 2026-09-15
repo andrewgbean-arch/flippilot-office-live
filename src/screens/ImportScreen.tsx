@@ -1,0 +1,272 @@
+import { useMemo, useState } from "react";
+import { useInventory } from "@/context/InventoryProvider";
+import { useConsumables } from "@/context/ConsumablesContext";
+import { parseCSVWithHeaders, guessColumn } from "@/lib/csv";
+
+type ImportType = "vehicles" | "consumables";
+
+interface FieldSpec {
+  key: string;
+  label: string;
+  required?: boolean;
+  numeric?: boolean;
+  aliases: string[];
+}
+
+const VEHICLE_FIELDS: FieldSpec[] = [
+  { key: "make", label: "Make", required: true, aliases: ["make", "manufacturer", "brand"] },
+  { key: "model", label: "Model", required: true, aliases: ["model"] },
+  { key: "reg", label: "Registration", aliases: ["reg", "registration", "plate", "vrm", "reg no", "reg number"] },
+  { key: "year", label: "Year", numeric: true, aliases: ["year", "reg year", "model year"] },
+  { key: "mileage", label: "Mileage", numeric: true, aliases: ["mileage", "miles", "odometer"] },
+  { key: "colour", label: "Colour", aliases: ["colour", "color"] },
+  { key: "buyPrice", label: "Buy / Trade Price", numeric: true, aliases: ["buy price", "trade price", "cost price", "purchase price", "cost"] },
+  { key: "sellPrice", label: "Sell / Retail Price", numeric: true, aliases: ["sell price", "retail price", "asking price", "price"] },
+  { key: "notes", label: "Notes", aliases: ["notes", "comments"] },
+];
+
+const CONSUMABLE_FIELDS: FieldSpec[] = [
+  { key: "name", label: "Item Name", required: true, aliases: ["name", "item", "item name", "product"] },
+  { key: "partNumber", label: "Part Number", aliases: ["part number", "part no", "sku", "code"] },
+  { key: "description", label: "Description", aliases: ["description", "desc", "spec"] },
+  { key: "unit", label: "Unit", aliases: ["unit", "uom"] },
+  { key: "currentStock", label: "Current Stock", numeric: true, aliases: ["current stock", "stock", "qty", "quantity", "stock level"] },
+  { key: "reorderThreshold", label: "Reorder Below", numeric: true, aliases: ["reorder threshold", "reorder level", "min stock", "reorder below"] },
+  { key: "supplierName", label: "Supplier Name", aliases: ["supplier", "supplier name"] },
+  { key: "supplierEmail", label: "Supplier Email", aliases: ["supplier email", "email"] },
+  { key: "supplierPhone", label: "Supplier Phone", aliases: ["supplier phone", "phone"] },
+  { key: "notes", label: "Notes", aliases: ["notes", "comments"] },
+];
+
+export default function ImportScreen() {
+  const { importVehicles } = useInventory();
+  const { importConsumables } = useConsumables();
+
+  const [type, setType] = useState<ImportType>("vehicles");
+  const [fileName, setFileName] = useState<string | null>(null);
+  const [headers, setHeaders] = useState<string[]>([]);
+  const [rows, setRows] = useState<string[][]>([]);
+  const [mapping, setMapping] = useState<Record<string, string>>({});
+  const [importing, setImporting] = useState(false);
+  const [result, setResult] = useState<{ imported: number; skipped: number } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const fields = type === "vehicles" ? VEHICLE_FIELDS : CONSUMABLE_FIELDS;
+
+  function resetFile() {
+    setFileName(null);
+    setHeaders([]);
+    setRows([]);
+    setMapping({});
+    setResult(null);
+    setError(null);
+  }
+
+  function switchType(next: ImportType) {
+    setType(next);
+    resetFile();
+  }
+
+  async function handleFile(file: File) {
+    setResult(null);
+    setError(null);
+    const text = await file.text();
+    const parsed = parseCSVWithHeaders(text);
+    if (parsed.headers.length === 0 || parsed.rows.length === 0) {
+      setError("Couldn't find any rows in that file — check it's a real CSV with a header row.");
+      return;
+    }
+    setFileName(file.name);
+    setHeaders(parsed.headers);
+    setRows(parsed.rows);
+
+    const guessed: Record<string, string> = {};
+    const activeFields = type === "vehicles" ? VEHICLE_FIELDS : CONSUMABLE_FIELDS;
+    for (const f of activeFields) {
+      const match = guessColumn(parsed.headers, f.aliases);
+      if (match) guessed[f.key] = match;
+    }
+    setMapping(guessed);
+  }
+
+  // Every row mapped to target field values, plus whether it's usable
+  // (required fields present) — computed fresh whenever the mapping
+  // or file changes, so the preview and the real import always agree.
+  const builtRows = useMemo(() => {
+    if (headers.length === 0) return [];
+    const colIndex = (header: string) => headers.indexOf(header);
+
+    return rows.map((row) => {
+      const values: Record<string, string> = {};
+      for (const f of fields) {
+        const header = mapping[f.key];
+        const idx = header ? colIndex(header) : -1;
+        values[f.key] = idx >= 0 ? (row[idx] ?? "").trim() : "";
+      }
+      const missingRequired = fields.filter((f) => f.required && !values[f.key]);
+      return { values, valid: missingRequired.length === 0, missingRequired };
+    });
+  }, [rows, headers, mapping, fields]);
+
+  const validCount = builtRows.filter((r) => r.valid).length;
+
+  async function handleImport() {
+    setImporting(true);
+    setError(null);
+    try {
+      const usable = builtRows.filter((r) => r.valid);
+
+      if (type === "vehicles") {
+        const payload = usable.map((r) => ({
+          make: r.values.make ?? "",
+          model: r.values.model ?? "",
+          ...(r.values.reg ? { reg: r.values.reg } : {}),
+          year: r.values.year ? Number(r.values.year) || null : null,
+          mileage: r.values.mileage ? Number(r.values.mileage) || null : null,
+          ...(r.values.colour ? { colour: r.values.colour } : {}),
+          buyPrice: r.values.buyPrice ? Number(r.values.buyPrice) || null : null,
+          sellPrice: r.values.sellPrice ? Number(r.values.sellPrice) || null : null,
+          notes: r.values.notes || null,
+        }));
+        importVehicles(payload);
+      } else {
+        const payload = usable.map((r) => ({
+          name: r.values.name ?? "",
+          ...(r.values.partNumber ? { partNumber: r.values.partNumber } : {}),
+          ...(r.values.description ? { description: r.values.description } : {}),
+          ...(r.values.unit ? { unit: r.values.unit } : {}),
+          currentStock: r.values.currentStock ? Number(r.values.currentStock) || 0 : 0,
+          reorderThreshold: r.values.reorderThreshold ? Number(r.values.reorderThreshold) || 0 : 5,
+          ...(r.values.supplierName ? { supplierName: r.values.supplierName } : {}),
+          ...(r.values.supplierEmail ? { supplierEmail: r.values.supplierEmail } : {}),
+          ...(r.values.supplierPhone ? { supplierPhone: r.values.supplierPhone } : {}),
+          ...(r.values.notes ? { notes: r.values.notes } : {}),
+        }));
+        await importConsumables(payload);
+      }
+
+      setResult({ imported: usable.length, skipped: builtRows.length - usable.length });
+    } catch (err) {
+      setError("Import failed — check the backend is reachable and try again.");
+      console.error(err);
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  return (
+    <div className="animate-fadeIn text-white px-6 py-10 max-w-5xl mx-auto">
+      <h1 className="text-3xl font-bold text-yellow-300 mb-2">Import from a File</h1>
+      <p className="text-white/60 mb-6">
+        Bring in your existing stock list from a CSV export — a spreadsheet, or an export from
+        another system. Nothing here needs a specific format; map whatever columns your file has.
+      </p>
+
+      <div className="flex gap-2 mb-6">
+        <button
+          onClick={() => switchType("vehicles")}
+          className={`px-4 py-2 rounded font-semibold ${type === "vehicles" ? "bg-yellow-400 text-black" : "bg-white/10 text-white/70"}`}
+        >
+          Vehicle Inventory
+        </button>
+        <button
+          onClick={() => switchType("consumables")}
+          className={`px-4 py-2 rounded font-semibold ${type === "consumables" ? "bg-yellow-400 text-black" : "bg-white/10 text-white/70"}`}
+        >
+          Consumables / Parts
+        </button>
+      </div>
+
+      <div className="bg-black/40 border border-white/10 rounded-xl p-6 mb-6">
+        <label className="text-white/60 text-sm block mb-2">CSV file</label>
+        <input
+          type="file"
+          accept=".csv,text/csv"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) handleFile(file);
+          }}
+          className="text-white/80 text-sm"
+        />
+        {fileName && <p className="text-white/40 text-xs mt-2">{fileName} — {rows.length} row{rows.length === 1 ? "" : "s"} found</p>}
+        {error && <p className="text-red-400 text-sm mt-2">{error}</p>}
+      </div>
+
+      {headers.length > 0 && (
+        <>
+          <div className="bg-black/40 border border-white/10 rounded-xl p-6 mb-6">
+            <h2 className="text-white/80 font-semibold mb-4">Match your columns</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {fields.map((f) => (
+                <div key={f.key}>
+                  <label className="text-white/60 text-sm">
+                    {f.label}{f.required && <span className="text-red-400"> *</span>}
+                  </label>
+                  <select
+                    value={mapping[f.key] ?? ""}
+                    onChange={(e) => setMapping((prev) => ({ ...prev, [f.key]: e.target.value }))}
+                    className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80"
+                  >
+                    <option value="">— Not in file —</option>
+                    {headers.map((h) => (
+                      <option key={h} value={h}>{h}</option>
+                    ))}
+                  </select>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="bg-black/40 border border-white/10 rounded-xl p-6 mb-6 overflow-x-auto">
+            <h2 className="text-white/80 font-semibold mb-4">
+              Preview — {validCount} of {rows.length} row{rows.length === 1 ? "" : "s"} ready to import
+            </h2>
+            <table className="text-sm w-full">
+              <thead>
+                <tr className="text-white/50 text-left">
+                  {fields.map((f) => <th key={f.key} className="pr-4 pb-2">{f.label}</th>)}
+                  <th className="pb-2">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {builtRows.slice(0, 8).map((r, i) => (
+                  <tr key={i} className="border-t border-white/10">
+                    {fields.map((f) => <td key={f.key} className="pr-4 py-1 text-white/80">{r.values[f.key] || "—"}</td>)}
+                    <td className="py-1">
+                      {r.valid ? (
+                        <span className="text-green-400">Ready</span>
+                      ) : (
+                        <span className="text-red-400">Missing {r.missingRequired.map((f) => f.label).join(", ")}</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {rows.length > 8 && <p className="text-white/40 text-xs mt-2">…and {rows.length - 8} more rows</p>}
+          </div>
+
+          {result ? (
+            <div className="bg-green-900/30 border border-green-500/30 rounded-xl p-6">
+              <p className="text-green-300 font-semibold">
+                Imported {result.imported} {type === "vehicles" ? "vehicle" : "item"}{result.imported === 1 ? "" : "s"}.
+                {result.skipped > 0 && ` Skipped ${result.skipped} row${result.skipped === 1 ? "" : "s"} missing required fields.`}
+              </p>
+              <button onClick={resetFile} className="mt-3 px-4 py-2 rounded bg-white/10 text-white/70 hover:bg-white/20">
+                Import Another File
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={handleImport}
+              disabled={importing || validCount === 0}
+              className="px-6 py-3 rounded font-semibold bg-yellow-400 text-black hover:bg-yellow-300 disabled:opacity-50"
+            >
+              {importing ? "Importing…" : `Import ${validCount} ${type === "vehicles" ? "Vehicle" : "Item"}${validCount === 1 ? "" : "s"}`}
+            </button>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
