@@ -116,6 +116,13 @@ export default function MOTLookup() {
         year: result.year ?? null,
         colour: result.colour ?? null,
         mileage: result.mileage ?? null,
+        // updateVehicleMOT replaces the whole mot object rather than
+        // merging, so leaving these out didn't just fail to update them —
+        // it silently wiped a vehicle's real fuelType/euroStatus (ULEZ
+        // display on VehicleList.tsx/VehicleOverview.tsx) on every MOT
+        // refresh, even after they'd been correctly set some other way.
+        fuelType: result.fuelType ?? null,
+        euroStatus: result.euroStatus ?? null,
       };
       updateVehicleMOT(match.id, mapped);
       setMatchedVehicle({ id: match.id, make: match.make, model: match.model });
