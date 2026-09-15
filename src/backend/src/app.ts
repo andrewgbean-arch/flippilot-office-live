@@ -21,6 +21,8 @@ import registerPlannerRoutes from "./routes/planner";
 import registerNotificationsRoute from "./routes/notifications";
 import registerFeedbackRoute from "./routes/feedback";
 import registerConsumablesRoute from "./routes/consumables";
+import registerContactsRoute from "./routes/contacts";
+import registerDiaryRoute from "./routes/diary";
 import registerPublicBookingRoute from "./routes/publicBooking";
 import registerAppointmentsRoute from "./routes/appointments";
 import registerBookingSettingsRoute from "./routes/bookingSettings";
@@ -141,6 +143,8 @@ app.use(
     "/consumables",
     "/appointments",
     "/booking-settings",
+    "/contacts",
+    "/diary",
   ],
   requireAuth,
   requireActiveSubscription
@@ -156,6 +160,8 @@ registerPlannerRoutes(app);
 registerNotificationsRoute(app);
 registerFeedbackRoute(app);
 registerConsumablesRoute(app);
+registerContactsRoute(app);
+registerDiaryRoute(app);
 registerAppointmentsRoute(app);
 registerBookingSettingsRoute(app);
 // Deliberately OUTSIDE the requireAuth gate above — this is the one

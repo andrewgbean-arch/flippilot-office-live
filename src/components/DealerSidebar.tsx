@@ -19,6 +19,7 @@ import {
   FiCheckSquare,
   FiMessageSquare,
   FiPackage,
+  FiPhoneCall,
 } from "react-icons/fi";
 
 export default function DealerSidebar() {
@@ -51,6 +52,22 @@ export default function DealerSidebar() {
       icon: FiPackage,
       items: [
         { to: "/consumables", label: "Stock & Ordering" },
+      ],
+    },
+
+    {
+      label: "Contacts",
+      icon: FiPhoneCall,
+      items: [
+        { to: "/contacts", label: "Suppliers & Contacts" },
+      ],
+    },
+
+    {
+      label: "Diary",
+      icon: FiBook,
+      items: [
+        { to: "/diary", label: "My Diary" },
       ],
     },
 

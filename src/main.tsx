@@ -24,6 +24,8 @@ import { PlannerProvider } from "./context/PlannerContext";
 import { FeedbackProvider } from "./context/FeedbackContext";
 import { ConsumablesProvider } from "./context/ConsumablesContext";
 import { AppointmentsProvider } from "./context/AppointmentsContext";
+import { ContactsProvider } from "./context/ContactsContext";
+import { DiaryProvider } from "./context/DiaryContext";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
@@ -44,7 +46,11 @@ createRoot(document.getElementById("root")!).render(
                                 <FeedbackProvider>
                                   <ConsumablesProvider>
                                     <AppointmentsProvider>
-                                      <App />
+                                      <ContactsProvider>
+                                        <DiaryProvider>
+                                          <App />
+                                        </DiaryProvider>
+                                      </ContactsProvider>
                                     </AppointmentsProvider>
                                   </ConsumablesProvider>
                                 </FeedbackProvider>
