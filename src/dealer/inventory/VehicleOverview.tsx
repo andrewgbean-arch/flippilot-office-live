@@ -1,9 +1,10 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { useInventory } from "@/context/InventoryProvider";
 import { useBookkeeping } from "@/bookkeeping/BookkeepingProvider";
 import { useIntelligence } from "@/context/IntelligenceProvider";
+import { fetchEbayCarComps, type EbayCarComps } from "@/lib/ebayCarComps";
 
 import CostsTab from "@/bookkeeping/vehicles/CostsTab";
 import ProfitTab from "@/bookkeeping/vehicles/ProfitTab";
@@ -45,6 +46,37 @@ export default function VehicleOverview() {
   const [tab, setTab] = useState<
     "overview" | "mot" | "dealer-ai" | "costs" | "profit" | "edit"
   >("overview");
+
+  // Real dealer-only, same-year, mileage-comparable eBay listings for
+  // this exact vehicle (see backend/src/ebayCarMarket.ts) — fetched
+  // once per vehicle rather than blocking the tab on it, since it's an
+  // external API call. Starts null (not yet fetched / still loading);
+  // stays null forever when eBay isn't configured or no comparable
+  // dealer listings exist, in which case every panel below just keeps
+  // using the existing simulated estimate — never blocks, never fakes
+  // a result. Has to live above the `!vehicle` guard below along with
+  // every other hook in this component — a hook called only when
+  // `vehicle` exists would violate the Rules of Hooks the instant a
+  // vehicle id stops resolving between renders.
+  const [ebayComps, setEbayComps] = useState<EbayCarComps | null>(null);
+  useEffect(() => {
+    setEbayComps(null);
+    if (!vehicle?.make || !vehicle?.model) return;
+    let cancelled = false;
+    fetchEbayCarComps(
+      vehicle.make,
+      vehicle.model,
+      vehicle.mot?.year ?? null,
+      vehicle.mileage ?? vehicle.mot?.mileage ?? null
+    )
+      .then((res) => {
+        if (!cancelled && res.available && res.comps) setEbayComps(res.comps);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [vehicle?.id, vehicle?.make, vehicle?.model, vehicle?.mot?.year, vehicle?.mileage]);
 
   if (!vehicle) {
     return (
@@ -120,13 +152,25 @@ export default function VehicleOverview() {
       failures,
       advisories,
     },
-    market: {
-      demandScore: vehicleIntel?.demandIndex ?? null,
-      lowest: marketAvg != null ? Math.round(marketAvg * 0.85) : null,
-      highest: marketAvg != null ? Math.round(marketAvg * 1.15) : null,
-      average: marketAvg ?? null,
-      soldCount: vehicleIntel?.competitorCount ?? null,
-    },
+    // Real eBay comps (dealer-only, same year, mileage-comparable) take
+    // priority over the simulated estimate whenever they're available —
+    // same "prefer the real signal when we have one, keep the honest
+    // simulated fallback when we don't" shape as the rest of this app.
+    market: ebayComps
+      ? {
+          demandScore: ebayComps.demandScore,
+          lowest: ebayComps.lowest,
+          highest: ebayComps.highest,
+          average: ebayComps.average,
+          soldCount: ebayComps.soldCount,
+        }
+      : {
+          demandScore: vehicleIntel?.demandIndex ?? null,
+          lowest: marketAvg != null ? Math.round(marketAvg * 0.85) : null,
+          highest: marketAvg != null ? Math.round(marketAvg * 1.15) : null,
+          average: marketAvg ?? null,
+          soldCount: vehicleIntel?.competitorCount ?? null,
+        },
     aiValuation: {
       estimatedValue: vehicle.priceRetail ?? vehicle.priceTrade ?? null,
       confidence: vehicle.valuationConfidence ?? null,
@@ -277,6 +321,23 @@ export default function VehicleOverview() {
       {/* DEALER AI TAB */}
       {tab === "dealer-ai" && (
         <div className="space-y-10">
+          <div
+            className={`rounded-lg px-4 py-2 text-sm border ${
+              ebayComps
+                ? "bg-green-500/10 border-green-500/30 text-green-300"
+                : "bg-white/5 border-white/10 text-white/50"
+            }`}
+          >
+            {ebayComps
+              ? (() => {
+                  const qualifiers = [
+                    ebayComps.yearFiltered ? "same year" : null,
+                    ebayComps.mileageFiltered ? "mileage-comparable" : null,
+                  ].filter((q): q is string => q !== null);
+                  return `Market pricing below uses ${ebayComps.soldCount} real eBay dealer listing${ebayComps.soldCount === 1 ? "" : "s"}${qualifiers.length ? ` (${qualifiers.join(", ")})` : " (year/mileage unconfirmed from listing titles)"}.`;
+                })()
+              : "Market pricing below is a simulated estimate — no comparable eBay dealer listings found for this exact year/model yet."}
+          </div>
           <CosmicIdentityBlock vehicle={dealerAIVehicle} />
           <BuyOrWalkPanel vehicle={dealerAIVehicle} />
           <FlipScorePanel vehicle={dealerAIVehicle} />
