@@ -17,10 +17,12 @@ export default function VehicleList() {
   return (
     <div className="min-h-screen bg-[#0A1128] p-10 text-white animate-fadeIn">
 
-      <SupernovaHeroHeader
-        title="Vehicle List"
-        subtitle="All vehicles currently in your inventory"
-      />
+      <div data-tour="tour-vehicle-list">
+        <SupernovaHeroHeader
+          title="Vehicle List"
+          subtitle="All vehicles currently in your inventory"
+        />
+      </div>
 
       <div className="max-w-3xl mx-auto flex justify-end mb-2">
         <button

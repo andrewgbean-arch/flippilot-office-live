@@ -196,7 +196,7 @@ export default function DealerDashboard({ brain }: Props) {
     <div className="p-10 space-y-16">
 
       {/* GREETING */}
-      <div>
+      <div data-tour="tour-welcome">
         <h1 className="text-3xl font-extrabold text-white">
           Good {timeOfDay}, {greetingName}
         </h1>
@@ -206,7 +206,7 @@ export default function DealerDashboard({ brain }: Props) {
       </div>
 
       {/* HEADLINE NUMBERS */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div data-tour="tour-headline-stats" className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <HeroStat
           label="Stock Value"
           value={`£${stockValue.toLocaleString()}`}
@@ -358,7 +358,9 @@ export default function DealerDashboard({ brain }: Props) {
           accent="green"
         >
           <GoldButton onPress={() => navigate("/dealer/inventory")}>View Inventory</GoldButton>
-          <GoldButton onPress={() => navigate("/new-flip")}>Add Vehicle</GoldButton>
+          <div data-tour="tour-add-vehicle">
+            <GoldButton onPress={() => navigate("/new-flip")}>Add Vehicle</GoldButton>
+          </div>
           <GoldButton onPress={() => navigate("/dealer/inventory/mot-lookup")}>MOT Lookup</GoldButton>
           <GoldButton onPress={() => navigate("/dealer/inventory/list")}>Vehicle List</GoldButton>
         </SupernovaCard>

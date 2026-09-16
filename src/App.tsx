@@ -1,7 +1,12 @@
 import AnimatedRoutes from "./router/AnimatedRoutes";
+import { TourProvider } from "./tour/TourProvider";
 
 export default function App() {
-  return <AnimatedRoutes />;
+  return (
+    <TourProvider>
+      <AnimatedRoutes />
+    </TourProvider>
+  );
 }
 
 

@@ -9,6 +9,7 @@ import { SupernovaGlowButton } from "@/components/supernova/SupernovaGlowButton"
 import { useDealer } from "@/context/DealerContext";
 import { useAuth } from "@/context/AuthContext";
 import { authHeaders } from "@/lib/authToken";
+import { useTour } from "@/tour/TourProvider";
 
 const BASE_URL = "http://localhost:4001";
 
@@ -343,6 +344,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
 export default function Settings() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { startTour } = useTour();
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -351,10 +353,12 @@ export default function Settings() {
     <div className="animate-fadeIn text-white px-6 py-10 max-w-5xl mx-auto">
 
       {/* HEADER */}
-      <SupernovaHeroHeader
-        title="Dealer Settings & Preferences"
-        subtitle="Configure your FlipPilot Dealer OS experience, preferences, and system behaviour."
-      />
+      <div data-tour="tour-settings">
+        <SupernovaHeroHeader
+          title="Dealer Settings & Preferences"
+          subtitle="Configure your FlipPilot Dealer OS experience, preferences, and system behaviour."
+        />
+      </div>
 
       {/* Settings Grid */}
       <SupernovaSectionDivider label="Settings" />
@@ -405,6 +409,19 @@ export default function Settings() {
           </p>
 
           <SupernovaGlowButton label="Import from CSV" onClick={() => navigate("/import")} />
+        </SupernovaGlowCard>
+
+        {/* Product Tour — the same guided walkthrough that runs
+            automatically on a new account's first login, re-triggerable
+            here for a returning dealer or a new team member. */}
+        <SupernovaGlowCard>
+          <h2 className="text-yellow-300 font-bold text-xl mb-3">Product Tour</h2>
+          <p className="text-white/70 mb-4">
+            Walk back through the main parts of FlipPilot — useful for a refresher, or to show a
+            new team member around.
+          </p>
+
+          <SupernovaGlowButton label="Take the Tour" onClick={startTour} />
         </SupernovaGlowCard>
 
       </section>

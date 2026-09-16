@@ -117,7 +117,7 @@ export default function ConsumablesBoard() {
 
   return (
     <div className="sn-dashboard sn-dashboard--cosmic">
-      <header className="sn-hero">
+      <header className="sn-hero" data-tour="tour-consumables">
         <div className="sn-hero__glow" />
         <div className="sn-hero__content">
           <h1 className="sn-hero__title">Consumables</h1>

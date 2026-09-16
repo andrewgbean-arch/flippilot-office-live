@@ -17,7 +17,7 @@ export default function SalesHub() {
   return (
     <div className="sn-dashboard sn-dashboard--cosmic">
 
-      <header className="sn-hero">
+      <header className="sn-hero" data-tour="tour-sales">
         <div className="sn-hero__glow" />
         <div className="sn-hero__content">
           <h1 className="sn-hero__title">Sales Hub</h1>

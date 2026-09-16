@@ -46,10 +46,12 @@ const [showTransactionModal, setShowTransactionModal] = useState(false); // ⭐ 
     <div className="min-h-screen bg-[#0A1128] text-white p-10 animate-fadeIn">
 
       {/* HEADER */}
-      <SupernovaHeroHeader
-        title="Bookkeeping Hub"
-        subtitle="Track purchases, costs, sales, suppliers, and profit margins with Supernova intelligence."
-      />
+      <div data-tour="tour-bookkeeping">
+        <SupernovaHeroHeader
+          title="Bookkeeping Hub"
+          subtitle="Track purchases, costs, sales, suppliers, and profit margins with Supernova intelligence."
+        />
+      </div>
 
       {/* MAIN ACTION BUTTONS — recording purchases/costs/sales/
           transactions needs the Finance or Manager role (or owner);

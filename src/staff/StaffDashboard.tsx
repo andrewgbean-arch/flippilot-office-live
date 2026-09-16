@@ -36,7 +36,7 @@ export function StaffDashboard({}: Props) {
     <div className="sn-dashboard sn-dashboard--cosmic">
 
       {/* HERO */}
-      <header className="sn-hero">
+      <header className="sn-hero" data-tour="tour-staff">
         <div className="sn-hero__glow" />
         <div className="sn-hero__content">
           <h1 className="sn-hero__title">Staff Command Center</h1>
