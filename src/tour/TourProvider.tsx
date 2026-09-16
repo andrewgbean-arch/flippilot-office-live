@@ -18,9 +18,17 @@ function seenKey(userId: string) {
 // event reliably, so a voice-only tour that waited on it alone could
 // get stuck on one step forever. The real advance still happens on
 // onend when it does fire; this just guarantees it can't hang.
+// Deliberately conservative (110wpm, not a natural-speech-rate 150) —
+// confirmed live that real TTS narration for a handful of steps ran
+// longer than a 150wpm estimate predicted, so this timer occasionally
+// won the race against the real onend and cut the last word or two
+// off mid-sentence. Erring toward "fires a little late" is the safe
+// direction, since onend still advances immediately the moment real
+// speech actually finishes — this timer firing early is the only way
+// to audibly cut narration short.
 function estimateSpeechMs(text: string): number {
   const words = text.split(/\s+/).length;
-  return Math.max(2500, (words / 150) * 60 * 1000 + 800);
+  return Math.max(3000, (words / 110) * 60 * 1000 + 2000);
 }
 
 interface TourContextType {
@@ -176,12 +184,16 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
     utter.rate = 1;
     utter.pitch = 1;
     utter.onend = () => {
+      // Clear the safety-net timer below before replacing it — otherwise
+      // its id just gets overwritten here while it's still scheduled,
+      // and it fires again later on its own, advancing an extra step.
+      clearAdvanceTimer();
       advanceTimer.current = setTimeout(nextStep, 400);
     };
     // Some browsers never fire onend for a given voice/utterance — this
     // guarantees the tour still moves on rather than hanging on one
     // step indefinitely.
-    advanceTimer.current = setTimeout(nextStep, estimateSpeechMs(step.narration) + 1500);
+    advanceTimer.current = setTimeout(nextStep, estimateSpeechMs(step.narration) + 2500);
     window.speechSynthesis.speak(utter);
 
     return () => {
