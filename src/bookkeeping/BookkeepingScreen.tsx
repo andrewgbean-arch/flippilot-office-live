@@ -59,7 +59,7 @@ const [showTransactionModal, setShowTransactionModal] = useState(false); // ⭐ 
           Sales/General account never gets as far as a confusing 403
           on submit. */}
       {canWrite ? (
-        <div className="grid grid-cols-2 gap-6 my-10 max-w-3xl mx-auto">
+        <div data-tour="tour-bookkeeping-actions" className="grid grid-cols-2 gap-6 my-10 max-w-3xl mx-auto">
           <GoldButton onPress={() => setShowPurchaseModal(true)}>
             Add Purchase
           </GoldButton>

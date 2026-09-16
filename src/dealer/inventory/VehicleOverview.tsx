@@ -95,7 +95,7 @@ export default function VehicleOverview() {
       />
 
       {/* TABS */}
-      <div className="flex flex-wrap gap-3 mb-6">
+      <div data-tour="tour-vehicle-tabs" className="flex flex-wrap gap-3 mb-6">
         {["overview", "mot", "dealer-ai", "costs", "profit", "edit"].map((t) => (
           <button
             key={t}

@@ -36,7 +36,7 @@ export default function VehicleList() {
       <SupernovaSectionDivider label="Inventory" />
 
       <div className="max-w-3xl mx-auto space-y-4">
-        {vehicles.map((v) => {
+        {vehicles.map((v, i) => {
           const mot = v.mot;
 
           // ⭐ MOT quick indicators
@@ -133,7 +133,7 @@ export default function VehicleList() {
                 )}
               </div>
 
-              <div className="flex gap-3 mt-4">
+              <div className="flex gap-3 mt-4" {...(i === 0 ? { "data-tour": "tour-vehicle-list-buttons" } : {})}>
                 <button
                   onClick={() => navigate(`/dealer/inventory/${v.id}`)}
                   className="flex-1 bg-yellow-400 text-black font-bold rounded-xl py-3 hover:bg-yellow-300 transition"

@@ -363,7 +363,7 @@ export default function Settings() {
       {/* Settings Grid */}
       <SupernovaSectionDivider label="Settings" />
 
-      <section className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
+      <section data-tour="tour-settings-cards" className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
 
         {/* Dealer Profile */}
         <SupernovaGlowCard>

@@ -249,7 +249,7 @@ export default function DealerDashboard({ brain }: Props) {
 
       {/* TODAY'S ACTIONS */}
       <SupernovaSectionDivider label="Today's Actions" />
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div data-tour="tour-todays-actions" className="grid grid-cols-1 md:grid-cols-3 gap-6">
 
         <SupernovaCard
           title="MOT Expiring Soon"
@@ -350,7 +350,7 @@ export default function DealerDashboard({ brain }: Props) {
       {/* DEALER MODULES */}
       <SupernovaSectionDivider label="Dealer Modules" />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+      <div data-tour="tour-dealer-modules" className="grid grid-cols-1 md:grid-cols-2 gap-10">
 
         <SupernovaCard
           title="Inventory Module"

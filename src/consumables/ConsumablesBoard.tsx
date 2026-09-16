@@ -203,7 +203,7 @@ export default function ConsumablesBoard() {
             <h2 className="sn-panel__title">
               Stock{lowStock.length > 0 ? ` — ${lowStock.length} low` : ""}
             </h2>
-            <div style={{ display: "flex", gap: 8 }}>
+            <div data-tour="tour-consumables-buttons" style={{ display: "flex", gap: 8 }}>
               <button className="sn-btn sn-btn--ghost" onClick={() => navigate("/import")}>
                 Import from CSV
               </button>

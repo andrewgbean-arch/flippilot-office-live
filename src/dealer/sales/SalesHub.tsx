@@ -38,7 +38,7 @@ export default function SalesHub() {
 
         <section className="sn-panel sn-panel--wide">
           <h2 className="sn-panel__title">Quick Actions</h2>
-          <div className="sn-quick-actions">
+          <div data-tour="tour-sales-actions" className="sn-quick-actions">
             <button className="sn-btn sn-btn--gold" onClick={() => navigate("/dealer/sales/add")}>
               + Add Lead
             </button>
