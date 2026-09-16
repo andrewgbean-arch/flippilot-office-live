@@ -29,7 +29,12 @@ export function MarketIntelligencePanel({ vehicle }: MarketIntelligencePanelProp
           {intel.demandTier} MARKET
         </p>
 
-        {/* ⭐ Metrics Grid */}
+        {/* ⭐ Metrics Grid — Recommended List Price used to repeat here
+            too; the real eBay/Google guide prices and Buy-or-Walk's
+            recommended buy price now live together in one pricing
+            section above this panel, so this stays focused on what's
+            actually unique to market intelligence: how competitive and
+            fast-moving this market is, not another price figure. */}
         <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
 
           <div>
@@ -45,13 +50,6 @@ export function MarketIntelligencePanel({ vehicle }: MarketIntelligencePanelProp
           <div>
             <p className="text-white/60 text-sm">Competitors</p>
             <p className="text-white font-bold text-xl">{intel.competitorCount}</p>
-          </div>
-
-          <div>
-            <p className="text-white/60 text-sm">Recommended List Price</p>
-            <p className="text-white font-bold text-xl">
-              £{intel.recommendedListPrice.toLocaleString()}
-            </p>
           </div>
 
           <div>

@@ -31,17 +31,17 @@ export function FlipScorePanel({ vehicle }: FlipScorePanelProps) {
           {score.finalScore}/100 — {score.tier}
         </p>
 
-        {/* ⭐ Score Grid */}
+        {/* ⭐ Score Grid — Market Score is a real input to the weighted
+            final score above, just not re-displayed as its own number
+            here: Market Intelligence below already gives demand a much
+            fuller treatment (tier, price pressure, saturation,
+            competitors, time to sell) than a bare "Market Score: 22"
+            figure ever could. */}
         <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
 
           <div>
             <p className="text-white/60 text-sm">Condition Score</p>
             <p className="text-white font-bold text-xl">{score.conditionScore}</p>
-          </div>
-
-          <div>
-            <p className="text-white/60 text-sm">Market Score</p>
-            <p className="text-white font-bold text-xl">{score.marketScore}</p>
           </div>
 
           <div>

@@ -61,50 +61,13 @@ export function BuyOrWalkPanel({ vehicle }: BuyOrWalkPanelProps) {
           </div>
         </div>
 
-        {/* ⭐ Market Signals */}
-        <div className="bg-white/5 p-4 rounded-lg border border-white/10">
-          <p className="text-white/60 text-sm mb-2">Market Signals</p>
-
-          <p className="text-white/80">
-            Demand Score:{" "}
-            <span className="text-white font-bold">
-              {vehicle.market?.demandScore ?? "—"}
-            </span>
-          </p>
-
-          <p className="text-white/80">
-            Market Range:{" "}
-            <span className="text-white font-bold">
-              £{vehicle.market?.lowest ?? "—"} – £{vehicle.market?.highest ?? "—"}
-            </span>
-          </p>
-        </div>
-
-        {/* ⭐ MOT Risk */}
-        <div className="bg-white/5 p-4 rounded-lg border border-white/10">
-          <p className="text-white/60 text-sm mb-2">MOT Risk Summary</p>
-
-          <p className="text-white/80">
-            Failures:{" "}
-            <span className="text-white font-bold">
-              {vehicle.mot?.failures?.length ?? 0}
-            </span>
-          </p>
-
-          <p className="text-white/80">
-            Advisories:{" "}
-            <span className="text-white font-bold">
-              {vehicle.mot?.advisories?.length ?? 0}
-            </span>
-          </p>
-
-          <p className="text-white/80">
-            Mileage:{" "}
-            <span className="text-white font-bold">
-              {vehicle.mileage ?? vehicle.mot?.mileage ?? "—"}
-            </span>
-          </p>
-        </div>
+        {/* Demand Score / Market Range / MOT Failures & Advisories used
+            to repeat here too — all now shown once, properly: pricing
+            (eBay/Google guide prices) sits in its own section right
+            above this panel in VehicleOverview.tsx, demand gets a full
+            breakdown in Market Intelligence below, and MOT facts have
+            their own dedicated tab. Keeping this panel focused on what
+            it's actually for — the verdict and why. */}
 
         {/* ⭐ Notes */}
         <div>

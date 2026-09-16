@@ -354,56 +354,59 @@ export default function VehicleOverview() {
       {/* DEALER AI TAB */}
       {tab === "dealer-ai" && (
         <div className="space-y-10">
-          <div
-            className={`rounded-lg px-4 py-2 text-sm border ${
-              ebayComps
-                ? "bg-green-500/10 border-green-500/30 text-green-300"
-                : "bg-white/5 border-white/10 text-white/50"
-            }`}
-          >
-            {ebayComps
-              ? (() => {
-                  const qualifiers = [
-                    ebayComps.yearFiltered ? "same year" : null,
-                    ebayComps.mileageFiltered ? "mileage-comparable" : null,
-                  ].filter((q): q is string => q !== null);
-                  return `Guide price — from ${ebayComps.soldCount} real eBay dealer listing${ebayComps.soldCount === 1 ? "" : "s"}${qualifiers.length ? ` (${qualifiers.join(", ")})` : " (year/mileage unconfirmed from listing titles)"}. These are asking prices a seller set to sell quickly, not confirmed sale prices — real retail value may run higher.`;
-                })()
-              : "Market pricing below is a simulated estimate — no comparable eBay dealer listings found for this exact year/model yet."}
-          </div>
-
-          {/* Google cross-reference — separate from the eBay guide price
-              above rather than blended into it, since it comes from
-              parsing real search-result snippets (AutoTrader/Cazoo/
-              AutoUncle/Parkers etc.), a less structured signal than
-              eBay's own price field. Manual button, not automatic —
-              see handleCheckGooglePrices for why. */}
-          <div className="rounded-lg px-4 py-3 text-sm border bg-white/5 border-white/10">
-            <div className="flex items-center justify-between gap-4 flex-wrap">
-              <span className="text-white/70">
-                Cross-reference against real UK dealer/comparison sites (AutoTrader, Cazoo, and others).
-              </span>
-              <button
-                onClick={handleCheckGooglePrices}
-                disabled={googleGuideStatus === "loading"}
-                className="px-3 py-1.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/50 hover:bg-blue-500/30 text-xs font-semibold disabled:opacity-50"
-              >
-                {googleGuideStatus === "loading" ? "Checking…" : "Check Google Dealer Prices"}
-              </button>
-            </div>
-            {googleGuide && (
-              <p className="text-white/80 mt-2">
-                Guide price: <span className="font-bold">£{googleGuide.lowest.toLocaleString()} – £{googleGuide.highest.toLocaleString()}</span>
-                {" "}(avg £{googleGuide.average.toLocaleString()}, from {googleGuide.sourceCount} real price mention{googleGuide.sourceCount === 1 ? "" : "s"}
-                {googleGuide.sources.length ? ` across ${googleGuide.sources.join(", ")}` : ""}).
-              </p>
-            )}
-            {googleGuideStatus === "not-found" && (
-              <p className="text-white/50 mt-2">No usable dealer price mentions found for this search.</p>
-            )}
-          </div>
-
           <CosmicIdentityBlock vehicle={dealerAIVehicle} />
+
+          {/* Market Pricing — the eBay guide price and Google
+              cross-reference used to sit here as two separate banners;
+              combined into one card since they're answering the same
+              question ("what's this actually worth?") from two
+              different real sources, not two different concerns. */}
+          <SupernovaGlowCard>
+            <SupernovaSectionDivider label="Market Pricing" />
+            <div className="space-y-4">
+              <div>
+                <p className="text-white/60 text-sm mb-1">eBay Dealer Comps</p>
+                <p className="text-white/80 text-sm">
+                  {ebayComps
+                    ? (() => {
+                        const qualifiers = [
+                          ebayComps.yearFiltered ? "same year" : null,
+                          ebayComps.mileageFiltered ? "mileage-comparable" : null,
+                        ].filter((q): q is string => q !== null);
+                        return `Guide price £${ebayComps.lowest.toLocaleString()} – £${ebayComps.highest.toLocaleString()} (avg £${ebayComps.average.toLocaleString()}) — from ${ebayComps.soldCount} real eBay dealer listing${ebayComps.soldCount === 1 ? "" : "s"}${qualifiers.length ? ` (${qualifiers.join(", ")})` : " (year/mileage unconfirmed from listing titles)"}. These are asking prices a seller set to sell quickly, not confirmed sale prices — real retail value may run higher.`;
+                      })()
+                    : "Simulated estimate — no comparable eBay dealer listings found for this exact year/model yet."}
+                </p>
+              </div>
+
+              <div className="pt-2 border-t border-white/10">
+                <div className="flex items-center justify-between gap-4 flex-wrap mb-1">
+                  <p className="text-white/60 text-sm">Google Dealer/Comparison Sites</p>
+                  <button
+                    onClick={handleCheckGooglePrices}
+                    disabled={googleGuideStatus === "loading"}
+                    className="px-3 py-1.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/50 hover:bg-blue-500/30 text-xs font-semibold disabled:opacity-50"
+                  >
+                    {googleGuideStatus === "loading" ? "Checking…" : "Check Google Dealer Prices"}
+                  </button>
+                </div>
+                {googleGuide && (
+                  <p className="text-white/80 text-sm">
+                    Guide price £{googleGuide.lowest.toLocaleString()} – £{googleGuide.highest.toLocaleString()}
+                    {" "}(avg £{googleGuide.average.toLocaleString()}, from {googleGuide.sourceCount} real price mention{googleGuide.sourceCount === 1 ? "" : "s"}
+                    {googleGuide.sources.length ? ` across ${googleGuide.sources.join(", ")}` : ""}).
+                  </p>
+                )}
+                {googleGuideStatus === "not-found" && (
+                  <p className="text-white/50 text-sm">No usable dealer price mentions found for this search.</p>
+                )}
+                {googleGuideStatus === "idle" && !googleGuide && (
+                  <p className="text-white/40 text-sm">AutoTrader, Cazoo, AutoUncle, Parkers and others — click to cross-reference.</p>
+                )}
+              </div>
+            </div>
+          </SupernovaGlowCard>
+
           <BuyOrWalkPanel vehicle={dealerAIVehicle} />
           <FlipScorePanel vehicle={dealerAIVehicle} />
           <PredictiveMaintenancePanel vehicle={dealerAIVehicle} />
