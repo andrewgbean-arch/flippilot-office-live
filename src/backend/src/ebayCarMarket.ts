@@ -69,6 +69,14 @@ async function getEbayAccessToken(): Promise<string> {
 // first line of defence against averaging in non-comparable damaged
 // stock, same "strip obviously non-comparable listings before
 // averaging" shape as flippilotlatest's own bulk-listing filter.
+//
+// Confirmed live this genuinely matters, not just theoretical: a real
+// "Ford Fiesta ... Rolling Shell Project Track Day Car Stripped"
+// dealer listing at £200 (vs £800-£1795 for the other 3 real listings
+// of the same model) pulled the average down to £1,022 — a bare shell
+// being built into a track car isn't comparable retail stock at all,
+// dealer-sold or not, so it needs its own exclusion alongside genuine
+// insurance write-offs.
 const DAMAGE_PATTERNS = [
   /\bcat(?:egory)?\s*[.\-]?\s*[abcdns]\b/i, // "Cat S", "Category N", "CAT.C"
   /\bwrite[\s-]?off\b/i,
@@ -79,6 +87,12 @@ const DAMAGE_PATTERNS = [
   /\bdamaged\b/i,
   /\bfire\s*damage(?:d)?\b/i,
   /\bflood\s*damage(?:d)?\b/i,
+  /\bshell\b/i, // a bare/stripped body shell, not a roadworthy car
+  /\bproject\s*car\b/i,
+  /\bstripped\b/i,
+  /\btrack\s*(?:day)?\s*(?:car|build|project)\b/i,
+  /\bno\s*mot\b/i,
+  /\bbarn\s*find\b/i,
 ];
 
 function isDamagedOrWriteOff(title: string | undefined | null): boolean {
@@ -192,16 +206,21 @@ export async function fetchEbayCarComps(
     const data = await res.json();
     const summaries: any[] = data.itemSummaries ?? [];
 
-    // Dealer-only, non-damaged, and (when a year is known) the same
-    // model year — a 2020 car isn't a fair comp against a 2016 one of
-    // the same model, so this is a hard requirement, not a soft
-    // preference like the mileage band below. A listing whose title
-    // doesn't clearly state a year is excluded too, rather than
-    // assumed to match, when a year was actually asked for.
+    // Dealer-only, non-damaged, a real fixed price (not a live auction
+    // bid — the Browse API's price.value on an auction-only listing is
+    // just the CURRENT BID, not a real transactable price; a listing
+    // with days left to run could show almost anything), and (when a
+    // year is known) the same model year — a 2020 car isn't a fair
+    // comp against a 2016 one of the same model, so year is a hard
+    // requirement here, not a soft preference like the mileage band
+    // below. A listing whose title doesn't clearly state a year is
+    // excluded too, rather than assumed to match, when a year was
+    // actually asked for.
     const comparable = summaries.filter((item) => {
       if (item?.seller?.sellerAccountType !== "BUSINESS") return false;
       if (isDamagedOrWriteOff(item?.title)) return false;
       if (typeof item?.price?.value === "undefined") return false;
+      if (!Array.isArray(item?.buyingOptions) || !item.buyingOptions.includes("FIXED_PRICE")) return false;
       if (year != null) {
         const listedYear = extractYearFromTitle(item?.title);
         if (listedYear !== year) return false;
