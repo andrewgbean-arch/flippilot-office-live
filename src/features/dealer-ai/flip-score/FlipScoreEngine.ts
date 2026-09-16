@@ -72,7 +72,10 @@ export function evaluateFlipScore(vehicle: FlipRecord): FlipScoreBreakdown {
     marketScore,
     motRisk,
     mileageRisk,
-    aiConfidence,
+    // Rounded only for display, same reasoning as BuyOrWalkEngine's
+    // confidence — the finalScore weighting and the notes check above
+    // both already ran on the raw value, so this can't shift either.
+    aiConfidence: Math.round(aiConfidence),
     finalScore,
     tier,
     notes,

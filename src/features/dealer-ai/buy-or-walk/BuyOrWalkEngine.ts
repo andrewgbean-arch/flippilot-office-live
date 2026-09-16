@@ -107,7 +107,13 @@ export function evaluateBuyOrWalk(vehicle: FlipRecord): BuyOrWalkResult {
     recommendedBuyPrice,
     riskScore,
     profitPotential,
-    confidence,
+    // Rounded only here for display — the verdict/notes logic above
+    // uses the raw value so this doesn't shift any boundary decisions.
+    // Confirmed live: this was rendering as "82.5%"/"93.5%" for real
+    // vehicles whenever confidenceBase - riskScore*0.3 landed on a
+    // fraction, same unrounded-float class as profitPotential/
+    // finalScore fixed earlier.
+    confidence: Math.round(confidence),
     verdict,
     notes,
   };
