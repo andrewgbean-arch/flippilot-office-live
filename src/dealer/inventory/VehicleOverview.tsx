@@ -373,7 +373,17 @@ export default function VehicleOverview() {
                           ebayComps.yearFiltered ? "same year" : null,
                           ebayComps.mileageFiltered ? "mileage-comparable" : null,
                         ].filter((q): q is string => q !== null);
-                        return `Guide price £${ebayComps.lowest.toLocaleString()} – £${ebayComps.highest.toLocaleString()} (avg £${ebayComps.average.toLocaleString()}) — from ${ebayComps.soldCount} real eBay dealer listing${ebayComps.soldCount === 1 ? "" : "s"}${qualifiers.length ? ` (${qualifiers.join(", ")})` : " (year/mileage unconfirmed from listing titles)"}. These are asking prices a seller set to sell quickly, not confirmed sale prices — real retail value may run higher.`;
+                        // A single real listing has no real "range" — a
+                        // literal "£1,895 – £1,895" range with an
+                        // identical average was confirmed live on the
+                        // Fiat 500 (1 listing survived filtering), which
+                        // just looks like a display bug even though the
+                        // underlying number is genuinely correct.
+                        const priceText =
+                          ebayComps.soldCount === 1
+                            ? `Guide price £${ebayComps.average.toLocaleString()}`
+                            : `Guide price £${ebayComps.lowest.toLocaleString()} – £${ebayComps.highest.toLocaleString()} (avg £${ebayComps.average.toLocaleString()})`;
+                        return `${priceText} — from ${ebayComps.soldCount} real eBay dealer listing${ebayComps.soldCount === 1 ? " (a single comp — treat as a rough steer, not a confident range)" : "s"}${qualifiers.length ? ` (${qualifiers.join(", ")})` : " (year/mileage unconfirmed from listing titles)"}. These are asking prices a seller set to sell quickly, not confirmed sale prices — real retail value may run higher.`;
                       })()
                     : "Simulated estimate — no comparable eBay dealer listings found for this exact year/model yet."}
                 </p>
@@ -392,9 +402,11 @@ export default function VehicleOverview() {
                 </div>
                 {googleGuide && (
                   <p className="text-white/80 text-sm">
-                    Guide price £{googleGuide.lowest.toLocaleString()} – £{googleGuide.highest.toLocaleString()}
-                    {" "}(avg £{googleGuide.average.toLocaleString()}, from {googleGuide.sourceCount} real price mention{googleGuide.sourceCount === 1 ? "" : "s"}
-                    {googleGuide.sources.length ? ` across ${googleGuide.sources.join(", ")}` : ""}).
+                    {googleGuide.sourceCount === 1
+                      ? `Guide price £${googleGuide.average.toLocaleString()}`
+                      : `Guide price £${googleGuide.lowest.toLocaleString()} – £${googleGuide.highest.toLocaleString()} (avg £${googleGuide.average.toLocaleString()})`}
+                    {" "}— from {googleGuide.sourceCount} real price mention{googleGuide.sourceCount === 1 ? " (a single mention — treat as a rough steer, not a confident range)" : "s"}
+                    {googleGuide.sources.length ? ` across ${googleGuide.sources.join(", ")}` : ""}.
                   </p>
                 )}
                 {googleGuideStatus === "not-found" && (
