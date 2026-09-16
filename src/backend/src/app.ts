@@ -6,11 +6,7 @@ import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
 import rateLimit from "express-rate-limit";
-import registerIntelligenceV3 from "./routes/intelligenceV3";
-import registerSearchRoute from "./routes/search";
-import registerLookupRoute from "./routes/lookup";
 import registerInventoryRoute from "./routes/inventory";
-import registerIntelligenceRoute from "./routes/intelligence";
 import registerLeadsRoute from "./routes/leads";
 import registerStaffRoute from "./routes/staff";
 import registerBookkeepingRoute from "./routes/bookkeeping";
@@ -112,11 +108,6 @@ app.use("/auth/forgot-password", loginLimiter);
 registerAuthRoute(app);
 registerDealershipRoute(app);
 registerBillingRoute(app);
-
-registerSearchRoute(app);
-registerLookupRoute(app);
-registerIntelligenceRoute(app);
-registerIntelligenceV3(app);
 
 // The dealer's actual business data — previously these had zero access
 // control, so anyone who found the URL could read or overwrite

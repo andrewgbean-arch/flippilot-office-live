@@ -3,7 +3,6 @@ import React, { createContext, useContext, useState, useEffect, useRef } from "r
 import { ultraInventory } from "../dealer/ultraInventory";
 import { dummyVehicles } from "../dealer/dummyVehicles";
 
-import fetchMarketFromServer from "../lib/fetchMarketFromServer";
 import { loadInventoryFromServer, saveInventoryToServer } from "./inventoryStorage.web";
 
 import type { Vehicle } from "../types/Vehicle";
@@ -125,14 +124,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
       const local = ultraInventory || [];
       const fallback = dummyVehicles || [];
 
-      // ⭐ Prevent crash if market lookup is offline
-      const market = await fetchMarketFromServer("default").catch(() => null);
-
-      const mergedRaw = [
-        ...local,
-        ...fallback,
-        ...(market?.vehicles || [])
-      ];
+      const mergedRaw = [...local, ...fallback];
 
       await saveInventoryToServer(mergedRaw);
 
