@@ -184,13 +184,14 @@ function StaffCard({
   onOpen,
 }: {
   staff: StaffRecord;
-  onRemove: (id: string) => void;
+  onRemove: (id: string) => Promise<string | null>;
   onOpen: (id: string) => void;
 }) {
-  function handleRemoveClick(e: React.MouseEvent) {
+  async function handleRemoveClick(e: React.MouseEvent) {
     e.stopPropagation();
     if (window.confirm(`Remove ${staff.name || "this staff member"}? This can't be undone.`)) {
-      onRemove(staff.id);
+      const error = await onRemove(staff.id);
+      if (error) window.alert(error);
     }
   }
 

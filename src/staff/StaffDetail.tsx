@@ -14,6 +14,7 @@ export default function StaffDetail() {
   const [form, setForm] = useState<StaffRecord | null>(existing ?? null);
   const [skillsInput, setSkillsInput] = useState(existing?.skills?.join(", ") ?? "");
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (existing) {
@@ -36,6 +37,7 @@ export default function StaffDetail() {
   function update<K extends keyof StaffRecord>(key: K, value: StaffRecord[K]) {
     setForm(prev => (prev ? { ...prev, [key]: value } : prev));
     setSaved(false);
+    setError(null);
   }
 
   async function handleSave() {
@@ -49,7 +51,12 @@ export default function StaffDetail() {
         .filter(Boolean),
     };
 
-    await updateStaff(updatedRecord);
+    const saveError = await updateStaff(updatedRecord);
+    if (saveError) {
+      setError(saveError);
+      return;
+    }
+    setError(null);
     setSaved(true);
   }
 
@@ -138,6 +145,8 @@ export default function StaffDetail() {
           onChange={e => update("notes", e.target.value)}
           rows={3}
         />
+
+        {error && <p className="sn-form-note" style={{ color: "#ff8080" }}>{error}</p>}
 
         <div className="sn-detail-actions">
           <button className="sn-btn sn-btn--gold" onClick={handleSave}>

@@ -28,14 +28,14 @@ interface PlannerContextType {
   shifts: Shift[];
   rotaSettings: RotaSettings;
   loading: boolean;
-  saveWorkPattern: (pattern: WorkPattern) => Promise<void>;
-  removeWorkPattern: (userId: string) => Promise<void>;
+  saveWorkPattern: (pattern: WorkPattern) => Promise<string | null>;
+  removeWorkPattern: (userId: string) => Promise<string | null>;
   requestLeave: (input: { type: string; startDate: string; endDate: string; notes?: string }) => Promise<string | null>;
   decideLeave: (id: string, status: "approved" | "declined") => Promise<string | null>;
   withdrawLeave: (id: string) => Promise<string | null>;
-  updateRotaSettings: (settings: RotaSettings) => Promise<void>;
-  saveShift: (shift: Shift) => Promise<void>;
-  removeShift: (id: string) => Promise<void>;
+  updateRotaSettings: (settings: RotaSettings) => Promise<string | null>;
+  saveShift: (shift: Shift) => Promise<string | null>;
+  removeShift: (id: string) => Promise<string | null>;
   generateWeek: (weekStart: string) => Promise<{ error: string | null; generatedCount: number }>;
 }
 
@@ -76,14 +76,18 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
 
   async function saveWorkPattern(pattern: WorkPattern) {
     const updated = [...workPatterns.filter(p => p.userId !== pattern.userId), pattern];
+    const res = await saveWorkPatterns(updated);
+    if (!res.ok) return res.error ?? "Could not save work pattern";
     setWorkPatterns(updated);
-    await saveWorkPatterns(updated);
+    return null;
   }
 
   async function removeWorkPattern(userId: string) {
     const updated = workPatterns.filter(p => p.userId !== userId);
+    const res = await saveWorkPatterns(updated);
+    if (!res.ok) return res.error ?? "Could not save work pattern";
     setWorkPatterns(updated);
-    await saveWorkPatterns(updated);
+    return null;
   }
 
   async function handleRequestLeave(input: { type: string; startDate: string; endDate: string; notes?: string }) {
@@ -116,20 +120,26 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function updateRotaSettings(settings: RotaSettings) {
+    const res = await saveRotaSettings(settings);
+    if (!res.ok) return res.error ?? "Could not save rota settings";
     setRotaSettings(settings);
-    await saveRotaSettings(settings);
+    return null;
   }
 
   async function saveShift(shift: Shift) {
     const updated = [...shifts.filter(s => s.id !== shift.id), shift];
+    const res = await saveShifts(updated);
+    if (!res.ok) return res.error ?? "Could not save shift";
     setShifts(updated);
-    await saveShifts(updated);
+    return null;
   }
 
   async function removeShift(id: string) {
     const updated = shifts.filter(s => s.id !== id);
+    const res = await saveShifts(updated);
+    if (!res.ok) return res.error ?? "Could not remove shift";
     setShifts(updated);
-    await saveShifts(updated);
+    return null;
   }
 
   async function generateWeek(weekStart: string) {

@@ -3,18 +3,24 @@ import { StaffRecord } from "./staffTypes";
 import { loadStaff, saveStaff } from "@/staff/staffStorage.web";
 import { useAuth } from "@/context/AuthContext";
 
+// Each write returns null on success, or an error message on failure —
+// so a caller can tell a real save from one that silently didn't
+// persist (a 403 from a non-manager account, a dropped connection,
+// etc) instead of always showing "Saved".
 type StaffContextValue = {
   staff: StaffRecord[];
-  addStaff: (s: StaffRecord) => Promise<void>;
-  updateStaff: (s: StaffRecord) => Promise<void>;
-  removeStaff: (id: string) => Promise<void>;
+  addStaff: (s: StaffRecord) => Promise<string | null>;
+  updateStaff: (s: StaffRecord) => Promise<string | null>;
+  removeStaff: (id: string) => Promise<string | null>;
 };
+
+const SAVE_ERROR = "Could not save — check your connection and permissions, then try again.";
 
 const StaffContext = createContext<StaffContextValue>({
   staff: [],
-  addStaff: async () => {},
-  updateStaff: async () => {},
-  removeStaff: async () => {},
+  addStaff: async () => SAVE_ERROR,
+  updateStaff: async () => SAVE_ERROR,
+  removeStaff: async () => SAVE_ERROR,
 });
 
 export function StaffProvider({ children }: { children: React.ReactNode }) {
@@ -32,22 +38,28 @@ export function StaffProvider({ children }: { children: React.ReactNode }) {
   async function addStaff(newStaff: StaffRecord) {
     const current = await loadStaff();
     const updated = [...current, newStaff];
-    await saveStaff(updated);
+    const ok = await saveStaff(updated);
+    if (!ok) return SAVE_ERROR;
     setStaff(updated);
+    return null;
   }
 
   async function updateStaff(updatedRecord: StaffRecord) {
     const current = await loadStaff();
     const updated = current.map(s => (s.id === updatedRecord.id ? updatedRecord : s));
-    await saveStaff(updated);
+    const ok = await saveStaff(updated);
+    if (!ok) return SAVE_ERROR;
     setStaff(updated);
+    return null;
   }
 
   async function removeStaff(id: string) {
     const current = await loadStaff();
     const updated = current.filter(s => s.id !== id);
-    await saveStaff(updated);
+    const ok = await saveStaff(updated);
+    if (!ok) return SAVE_ERROR;
     setStaff(updated);
+    return null;
   }
 
   return (

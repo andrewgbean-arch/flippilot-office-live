@@ -36,7 +36,11 @@ export default function AddStaff() {
       joinedAt: new Date().toISOString(),
     };
 
-    await addStaff(newStaff);
+    const saveError = await addStaff(newStaff);
+    if (saveError) {
+      setError(saveError);
+      return;
+    }
 
     setName("");
     setRole("staff");

@@ -11,7 +11,8 @@ export default function PermissionsManager() {
     const perms = new Set(target.permissions || []);
     perms.has(perm) ? perms.delete(perm) : perms.add(perm);
 
-    await updateStaff({ ...target, permissions: Array.from(perms) });
+    const error = await updateStaff({ ...target, permissions: Array.from(perms) });
+    if (error) window.alert(error);
   }
 
   return (
@@ -29,7 +30,7 @@ export default function PermissionsManager() {
                 <label key={perm} className="sn-perm-item">
                   <input
                     type="checkbox"
-                    checked={s.permissions?.includes(perm)}
+                    checked={s.permissions?.includes(perm) ?? false}
                     onChange={() => togglePermission(s.id, perm)}
                   />
                   {perm}

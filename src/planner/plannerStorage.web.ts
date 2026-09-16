@@ -33,8 +33,8 @@ export async function loadWorkPatterns(): Promise<WorkPattern[]> {
   return Array.isArray(data.items) ? data.items : [];
 }
 
-export async function saveWorkPatterns(items: WorkPattern[]): Promise<void> {
-  await sendJson("/work-patterns", "PUT", { items });
+export async function saveWorkPatterns(items: WorkPattern[]): Promise<{ ok: boolean; error?: string }> {
+  return sendJson("/work-patterns", "PUT", { items });
 }
 
 export async function loadLeave(): Promise<LeaveRequest[]> {
@@ -69,8 +69,8 @@ export async function loadRotaSettings(): Promise<RotaSettings> {
   );
 }
 
-export async function saveRotaSettings(settings: RotaSettings): Promise<void> {
-  await sendJson("/rota-settings", "PUT", settings);
+export async function saveRotaSettings(settings: RotaSettings): Promise<{ ok: boolean; error?: string }> {
+  return sendJson("/rota-settings", "PUT", settings);
 }
 
 export async function loadShifts(): Promise<Shift[]> {
@@ -78,8 +78,8 @@ export async function loadShifts(): Promise<Shift[]> {
   return Array.isArray(data.items) ? data.items : [];
 }
 
-export async function saveShifts(items: Shift[]): Promise<void> {
-  await sendJson("/shifts", "PUT", { items });
+export async function saveShifts(items: Shift[]): Promise<{ ok: boolean; error?: string }> {
+  return sendJson("/shifts", "PUT", { items });
 }
 
 export async function generateShifts(

@@ -31,6 +31,7 @@ export default function RotaPlanner() {
   const [generateMessage, setGenerateMessage] = useState<string | null>(null);
   const [publishing, setPublishing] = useState(false);
   const [publishMessage, setPublishMessage] = useState<string | null>(null);
+  const [patternError, setPatternError] = useState<string | null>(null);
 
   useEffect(() => {
     loadTeam().then(setTeam);
@@ -103,7 +104,7 @@ export default function RotaPlanner() {
     );
   }
 
-  function handlePatternChange(member: TeamMember, changes: Partial<WorkPattern>) {
+  async function handlePatternChange(member: TeamMember, changes: Partial<WorkPattern>) {
     const existing = workPatterns.find(p => p.userId === member.id);
     // 28 days/year (5.6 weeks) is the UK statutory minimum for a
     // 5-day-a-week worker — a sane starting default, always visible
@@ -117,7 +118,8 @@ export default function RotaPlanner() {
       availableDays: [],
       holidayEntitlementDays: 28,
     };
-    saveWorkPattern({ ...base, ...changes });
+    const error = await saveWorkPattern({ ...base, ...changes });
+    setPatternError(error);
   }
 
   const currentYear = new Date().getFullYear();
@@ -254,6 +256,7 @@ export default function RotaPlanner() {
           <section className="sn-panel sn-panel--full">
             <h2 className="sn-panel__title">Work Patterns</h2>
             <p className="sn-timeclock__subtitle">Contracted hours and available days — used by Auto-Generate to build the rota.</p>
+            {patternError && <p className="sn-timeclock__error">{patternError}</p>}
             <div style={{ overflowX: "auto" }}>
               <table className="sn-timeclock__table sn-rota-table">
                 <thead>
