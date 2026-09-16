@@ -5,6 +5,7 @@ import { useInventory } from "@/context/InventoryProvider";
 import { useBookkeeping } from "@/bookkeeping/BookkeepingProvider";
 import { useIntelligence } from "@/context/IntelligenceProvider";
 import { fetchEbayCarComps, type EbayCarComps } from "@/lib/ebayCarComps";
+import { fetchGooglePriceGuide, type GoogleCarPriceGuide } from "@/lib/googlePriceGuide";
 
 import CostsTab from "@/bookkeeping/vehicles/CostsTab";
 import ProfitTab from "@/bookkeeping/vehicles/ProfitTab";
@@ -78,6 +79,20 @@ export default function VehicleOverview() {
     };
   }, [vehicle?.id, vehicle?.make, vehicle?.model, vehicle?.mot?.year, vehicle?.mileage]);
 
+  // Google dealer-price cross-reference — deliberately NOT auto-fetched
+  // like the eBay comps above; only runs when the dealer clicks "Check
+  // Google dealer prices" (see handleCheckGooglePrices below). The
+  // shared SerpAPI quota behind this (100 searches/month, split with
+  // flippilotlatest's own price lookups) can't support fetching this on
+  // every vehicle page view the way eBay's much larger free tier can.
+  const [googleGuide, setGoogleGuide] = useState<GoogleCarPriceGuide | null>(null);
+  const [googleGuideStatus, setGoogleGuideStatus] = useState<"idle" | "loading" | "not-found">("idle");
+
+  useEffect(() => {
+    setGoogleGuide(null);
+    setGoogleGuideStatus("idle");
+  }, [vehicle?.id]);
+
   if (!vehicle) {
     return (
       <div className="p-10 text-white">
@@ -92,6 +107,24 @@ export default function VehicleOverview() {
   const mot = vehicle.mot;
   const ai = mot ? motAiEngine(mot, mot.history ?? []) : null;
   const ulez = getUlezStatus(mot?.fuelType, mot?.euroStatus);
+
+  async function handleCheckGooglePrices() {
+    if (!vehicle || !vehicle.make || !vehicle.model) return;
+    setGoogleGuideStatus("loading");
+    const res = await fetchGooglePriceGuide(
+      vehicle.make,
+      vehicle.model,
+      mot?.year ?? null,
+      vehicle.mileage ?? mot?.mileage ?? null
+    );
+    if (res.available && res.guide) {
+      setGoogleGuide(res.guide);
+      setGoogleGuideStatus("idle");
+    } else {
+      setGoogleGuide(null);
+      setGoogleGuideStatus("not-found");
+    }
+  }
 
   const motStatus = (() => {
     if (!mot?.expiry) return "Unknown";
@@ -334,10 +367,42 @@ export default function VehicleOverview() {
                     ebayComps.yearFiltered ? "same year" : null,
                     ebayComps.mileageFiltered ? "mileage-comparable" : null,
                   ].filter((q): q is string => q !== null);
-                  return `Market pricing below uses ${ebayComps.soldCount} real eBay dealer listing${ebayComps.soldCount === 1 ? "" : "s"}${qualifiers.length ? ` (${qualifiers.join(", ")})` : " (year/mileage unconfirmed from listing titles)"}.`;
+                  return `Guide price — from ${ebayComps.soldCount} real eBay dealer listing${ebayComps.soldCount === 1 ? "" : "s"}${qualifiers.length ? ` (${qualifiers.join(", ")})` : " (year/mileage unconfirmed from listing titles)"}. These are asking prices a seller set to sell quickly, not confirmed sale prices — real retail value may run higher.`;
                 })()
               : "Market pricing below is a simulated estimate — no comparable eBay dealer listings found for this exact year/model yet."}
           </div>
+
+          {/* Google cross-reference — separate from the eBay guide price
+              above rather than blended into it, since it comes from
+              parsing real search-result snippets (AutoTrader/Cazoo/
+              AutoUncle/Parkers etc.), a less structured signal than
+              eBay's own price field. Manual button, not automatic —
+              see handleCheckGooglePrices for why. */}
+          <div className="rounded-lg px-4 py-3 text-sm border bg-white/5 border-white/10">
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <span className="text-white/70">
+                Cross-reference against real UK dealer/comparison sites (AutoTrader, Cazoo, and others).
+              </span>
+              <button
+                onClick={handleCheckGooglePrices}
+                disabled={googleGuideStatus === "loading"}
+                className="px-3 py-1.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/50 hover:bg-blue-500/30 text-xs font-semibold disabled:opacity-50"
+              >
+                {googleGuideStatus === "loading" ? "Checking…" : "Check Google Dealer Prices"}
+              </button>
+            </div>
+            {googleGuide && (
+              <p className="text-white/80 mt-2">
+                Guide price: <span className="font-bold">£{googleGuide.lowest.toLocaleString()} – £{googleGuide.highest.toLocaleString()}</span>
+                {" "}(avg £{googleGuide.average.toLocaleString()}, from {googleGuide.sourceCount} real price mention{googleGuide.sourceCount === 1 ? "" : "s"}
+                {googleGuide.sources.length ? ` across ${googleGuide.sources.join(", ")}` : ""}).
+              </p>
+            )}
+            {googleGuideStatus === "not-found" && (
+              <p className="text-white/50 mt-2">No usable dealer price mentions found for this search.</p>
+            )}
+          </div>
+
           <CosmicIdentityBlock vehicle={dealerAIVehicle} />
           <BuyOrWalkPanel vehicle={dealerAIVehicle} />
           <FlipScorePanel vehicle={dealerAIVehicle} />

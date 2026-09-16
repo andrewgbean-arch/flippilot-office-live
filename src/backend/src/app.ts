@@ -21,6 +21,7 @@ import registerContactsRoute from "./routes/contacts";
 import registerDiaryRoute from "./routes/diary";
 import registerAiListingRoute from "./routes/aiListing";
 import registerMarketCompsRoute from "./routes/marketComps";
+import registerGooglePriceGuideRoute from "./routes/googlePriceGuide";
 import registerPublicBookingRoute from "./routes/publicBooking";
 import registerAppointmentsRoute from "./routes/appointments";
 import registerBookingSettingsRoute from "./routes/bookingSettings";
@@ -159,6 +160,7 @@ registerContactsRoute(app);
 registerDiaryRoute(app);
 registerAiListingRoute(app);
 registerMarketCompsRoute(app);
+registerGooglePriceGuideRoute(app);
 registerAppointmentsRoute(app);
 registerBookingSettingsRoute(app);
 // Deliberately OUTSIDE the requireAuth gate above — this is the one
