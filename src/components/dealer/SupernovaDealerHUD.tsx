@@ -80,7 +80,7 @@ export default function SupernovaDealerHUD({
               Supernova Dealer HUD
             </span>
             <span className="text-sm text-white/70">
-              Live AI telemetry for FlipPilot Dealer OS
+              Real-time AI insights for FlipPilot Dealer OS
             </span>
           </div>
         </div>
@@ -101,9 +101,18 @@ export default function SupernovaDealerHUD({
             </div>
           )}
 
-          {/* MARKET — real fleet demand trend, links to the page it's computed from */}
-          <Link to="/dealer/intelligence/market" className={`${badgeBase} ${marketColor}`}>
-            <span>Market: {marketTrend}</span>
+          {/* MARKET — computed from each vehicle's own flip-score-driven
+              demand estimate, not a live external market feed (this app
+              has no real market-data API yet) — labelled "(est.)" so it
+              doesn't overclaim alongside the genuinely real-data badges
+              next to it (Risk/FlipScore/MOT, all computed directly from
+              this dealer's own vehicle records). */}
+          <Link
+            to="/dealer/intelligence/market"
+            className={`${badgeBase} ${marketColor}`}
+            title="Estimated from each vehicle's flip score — not a live market-data feed"
+          >
+            <span>Market: {marketTrend} (est.)</span>
           </Link>
 
           {/* BRAIN MODE — links to the actual Pricing Brain tool this badge names */}

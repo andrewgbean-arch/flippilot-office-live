@@ -3,10 +3,21 @@
 // -------------------------------
 
 export function computeRiskScore(vehicle: any): number {
-  const mileage = vehicle.mileage ?? 0;
+  const mileage = vehicle.mileage ?? vehicle.mot?.mileage ?? 0;
   const advisories = vehicle.mot?.advisories?.length ?? 0;
-  const failures = vehicle.mot?.failures?.length ?? 0;
-  const age = vehicle.age ?? 0;
+  // A real Vehicle record has no flat `mot.failures` array — failures
+  // only exist nested inside each mot.history entry (result === "FAIL").
+  // Reading vehicle.mot.failures directly (as this used to) is always
+  // undefined for a real vehicle, silently zeroing out this whole risk
+  // factor — same shape as `age` below.
+  const failures =
+    vehicle.mot?.failures?.length ??
+    (vehicle.mot?.history ?? []).filter((h: any) => h.result?.toUpperCase?.() === "FAIL")
+      .flatMap((h: any) => h.failures ?? []).length;
+  // Likewise there's no stored `vehicle.age` field on a real Vehicle —
+  // only `mot.year`, which every other engine in this app already
+  // derives age from.
+  const age = vehicle.age ?? (vehicle.mot?.year ? new Date().getFullYear() - vehicle.mot.year : 0);
 
   let score = 0;
 
