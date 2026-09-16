@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 
 import { useInventory } from "@/context/InventoryProvider";
 import { useBookkeeping } from "@/bookkeeping/BookkeepingProvider";
+import { useIntelligence } from "@/context/IntelligenceProvider";
 
 import CostsTab from "@/bookkeeping/vehicles/CostsTab";
 import ProfitTab from "@/bookkeeping/vehicles/ProfitTab";
@@ -22,6 +23,7 @@ import { DealerNegotiationPanel } from "@/features/dealer-ai/negotiation/DealerN
 
 import { motAiEngine } from "@/engines/motAiEngine";
 import { getUlezStatus } from "@/features/vehicles/utils/ulezUtils";
+import { normalizeFlipRecord } from "@/features/vehicles/models/FlipRecord";
 
 
 import type { Vehicle } from "@/types/Vehicle";
@@ -33,6 +35,7 @@ export default function VehicleOverview() {
 
   const { vehicles: invVehicles } = useInventory();
   const { purchases, sales } = useBookkeeping();
+  const { flipScores, marketIntel, motHealth } = useIntelligence();
 
   const vehicle = invVehicles.find((v: Vehicle) => String(v.id) === vehicleId);
 
@@ -75,17 +78,64 @@ export default function VehicleOverview() {
 
   const advisories = mot?.advisories ?? [];
 
-  const dealerAIVehicle = {
+  // The Dealer AI tab's panels (Buy-or-Walk, Flip Score, Predictive
+  // Maintenance, Market Intelligence, Negotiation) all read a
+  // FlipRecord-shaped `vehicle` prop expecting real make/model/mileage/
+  // mot/flipScore/market/aiValuation/aiPrice fields — this object used
+  // to supply only id/title/buyPrice/sellPrice/timestamp/
+  // valuationHistory, so every one of those reads silently fell back to
+  // its default (0 mileage, 0 MOT failures regardless of the real
+  // vehicle, £0 valuation) and every vehicle showed the exact same
+  // "WALK AWAY" verdict. Real per-vehicle intelligence already exists
+  // via useIntelligence() (same source the dashboard HUD and AI
+  // Insights use) — wired in here instead of leaving it all undefined.
+  // normalizeFlipRecord fills in any field this doesn't set with a
+  // real (null, not fabricated) default rather than crashing on a
+  // missing nested object.
+  const vehicleIntel = marketIntel[vehicleId] as
+    | { marketAvg?: number; demandIndex?: number; competitorCount?: number }
+    | undefined;
+  const marketAvg = vehicleIntel?.marketAvg ?? vehicle.priceRetail ?? vehicle.priceTrade ?? undefined;
+
+  const dealerAIVehicle = normalizeFlipRecord({
     id: vehicle.id,
     title: `${vehicle.make} ${vehicle.model}`,
+    make: vehicle.make,
+    model: vehicle.model,
     buyPrice: purchase?.purchasePrice ?? vehicle.priceTrade ?? 0,
     sellPrice: sale?.salePrice ?? vehicle.priceRetail ?? 0,
+    price: vehicle.priceRetail ?? vehicle.priceTrade ?? null,
+    valuation: vehicle.priceRetail ?? vehicle.priceTrade ?? null,
+    mileage: vehicle.mileage ?? mot?.mileage ?? null,
     timestamp: purchase?.date ?? "",
     valuationHistory: vehicle.depreciationCurve.map((value, index) => ({
       date: `${2020 + index}-01-01`,
       value,
     })),
-  };
+    flipScore: flipScores[vehicleId] ?? vehicle.flipDifficulty ?? null,
+    ai: { conditionScore: (motHealth[vehicleId] ?? ai)?.healthScore ?? null },
+    mot: {
+      year: mot?.year ?? null,
+      mileage: mot?.mileage ?? vehicle.mileage ?? null,
+      failures,
+      advisories,
+    },
+    market: {
+      demandScore: vehicleIntel?.demandIndex ?? null,
+      lowest: marketAvg != null ? Math.round(marketAvg * 0.85) : null,
+      highest: marketAvg != null ? Math.round(marketAvg * 1.15) : null,
+      average: marketAvg ?? null,
+      soldCount: vehicleIntel?.competitorCount ?? null,
+    },
+    aiValuation: {
+      estimatedValue: vehicle.priceRetail ?? vehicle.priceTrade ?? null,
+      confidence: vehicle.valuationConfidence ?? null,
+    },
+    aiPrice: {
+      recommendedSellPrice: vehicle.priceRetail ?? null,
+      riskLevel: (motHealth[vehicleId] ?? ai)?.riskLevel ?? null,
+    },
+  });
 
   return (
     <div className="p-6 text-white animate-fadeIn">

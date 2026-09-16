@@ -62,9 +62,11 @@ export function evaluateBuyOrWalk(vehicle: FlipRecord): BuyOrWalkResult {
 
   const profitPotential =
     estimatedSellPrice > recommendedBuyPrice
-      ? Math.min(
-          100,
-          ((estimatedSellPrice - recommendedBuyPrice) / estimatedSellPrice) * 100
+      ? Math.round(
+          Math.min(
+            100,
+            ((estimatedSellPrice - recommendedBuyPrice) / estimatedSellPrice) * 100
+          )
         )
       : 5;
 

@@ -38,15 +38,17 @@ export function evaluateFlipScore(vehicle: FlipRecord): FlipScoreBreakdown {
   const aiConfidence = vehicle.aiValuation?.confidence ?? 50;
 
   // Final score (weighted)
-  const finalScore = Math.max(
-    0,
-    Math.min(
-      100,
-      conditionScore * 0.35 +
-      marketScore * 0.25 +
-      aiConfidence * 0.20 -
-      motRisk * 0.10 -
-      mileageRisk * 0.10
+  const finalScore = Math.round(
+    Math.max(
+      0,
+      Math.min(
+        100,
+        conditionScore * 0.35 +
+        marketScore * 0.25 +
+        aiConfidence * 0.20 -
+        motRisk * 0.10 -
+        mileageRisk * 0.10
+      )
     )
   );
 

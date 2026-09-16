@@ -62,6 +62,13 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
 
       // ⭐ FlipScore
       fs[v.id] = calcFlipScore(flipRecord);
+      // Feed the real computed score back in before this same
+      // flipRecord is reused below — it was left at the literal 0
+      // placeholder it started as, so simulateMarketIntel's demand
+      // index (which falls back to flipScore when there's no real
+      // market.demandScore) silently ignored the score just computed
+      // and floored out at the same low value for every vehicle.
+      flipRecord.flipScore = fs[v.id] ?? 0;
 
       // ⭐ RiskScore
       rs[v.id] = computeRiskScore(v);
