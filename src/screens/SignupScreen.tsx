@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
+import { InstallAppBanner } from "@/components/InstallAppBanner";
 
 export default function SignupScreen() {
   const { signup } = useAuth();
@@ -34,7 +35,9 @@ export default function SignupScreen() {
   }
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-black text-white px-6">
+    <div className="min-h-screen w-full flex flex-col items-center justify-center gap-4 bg-black text-white px-6">
+      <InstallAppBanner />
+
       <form
         onSubmit={handleSubmit}
         className="w-full max-w-sm bg-black/40 border border-yellow-400/20 rounded-2xl p-8 backdrop-blur-xl shadow-[0_0_30px_rgba(255,215,0,0.15)] space-y-5"
