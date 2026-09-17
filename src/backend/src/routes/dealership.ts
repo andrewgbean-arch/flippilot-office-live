@@ -1,6 +1,15 @@
 import { Express, Request } from "express";
-import { readCollection, writeCollection } from "../db";
-import { requireAuth, requireOwner, signInviteToken, type AuthUser, type Dealership, type StaffRole } from "../auth";
+import { readCollection, writeCollection, deleteTenantData } from "../db";
+import {
+  requireAuth,
+  requireOwner,
+  requirePlatformAdmin,
+  signInviteToken,
+  type AuthUser,
+  type Dealership,
+  type StaffRole,
+  type StoredUser,
+} from "../auth";
 
 const VALID_STAFF_ROLES: StaffRole[] = ["sales", "finance", "manager", "general"];
 
@@ -85,5 +94,54 @@ export default function registerDealershipRoute(app: Express) {
     });
 
     res.json({ ok: true, token });
+  });
+
+  // Cross-dealership admin tooling — same requirePlatformAdmin gate as
+  // the Support Inbox, never reachable via anything a dealer-facing
+  // flow touches. Lists every dealership so the admin can find (and,
+  // below, remove) abandoned test/throwaway accounts before real
+  // dealers are using this — also the real building block a future
+  // GDPR-style "delete my account" request would need.
+  app.get("/admin/dealerships", requireAuth, requirePlatformAdmin, (_req, res) => {
+    const dealerships = readCollection<Dealership>("dealerships");
+    const users = readCollection<StoredUser>("users");
+    const items = dealerships.map(d => ({
+      id: d.id,
+      name: d.name,
+      createdAt: d.createdAt,
+      subscriptionStatus: d.subscriptionStatus,
+      userCount: users.filter(u => u.dealershipId === d.id).length,
+    }));
+    res.json({ ok: true, dealerships: items });
+  });
+
+  // Real deletion, not a soft flag — removes the dealership record, every
+  // user account under it, and every row of its tenant-scoped data
+  // (vehicles/bookkeeping/consumables/everything) via deleteTenantData.
+  // No undo: an admin action, not something a dealer can trigger on
+  // their own account (that would need its own confirmation flow, not
+  // built yet).
+  app.delete("/admin/dealerships/:id", requireAuth, requirePlatformAdmin, (req, res) => {
+    const dealershipId = req.params.id;
+    if (!dealershipId) {
+      return res.status(400).json({ ok: false, error: "Missing dealership id" });
+    }
+    const dealerships = readCollection<Dealership>("dealerships");
+    const dealership = dealerships.find(d => d.id === dealershipId);
+    if (!dealership) {
+      return res.status(404).json({ ok: false, error: "Dealership not found" });
+    }
+
+    writeCollection(
+      "dealerships",
+      dealerships.filter(d => d.id !== dealershipId)
+    );
+    writeCollection(
+      "users",
+      readCollection<StoredUser>("users").filter(u => u.dealershipId !== dealershipId)
+    );
+    deleteTenantData(dealershipId);
+
+    res.json({ ok: true });
   });
 }

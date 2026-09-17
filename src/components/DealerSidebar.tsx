@@ -81,7 +81,12 @@ export default function DealerSidebar() {
         { to: "/support", label: "Contact FlipPilot Support" },
         // Only ever rendered once the backend has actually confirmed
         // this account is the platform admin — see useIsSupportAdmin.
-        ...(isSupportAdmin ? [{ to: "/admin/support", label: "Support Inbox (Admin)" }] : []),
+        ...(isSupportAdmin
+          ? [
+              { to: "/admin/support", label: "Support Inbox (Admin)" },
+              { to: "/admin/dealerships", label: "Dealerships (Admin)" },
+            ]
+          : []),
       ],
     },
 
