@@ -33,6 +33,8 @@ import DealerDashboard from "@/dealer/dashboard/DealerDashboard";
 
 /* FEEDBACK & CONSUMABLES */
 import FeedbackBoard from "@/feedback/FeedbackBoard";
+import ContactSupport from "@/support/ContactSupport";
+import SupportInbox from "@/support/SupportInbox";
 import ConsumablesBoard from "@/consumables/ConsumablesBoard";
 import WorkshopCalendar from "@/jobs/WorkshopCalendar";
 
@@ -223,6 +225,8 @@ export default function AnimatedRoutes() {
         <Route path="bookkeeping" element={<BookkeepingScreen />} />
         <Route path="jobs" element={<JobsBoard />} />
         <Route path="feedback" element={<FeedbackBoard />} />
+        <Route path="support" element={<ContactSupport />} />
+        <Route path="admin/support" element={<SupportInbox />} />
         <Route path="consumables" element={<ConsumablesBoard />} />
         <Route path="import" element={<ImportScreen />} />
         <Route path="contacts" element={<ContactsBoard />} />

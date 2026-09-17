@@ -29,6 +29,7 @@ import registerDVLA from "./dvla";
 import registerSyndicationRoute from "./routes/syndication";
 import registerAuthRoute from "./routes/auth";
 import registerDealershipRoute from "./routes/dealership";
+import registerSupportRoute from "./routes/support";
 import registerBillingRoute, { handleStripeWebhook } from "./routes/billing";
 import { requireAuth } from "./auth";
 import { requireActiveSubscription } from "./subscriptionGate";
@@ -109,6 +110,10 @@ app.use("/auth/forgot-password", loginLimiter);
 
 registerAuthRoute(app);
 registerDealershipRoute(app);
+// Deliberately registered here, not inside the requireActiveSubscription
+// gate below — a dealer with an expired trial is exactly the kind of
+// person who needs to be able to message support, not locked out of it.
+registerSupportRoute(app);
 registerBillingRoute(app);
 
 // The dealer's actual business data — previously these had zero access

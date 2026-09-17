@@ -222,3 +222,23 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
   (req as Request & { user: AuthUser }).user = user;
   next();
 }
+
+// Gates the cross-dealership support inbox to whoever actually runs
+// FlipPilot, not any dealership owner — "owner" only means "owns this
+// one dealership's account", real platform-admin access needs to be a
+// separate, narrower check. Identifies the platform admin by email
+// against ADMIN_EMAIL (set in backend/.env) rather than a role stored
+// on the user record, so it can never be granted by anything a
+// dealer-facing flow (signup, invite, join) touches.
+export function isPlatformAdmin(user: AuthUser): boolean {
+  const adminEmail = process.env.ADMIN_EMAIL;
+  return Boolean(adminEmail) && user.email.toLowerCase() === adminEmail!.toLowerCase();
+}
+
+export function requirePlatformAdmin(req: Request, res: Response, next: NextFunction) {
+  const user = (req as Request & { user: AuthUser }).user;
+  if (!isPlatformAdmin(user)) {
+    return res.status(403).json({ ok: false, error: "Not authorized" });
+  }
+  next();
+}

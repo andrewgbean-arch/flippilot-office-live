@@ -40,16 +40,16 @@ export default function FeedbackBoard() {
       <header className="sn-hero">
         <div className="sn-hero__glow" />
         <div className="sn-hero__content">
-          <h1 className="sn-hero__title">What Can We Do Better?</h1>
+          <h1 className="sn-hero__title">Team Message Board</h1>
           <p className="sn-hero__subtitle">
-            A space for the team to raise anything — big or small. Post anonymously if you'd rather.
+            An internal space for your own team — anyone at this dealership can post here, visible to the rest of your staff. Post anonymously if you'd rather.
           </p>
         </div>
       </header>
 
       <main className="sn-grid">
         <section className="sn-panel sn-panel--full">
-          <h2 className="sn-panel__title">Share a Suggestion</h2>
+          <h2 className="sn-panel__title">Post a Message</h2>
           <div className="sn-form" style={{ maxWidth: 640 }}>
             <textarea
               className="sn-input sn-textarea"
@@ -76,7 +76,7 @@ export default function FeedbackBoard() {
         </section>
 
         <section className="sn-panel sn-panel--full">
-          <h2 className="sn-panel__title">Suggestions</h2>
+          <h2 className="sn-panel__title">Messages</h2>
           {loading ? (
             <p className="sn-empty">Loading…</p>
           ) : entries.length === 0 ? (

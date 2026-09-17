@@ -1,5 +1,6 @@
 import { NavLink, useLocation } from "react-router-dom";
 import { useState } from "react";
+import { useIsSupportAdmin } from "@/lib/useIsSupportAdmin";
 
 import {
   FiHome,
@@ -24,6 +25,7 @@ import {
 
 export default function DealerSidebar() {
   const { pathname } = useLocation();
+  const isSupportAdmin = useIsSupportAdmin();
 
   const isHome =
     pathname === "/" ||
@@ -72,10 +74,14 @@ export default function DealerSidebar() {
     },
 
     {
-      label: "Feedback",
+      label: "Message Board",
       icon: FiMessageSquare,
       items: [
-        { to: "/feedback", label: "What Can We Do Better?" },
+        { to: "/feedback", label: "Team Message Board" },
+        { to: "/support", label: "Contact FlipPilot Support" },
+        // Only ever rendered once the backend has actually confirmed
+        // this account is the platform admin — see useIsSupportAdmin.
+        ...(isSupportAdmin ? [{ to: "/admin/support", label: "Support Inbox (Admin)" }] : []),
       ],
     },
 
