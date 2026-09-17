@@ -1,0 +1,18 @@
+{
+  "name": "FlipPilot Dealer OS",
+  "short_name": "FlipPilot",
+  "description": "Dealer inventory, bookkeeping, and AI insights for independent used-car dealers.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0A1128",
+  "theme_color": "#0A1128",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

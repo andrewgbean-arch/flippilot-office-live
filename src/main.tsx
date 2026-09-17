@@ -27,6 +27,17 @@ import { AppointmentsProvider } from "./context/AppointmentsContext";
 import { ContactsProvider } from "./context/ContactsContext";
 import { DiaryProvider } from "./context/DiaryContext";
 
+// Registers the pass-through service worker (public/sw.js) needed for
+// the desktop "Install app" prompt — safe to call even where service
+// workers aren't supported, and a failed registration (e.g. running
+// over plain HTTP on a real domain) just leaves the app installable
+// only where the browser already allows it.
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+  });
+}
+
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <ErrorBoundary>
