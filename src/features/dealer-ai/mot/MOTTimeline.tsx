@@ -45,9 +45,9 @@ export default function MOTTimeline() {
     const expiry = mot.motExpiry ?? mot.expiryDate ?? null;
 
     const syntheticDate = expiry
-      ? new Date(new Date(expiry).setFullYear(new Date(expiry).getFullYear() - 1))
+      ? (new Date(new Date(expiry).setFullYear(new Date(expiry).getFullYear() - 1))
           .toISOString()
-          .split("T")[0]
+          .split("T")[0] ?? "Unknown")
       : "Unknown";
 
     const result = mot.failures && mot.failures.length > 0 ? "FAIL" : "PASS";

@@ -30,10 +30,12 @@ export default function AddStaff() {
       name: name.trim(),
       role,
       branch,
-      email: email.trim() || undefined,
-      phone: phone.trim() || undefined,
       active: true,
       joinedAt: new Date().toISOString(),
+      // exactOptionalPropertyTypes means these optional fields must be
+      // left out entirely when blank, not explicitly set to undefined.
+      ...(email.trim() ? { email: email.trim() } : {}),
+      ...(phone.trim() ? { phone: phone.trim() } : {}),
     };
 
     const saveError = await addStaff(newStaff);

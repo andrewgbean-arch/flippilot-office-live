@@ -20,6 +20,11 @@ src/backend/data/
 .env.*
 !.env.example
 
+# TypeScript incremental build cache — compiler-generated, causes stale-
+# cache confusion if committed (a real one this session: root tsconfig.json's
+# exclude list changed, but a stale .tsbuildinfo briefly masked it locally).
+*.tsbuildinfo
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

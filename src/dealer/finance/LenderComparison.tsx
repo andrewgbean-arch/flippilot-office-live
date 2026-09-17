@@ -35,9 +35,12 @@ export default function LenderComparison() {
     return isNaN(payment) ? 0 : payment;
   }
 
+  // No seed value on purpose — lenders is never empty (only updated, never
+  // removed, from a non-empty DEFAULT_LENDERS), and reduce's no-seed
+  // overload types the result as Lender, not Lender | undefined.
   const best = lenders.reduce((min, l) =>
     monthlyPayment(l.apr) < monthlyPayment(min.apr) ? l : min
-  , lenders[0]);
+  );
 
   return (
     <div className="sn-panel sn-panel--full">

@@ -125,9 +125,9 @@ export default function ReconWorkflow() {
     vatAmount: 0,
     netAmount: amount,
 
-    // ⭐ Optional fields
-    supplier: undefined,
-    notes: undefined,
+    // ⭐ Optional fields — left out entirely rather than set to undefined,
+    // since exactOptionalPropertyTypes distinguishes "absent" from
+    // "explicitly undefined" for optional properties.
     ...(linkedConsumable
       ? {
           consumableId: linkedConsumable.id,

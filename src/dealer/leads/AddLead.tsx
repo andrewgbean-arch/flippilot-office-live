@@ -26,13 +26,15 @@ export default function AddLead() {
     const newLead: Lead = {
       id: crypto.randomUUID(),
       name: name.trim(),
-      phone: phone.trim() || undefined,
-      email: email.trim() || undefined,
       source: source.trim(),
-      vehicleInterest: vehicleInterest.trim() || undefined,
       status,
-      notes: notes.trim() || undefined,
       createdAt: new Date().toISOString(),
+      // exactOptionalPropertyTypes means these optional fields must be
+      // left out entirely when blank, not explicitly set to undefined.
+      ...(phone.trim() ? { phone: phone.trim() } : {}),
+      ...(email.trim() ? { email: email.trim() } : {}),
+      ...(vehicleInterest.trim() ? { vehicleInterest: vehicleInterest.trim() } : {}),
+      ...(notes.trim() ? { notes: notes.trim() } : {}),
     };
 
     await addLead(newLead);

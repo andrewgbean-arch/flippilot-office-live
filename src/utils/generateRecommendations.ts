@@ -42,10 +42,10 @@ export function generateRecommendations(flips: FlipRecord[]): string[] {
   });
 
   const bestCategory =
-    Object.keys(profits).sort((a, b) => profits[b] - profits[a])[0];
+    Object.keys(profits).sort((a, b) => (profits[b] ?? 0) - (profits[a] ?? 0))[0];
 
   const bestROI =
-    Object.keys(rois).sort((a, b) => rois[b] - rois[a])[0];
+    Object.keys(rois).sort((a, b) => (rois[b] ?? 0) - (rois[a] ?? 0))[0];
 
   return [
     `You flip the most items in: ${bestCategory}`,
