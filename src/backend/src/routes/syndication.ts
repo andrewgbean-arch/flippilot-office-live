@@ -37,6 +37,7 @@ type VehicleLike = {
   priceRetail: number | null;
   condition: string;
   notes?: string | null;
+  listingDescription?: string | null;
   images?: string[] | null;
   vatScheme?: string;
   status: string;
@@ -75,7 +76,13 @@ function vehiclesToCsv(vehicles: VehicleLike[]): string {
     v.colour ?? "",
     v.priceRetail ?? "",
     v.condition ?? "",
-    v.notes ?? "",
+    // Deliberately listingDescription, not notes — notes is the
+    // internal-only field (staff commentary, negotiation notes), never
+    // meant to leave the dealer's own account. A security review found
+    // this feed was sending it straight to any external portal that
+    // pulls this file, matching the exact "internal vs public copy"
+    // distinction the rest of the app already draws for this vehicle.
+    v.listingDescription ?? "",
     (v.images ?? []).join(";"),
     v.vatScheme ?? "",
     v.status ?? "",
@@ -90,14 +97,24 @@ export default function registerSyndicationRoute(app: Express) {
   // Works today, no external credentials needed — point a portal's feed
   // importer (or Motors.co.uk's daily feed intake) at this URL, or just
   // download it for manual upload. Scoped by dealershipId in the path
-  // rather than requireAuth: a portal's feed importer fetches this on a
-  // schedule with no login flow of its own, so the URL itself (built
-  // from a real UUID, same unguessable-by-design pattern as e.g. a
-  // private iCal feed link) is the access control here, not a session.
+  // rather than requireAuth, so a portal's feed importer can fetch this
+  // on a schedule with no login flow of its own.
   //
-  // A security review caught this reading from the GLOBAL `vehicles`
-  // collection — a completely different, disconnected data source from
-  // where real per-dealer inventory actually lives
+  // dealershipId is NOT actually a secret in this app — a security
+  // review found it's the same id embedded in the genuinely public
+  // /store/:dealershipId storefront (meant to be shared on the dealer's
+  // own website/social pages), which this route's original comment
+  // wrongly assumed was "unguessable by design" like a private iCal
+  // link. Since anyone who's seen a dealer's public store link can
+  // derive this feed URL, it can only ever return what's already
+  // public via /public/:dealershipId/vehicles — same sold-stock filter
+  // applied here, and listingDescription (the deliberately public-
+  // facing copy) instead of notes (internal-only, never meant to leave
+  // the dealer's own account) in the Description column.
+  //
+  // A separate, earlier fix caught this reading from the GLOBAL
+  // `vehicles` collection — a completely different, disconnected data
+  // source from where real per-dealer inventory actually lives
   // (data/dealerships/<id>/vehicles.json via readTenantCollection,
   // same as /inventory uses). The global file was never populated by
   // anything, so in practice this always returned an empty feed
@@ -108,7 +125,8 @@ export default function registerSyndicationRoute(app: Express) {
     const dealershipId = req.params.dealershipId;
     if (!dealershipId) return res.status(400).json({ ok: false, error: "Missing dealership id" });
 
-    const vehicles = readTenantCollection<VehicleLike>(dealershipId, "vehicles");
+    const vehicles = readTenantCollection<VehicleLike>(dealershipId, "vehicles")
+      .filter(v => String(v.status ?? "").toLowerCase() !== "sold");
     const csv = vehiclesToCsv(vehicles);
 
     res.setHeader("Content-Type", "text/csv; charset=utf-8");

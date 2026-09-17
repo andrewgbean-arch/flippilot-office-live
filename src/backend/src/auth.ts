@@ -88,12 +88,23 @@ export function signToken(user: AuthUser): string {
 
 export function verifyToken(token: string): AuthUser | null {
   try {
-    const decoded = jwt.verify(token, getJwtSecret()) as AuthUser;
+    const decoded = jwt.verify(token, getJwtSecret()) as AuthUser & { purpose?: string };
     // Tokens signed before multi-tenancy was added won't have a
     // dealershipId — treat those as invalid so the user is forced to
     // log in again and get a token that actually scopes their data,
     // rather than silently hitting undefined dealershipId everywhere.
     if (!decoded.dealershipId) return null;
+    // Real login tokens (signToken, above) never carry a `purpose`
+    // claim — only the single-purpose invite/password-reset tokens do,
+    // and a dealer-invite token also happens to carry a real
+    // dealershipId (it needs one), which let it slip past the check
+    // above and be accepted here as a genuine login session — a real
+    // auth bypass a security review caught: anyone who got hold of a
+    // shared invite link could use it directly against every real
+    // data route for its full 7-day validity, without ever actually
+    // signing up. `id`/`email` are required too since genuine session
+    // tokens always have both and no single-purpose token ever does.
+    if ("purpose" in decoded || !decoded.id || !decoded.email) return null;
     return decoded;
   } catch {
     return null;
