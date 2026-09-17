@@ -15,11 +15,11 @@ export const dummyVehicles: Vehicle[] = [
     riskScore: 28,
     condition: "Good",
     mot: {
-      expiry: "2025-04-12",
+      expiry: "2026-08-20",
       advisories: ["Rear tyre close to limit"],
       historyScore: 70,
       history: [
-        { date: "2024-04-10", year: 2024, result: "PASS", mileage: 62000, advisories: ["Rear tyre close to legal limit"], failures: [] },
+        { date: "2025-08-20", year: 2025, result: "PASS", mileage: 62000, advisories: ["Rear tyre close to legal limit"], failures: [] },
         { date: "2023-04-08", year: 2023, result: "PASS", mileage: 54500, advisories: [], failures: [] }
       ]
     },
@@ -46,11 +46,11 @@ export const dummyVehicles: Vehicle[] = [
     riskScore: 24,
     condition: "Good",
     mot: {
-      expiry: "2025-09-01",
+      expiry: "2026-11-20",
       advisories: [],
       historyScore: 78,
       history: [
-        { date: "2024-09-02", year: 2024, result: "PASS", mileage: 54000, advisories: [], failures: [] },
+        { date: "2025-11-20", year: 2025, result: "PASS", mileage: 54000, advisories: [], failures: [] },
         { date: "2023-08-30", year: 2023, result: "PASS", mileage: 46500, advisories: [], failures: [] }
       ]
     },
@@ -77,11 +77,11 @@ export const dummyVehicles: Vehicle[] = [
     riskScore: 33,
     condition: "Fair",
     mot: {
-      expiry: "2025-02-18",
+      expiry: "2026-07-25",
       advisories: ["Front pads worn"],
       historyScore: 65,
       history: [
-        { date: "2024-02-20", year: 2024, result: "PASS", mileage: 72000, advisories: ["Front brake pads worn"], failures: [] },
+        { date: "2025-07-25", year: 2025, result: "PASS", mileage: 72000, advisories: ["Front brake pads worn"], failures: [] },
         { date: "2023-02-18", year: 2023, result: "FAIL", mileage: 65500, advisories: [], failures: ["Front brake performance imbalanced across axle"], testNumber: "391847265013" }
       ]
     },

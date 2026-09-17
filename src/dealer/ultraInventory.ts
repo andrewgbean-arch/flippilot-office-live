@@ -13,11 +13,11 @@ export const ultraInventory: Vehicle[] = [
     riskScore: 12,
     condition: "Excellent",
     mot: {
-      expiry: "2026-02-14",
+      expiry: "2027-01-20",
       advisories: [],
       historyScore: 95,
       history: [
-        { date: "2025-02-10", year: 2025, result: "PASS", mileage: 24000, advisories: [], failures: [] },
+        { date: "2026-01-20", year: 2026, result: "PASS", mileage: 24000, advisories: [], failures: [] },
         { date: "2024-02-08", year: 2024, result: "PASS", mileage: 19500, advisories: ["Nearside rear tyre worn close to legal limit"], failures: [] },
         { date: "2023-02-12", year: 2023, result: "PASS", mileage: 14200, advisories: [], failures: [] },
         { date: "2022-02-09", year: 2022, result: "PASS", mileage: 8800, advisories: [], failures: [] },
@@ -58,11 +58,11 @@ export const ultraInventory: Vehicle[] = [
     riskScore: 18,
     condition: "Excellent",
     mot: {
-      expiry: "2025-11-01",
+      expiry: "2026-10-05",
       advisories: ["Brake pads wearing thin"],
       historyScore: 89,
       history: [
-        { date: "2024-11-02", year: 2024, result: "PASS", mileage: 38000, advisories: ["Front brake pads wearing thin"], failures: [] },
+        { date: "2025-10-05", year: 2025, result: "PASS", mileage: 38000, advisories: ["Front brake pads wearing thin"], failures: [] },
         { date: "2023-10-30", year: 2023, result: "PASS", mileage: 30500, advisories: [], failures: [] },
         { date: "2022-11-01", year: 2022, result: "PASS", mileage: 23000, advisories: [], failures: [] },
         { date: "2021-10-28", year: 2021, result: "PASS", mileage: 15200, advisories: [], failures: [] },
@@ -102,11 +102,11 @@ export const ultraInventory: Vehicle[] = [
     riskScore: 41,
     condition: "Good",
     mot: {
-      expiry: "2025-09-22",
+      expiry: "2026-09-05",
       advisories: ["Oil leak minor", "Rear tyre close to limit"],
       historyScore: 72,
       history: [
-        { date: "2024-09-18", year: 2024, result: "PASS", mileage: 62000, advisories: ["Minor oil leak, not excessive"], failures: [] },
+        { date: "2025-09-05", year: 2025, result: "PASS", mileage: 62000, advisories: ["Minor oil leak, not excessive"], failures: [] },
         { date: "2023-09-20", year: 2023, result: "FAIL", mileage: 52000, advisories: [], failures: ["Nearside rear tyre worn below legal limit"], testNumber: "847215936402" },
         { date: "2023-09-20", year: 2023, result: "PASS", mileage: 52000, advisories: [], failures: [] },
         { date: "2022-09-21", year: 2022, result: "PASS", mileage: 42500, advisories: [], failures: [] },
@@ -146,11 +146,11 @@ export const ultraInventory: Vehicle[] = [
     riskScore: 22,
     condition: "Excellent",
     mot: {
-      expiry: "2026-01-01",
+      expiry: "2027-03-10",
       advisories: [],
       historyScore: 94,
       history: [
-        { date: "2025-01-02", year: 2025, result: "PASS", mileage: 54000, advisories: [], failures: [] },
+        { date: "2026-03-10", year: 2026, result: "PASS", mileage: 54000, advisories: [], failures: [] },
         { date: "2024-01-03", year: 2024, result: "PASS", mileage: 44000, advisories: [], failures: [] },
         { date: "2023-01-04", year: 2023, result: "PASS", mileage: 34500, advisories: [], failures: [] },
         { date: "2022-01-05", year: 2022, result: "PASS", mileage: 25000, advisories: [], failures: [] },
@@ -190,11 +190,11 @@ export const ultraInventory: Vehicle[] = [
     riskScore: 38,
     condition: "Good",
     mot: {
-      expiry: "2025-08-01",
+      expiry: "2026-10-25",
       advisories: ["Front discs worn"],
       historyScore: 78,
       history: [
-        { date: "2024-08-02", year: 2024, result: "PASS", mileage: 72000, advisories: ["Front brake discs worn, not yet at limit"], failures: [] },
+        { date: "2025-10-25", year: 2025, result: "PASS", mileage: 72000, advisories: ["Front brake discs worn, not yet at limit"], failures: [] },
         { date: "2023-07-30", year: 2023, result: "PASS", mileage: 61000, advisories: [], failures: [] },
         { date: "2022-08-01", year: 2022, result: "PASS", mileage: 50500, advisories: [], failures: [] },
         { date: "2021-07-29", year: 2021, result: "PASS", mileage: 40000, advisories: [], failures: [] },
