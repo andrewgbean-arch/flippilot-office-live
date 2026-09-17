@@ -182,7 +182,9 @@ export default function DealerMotorsDashboard() {
                         <FiClock className="inline mr-1 text-red-400" />
                         MOT:{" "}
                         <span className="text-red-400 font-bold">
-                          {daysLeft} days left
+                          {daysLeft < 0
+                            ? `${Math.abs(daysLeft)} days expired`
+                            : `${daysLeft} days left`}
                         </span>
                       </div>
 
