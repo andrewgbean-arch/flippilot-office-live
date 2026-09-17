@@ -2,7 +2,7 @@ import { useState, useEffect, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 
-const BASE_URL = "http://localhost:4001";
+import { BASE_URL } from "@/lib/apiBaseUrl";
 
 export default function JoinScreen() {
   const { joinDealership } = useAuth();

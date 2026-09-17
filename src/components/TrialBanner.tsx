@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { authHeaders } from "@/lib/authToken";
 
-const BASE_URL = "http://localhost:4001";
+import { BASE_URL } from "@/lib/apiBaseUrl";
 
 type Dealership = {
   subscriptionStatus: "trialing" | "active" | "past_due" | "canceled";

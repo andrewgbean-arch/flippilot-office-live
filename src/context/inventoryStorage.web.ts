@@ -1,7 +1,7 @@
 import type { Vehicle } from "../types/Vehicle";
 import { authHeaders } from "@/lib/authToken";
 
-const BASE_URL = "http://localhost:4001";
+import { BASE_URL } from "@/lib/apiBaseUrl";
 
 // GET /inventory used to return two hardcoded vehicles (Ford Fiesta /
 // BMW 1 Series) regardless of what the app did — no real persistence

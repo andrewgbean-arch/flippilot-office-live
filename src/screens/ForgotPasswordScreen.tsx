@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 
-const BASE_URL = "http://localhost:4001";
+import { BASE_URL } from "@/lib/apiBaseUrl";
 
 export default function ForgotPasswordScreen() {
   const [email, setEmail] = useState("");

@@ -1,7 +1,7 @@
 import type { Lead } from "./leadTypes";
 import { authHeaders } from "@/lib/authToken";
 
-const BASE_URL = "http://localhost:4001";
+import { BASE_URL } from "@/lib/apiBaseUrl";
 
 // Was localStorage-only — leads never left the one browser they were
 // created in, with no backup and no way for a second device/browser to

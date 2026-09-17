@@ -1,7 +1,7 @@
 import { authHeaders } from "@/lib/authToken";
 import type { StaffNotification, NotificationType } from "./notificationTypes";
 
-const BASE_URL = "http://localhost:4001";
+import { BASE_URL } from "@/lib/apiBaseUrl";
 
 export async function loadNotifications(): Promise<StaffNotification[]> {
   try {

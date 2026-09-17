@@ -1,7 +1,7 @@
 import { authHeaders } from "@/lib/authToken";
 import type { CostEntry, PurchaseEntry, SaleEntry, TransactionEntry, Supplier, Category } from "./types";
 
-const BASE_URL = "http://localhost:4001";
+import { BASE_URL } from "@/lib/apiBaseUrl";
 
 export type BookkeepingDoc = {
   costs: CostEntry[];

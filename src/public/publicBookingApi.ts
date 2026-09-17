@@ -1,7 +1,7 @@
 // Deliberately no auth headers anywhere in this file — these calls are
 // made by a customer with no account, hitting the one part of the
 // backend that has no login gate at all (see publicBooking.ts).
-const BASE_URL = "http://localhost:4001";
+import { BASE_URL } from "@/lib/apiBaseUrl";
 
 export interface PublicVehicle {
   id: string;

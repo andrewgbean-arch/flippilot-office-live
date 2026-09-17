@@ -11,7 +11,7 @@ import { useAuth } from "@/context/AuthContext";
 import { authHeaders } from "@/lib/authToken";
 import { useTour } from "@/tour/TourProvider";
 
-const BASE_URL = "http://localhost:4001";
+import { BASE_URL } from "@/lib/apiBaseUrl";
 
 const STAFF_ROLE_OPTIONS: { value: "sales" | "finance" | "manager" | "general"; label: string; description: string }[] = [
   { value: "sales", label: "Sales", description: "Leads/CRM and inventory — not bookkeeping or staff" },

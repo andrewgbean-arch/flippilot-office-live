@@ -4,7 +4,7 @@ import { SupernovaSectionDivider } from "@/components/supernova/SupernovaSection
 import { SupernovaGlowCard } from "@/components/supernova/SupernovaGlowCard";
 import { useAuth } from "@/context/AuthContext";
 
-const BASE_URL = "http://localhost:4001";
+import { BASE_URL } from "@/lib/apiBaseUrl";
 
 type PlatformStatus = {
   available: boolean;

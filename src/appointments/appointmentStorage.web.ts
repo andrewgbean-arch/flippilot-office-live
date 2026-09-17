@@ -1,7 +1,7 @@
 import { authHeaders } from "@/lib/authToken";
 import type { Appointment, AppointmentStatus } from "./appointmentTypes";
 
-const BASE_URL = "http://localhost:4001";
+import { BASE_URL } from "@/lib/apiBaseUrl";
 
 export async function loadAppointments(): Promise<Appointment[]> {
   try {

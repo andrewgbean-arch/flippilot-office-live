@@ -1,4 +1,5 @@
 import { authHeaders } from "@/lib/authToken";
+import { BASE_URL } from "@/lib/apiBaseUrl";
 
 export interface MOTRecord {
   date?: string;
@@ -42,7 +43,7 @@ export async function fetchMOT(reg: string): Promise<MOTData | null> {
     // login at all) — needs the same auth header every other real data
     // call already sends.
     const response = await fetch(
-      `http://localhost:4001/dvla?reg=${encodeURIComponent(reg)}`,
+      `${BASE_URL}/dvla?reg=${encodeURIComponent(reg)}`,
       { headers: authHeaders() }
     );
 

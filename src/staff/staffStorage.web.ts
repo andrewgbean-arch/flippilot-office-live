@@ -1,7 +1,7 @@
 import type { StaffRecord } from "@/staff/staffTypes";
 import { authHeaders } from "@/lib/authToken";
 
-const BASE_URL = "http://localhost:4001";
+import { BASE_URL } from "@/lib/apiBaseUrl";
 
 // Was localStorage-only — staff records never left the one browser they
 // were created in. Same function signatures, now backed by the real

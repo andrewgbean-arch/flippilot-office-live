@@ -2,7 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 import { authHeaders } from "@/lib/authToken";
 import { useAuth } from "@/context/AuthContext";
 
-const BASE_URL = "http://localhost:4001";
+import { BASE_URL } from "@/lib/apiBaseUrl";
 
 // Shape of the dealer data
 interface DealerInfo {

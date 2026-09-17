@@ -1,7 +1,7 @@
 import { authHeaders } from "@/lib/authToken";
 import type { WorkPattern, LeaveRequest, Shift, RotaSettings } from "./plannerTypes";
 
-const BASE_URL = "http://localhost:4001";
+import { BASE_URL } from "@/lib/apiBaseUrl";
 
 async function getJson<T>(path: string, fallback: T): Promise<T> {
   try {

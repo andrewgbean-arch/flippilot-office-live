@@ -1,7 +1,7 @@
 import { authHeaders } from "@/lib/authToken";
 import type { TimeEntry } from "./timeTypes";
 
-const BASE_URL = "http://localhost:4001";
+import { BASE_URL } from "@/lib/apiBaseUrl";
 
 interface ClockResult {
   ok: boolean;
