@@ -30,7 +30,12 @@ import { DatabaseSync } from "node:sqlite";
    needed to change at all.
 -------------------------------------------------- */
 
-const DATA_DIR = path.join(__dirname, "..", "data");
+// A relative __dirname-based path is fine locally, but on a host like
+// Render the app's own code directory is NOT what a persistent disk
+// gets mounted to — the disk's real mount path (e.g. /var/data) has to
+// be given explicitly via DATA_DIR, or every redeploy silently starts
+// from an empty database on fresh ephemeral storage.
+const DATA_DIR = process.env.DATA_DIR ?? path.join(__dirname, "..", "data");
 
 function ensureDataDir() {
   if (!fs.existsSync(DATA_DIR)) {
