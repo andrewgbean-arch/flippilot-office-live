@@ -1,9 +1,9 @@
-import { useState } from "react";
-import { submitSupportMessage } from "@/lib/supportApi";
+import { useEffect, useState } from "react";
+import { submitSupportMessage, fetchMySupportMessages, type SupportMessage } from "@/lib/supportApi";
 import "@/staff/StaffDashboard.css";
 
-// Distinct from FeedbackBoard.tsx ("What Can We Do Better?") — that
-// one is a per-dealership internal board (a dealer's own staff leaving
+// Distinct from FeedbackBoard.tsx ("Team Message Board") — that one is
+// a per-dealership internal board (a dealer's own staff leaving
 // suggestions for their manager). This is the one channel that leaves
 // a dealer's own account and reaches whoever actually runs FlipPilot,
 // for real bugs/issues with the platform itself.
@@ -12,6 +12,19 @@ export default function ContactSupport() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
+  const [history, setHistory] = useState<SupportMessage[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(true);
+
+  useEffect(() => {
+    loadHistory();
+  }, []);
+
+  async function loadHistory() {
+    setLoadingHistory(true);
+    const result = await fetchMySupportMessages();
+    setLoadingHistory(false);
+    if (result.ok) setHistory(result.messages);
+  }
 
   async function handleSubmit() {
     if (!message.trim()) return;
@@ -25,6 +38,7 @@ export default function ContactSupport() {
     }
     setMessage("");
     setSent(true);
+    loadHistory();
   }
 
   return (
@@ -70,6 +84,42 @@ export default function ContactSupport() {
             </div>
           </div>
         </section>
+
+        {!loadingHistory && history.length > 0 && (
+          <section className="sn-panel sn-panel--full">
+            <h2 className="sn-panel__title">Your Messages</h2>
+            <div className="sn-leave-list">
+              {history.map(entry => (
+                <div key={entry.id} className="sn-recent-lead" style={{ alignItems: "flex-start", flexDirection: "column", gap: 8 }}>
+                  <div>
+                    <p style={{ color: "#f5f7ff", fontSize: 13, margin: 0, whiteSpace: "pre-wrap" }}>
+                      {entry.message}
+                    </p>
+                    <div className="sn-recent-lead__status">{new Date(entry.createdAt).toLocaleString()}</div>
+                  </div>
+                  {entry.adminReply && (
+                    <div
+                      style={{
+                        width: "100%",
+                        marginLeft: 16,
+                        paddingLeft: 12,
+                        borderLeft: "2px solid rgba(255,215,0,0.4)",
+                      }}
+                    >
+                      <p style={{ color: "#ffe27a", fontSize: 12, fontWeight: 600, margin: 0 }}>
+                        FlipPilot Support replied
+                        {entry.adminReplyAt ? ` — ${new Date(entry.adminReplyAt).toLocaleString()}` : ""}
+                      </p>
+                      <p style={{ color: "#f5f7ff", fontSize: 13, margin: "4px 0", whiteSpace: "pre-wrap" }}>
+                        {entry.adminReply}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
       </main>
     </div>
   );

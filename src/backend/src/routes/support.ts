@@ -16,10 +16,36 @@ export interface SupportMessage {
   message: string;
   status: SupportMessageStatus;
   createdAt: string;
+  // A single reply, not a full back-and-forth thread — matches how
+  // simple every other messaging surface in this app is (FeedbackBoard
+  // has no replies at all). Set once by the admin; a dealer sees it
+  // attached to their own message on ContactSupport.tsx.
+  adminReply?: string;
+  adminReplyAt?: string;
 }
 
 function authUser(req: Request): AuthUser {
   return (req as Request & { user: AuthUser }).user;
+}
+
+// Real cross-account delivery, same mechanism the public booking flow
+// uses to notify a dealership's own staff — writes into the RECIPIENT's
+// own tenant notifications, not the sender's, so it shows up in their
+// existing bell regardless of which side of the conversation they're on.
+function notifyUser(dealershipId: string, userId: string, title: string, message: string) {
+  const notifications = readTenantCollection<any>(dealershipId, "notifications");
+  writeTenantCollection(dealershipId, "notifications", [
+    ...notifications,
+    {
+      id: randomUUID(),
+      userId,
+      title,
+      message,
+      type: "info" as const,
+      createdAt: new Date().toISOString(),
+      readAt: null,
+    },
+  ]);
 }
 
 // A dealer messaging support might have an expired trial — that's
@@ -70,34 +96,36 @@ export default function registerSupportRoute(app: Express) {
     const existing = readCollection<SupportMessage>(COLLECTION);
     writeCollection(COLLECTION, [...existing, entry]);
 
-    // Real cross-account delivery, same mechanism the public booking
-    // flow already uses to notify a dealership's own staff — here the
-    // one recipient is whoever's account matches ADMIN_EMAIL, so this
-    // shows up in their existing notification bell rather than
-    // needing a dealer to remember to check the Support Inbox page.
+    // The one recipient is whoever's account matches ADMIN_EMAIL, so
+    // this shows up in their existing notification bell rather than
+    // needing them to remember to check the Support Inbox page.
     const adminEmail = process.env.ADMIN_EMAIL;
     if (adminEmail) {
       const admin = readCollection<StoredUser>("users").find(
         u => u.email.toLowerCase() === adminEmail.toLowerCase()
       );
       if (admin) {
-        const adminNotifications = readTenantCollection<any>(admin.dealershipId, "notifications");
-        writeTenantCollection(admin.dealershipId, "notifications", [
-          ...adminNotifications,
-          {
-            id: randomUUID(),
-            userId: admin.id,
-            title: "New support message",
-            message: `${entry.dealershipName} — ${entry.message.slice(0, 80)}${entry.message.length > 80 ? "…" : ""}`,
-            type: "info" as const,
-            createdAt: entry.createdAt,
-            readAt: null,
-          },
-        ]);
+        notifyUser(
+          admin.dealershipId,
+          admin.id,
+          "New support message",
+          `${entry.dealershipName} — ${entry.message.slice(0, 80)}${entry.message.length > 80 ? "…" : ""}`
+        );
       }
     }
 
     res.json({ ok: true, message: entry });
+  });
+
+  // Lets a dealer see their own message history and any reply — the
+  // one place a dealer actually reads what came back, rather than only
+  // finding out a reply exists via the notification bell text.
+  app.get("/support/my-messages", requireAuth, (req, res) => {
+    const user = authUser(req);
+    const messages = readCollection<SupportMessage>(COLLECTION)
+      .filter(m => m.userId === user.id)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    res.json({ ok: true, messages });
   });
 
   // Lets the UI decide whether to show the admin-only inbox link at
@@ -128,6 +156,42 @@ export default function registerSupportRoute(app: Express) {
     }
     entry.status = status;
     writeCollection(COLLECTION, messages);
+
+    res.json({ ok: true, message: entry });
+  });
+
+  // Replies to the specific person who sent the message (entry.userId),
+  // not the whole dealership — a real reply notification lands in
+  // their own account's bell, and the reply text itself shows on their
+  // own ContactSupport.tsx page via GET /support/my-messages above.
+  app.post("/support/messages/:id/reply", requireAuth, requirePlatformAdmin, (req, res) => {
+    const { reply } = req.body ?? {};
+    if (typeof reply !== "string" || !reply.trim()) {
+      return res.status(400).json({ ok: false, error: "Reply can't be empty" });
+    }
+    if (reply.length > 5000) {
+      return res.status(400).json({ ok: false, error: "Reply is too long" });
+    }
+
+    const messages = readCollection<SupportMessage>(COLLECTION);
+    const entry = messages.find(m => m.id === req.params.id);
+    if (!entry) {
+      return res.status(404).json({ ok: false, error: "Message not found" });
+    }
+
+    entry.adminReply = reply.trim();
+    entry.adminReplyAt = new Date().toISOString();
+    // A reply is the clearest possible signal the admin has actually
+    // dealt with this — no separate "mark reviewed" click needed too.
+    entry.status = "reviewed";
+    writeCollection(COLLECTION, messages);
+
+    notifyUser(
+      entry.dealershipId,
+      entry.userId,
+      "FlipPilot Support replied",
+      entry.adminReply.slice(0, 80) + (entry.adminReply.length > 80 ? "…" : "")
+    );
 
     res.json({ ok: true, message: entry });
   });
