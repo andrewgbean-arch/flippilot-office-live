@@ -106,9 +106,15 @@ export default function DealerDashboard({ brain }: Props) {
     brain?.workflow?.pricingNeeded ??
     safeVehicles.filter((v) => (v.valuationConfidence ?? 100) < 60);
 
+  // Real photo count, not `photoQuality` — that field is a fake
+  // condition/status-derived number from dealerAI.ts's simulated
+  // enrichment, completely unrelated to whether real photos were
+  // ever uploaded, and never recalculated after a vehicle's own real
+  // `images` change on Edit. A vehicle genuinely needs photos when it
+  // has none, full stop.
   const photoNeeded =
     brain?.workflow?.photoNeeded ??
-    safeVehicles.filter((v) => (v.photoQuality ?? 100) < 60);
+    safeVehicles.filter((v) => (v.images?.length ?? 0) === 0);
 
   const financeIssues =
     brain?.workflow?.financeIssues ??

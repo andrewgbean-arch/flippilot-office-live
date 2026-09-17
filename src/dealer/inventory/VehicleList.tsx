@@ -59,6 +59,25 @@ export default function VehicleList() {
 
           return (
             <SupernovaGlowCard key={v.id}>
+              {v.images?.[0] ? (
+                <div className="relative -mx-6 -mt-6 mb-4">
+                  <img
+                    src={v.images[0]}
+                    alt={`${v.make} ${v.model}`}
+                    className="w-full h-40 object-cover rounded-t-xl"
+                  />
+                  {v.images.length > 1 && (
+                    <span className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded-full">
+                      📷 {v.images.length}
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <div className="-mx-6 -mt-6 mb-4 h-40 rounded-t-xl bg-black/40 border-b border-white/10 flex items-center justify-center text-white/30 text-sm">
+                  No photo yet
+                </div>
+              )}
+
               <h2 className="text-yellow-400 font-bold text-xl mb-2">
                 {v.make} {v.model}
               </h2>

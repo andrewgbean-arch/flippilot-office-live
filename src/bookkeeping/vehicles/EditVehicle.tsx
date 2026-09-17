@@ -102,19 +102,36 @@ export default function EditVehicle({ vehicleId }: EditVehicleProps) {
      ⭐ Image Upload
   ============================================================ */
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = ""; // lets picking the exact same file(s) again re-fire onChange
+    if (files.length === 0) return;
 
-    try {
-      const compressed = await compressImageFile(file);
-      setImages((prev) => [...prev, compressed]);
-    } catch (err) {
-      console.error("Could not process that image", err);
+    for (const file of files) {
+      try {
+        const compressed = await compressImageFile(file);
+        setImages((prev) => [...prev, compressed]);
+      } catch (err) {
+        console.error("Could not process that image", err);
+      }
     }
   };
 
   const deleteImage = (index: number) => {
     setImages((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  // images[0] is the cover photo everywhere it's shown (vehicle list
+  // thumbnails, the overview gallery) — moving an image to the front is
+  // the only "set cover" action needed, no separate flag on the data.
+  const setCoverImage = (index: number) => {
+    setImages((prev) => {
+      if (index <= 0 || index >= prev.length) return prev;
+      const next = [...prev];
+      const [chosen] = next.splice(index, 1);
+      if (chosen === undefined) return prev;
+      next.unshift(chosen);
+      return next;
+    });
   };
 
   /* ============================================================
@@ -323,20 +340,42 @@ export default function EditVehicle({ vehicleId }: EditVehicleProps) {
           <input
             type="file"
             accept="image/*"
+            multiple
             onChange={handleImageUpload}
             className="mb-4 text-white"
           />
+          <p className="text-white/40 text-xs -mt-2 mb-4">
+            Select multiple photos at once. The first photo is used as the cover everywhere this vehicle is shown.
+          </p>
 
           {images.length > 0 ? (
             <div className="flex gap-4 overflow-x-auto">
               {images.map((uri, idx) => (
-                <div key={idx} className="relative border-2 border-yellow-400 rounded-xl overflow-hidden">
+                <div
+                  key={idx}
+                  className={`relative border-2 rounded-xl overflow-hidden ${
+                    idx === 0 ? "border-yellow-400" : "border-white/20"
+                  }`}
+                >
+                  {idx === 0 && (
+                    <span className="absolute top-2 left-2 bg-yellow-400 text-black px-2 py-1 rounded-md text-xs font-bold">
+                      Cover
+                    </span>
+                  )}
                   <button
                     onClick={() => deleteImage(idx)}
                     className="absolute top-2 right-2 bg-red-600 text-white px-2 py-1 rounded-md text-xs font-bold"
                   >
                     X
                   </button>
+                  {idx !== 0 && (
+                    <button
+                      onClick={() => setCoverImage(idx)}
+                      className="absolute bottom-2 left-2 bg-black/70 text-white px-2 py-1 rounded-md text-xs font-bold hover:bg-black/90"
+                    >
+                      Set Cover
+                    </button>
+                  )}
                   <button
                     onClick={() => setEditingImageIndex(idx)}
                     className="absolute bottom-2 right-2 bg-black/70 text-white px-2 py-1 rounded-md text-xs font-bold hover:bg-black/90"

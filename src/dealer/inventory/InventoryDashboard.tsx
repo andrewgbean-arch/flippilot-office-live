@@ -29,8 +29,10 @@ export default function InventoryDashboard() {
     (v) => (v.valuationConfidence ?? 100) < 60
   );
 
+  // Real photo count, not `photoQuality` — see DealerDashboard.tsx for
+  // why that field is fake and never reflects real uploaded photos.
   const photoNeeded = vehicles.filter(
-    (v) => (v.photoQuality ?? 100) < 60
+    (v) => (v.images?.length ?? 0) === 0
   );
 
   const financeIssues = vehicles.filter(

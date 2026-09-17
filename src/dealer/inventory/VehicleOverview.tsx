@@ -93,6 +93,11 @@ export default function VehicleOverview() {
     setGoogleGuideStatus("idle");
   }, [vehicle?.id]);
 
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  useEffect(() => {
+    setLightboxIndex(null);
+  }, [vehicle?.id]);
+
   if (!vehicle) {
     return (
       <div className="p-10 text-white">
@@ -241,6 +246,43 @@ export default function VehicleOverview() {
       {/* OVERVIEW TAB */}
       {tab === "overview" && (
         <div className="space-y-10">
+          <SupernovaGlowCard>
+            <SupernovaSectionDivider label="Photos" />
+            {vehicle.images && vehicle.images.length > 0 ? (
+              <div>
+                <img
+                  src={vehicle.images[0]}
+                  alt={`${vehicle.make} ${vehicle.model} — cover photo`}
+                  onClick={() => setLightboxIndex(0)}
+                  className="w-full max-h-96 object-cover rounded-lg cursor-pointer border border-white/10"
+                />
+                {vehicle.images.length > 1 && (
+                  <div className="flex gap-2 mt-3 overflow-x-auto pb-1">
+                    {vehicle.images.map((src, idx) => (
+                      <img
+                        key={idx}
+                        src={src}
+                        alt={`${vehicle.make} ${vehicle.model} — photo ${idx + 1}`}
+                        onClick={() => setLightboxIndex(idx)}
+                        className="w-20 h-20 object-cover rounded-md border border-white/10 cursor-pointer hover:border-yellow-400 transition flex-shrink-0"
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="text-center py-10">
+                <p className="text-white/50 mb-3">No photos yet.</p>
+                <button
+                  onClick={() => setTab("edit")}
+                  className="px-4 py-2 rounded-lg bg-yellow-400 text-black font-bold hover:bg-yellow-300 transition"
+                >
+                  Add Photos
+                </button>
+              </div>
+            )}
+          </SupernovaGlowCard>
+
           <SupernovaGlowCard>
             <SupernovaSectionDivider label="Vehicle Snapshot" />
             <p><span className="text-white/60">Make:</span> {vehicle.make}</p>
@@ -441,6 +483,56 @@ export default function VehicleOverview() {
 
       {/* EDIT TAB */}
       {tab === "edit" && <EditVehicle vehicleId={vehicleId} />}
+
+      {/* PHOTO LIGHTBOX */}
+      {lightboxIndex !== null && vehicle.images && vehicle.images[lightboxIndex] && (
+        <div
+          className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4"
+          onClick={() => setLightboxIndex(null)}
+        >
+          <button
+            onClick={() => setLightboxIndex(null)}
+            className="absolute top-4 right-4 text-white/70 hover:text-white text-3xl leading-none"
+          >
+            &times;
+          </button>
+
+          {vehicle.images.length > 1 && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setLightboxIndex((i) => (i === null ? null : (i - 1 + vehicle.images!.length) % vehicle.images!.length));
+              }}
+              className="absolute left-4 text-white/70 hover:text-white text-4xl leading-none px-2"
+            >
+              &#8249;
+            </button>
+          )}
+
+          <img
+            src={vehicle.images[lightboxIndex]}
+            alt={`${vehicle.make} ${vehicle.model} — photo ${lightboxIndex + 1}`}
+            onClick={(e) => e.stopPropagation()}
+            className="max-w-full max-h-[85vh] object-contain rounded-lg"
+          />
+
+          {vehicle.images.length > 1 && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setLightboxIndex((i) => (i === null ? null : (i + 1) % vehicle.images!.length));
+              }}
+              className="absolute right-4 text-white/70 hover:text-white text-4xl leading-none px-2"
+            >
+              &#8250;
+            </button>
+          )}
+
+          <span className="absolute bottom-4 text-white/60 text-sm">
+            {lightboxIndex + 1} / {vehicle.images.length}
+          </span>
+        </div>
+      )}
     </div>
   );
 }
