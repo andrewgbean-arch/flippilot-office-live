@@ -84,6 +84,25 @@ export async function fetchWatcher(): Promise<WatcherResult | null> {
   }
 }
 
+// Real AI voice (OpenAI tts-1) — returns a playable object URL, or null
+// if it's not available/configured/failed, so the caller can fall back
+// to the free browser voice rather than going silent.
+export async function fetchSpeech(text: string): Promise<string | null> {
+  try {
+    const res = await fetch(`${BASE_URL}/pilot-brain/speak`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ text }),
+    });
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return URL.createObjectURL(blob);
+  } catch (err) {
+    console.error("fetchSpeech: backend unreachable", err);
+    return null;
+  }
+}
+
 export async function fetchMorningBriefing(): Promise<{ ok: boolean; briefing?: string; error?: string }> {
   try {
     const res = await fetch(`${BASE_URL}/pilot-brain/briefing`, { headers: authHeaders() });

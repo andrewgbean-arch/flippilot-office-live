@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { FiMic, FiMicOff, FiVolume2, FiVolumeX } from "react-icons/fi";
-import { fetchPilotBrainMessages, sendPilotBrainMessage, type PilotBrainMessage } from "@/lib/pilotBrainApi";
+import { fetchPilotBrainMessages, sendPilotBrainMessage, fetchSpeech, type PilotBrainMessage } from "@/lib/pilotBrainApi";
 import "@/staff/StaffDashboard.css";
 
 // Real browser speech APIs, no bundled asset or third-party service —
@@ -53,6 +53,10 @@ export default function PilotBrainChat() {
   // Keeping it here (not just as a local variable in speak()) is what
   // actually makes voice output work, not just what "looks tidier".
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  // The real AI voice (OpenAI tts-1) — tracked so a new reply can stop
+  // whichever one's still playing, and so its object URL gets revoked
+  // instead of leaking.
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // A per-viewer convenience (like a remembered tab), not app state —
   // fine to lose in a private window, never shared between viewers.
@@ -81,8 +85,17 @@ export default function PilotBrainChat() {
   useEffect(() => {
     return () => {
       window.speechSynthesis?.cancel();
+      stopAiAudio();
     };
   }, []);
+
+  function stopAiAudio() {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      URL.revokeObjectURL(audioRef.current.src);
+      audioRef.current = null;
+    }
+  }
 
   function toggleVoiceOutput() {
     const next = !voiceOutput;
@@ -90,11 +103,17 @@ export default function PilotBrainChat() {
     try {
       localStorage.setItem(VOICE_OUTPUT_KEY, String(next));
     } catch {}
-    if (!next) window.speechSynthesis?.cancel();
+    if (!next) {
+      window.speechSynthesis?.cancel();
+      stopAiAudio();
+    }
   }
 
-  function speak(text: string) {
-    if (!voiceOutput || !window.speechSynthesis) return;
+  // Free browser voice — used as the fallback when the real AI voice
+  // (OpenAI) isn't configured or its call fails, so voice output never
+  // just goes silent.
+  function speakWithBrowserVoice(text: string) {
+    if (!window.speechSynthesis) return;
     const synth = window.speechSynthesis;
 
     const utterance = new SpeechSynthesisUtterance(text);
@@ -116,6 +135,26 @@ export default function PilotBrainChat() {
     } else {
       synth.speak(utterance);
     }
+  }
+
+  async function speak(text: string) {
+    if (!voiceOutput) return;
+
+    stopAiAudio();
+    const audioUrl = await fetchSpeech(text);
+    if (!audioUrl) {
+      speakWithBrowserVoice(text); // real AI voice unavailable/failed — don't go silent
+      return;
+    }
+
+    const audio = new Audio(audioUrl);
+    audioRef.current = audio;
+    audio.onended = () => URL.revokeObjectURL(audioUrl);
+    audio.onerror = () => {
+      URL.revokeObjectURL(audioUrl);
+      speakWithBrowserVoice(text);
+    };
+    audio.play().catch(() => speakWithBrowserVoice(text));
   }
 
   function toggleListening() {

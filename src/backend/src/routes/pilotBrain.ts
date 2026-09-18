@@ -37,6 +37,17 @@ const chatLimiter = rateLimit({
   message: { ok: false, error: "Too many messages to Pilot Brain — please try again shortly." },
 });
 
+// Separate real spend on a separate vendor (OpenAI, not Anthropic) —
+// same reasoning as chatLimiter, its own limit since a chat reply and
+// its spoken version are two different paid calls.
+const speakLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: process.env.NODE_ENV === "test" ? 500 : 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { ok: false, error: "Too many voice requests — please try again shortly." },
+});
+
 const MESSAGES_COLLECTION = "pilotBrainMessages";
 const MEMORIES_COLLECTION = "pilotBrainMemories";
 
@@ -314,6 +325,57 @@ export default function registerPilotBrainRoute(app: Express) {
     }
 
     res.json({ ok: true, message: assistantMsg });
+  });
+
+  // Real AI voice (OpenAI's tts-1) for Pilot Brain's spoken replies —
+  // "Wendy". Real pay-as-you-go spend per character, separate vendor/
+  // key from Anthropic, hence its own rate limit. Returns raw MP3 bytes
+  // rather than a URL — nothing is stored, each call is generated fresh
+  // and streamed straight through.
+  app.post("/pilot-brain/speak", requireAuth, speakLimiter, async (req, res) => {
+    const { text } = req.body ?? {};
+    if (typeof text !== "string" || !text.trim()) {
+      return res.status(400).json({ ok: false, error: "Text can't be empty" });
+    }
+    if (text.length > 2000) {
+      return res.status(400).json({ ok: false, error: "Text is too long to speak" });
+    }
+
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      return res.status(400).json({
+        ok: false,
+        error: "Voice needs an API key — set OPENAI_API_KEY in backend/.env to enable this.",
+      });
+    }
+
+    try {
+      const response = await fetch("https://api.openai.com/v1/audio/speech", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: "tts-1",
+          voice: "nova",
+          input: text.trim(),
+        }),
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        console.error("pilot-brain/speak: OpenAI error", response.status, errText);
+        return res.status(502).json({ ok: false, error: "Could not generate voice right now." });
+      }
+
+      const audioBuffer = Buffer.from(await response.arrayBuffer());
+      res.set("Content-Type", "audio/mpeg");
+      res.send(audioBuffer);
+    } catch (err) {
+      console.error("pilot-brain/speak: request failed", err);
+      res.status(502).json({ ok: false, error: "Could not generate voice right now." });
+    }
   });
 
   // V2 (Watcher) — real business health score, alerts, risks and
