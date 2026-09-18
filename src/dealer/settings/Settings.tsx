@@ -8,8 +8,11 @@ import { SupernovaGlowButton } from "@/components/supernova/SupernovaGlowButton"
 
 import { useDealer } from "@/context/DealerContext";
 import { useAuth } from "@/context/AuthContext";
+import { useInventory } from "@/context/InventoryProvider";
+import { useBookkeeping } from "@/bookkeeping/BookkeepingProvider";
 import { authHeaders } from "@/lib/authToken";
 import { useTour } from "@/tour/TourProvider";
+import { toCSV, downloadCSV } from "@/lib/csv";
 
 import { BASE_URL } from "@/lib/apiBaseUrl";
 
@@ -341,13 +344,49 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
   );
 }
 
+// Dated filename so a dealer downloading their data more than once
+// (e.g. monthly backups) doesn't silently overwrite the last file in
+// their downloads folder without realising.
+function dated(base: string): string {
+  return `${base}-${new Date().toISOString().slice(0, 10)}.csv`;
+}
+
 export default function Settings() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { startTour } = useTour();
+  const { vehicles } = useInventory();
+  const { purchases, costs, sales } = useBookkeeping();
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
+
+  function exportVehicles() {
+    const headers = ["Make", "Model", "Registration", "Year", "Mileage", "Colour", "Buy Price", "Sell Price", "MOT Expiry"];
+    const rows = vehicles.map((v) => [
+      v.make, v.model, v.reg ?? "", v.year ?? "", v.mileage ?? "",
+      v.colour ?? "", v.priceTrade ?? "", v.priceRetail ?? "", v.mot?.expiry ?? "",
+    ]);
+    downloadCSV(dated("flippilot-vehicles"), toCSV(headers, rows));
+  }
+
+  function exportPurchases() {
+    const headers = ["Vehicle ID", "Purchase Price", "Source", "Date", "VAT Rate", "VAT Amount", "Net Amount"];
+    const rows = purchases.map((p) => [p.vehicleId, p.purchasePrice, p.source ?? "", p.date, p.vatRate, p.vatAmount, p.netAmount]);
+    downloadCSV(dated("flippilot-purchases"), toCSV(headers, rows));
+  }
+
+  function exportCosts() {
+    const headers = ["Vehicle ID", "Type", "Label", "Category", "Amount", "Date"];
+    const rows = costs.map((c) => [c.vehicleId, c.type, c.label ?? "", c.category ?? "", c.amount, c.date]);
+    downloadCSV(dated("flippilot-costs"), toCSV(headers, rows));
+  }
+
+  function exportSales() {
+    const headers = ["Vehicle ID", "Sale Price", "Buyer", "Invoice Number", "Date"];
+    const rows = sales.map((s) => [s.vehicleId, s.salePrice, s.buyer ?? "", s.invoiceNumber, s.date]);
+    downloadCSV(dated("flippilot-sales"), toCSV(headers, rows));
+  }
 
   return (
     <div className="animate-fadeIn text-white px-6 py-10 max-w-5xl mx-auto">
@@ -409,6 +448,24 @@ export default function Settings() {
           </p>
 
           <SupernovaGlowButton label="Import from CSV" onClick={() => navigate("/import")} />
+        </SupernovaGlowCard>
+
+        {/* Data Export — a dealer's own data shouldn't be locked in;
+            downloads real live vehicles/bookkeeping straight from what's
+            already loaded, no backend round-trip needed. */}
+        <SupernovaGlowCard>
+          <h2 className="text-yellow-300 font-bold text-xl mb-3">Data Export</h2>
+          <p className="text-white/70 mb-4">
+            Download your real stock list and bookkeeping records as CSV files — for a backup, or to
+            move to another system.
+          </p>
+
+          <div className="flex flex-wrap gap-2">
+            <SupernovaGlowButton label={`Vehicles (${vehicles.length})`} onClick={exportVehicles} />
+            <SupernovaGlowButton label={`Purchases (${purchases.length})`} onClick={exportPurchases} />
+            <SupernovaGlowButton label={`Costs (${costs.length})`} onClick={exportCosts} />
+            <SupernovaGlowButton label={`Sales (${sales.length})`} onClick={exportSales} />
+          </div>
         </SupernovaGlowCard>
 
         {/* Product Tour — the same guided walkthrough that runs

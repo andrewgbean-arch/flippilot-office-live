@@ -39,15 +39,24 @@ export default function OnboardingScreen() {
         <>
           <p className="text-white/70 mb-4">
             Everything in FlipPilot — bookkeeping, AI valuations, profit
-            tracking — starts with a real vehicle in your inventory. You can
-            add one now, or explore first and add it later.
+            tracking — starts with real vehicles in your inventory. Add one
+            by hand, or bring in your whole existing stock list from a CSV
+            spreadsheet at once.
           </p>
-          <Link
-            to="/new-flip"
-            className="inline-block px-5 py-2.5 rounded-lg bg-yellow-500 text-black font-semibold hover:bg-yellow-400 transition"
-          >
-            Add a Vehicle Now
-          </Link>
+          <div className="flex flex-wrap gap-3">
+            <Link
+              to="/new-flip"
+              className="inline-block px-5 py-2.5 rounded-lg bg-yellow-500 text-black font-semibold hover:bg-yellow-400 transition"
+            >
+              Add a Vehicle Now
+            </Link>
+            <Link
+              to="/import"
+              className="inline-block px-5 py-2.5 rounded-lg bg-white/10 text-white font-semibold hover:bg-white/20 transition border border-white/20"
+            >
+              Import from CSV
+            </Link>
+          </div>
         </>
       ),
     },

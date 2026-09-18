@@ -63,6 +63,39 @@ export function parseCSVWithHeaders(text: string): ParsedCSV {
   return { headers: headers ?? [], rows };
 }
 
+// Reverse of parseCSV — quotes a field only when it actually needs it
+// (contains a comma, quote, or newline), so a plain CSV of simple
+// values stays readable rather than every cell wrapped in quotes.
+function csvField(value: string): string {
+  if (/[",\n\r]/.test(value)) {
+    return `"${value.replace(/"/g, '""')}"`;
+  }
+  return value;
+}
+
+export function toCSV(headers: string[], rows: (string | number | null | undefined)[][]): string {
+  const lines = [headers.map(csvField).join(",")];
+  for (const row of rows) {
+    lines.push(row.map((cell) => csvField(cell == null ? "" : String(cell))).join(","));
+  }
+  return lines.join("\r\n");
+}
+
+// Triggers a real browser file download for CSV text built with
+// toCSV() — no backend round-trip needed since the data (inventory,
+// bookkeeping) is already loaded client-side via existing providers.
+export function downloadCSV(filename: string, csvText: string) {
+  const blob = new Blob([csvText], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
 // Best-effort auto-match of a target field to one of the file's real
 // headers, so most real-world exports need zero manual remapping —
 // staff only need to fix whatever didn't guess correctly.
