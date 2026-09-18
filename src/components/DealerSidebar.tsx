@@ -98,6 +98,7 @@ export default function DealerSidebar() {
       icon: FiMessageSquare,
       items: [
         { to: "/feedback", label: "Team Message Board" },
+        { to: "/dealer/staff/message", label: "Contact a Team Member" },
         { to: "/support", label: "Contact FlipPilot Support" },
         // Only ever rendered once the backend has actually confirmed
         // this account is the platform admin — see useIsSupportAdmin.
