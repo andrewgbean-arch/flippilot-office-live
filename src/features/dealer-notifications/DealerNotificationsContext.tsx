@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useState, useMemo, useEffect } from "react";
+import React, { createContext, useContext, useState, useMemo, useEffect, useRef } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { loadNotifications, dismissNotification } from "@/notifications/notificationStorage.web";
+import { playNotificationSound } from "@/lib/playNotificationSound";
 
 export type DealerNotification = {
   id: string;
@@ -39,6 +40,12 @@ const POLL_INTERVAL_MS = 45_000;
 export function DealerNotificationsProvider({ children }: { children: React.ReactNode }) {
   const [notifications, setNotifications] = useState<DealerNotification[]>([]);
   const { user } = useAuth();
+  // Tracks which persisted notification ids have already been seen, so
+  // the chime only fires for ones that genuinely arrive DURING this
+  // session — not for whatever was already sitting unread the moment
+  // the page first loaded (null until the first poll resolves, which
+  // is the signal to skip the sound on that very first pass).
+  const seenIds = useRef<Set<string> | null>(null);
 
   // This bell used to be pure in-memory React state with no backend
   // at all — an "addNotification" call only ever reached whichever
@@ -58,6 +65,14 @@ export function DealerNotificationsProvider({ children }: { children: React.Reac
     async function poll() {
       const items = await loadNotifications();
       if (cancelled) return;
+
+      const isFirstPoll = seenIds.current === null;
+      const currentIds = new Set(items.map(n => n.id));
+      const hasNewSinceLastPoll =
+        !isFirstPoll && items.some(n => !seenIds.current!.has(n.id));
+      seenIds.current = currentIds;
+      if (hasNewSinceLastPoll) playNotificationSound();
+
       setNotifications(prev => {
         const localOnly = prev.filter(n => !n.persisted);
         const fromBackend: DealerNotification[] = items.map(n => ({
