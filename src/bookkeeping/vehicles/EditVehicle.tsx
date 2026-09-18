@@ -13,6 +13,7 @@ import { autoFormatReg } from "@/features/vehicles/ui/SupernovaUI.web";
 import { compressImageFile } from "@/lib/imageCompress";
 import { generateVehicleDescription } from "@/lib/aiDescription";
 import PhotoEditorModal from "@/lib/PhotoEditorModal";
+import { deleteVehiclePhoto, hostedPhotoId } from "@/lib/vehiclePhotosApi";
 
 interface EditVehicleProps {
   vehicleId: string;
@@ -59,6 +60,12 @@ export default function EditVehicle({ vehicleId }: EditVehicleProps) {
   const [descriptionError, setDescriptionError] = useState<string | null>(null);
   const [images, setImages] = useState<string[]>(vehicle?.images || []);
   const [editingImageIndex, setEditingImageIndex] = useState<number | null>(null);
+  // Photos taken on a phone live on the server, and a plain save can't
+  // remove them (the server keeps them so a stale screen can't wipe
+  // one) — so ones removed or replaced here are deleted for real, on Save.
+  const [removedHostedIds, setRemovedHostedIds] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const [reg, setReg] = useState(vehicle?.mot?.reg || "");
   const [colour, setColour] = useState(vehicle?.mot?.colour || "");
@@ -117,6 +124,8 @@ export default function EditVehicle({ vehicleId }: EditVehicleProps) {
   };
 
   const deleteImage = (index: number) => {
+    const hostedId = hostedPhotoId(images[index] ?? "");
+    if (hostedId) setRemovedHostedIds((prev) => [...prev, hostedId]);
     setImages((prev) => prev.filter((_, i) => i !== index));
   };
 
@@ -169,7 +178,24 @@ export default function EditVehicle({ vehicleId }: EditVehicleProps) {
   /* ============================================================
      ⭐ Save Vehicle
   ============================================================ */
-  const saveVehicle = () => {
+  const saveVehicle = async () => {
+    if (saving) return;
+    setSaving(true);
+    setSaveError(null);
+
+    // Server-hosted photos removed above go first. If one can't be
+    // removed, stop here rather than save a list that quietly disagrees
+    // with what the user just did — retrying is safe (already-gone counts
+    // as done).
+    for (const photoId of removedHostedIds) {
+      const result = await deleteVehiclePhoto(vehicleId, photoId);
+      if (!result.ok) {
+        setSaveError(result.error ?? "Couldn't remove a photo — check your connection and try again.");
+        setSaving(false);
+        return;
+      }
+    }
+
     updateVehicle(vehicleId, {
       make,
       model,
@@ -191,6 +217,11 @@ export default function EditVehicle({ vehicleId }: EditVehicleProps) {
       },
     });
 
+    // This screen is a tab inside the vehicle overview, so it can stay
+    // mounted after the navigate below — leave it ready for another save,
+    // and don't re-send deletes that already happened.
+    setRemovedHostedIds([]);
+    setSaving(false);
     navigate(`/dealer/inventory/${vehicleId}`);
   };
 
@@ -393,7 +424,8 @@ export default function EditVehicle({ vehicleId }: EditVehicleProps) {
 
         {/* ⭐ Save + Delete */}
         <div className="space-y-4 pb-20">
-          <SupernovaGlowButton label="Save Vehicle" onClick={saveVehicle} />
+          {saveError && <p className="text-red-400 text-sm">{saveError}</p>}
+          <SupernovaGlowButton label={saving ? "Saving…" : "Save Vehicle"} onClick={saveVehicle} />
 
           <SupernovaGlowButton
             label="Delete Vehicle"
@@ -457,6 +489,11 @@ export default function EditVehicle({ vehicleId }: EditVehicleProps) {
           imageSrc={images[editingImageIndex]}
           onClose={() => setEditingImageIndex(null)}
           onSave={(edited) => {
+            // The edited picture is saved inline like any other web edit, so
+            // a hosted original it replaces is deleted on Save (else both
+            // would show).
+            const replacedId = hostedPhotoId(images[editingImageIndex] ?? "");
+            if (replacedId) setRemovedHostedIds((prev) => [...prev, replacedId]);
             setImages((prev) => prev.map((img, i) => (i === editingImageIndex ? edited : img)));
             setEditingImageIndex(null);
           }}

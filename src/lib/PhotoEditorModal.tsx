@@ -43,9 +43,17 @@ export default function PhotoEditorModal({ imageSrc, onSave, onClose }: PhotoEdi
 
   useEffect(() => {
     const img = new Image();
+    // A photo hosted on the server is a different address from this app,
+    // and the canvas can only be saved back out if it was fetched with
+    // CORS. (Inline data: pictures need no such thing.)
+    if (!imageSrc.startsWith("data:")) img.crossOrigin = "anonymous";
     img.onload = () => {
       imgRef.current = img;
       setReady(true);
+    };
+    img.onerror = () => {
+      console.error("PhotoEditorModal: could not load the image to edit");
+      onClose();
     };
     img.src = imageSrc;
   }, [imageSrc]);
