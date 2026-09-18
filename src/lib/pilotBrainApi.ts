@@ -24,6 +24,21 @@ export async function fetchPilotBrainMessages(): Promise<{
   }
 }
 
+// A real wrong reply sitting in the recent-history window can keep
+// getting echoed back turn after turn even once the underlying issue
+// is fixed — this clears only the caller's own conversation, letting
+// them start fresh.
+export async function clearPilotBrainConversation(): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const res = await fetch(`${BASE_URL}/pilot-brain/messages`, { method: "DELETE", headers: authHeaders() });
+    const data = await res.json();
+    return { ok: res.ok, error: data.error };
+  } catch (err) {
+    console.error("clearPilotBrainConversation: backend unreachable", err);
+    return { ok: false, error: "Network error" };
+  }
+}
+
 export async function sendPilotBrainMessage(message: string): Promise<{
   ok: boolean;
   message?: PilotBrainMessage;

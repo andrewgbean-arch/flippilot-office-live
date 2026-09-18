@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { FiMic, FiMicOff, FiVolume2, FiVolumeX } from "react-icons/fi";
-import { fetchPilotBrainMessages, sendPilotBrainMessage, fetchSpeech, fetchMorningBriefing, fetchPerformanceReview, fetchTodaysPriorities, OPENAI_VOICES, type OpenAiVoice, type PilotBrainMessage, type ReviewPeriod } from "@/lib/pilotBrainApi";
+import { fetchPilotBrainMessages, sendPilotBrainMessage, fetchSpeech, fetchMorningBriefing, fetchPerformanceReview, fetchTodaysPriorities, clearPilotBrainConversation, OPENAI_VOICES, type OpenAiVoice, type PilotBrainMessage, type ReviewPeriod } from "@/lib/pilotBrainApi";
 import { authHeaders } from "@/lib/authToken";
 import { BASE_URL } from "@/lib/apiBaseUrl";
 import "@/staff/StaffDashboard.css";
@@ -327,6 +327,31 @@ export default function PilotBrainChat() {
     speak(content);
   }
 
+  const [confirmingClear, setConfirmingClear] = useState(false);
+  const [clearing, setClearing] = useState(false);
+
+  // A wrong reply sitting in the recent-history window can keep
+  // getting echoed back turn after turn even after the underlying
+  // issue's fixed — a real incident this session, not a hypothetical.
+  // Two-step (click once to arm, click again to confirm) rather than a
+  // native confirm() dialog, matching this app's existing two-click
+  // delete pattern elsewhere.
+  async function handleClearConversation() {
+    if (!confirmingClear) {
+      setConfirmingClear(true);
+      return;
+    }
+    setClearing(true);
+    setConfirmingClear(false);
+    const result = await clearPilotBrainConversation();
+    setClearing(false);
+    if (!result.ok) {
+      setError(result.error ?? "Couldn't clear the conversation.");
+      return;
+    }
+    setMessages([]);
+  }
+
   function toggleListening() {
     if (!SpeechRecognitionCtor) return;
 
@@ -493,6 +518,23 @@ export default function PilotBrainChat() {
           >
             {reportLoading === "priorities" ? "Thinking…" : "Today's Priorities"}
           </button>
+
+          {messages.length > 0 && (
+            <button
+              onClick={handleClearConversation}
+              onBlur={() => setConfirmingClear(false)}
+              disabled={clearing}
+              className="sn-btn"
+              style={{
+                fontSize: 12, padding: "4px 10px", marginLeft: 8,
+                background: confirmingClear ? "rgba(255,80,80,0.2)" : undefined,
+                borderColor: confirmingClear ? "rgba(255,80,80,0.5)" : undefined,
+                color: confirmingClear ? "#ff8080" : undefined,
+              }}
+            >
+              {clearing ? "Clearing…" : confirmingClear ? "Click again to confirm" : "Clear Conversation"}
+            </button>
+          )}
         </div>
       </header>
 

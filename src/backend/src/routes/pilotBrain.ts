@@ -405,6 +405,20 @@ export default function registerPilotBrainRoute(app: Express) {
     res.json({ ok: true, messages });
   });
 
+  // Real, genuine need this session surfaced live: a wrong reply sitting
+  // in the last-20-message history window a user's own chat rebuilds
+  // context from every turn keeps getting echoed back — the model stays
+  // "consistent" with its own recent mistake rather than fully
+  // re-deriving from a since-fixed system prompt. Clears only the
+  // CALLING user's own messages, never another teammate's.
+  app.delete("/pilot-brain/messages", requireAuth, (req, res) => {
+    const user = authUser(req);
+    const all = readTenantCollection<PilotBrainMessage>(user.dealershipId, MESSAGES_COLLECTION);
+    const remaining = all.filter(m => m.userId !== user.id);
+    writeTenantCollection(user.dealershipId, MESSAGES_COLLECTION, remaining);
+    res.json({ ok: true });
+  });
+
   app.post("/pilot-brain/chat", requireAuth, chatLimiter, async (req, res) => {
     const user = authUser(req);
     const { message } = req.body ?? {};
