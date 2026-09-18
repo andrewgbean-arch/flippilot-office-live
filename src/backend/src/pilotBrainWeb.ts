@@ -142,7 +142,15 @@ export function recordWebSearches(
   const ran = searches.filter(s => !s.errorCode).length;
   const at = new Date(now).toISOString();
 
-  const entries: WebSearchLogEntry[] = searches.map(s => ({ ...s, id: randomUUID(), at, askedByName }));
+  // Only real web links are kept: the owner's screen shows these as
+  // links, and a result URL is untrusted text.
+  const entries: WebSearchLogEntry[] = searches.map(s => ({
+    ...s,
+    sources: s.sources.filter(src => safeHttpUrl(src.url) !== null),
+    id: randomUUID(),
+    at,
+    askedByName,
+  }));
   writeTenantDoc(dealershipId, COLLECTION, {
     ...state,
     usage: { date: utcDay(now), count: webUsageToday(state, now) + ran },

@@ -251,6 +251,27 @@ describe("switch, daily allowance and log", () => {
     expect(webUsageToday(readWebState("d1"), tomorrow)).toBe(0);
   });
 
+  it("keeps only real web links in the log — the owner's screen shows them as links", () => {
+    setWebEnabled("d1", true);
+    recordWebSearches(
+      "d1",
+      "Sam",
+      [
+        {
+          query: "q",
+          resultCount: 3,
+          sources: [
+            { url: "javascript:alert(1)", title: "bad" },
+            { url: "https://www.gov.uk/check-mot-history", title: "GOV.UK" },
+            { url: "not a url", title: "bad" },
+          ],
+        },
+      ],
+      NOW
+    );
+    expect(readWebState("d1").log[0]!.sources).toEqual([{ url: "https://www.gov.uk/check-mot-history", title: "GOV.UK" }]);
+  });
+
   it("keeps only the most recent 200 log entries", () => {
     setWebEnabled("d1", true);
     for (let batch = 0; batch < 3; batch++) {
