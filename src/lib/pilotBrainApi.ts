@@ -129,3 +129,57 @@ export async function fetchPerformanceReview(period: ReviewPeriod): Promise<{ ok
     return { ok: false, error: "Network error" };
   }
 }
+
+// V4 (Market Intelligence)
+export interface MarketHealth {
+  overall: number;
+  demand: number;
+  pricing: number;
+  supply: number;
+  confidence: "high" | "medium" | "low";
+}
+
+export interface PricingIntelligence {
+  vehicleId: string;
+  make: string;
+  model: string;
+  askingPrice: number;
+  marketAverage: number;
+  deltaPercent: number;
+  confidence: "high" | "medium" | "low";
+}
+
+export interface MarketOpportunity {
+  title: string;
+  detail: string;
+}
+
+export interface TrendResult {
+  direction: "rising" | "falling" | "stable" | "insufficient_data";
+  changePercent: number | null;
+  daysOfHistory: number;
+}
+
+export interface MarketCheckResult {
+  ok: boolean;
+  health: MarketHealth;
+  pricingIntel: PricingIntelligence[];
+  trends: Record<string, TrendResult>;
+  opportunities: MarketOpportunity[];
+  vehiclesChecked: number;
+  platformInsight: { available: boolean; message: string };
+  error?: string;
+}
+
+// Real eBay calls behind this — explicitly triggered only (a button
+// press), never fetched automatically on page load, unlike the Watcher.
+export async function fetchMarketCheck(): Promise<MarketCheckResult | null> {
+  try {
+    const res = await fetch(`${BASE_URL}/pilot-brain/market`, { headers: authHeaders() });
+    const data = await res.json();
+    return res.ok ? data : null;
+  } catch (err) {
+    console.error("fetchMarketCheck: backend unreachable", err);
+    return null;
+  }
+}

@@ -16,6 +16,7 @@ import GoldButton from "@/components/ui/GoldButton.web";
 import SupernovaMarketTicker from "@/components/supernova/SupernovaMarketTicker";
 import DealerModeToggle from "@/components/supernova/DealerModeToggle";
 import PilotBrainWatcherCard from "@/pilotbrain/PilotBrainWatcherCard";
+import PilotBrainMarketCard from "@/pilotbrain/PilotBrainMarketCard";
 
 import {
   FiTool,
@@ -253,6 +254,7 @@ export default function DealerDashboard({ brain }: Props) {
 
       <SupernovaMarketTicker items={tickerItems} />
       <PilotBrainWatcherCard />
+      <PilotBrainMarketCard />
       <DealerModeToggle />
 
       {/* TODAY'S ACTIONS */}
