@@ -20,6 +20,7 @@ import registerFeedbackRoute from "./routes/feedback";
 import registerConsumablesRoute from "./routes/consumables";
 import registerContactsRoute from "./routes/contacts";
 import registerCustomersRoute from "./routes/customers";
+import registerEmailSettingsRoute from "./routes/emailSettings";
 import registerDiaryRoute from "./routes/diary";
 import registerAiListingRoute from "./routes/aiListing";
 import registerPilotBrainRoute from "./routes/pilotBrain";
@@ -72,6 +73,11 @@ if (missingStripeEnv.length > 0) {
 if (!process.env.STRIPE_WEBHOOK_SECRET) {
   console.warn(
     "⚠️  STRIPE_WEBHOOK_SECRET is not set — /billing/webhook will reject events until this is set (needed to actually mark a dealership as subscribed after checkout)."
+  );
+}
+if (!process.env.CREDENTIAL_ENCRYPTION_KEY || process.env.CREDENTIAL_ENCRYPTION_KEY.length !== 64) {
+  console.warn(
+    '⚠️  CREDENTIAL_ENCRYPTION_KEY is missing or invalid — /email-settings (dealer-supplied SendGrid keys) will fail until this is set to a 64-character hex string in backend/.env. Generate one with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"'
   );
 }
 
@@ -151,6 +157,7 @@ app.use(
     "/booking-settings",
     "/contacts",
     "/customers",
+    "/email-settings",
     "/diary",
     "/ai",
     "/market",
@@ -176,6 +183,7 @@ registerFeedbackRoute(app);
 registerConsumablesRoute(app);
 registerContactsRoute(app);
 registerCustomersRoute(app);
+registerEmailSettingsRoute(app);
 registerDiaryRoute(app);
 registerAiListingRoute(app);
 registerPilotBrainRoute(app);

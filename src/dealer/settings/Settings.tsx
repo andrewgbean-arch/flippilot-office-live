@@ -468,6 +468,21 @@ export default function Settings() {
           </div>
         </SupernovaGlowCard>
 
+        {/* Email Sending — owner only to configure, since connecting a
+            real SendGrid account is a credential/billing-adjacent
+            decision, same tier as Team invites. */}
+        {user?.role === "owner" && (
+          <SupernovaGlowCard>
+            <h2 className="text-yellow-300 font-bold text-xl mb-3">Email Sending</h2>
+            <p className="text-white/70 mb-4">
+              Connect your own SendGrid account so FlipPilot can send real emails on your behalf — your domain, your
+              bill, not shared with other dealers.
+            </p>
+
+            <SupernovaGlowButton label="Manage Email Sending" onClick={() => navigate("/dealer/settings/email")} />
+          </SupernovaGlowCard>
+        )}
+
         {/* Product Tour — the same guided walkthrough that runs
             automatically on a new account's first login, re-triggerable
             here for a returning dealer or a new team member. */}
