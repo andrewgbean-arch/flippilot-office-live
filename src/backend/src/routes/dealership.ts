@@ -5,13 +5,12 @@ import {
   requireOwner,
   requirePlatformAdmin,
   signInviteToken,
+  VALID_STAFF_ROLES,
   type AuthUser,
   type Dealership,
   type StaffRole,
   type StoredUser,
 } from "../auth";
-
-const VALID_STAFF_ROLES: StaffRole[] = ["sales", "finance", "manager", "general"];
 
 export default function registerDealershipRoute(app: Express) {
   app.get("/dealership/me", requireAuth, (req, res) => {

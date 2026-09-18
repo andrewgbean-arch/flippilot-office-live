@@ -59,6 +59,35 @@ async function signup(suffix: string) {
   return { email, token: res.body.token as string, user: res.body.user };
 }
 
+// A new staff account inside an EXISTING dealership, via the real
+// invite → join flow. A fresh invite + fresh email every call: reusing
+// one email across joins would 409 ("account already exists") on every
+// call after the first, leaving the token undefined and every later
+// "authenticated" request silently unauthenticated instead.
+let staffJoinCounter = 0;
+async function joinStaff(
+  ownerToken: string,
+  staffRole: "sales" | "finance" | "manager" | "general"
+) {
+  staffJoinCounter += 1;
+  const inviteRes = await request(app)
+    .post("/dealership/invite")
+    .set("Authorization", `Bearer ${ownerToken}`)
+    .send({ inviteeName: "Joined Tester", staffRole });
+  const email = `integration-test-${runId}-joined-${staffJoinCounter}@test.local`;
+  const joinRes = await request(app).post("/auth/join").send({
+    token: inviteRes.body.token,
+    name: "Joined Tester",
+    email,
+    password: "joinedtestpass123",
+  });
+  trackUser(email);
+  if (!joinRes.body.token) {
+    throw new Error(`joinStaff failed: ${JSON.stringify(joinRes.body)}`);
+  }
+  return { email, token: joinRes.body.token as string, user: joinRes.body.user };
+}
+
 describe("unauthenticated access is blocked on real data routes", () => {
   it.each([
     ["GET", "/inventory"],
@@ -1145,39 +1174,16 @@ describe("new-dealership approval gate", () => {
 // the dealership's leads/customers/bookkeeping until their 7-day token
 // expired, and a role change (manager demoted to sales) did nothing
 // until they happened to log in again. These edit the `users`
-// collection directly — there's no owner-facing "remove staff" or
-// "change role" route yet — and assert the very next request on the
-// SAME old token sees the change.
+// collection directly (the owner-facing routes that do the same thing
+// are covered in the next block) and assert the very next request on
+// the SAME old token sees the change.
 describe("requireAuth checks the stored account on every request, not the token's baked-in claims", () => {
   let ownerToken: string;
-  let joinCounter = 0;
 
   beforeAll(async () => {
     const owner = await signup("stored-owner");
     ownerToken = owner.token;
   });
-
-  // A fresh invite + fresh email every call, for the same reason as
-  // joinAsSales in the RBAC block above.
-  async function joinStaff(staffRole: "sales" | "finance" | "manager" | "general") {
-    joinCounter += 1;
-    const inviteRes = await request(app)
-      .post("/dealership/invite")
-      .set("Authorization", `Bearer ${ownerToken}`)
-      .send({ inviteeName: "Stored Tester", staffRole });
-    const email = `integration-test-${runId}-stored-${joinCounter}@test.local`;
-    const joinRes = await request(app).post("/auth/join").send({
-      token: inviteRes.body.token,
-      name: "Stored Tester",
-      email,
-      password: "storedtestpass123",
-    });
-    trackUser(email);
-    if (!joinRes.body.token) {
-      throw new Error(`joinStaff failed: ${JSON.stringify(joinRes.body)}`);
-    }
-    return { token: joinRes.body.token as string, user: joinRes.body.user };
-  }
 
   function editStoredUser(id: string, patch: Record<string, unknown>) {
     const users = readCollection<any>("users");
@@ -1202,7 +1208,7 @@ describe("requireAuth checks the stored account on every request, not the token'
   });
 
   it("a staff account joined from an invite works, then a user deleted from `users` gets 401 everywhere with their old, still-valid token", async () => {
-    const staff = await joinStaff("general");
+    const staff = await joinStaff(ownerToken, "general");
     const urls = ["/auth/me", "/dealership/me", "/inventory", "/team"];
 
     // The token is genuinely good before removal, so the 401s below can
@@ -1233,7 +1239,7 @@ describe("requireAuth checks the stored account on every request, not the token'
   });
 
   it("demoting a manager to sales takes effect on their very next request, without re-login", async () => {
-    const staff = await joinStaff("manager");
+    const staff = await joinStaff(ownerToken, "manager");
     const manageStaff = () =>
       request(app).put("/staff").set("Authorization", `Bearer ${staff.token}`).send({ items: [] });
 
@@ -1250,7 +1256,7 @@ describe("requireAuth checks the stored account on every request, not the token'
   });
 
   it("promoting a general account to manager takes effect immediately too", async () => {
-    const staff = await joinStaff("general");
+    const staff = await joinStaff(ownerToken, "general");
     const manageStaff = () =>
       request(app).put("/staff").set("Authorization", `Bearer ${staff.token}`).send({ items: [] });
 
@@ -1305,5 +1311,281 @@ describe("requireAuth checks the stored account on every request, not the token'
     // The admin's own session is untouched.
     const adminRes = await request(app).get("/auth/me").set("Authorization", `Bearer ${admin.token}`);
     expect(adminRes.status).toBe(200);
+  });
+});
+
+// The owner-facing way to do what the block above does by editing the
+// database: change a teammate's role, or remove them. Until these
+// existed, the only way to cut off a departing employee was to edit the
+// `users` collection by hand.
+describe("owner-managed team — change a role, remove a member", () => {
+  let owner: Awaited<ReturnType<typeof signup>>;
+
+  beforeAll(async () => {
+    owner = await signup("team-mgmt-owner");
+  });
+
+  const asOwner = () => ({ Authorization: `Bearer ${owner.token}` });
+
+  it("an owner can change a member's role, and it takes effect on that member's very next request", async () => {
+    const member = await joinStaff(owner.token, "general");
+    const manageStaff = () =>
+      request(app).put("/staff").set("Authorization", `Bearer ${member.token}`).send({ items: [] });
+
+    expect((await manageStaff()).status).toBe(403); // a general account can't manage staff
+
+    const res = await request(app)
+      .put(`/dealership/team/${member.user.id}`)
+      .set(asOwner())
+      .send({ staffRole: "manager" });
+    expect(res.status).toBe(200);
+    expect(res.body.member.staffRole).toBe("manager");
+    expect(res.body.member.passwordHash).toBeUndefined();
+
+    expect((await manageStaff()).status).toBe(200); // same token, now a manager
+  });
+
+  it("rejects a role that isn't one of the four staff roles — including 'owner' — and leaves the account alone", async () => {
+    const member = await joinStaff(owner.token, "sales");
+
+    for (const bad of ["owner", "admin", "", undefined, 5]) {
+      const res = await request(app)
+        .put(`/dealership/team/${member.user.id}`)
+        .set(asOwner())
+        .send({ staffRole: bad });
+      expect(res.status, `staffRole ${JSON.stringify(bad)}`).toBe(400);
+    }
+
+    const meRes = await request(app).get("/auth/me").set("Authorization", `Bearer ${member.token}`);
+    expect(meRes.body.user.staffRole).toBe("sales");
+    expect(meRes.body.user.role).toBe("staff");
+  });
+
+  it("an owner can remove a member: their old token dies, they leave /team, and they can't log back in", async () => {
+    const member = await joinStaff(owner.token, "general");
+    const bystander = await joinStaff(owner.token, "general");
+
+    const before = await request(app).get("/inventory").set("Authorization", `Bearer ${member.token}`);
+    expect(before.status).toBe(200);
+
+    const res = await request(app).delete(`/dealership/team/${member.user.id}`).set(asOwner());
+    expect(res.status).toBe(200);
+
+    const after = await request(app).get("/inventory").set("Authorization", `Bearer ${member.token}`);
+    expect(after.status).toBe(401);
+
+    const teamRes = await request(app).get("/team").set(asOwner());
+    const ids = teamRes.body.members.map((m: any) => m.id);
+    expect(ids).not.toContain(member.user.id);
+    expect(ids).toContain(bystander.user.id);
+
+    const loginRes = await request(app)
+      .post("/auth/login")
+      .send({ email: member.email, password: "joinedtestpass123" });
+    expect(loginRes.status).toBe(401);
+
+    // Everyone else is untouched.
+    const bystanderRes = await request(app).get("/inventory").set("Authorization", `Bearer ${bystander.token}`);
+    expect(bystanderRes.status).toBe(200);
+  });
+
+  it("no staff account can remove or re-role anyone — not even a manager", async () => {
+    const manager = await joinStaff(owner.token, "manager");
+    const target = await joinStaff(owner.token, "general");
+    const managerAuth = { Authorization: `Bearer ${manager.token}` };
+
+    const roleRes = await request(app)
+      .put(`/dealership/team/${target.user.id}`)
+      .set(managerAuth)
+      .send({ staffRole: "manager" });
+    expect(roleRes.status).toBe(403);
+
+    const removeRes = await request(app).delete(`/dealership/team/${target.user.id}`).set(managerAuth);
+    expect(removeRes.status).toBe(403);
+
+    const targetRes = await request(app).get("/auth/me").set("Authorization", `Bearer ${target.token}`);
+    expect(targetRes.status).toBe(200);
+    expect(targetRes.body.user.staffRole).toBe("general");
+  });
+
+  it("requires a login at all", async () => {
+    const member = await joinStaff(owner.token, "general");
+    expect((await request(app).delete(`/dealership/team/${member.user.id}`)).status).toBe(401);
+    expect(
+      (await request(app).put(`/dealership/team/${member.user.id}`).send({ staffRole: "manager" })).status
+    ).toBe(401);
+  });
+
+  it("the owner account can't be removed or re-roled — which also means an owner can't remove themselves", async () => {
+    const removeRes = await request(app).delete(`/dealership/team/${owner.user.id}`).set(asOwner());
+    expect(removeRes.status).toBe(400);
+
+    const roleRes = await request(app)
+      .put(`/dealership/team/${owner.user.id}`)
+      .set(asOwner())
+      .send({ staffRole: "general" });
+    expect(roleRes.status).toBe(400);
+
+    const meRes = await request(app).get("/auth/me").set(asOwner());
+    expect(meRes.status).toBe(200);
+    expect(meRes.body.user.role).toBe("owner");
+  });
+
+  it("an owner can't touch another dealership's people — 404, indistinguishable from an id that doesn't exist", async () => {
+    const otherOwner = await signup("team-mgmt-other");
+    const victim = await joinStaff(otherOwner.token, "general");
+
+    const removeRes = await request(app).delete(`/dealership/team/${victim.user.id}`).set(asOwner());
+    expect(removeRes.status).toBe(404);
+
+    const roleRes = await request(app)
+      .put(`/dealership/team/${victim.user.id}`)
+      .set(asOwner())
+      .send({ staffRole: "manager" });
+    expect(roleRes.status).toBe(404);
+
+    const unknownRes = await request(app).delete("/dealership/team/not-a-real-id").set(asOwner());
+    expect(unknownRes.status).toBe(404);
+    expect(unknownRes.body).toEqual(removeRes.body);
+
+    const victimRes = await request(app).get("/auth/me").set("Authorization", `Bearer ${victim.token}`);
+    expect(victimRes.status).toBe(200);
+    expect(victimRes.body.user.staffRole).toBe("general");
+  });
+
+  // Deliberately outside the subscription gate, like /dealership/invite:
+  // an owner must always be able to cut off a departing employee, even
+  // with a lapsed trial.
+  it("still works when the dealership's trial has lapsed and the data routes are closed (402)", async () => {
+    const lapsedOwner = await signup("team-mgmt-lapsed");
+    const member = await joinStaff(lapsedOwner.token, "general");
+
+    const dealerships = readCollection<any>("dealerships");
+    writeCollection(
+      "dealerships",
+      dealerships.map(d =>
+        d.id === lapsedOwner.user.dealershipId
+          ? { ...d, subscriptionStatus: "canceled", trialEndsAt: new Date(0).toISOString() }
+          : d
+      )
+    );
+
+    const gated = await request(app).get("/team").set("Authorization", `Bearer ${lapsedOwner.token}`);
+    expect(gated.status).toBe(402); // sanity: the dealership really is locked out of data routes
+
+    const res = await request(app)
+      .delete(`/dealership/team/${member.user.id}`)
+      .set("Authorization", `Bearer ${lapsedOwner.token}`);
+    expect(res.status).toBe(200);
+
+    const after = await request(app).get("/auth/me").set("Authorization", `Bearer ${member.token}`);
+    expect(after.status).toBe(401);
+  });
+
+  it("removing someone also stops the rota and job board acting for them, while keeping the records of work already done", async () => {
+    const boss = await signup("team-mgmt-cascade");
+    const bossAuth = { Authorization: `Bearer ${boss.token}` };
+    const staff = await joinStaff(boss.token, "sales");
+
+    // A time entry that must survive (pay records).
+    const clockIn = await request(app)
+      .post("/timekeeping/clock-in")
+      .set("Authorization", `Bearer ${staff.token}`);
+    expect(clockIn.status).toBe(200);
+
+    const pattern = (u: any) => ({
+      userId: u.id,
+      userName: u.name,
+      employmentType: "full_time",
+      targetWeeklyHours: 40,
+      availableDays: ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
+      holidayEntitlementDays: 28,
+    });
+    await request(app)
+      .put("/work-patterns")
+      .set(bossAuth)
+      .send({ items: [pattern(staff.user), pattern(boss.user)] });
+
+    const shift = (id: string, u: any, date: string) => ({
+      id,
+      userId: u.id,
+      userName: u.name,
+      date,
+      start: "09:00",
+      end: "17:00",
+      autoGenerated: false,
+      createdAt: new Date().toISOString(),
+    });
+    await request(app)
+      .put("/shifts")
+      .set(bossAuth)
+      .send({
+        items: [
+          shift("past-shift", staff.user, "2000-01-03"),
+          shift("future-shift", staff.user, "2999-01-04"),
+          shift("owner-future-shift", boss.user, "2999-01-04"),
+        ],
+      });
+
+    const job = (id: string, u: any | null, status: string) => ({
+      id,
+      title: id,
+      status,
+      priority: "low",
+      createdAt: new Date().toISOString(),
+      createdByName: boss.user.name,
+      assignedToUserId: u?.id ?? null,
+      assignedToName: u?.name ?? null,
+    });
+    await request(app)
+      .put("/jobs")
+      .set(bossAuth)
+      .send({
+        items: [
+          job("open-todo", staff.user, "todo"),
+          job("open-in-progress", staff.user, "in_progress"),
+          job("finished", staff.user, "done"),
+          job("owners-job", boss.user, "todo"),
+        ],
+      });
+
+    const removeRes = await request(app).delete(`/dealership/team/${staff.user.id}`).set(bossAuth);
+    expect(removeRes.status).toBe(200);
+
+    // Work pattern gone, so the generator can't keep scheduling them.
+    const patterns = await request(app).get("/work-patterns").set(bossAuth);
+    expect(patterns.body.items.map((p: any) => p.userId)).toEqual([boss.user.id]);
+
+    const generated = await request(app)
+      .post("/shifts/generate")
+      .set(bossAuth)
+      .send({ weekStart: "2999-01-06" });
+    expect(generated.status).toBe(200);
+    expect(generated.body.generated.length).toBeGreaterThan(0);
+    expect(generated.body.generated.every((s: any) => s.userId === boss.user.id)).toBe(true);
+
+    // Future shifts gone; the past one (a record of a day already worked) stays.
+    const shifts = await request(app).get("/shifts").set(bossAuth);
+    const shiftIds = shifts.body.items.map((s: any) => s.id);
+    expect(shiftIds).toContain("past-shift");
+    expect(shiftIds).toContain("owner-future-shift");
+    expect(shiftIds).not.toContain("future-shift");
+
+    // Open jobs are unassigned; a finished job keeps its history; other
+    // people's jobs are untouched.
+    const jobs = await request(app).get("/jobs").set(bossAuth);
+    const byId = Object.fromEntries(jobs.body.items.map((j: any) => [j.id, j]));
+    expect(byId["open-todo"].assignedToUserId).toBeNull();
+    expect(byId["open-todo"].assignedToName).toBeNull();
+    expect(byId["open-in-progress"].assignedToUserId).toBeNull();
+    expect(byId["finished"].assignedToUserId).toBe(staff.user.id);
+    expect(byId["finished"].assignedToName).toBe(staff.user.name);
+    expect(byId["owners-job"].assignedToUserId).toBe(boss.user.id);
+
+    // Timekeeping is a pay record: kept, and still names who it was.
+    const time = await request(app).get("/timekeeping").set(bossAuth);
+    expect(time.body.items).toHaveLength(1);
+    expect(time.body.items[0].userId).toBe(staff.user.id);
+    expect(time.body.items[0].userName).toBe(staff.user.name);
   });
 });

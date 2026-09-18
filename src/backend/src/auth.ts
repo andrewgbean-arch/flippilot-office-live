@@ -28,6 +28,8 @@ function getJwtSecret(): string {
 // is actually tied to the account a person logs in with.
 export type StaffRole = "sales" | "finance" | "manager" | "general";
 
+export const VALID_STAFF_ROLES: StaffRole[] = ["sales", "finance", "manager", "general"];
+
 export interface AuthUser {
   id: string;
   email: string;
