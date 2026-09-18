@@ -22,6 +22,7 @@ import {
   FiPackage,
   FiPhoneCall,
   FiCpu,
+  FiUserCheck,
 } from "react-icons/fi";
 
 export default function DealerSidebar() {
@@ -65,6 +66,14 @@ export default function DealerSidebar() {
       icon: FiPackage,
       items: [
         { to: "/consumables", label: "Stock & Ordering" },
+      ],
+    },
+
+    {
+      label: "Customers",
+      icon: FiUserCheck,
+      items: [
+        { to: "/customers", label: "Customer Database" },
       ],
     },
 

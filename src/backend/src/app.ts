@@ -19,6 +19,7 @@ import registerNotificationsRoute from "./routes/notifications";
 import registerFeedbackRoute from "./routes/feedback";
 import registerConsumablesRoute from "./routes/consumables";
 import registerContactsRoute from "./routes/contacts";
+import registerCustomersRoute from "./routes/customers";
 import registerDiaryRoute from "./routes/diary";
 import registerAiListingRoute from "./routes/aiListing";
 import registerPilotBrainRoute from "./routes/pilotBrain";
@@ -149,6 +150,7 @@ app.use(
     "/appointments",
     "/booking-settings",
     "/contacts",
+    "/customers",
     "/diary",
     "/ai",
     "/market",
@@ -173,6 +175,7 @@ registerNotificationsRoute(app);
 registerFeedbackRoute(app);
 registerConsumablesRoute(app);
 registerContactsRoute(app);
+registerCustomersRoute(app);
 registerDiaryRoute(app);
 registerAiListingRoute(app);
 registerPilotBrainRoute(app);

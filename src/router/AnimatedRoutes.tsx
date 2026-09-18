@@ -21,6 +21,7 @@ import PrivacyScreen from "@/screens/PrivacyScreen";
 import SearchScreen from "@/screens/SearchScreen";
 import ImportScreen from "@/screens/ImportScreen";
 import ContactsBoard from "@/contacts/ContactsBoard";
+import CustomersScreen from "@/dealer/customers/CustomersScreen";
 import DiaryBoard from "@/diary/DiaryBoard";
 
 /* PUBLIC BOOKING */
@@ -241,6 +242,7 @@ export default function AnimatedRoutes() {
         <Route path="consumables" element={<ConsumablesBoard />} />
         <Route path="import" element={<ImportScreen />} />
         <Route path="contacts" element={<ContactsBoard />} />
+        <Route path="customers" element={<CustomersScreen />} />
         <Route path="diary" element={<DiaryBoard />} />
         <Route path="workshop-calendar" element={<WorkshopCalendar />} />
         <Route path="appointments" element={<AppointmentsBoard />} />
