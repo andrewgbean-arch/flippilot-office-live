@@ -6,6 +6,7 @@ import { readCollection, readTenantCollection, writeTenantCollection, readTenant
 import { requireAuth, type AuthUser, type Dealership } from "../auth";
 import { runWatcher, type WatcherResult } from "../engines/watcherEngine";
 import { investigate, findOpportunities, type InvestigationReport, type Opportunity } from "../engines/advisorEngine";
+import { summariseAppointmentOutcomes } from "../engines/appointmentOutcomes";
 import { buildMarketSummaryFromStorage, getStoredMarketData } from "./marketIntelligence";
 import { computeStrategicHealth } from "../engines/cofounderEngine";
 import { computeAllGoalProgress } from "./cofounder";
@@ -90,9 +91,10 @@ const HISTORY_WINDOW = 20;
 // data model is its own more involved thing — a real V2/V3 extension,
 // not V1's job). Every number here is genuinely computed from this
 // dealership's real stored data, nothing invented.
-function buildBusinessSummary(dealershipId: string): string {
+export function buildBusinessSummary(dealershipId: string): string {
   const vehicles = readTenantCollection<any>(dealershipId, "vehicles");
   const leads = readTenantCollection<any>(dealershipId, "leads");
+  const appointments = readTenantCollection<any>(dealershipId, "appointments");
 
   const inStock = vehicles.filter(v => String(v.status ?? "").toLowerCase() !== "sold");
   const totalValue = inStock.reduce((sum, v) => sum + (v.priceRetail ?? 0), 0);
@@ -114,6 +116,7 @@ function buildBusinessSummary(dealershipId: string): string {
     `Total stock value: £${totalValue.toLocaleString()}`,
     `Vehicles with MOT expiring within 30 days (or already expired): ${motRisk}`,
     `Open leads: ${openLeads}`,
+    ...summariseAppointmentOutcomes(appointments, now),
   ].join("\n");
 }
 

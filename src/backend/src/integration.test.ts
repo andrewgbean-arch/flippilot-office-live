@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import request from "supertest";
 import app from "./app.js";
-import { readCollection, writeCollection, deleteTenantData } from "./db.js";
+import { readCollection, writeCollection, writeTenantCollection, deleteTenantData } from "./db.js";
+import { buildBusinessSummary } from "./routes/pilotBrain.js";
 
 // Real HTTP-level integration tests against the actual Express app —
 // exactly the class of test that would have caught both bugs a manual
@@ -1642,5 +1643,174 @@ describe("public store page and stock feed never publish the old seeded demo car
 
     const own = await request(app).get("/inventory").set("Authorization", `Bearer ${dealer.token}`);
     expect(own.body.items.map((v: any) => v.id)).toEqual(["ULTRA-002"]);
+  });
+});
+
+// "completed" only said an appointment was closed out — nothing recorded
+// whether the customer turned up, or bought, so Pilot Brain could see
+// "appointment booked" and never where deals actually broke down.
+describe("appointment outcomes — what actually happened, not just that it was booked", () => {
+  let owner: Awaited<ReturnType<typeof signup>>;
+  let slot = 0;
+
+  // A distinct 30-minute slot each time (09:00, 09:30, ...) on one open
+  // Monday, since a taken slot can't be booked twice.
+  function nextTime() {
+    const mins = 9 * 60 + 30 * slot++;
+    return `${String(Math.floor(mins / 60)).padStart(2, "0")}:${String(mins % 60).padStart(2, "0")}`;
+  }
+
+  const asOwner = () => ({ Authorization: `Bearer ${owner.token}` });
+
+  beforeAll(async () => {
+    owner = await signup("appt-outcome");
+    await request(app)
+      .put("/inventory")
+      .set(asOwner())
+      .send({ items: [{ id: "veh-outcome", make: "Ford", model: "Focus" }] });
+  });
+
+  async function book(type: "viewing" | "test_drive" | "mot") {
+    const res = await request(app)
+      .post(`/public/${owner.user.dealershipId}/appointments`)
+      .send({
+        ...(type === "mot" ? { customerVehicleReg: "ab12 cde" } : { vehicleId: "veh-outcome" }),
+        customerName: `Outcome ${type} ${slot}`,
+        customerPhone: "07700900123",
+        type,
+        requestedDate: "2030-01-07",
+        requestedTime: nextTime(),
+      });
+    if (res.status !== 200) throw new Error(`booking failed: ${JSON.stringify(res.body)}`);
+    return res.body.appointment.id as string;
+  }
+
+  async function bookAndConfirm(type: "viewing" | "test_drive" | "mot") {
+    const id = await book(type);
+    await request(app).put(`/appointments/${id}`).set(asOwner()).send({ status: "confirmed" });
+    return id;
+  }
+
+  const put = (id: string, body: object) => request(app).put(`/appointments/${id}`).set(asOwner()).send(body);
+  const find = (res: any, id: string) => res.body.items.find((a: any) => a.id === id);
+
+  it("recording an outcome closes a confirmed appointment as completed and stamps when it was recorded", async () => {
+    const id = await bookAndConfirm("viewing");
+
+    const res = await put(id, { outcome: "purchased" });
+    expect(res.status).toBe(200);
+    const saved = find(res, id);
+    expect(saved.status).toBe("completed");
+    expect(saved.outcome).toBe("purchased");
+    expect(Number.isNaN(Date.parse(saved.outcomeAt))).toBe(false);
+
+    const list = await request(app).get("/appointments").set(asOwner());
+    expect(find(list, id).outcome).toBe("purchased"); // persisted, not just echoed
+  });
+
+  it("the outcome can be corrected by recording a different one", async () => {
+    const id = await bookAndConfirm("test_drive");
+    await put(id, { outcome: "no_show" });
+    const res = await put(id, { outcome: "showed" });
+    expect(res.status).toBe(200);
+    expect(find(res, id).outcome).toBe("showed");
+  });
+
+  it("an appointment already marked completed (before outcomes existed) can have one recorded later", async () => {
+    const id = await bookAndConfirm("viewing");
+    await put(id, { status: "completed" });
+
+    const res = await put(id, { outcome: "showed" });
+    expect(res.status).toBe(200);
+    expect(find(res, id).outcome).toBe("showed");
+  });
+
+  it("rejects anything that isn't showed / purchased / no_show", async () => {
+    const id = await bookAndConfirm("viewing");
+    for (const bad of ["bought", "attended", "", 5, null]) {
+      const res = await put(id, { outcome: bad });
+      expect(res.status, `outcome ${JSON.stringify(bad)}`).toBe(400);
+    }
+    const list = await request(app).get("/appointments").set(asOwner());
+    expect(find(list, id).outcome).toBeUndefined();
+    expect(find(list, id).status).toBe("confirmed"); // a rejected outcome changes nothing
+  });
+
+  it("a pending or declined request can't have an outcome — it never happened", async () => {
+    const pendingId = await book("viewing");
+    expect((await put(pendingId, { outcome: "showed" })).status).toBe(400);
+
+    const declinedId = await book("viewing");
+    await put(declinedId, { status: "declined" });
+    expect((await put(declinedId, { outcome: "no_show" })).status).toBe(400);
+  });
+
+  it("an MOT booking can be showed or no_show, but never purchased — it's the customer's own car", async () => {
+    const id = await bookAndConfirm("mot");
+    expect((await put(id, { outcome: "purchased" })).status).toBe(400);
+    expect((await put(id, { outcome: "showed" })).status).toBe(200);
+  });
+
+  it("an outcome can't be combined with a different status, but can with 'completed'", async () => {
+    const id = await bookAndConfirm("viewing");
+    expect((await put(id, { outcome: "showed", status: "pending" })).status).toBe(400);
+    const res = await put(id, { outcome: "showed", status: "completed" });
+    expect(res.status).toBe(200);
+    expect(find(res, id).outcome).toBe("showed");
+  });
+
+  it("moving a completed appointment back to another status drops its outcome instead of leaving it hanging", async () => {
+    const id = await bookAndConfirm("viewing");
+    await put(id, { outcome: "no_show" });
+
+    const res = await put(id, { status: "confirmed" });
+    expect(res.status).toBe(200);
+    expect(find(res, id).outcome).toBeUndefined();
+    expect(find(res, id).outcomeAt).toBeUndefined();
+  });
+
+  it("only signed-in staff of the same dealership can record one", async () => {
+    const id = await bookAndConfirm("viewing");
+    expect((await request(app).put(`/appointments/${id}`).send({ outcome: "showed" })).status).toBe(401);
+
+    const other = await signup("appt-outcome-other");
+    const cross = await request(app)
+      .put(`/appointments/${id}`)
+      .set("Authorization", `Bearer ${other.token}`)
+      .send({ outcome: "showed" });
+    expect(cross.status).toBe(404); // not found in THEIR dealership, so no probing across tenants
+  });
+
+  it("outcomes show up in Pilot Brain's business snapshot, and it says so plainly when there are none", async () => {
+    const dealer = await signup("appt-outcome-snapshot");
+    const id = dealer.user.dealershipId;
+    const daysAgo = (n: number) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
+    const past = (n: number, patch: object) => ({
+      id: `snap-${n}`,
+      vehicleLabel: "Ford Focus",
+      customerName: `Snapshot ${n}`,
+      type: "viewing",
+      requestedDate: daysAgo(n),
+      requestedTime: "10:00",
+      status: "completed",
+      createdAt: new Date().toISOString(),
+      ...patch,
+    });
+
+    writeTenantCollection(id, "appointments", [past(5, { status: "confirmed" })]);
+    const before = buildBusinessSummary(id);
+    expect(before).toContain("Appointment outcomes (last 90 days): none recorded yet");
+    expect(before).toContain("1 past appointment in that window still has no recorded outcome");
+
+    writeTenantCollection(id, "appointments", [
+      past(5, { outcome: "purchased" }),
+      past(6, { outcome: "showed" }),
+      past(7, { outcome: "no_show" }),
+    ]);
+    const after = buildBusinessSummary(id);
+    expect(after).toContain("3 recorded");
+    expect(after).toContain("2 attended (1 showed, 1 bought), 1 no-show");
+    expect(after).toContain("show rate 67%");
+    expect(after).toContain("too few to call a trend");
   });
 });

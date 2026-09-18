@@ -8,6 +8,11 @@ import { DEFAULT_BOOKING_SETTINGS, type BookingSettings, type WeekDay } from "./
 
 export type AppointmentType = "viewing" | "test_drive" | "mot";
 export type AppointmentStatus = "pending" | "confirmed" | "declined" | "completed";
+// What actually happened at an appointment — recorded by staff once it's
+// taken place. "completed" alone only says it's closed out; without this
+// there's no way to tell a customer who turned up and bought from one
+// who never came.
+export type AppointmentOutcome = "showed" | "purchased" | "no_show";
 
 export interface Appointment {
   id: string;
@@ -25,6 +30,9 @@ export interface Appointment {
   requestedDate: string;
   requestedTime: string;
   status: AppointmentStatus;
+  // Only ever set on a completed appointment (see PUT /appointments/:id).
+  outcome?: AppointmentOutcome;
+  outcomeAt?: string;
   notes?: string;
   leadId?: string;
   createdAt: string;
