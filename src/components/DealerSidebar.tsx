@@ -102,6 +102,7 @@ export default function DealerSidebar() {
       icon: FiGrid,
       items: [
         { to: "/dealer/inventory", label: "Inventory Hub" },
+        { to: "/import", label: "Import from CSV" },
       ],
     },
 
