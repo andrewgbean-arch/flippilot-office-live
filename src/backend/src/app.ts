@@ -49,6 +49,27 @@ import { requireApprovedDealership, requireActiveSubscription, requirePilotBrain
 // binding to an actual port or needing the dev server running.
 const app = express();
 
+// Deployed on Render, every request arrives via Render's reverse proxy,
+// so the address that actually opens the connection is the proxy's, not
+// the visitor's. Left at Express's default (`false`), req.ip is that
+// proxy address for everyone — and every rate limiter below and in
+// routes/ keys on req.ip, so ALL users on the platform shared one
+// bucket (10 logins per 15 minutes across every dealer combined, 20
+// signups an hour platform-wide). express-rate-limit flagged it in
+// Render's logs as ERR_ERL_UNEXPECTED_X_FORWARDED_FOR.
+//
+// The value is a hop count, deliberately not `true`: a client can send
+// its own X-Forwarded-For and proxies append to it, so the leftmost
+// entry (what `true` trusts) is client-controlled and would let anyone
+// dodge a limit by rotating a fake value. Trusting exactly 1 hop means
+// req.ip is the entry the proxy itself appended — the address it really
+// saw connect — which a client can't forge. Too HIGH a count would walk
+// back into client-supplied entries (the dangerous direction); too low
+// only makes buckets coarser. If Render's chain is ever more than one
+// proxy, raise this to match rather than guessing higher.
+// (rateLimit.test.ts pins this behaviour.)
+app.set("trust proxy", 1);
+
 app.use(cors());
 
 // Stripe needs the RAW request body to verify its webhook signature, so
