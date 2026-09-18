@@ -1,8 +1,9 @@
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
+import AwaitingApprovalScreen from "@/screens/AwaitingApprovalScreen";
 
 export default function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, loading, approvalStatus } = useAuth();
 
   if (loading) {
     return (
@@ -14,6 +15,10 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
 
   if (!user) {
     return <Navigate to="/login" replace />;
+  }
+
+  if (approvalStatus === "pending") {
+    return <AwaitingApprovalScreen />;
   }
 
   return <>{children}</>;

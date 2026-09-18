@@ -39,7 +39,7 @@ import registerDealershipRoute from "./routes/dealership";
 import registerSupportRoute from "./routes/support";
 import registerBillingRoute, { handleStripeWebhook } from "./routes/billing";
 import { requireAuth } from "./auth";
-import { requireActiveSubscription, requirePilotBrainAccess } from "./subscriptionGate";
+import { requireApprovedDealership, requireActiveSubscription, requirePilotBrainAccess } from "./subscriptionGate";
 
 // Express app setup, separated from server.ts's app.listen() call so
 // integration tests can exercise the real app (supertest(app)) without
@@ -163,12 +163,19 @@ app.use(
     "/market",
   ],
   requireAuth,
+  requireApprovedDealership,
   requireActiveSubscription
 );
 // Pilot Brain gets its own extra gate on top of the base subscription
 // check — it's a real, separately-priced premium add-on (see
 // billing.ts), not just another feature of the core plan.
-app.use(["/pilot-brain"], requireAuth, requireActiveSubscription, requirePilotBrainAccess);
+app.use(
+  ["/pilot-brain"],
+  requireAuth,
+  requireApprovedDealership,
+  requireActiveSubscription,
+  requirePilotBrainAccess
+);
 registerInventoryRoute(app);
 registerLeadsRoute(app);
 registerStaffRoute(app);

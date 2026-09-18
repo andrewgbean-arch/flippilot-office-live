@@ -1045,3 +1045,97 @@ describe("RBAC — the exact scenario manually verified live earlier this sessio
     expect(res.status).toBe(200);
   });
 });
+
+// The new-dealership approval gate. Every OTHER test in this file signs up
+// under NODE_ENV=test, where signup auto-approves (see routes/auth.ts) so
+// the rest of the suite isn't forced to approve dozens of throwaway
+// dealerships — this block explicitly opts back in to the real "pending"
+// behavior with requireApproval: true to exercise the actual gate.
+describe("new-dealership approval gate", () => {
+  async function signupPending(suffix: string) {
+    const email = `integration-test-${runId}-${suffix}@test.local`;
+    const res = await request(app).post("/auth/signup").send({
+      email,
+      password: "integrationtestpass123",
+      name: `Integration Test ${suffix}`,
+      dealershipName: `Integration Test Dealership ${suffix}`,
+      requireApproval: true,
+    });
+    trackUser(email);
+    trackDealership(res.body.user.dealershipId);
+    return { email, token: res.body.token as string, user: res.body.user, signupRes: res };
+  }
+
+  it("a fresh signup that opts into the real gate starts pending, and says so in the response", async () => {
+    const { signupRes } = await signupPending("appr-a");
+    expect(signupRes.body.approvalStatus).toBe("pending");
+  });
+
+  it("a pending dealership is blocked (403) from real business data routes", async () => {
+    const { token } = await signupPending("appr-b");
+    for (const url of ["/inventory", "/leads", "/bookkeeping", "/diary", "/customers"]) {
+      const res = await request(app).get(url).set("Authorization", `Bearer ${token}`);
+      expect(res.status).toBe(403);
+      expect(res.body.approvalStatus).toBe("pending");
+    }
+  });
+
+  it("a pending dealership can still reach /dealership/me so a client can show its real status", async () => {
+    const { token } = await signupPending("appr-c");
+    const res = await request(app).get("/dealership/me").set("Authorization", `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(res.body.dealership.approvalStatus).toBe("pending");
+  });
+
+  it("login reports the real approval status for a pending dealership", async () => {
+    const { email } = await signupPending("appr-d");
+    const res = await request(app).post("/auth/login").send({ email, password: "integrationtestpass123" });
+    expect(res.status).toBe(200);
+    expect(res.body.approvalStatus).toBe("pending");
+  });
+
+  it("a non-admin cannot approve a dealership (403)", async () => {
+    const pending = await signupPending("appr-e1");
+    const other = await signup("appr-e2");
+    const res = await request(app)
+      .post(`/admin/dealerships/${pending.user.dealershipId}/approve`)
+      .set("Authorization", `Bearer ${other.token}`);
+    expect(res.status).toBe(403);
+  });
+
+  it("the platform admin can approve it, after which its own routes open up", async () => {
+    const pending = await signupPending("appr-f1");
+    const admin = await signup("appr-f2");
+
+    const prevAdminEmail = process.env.ADMIN_EMAIL;
+    process.env.ADMIN_EMAIL = admin.email;
+    try {
+      const approveRes = await request(app)
+        .post(`/admin/dealerships/${pending.user.dealershipId}/approve`)
+        .set("Authorization", `Bearer ${admin.token}`);
+      expect(approveRes.status).toBe(200);
+      expect(approveRes.body.dealership.approvalStatus).toBe("approved");
+    } finally {
+      if (prevAdminEmail === undefined) delete process.env.ADMIN_EMAIL;
+      else process.env.ADMIN_EMAIL = prevAdminEmail;
+    }
+
+    const afterRes = await request(app).get("/inventory").set("Authorization", `Bearer ${pending.token}`);
+    expect(afterRes.status).toBe(200);
+  });
+
+  it("a dealership with no approvalStatus at all (predates the gate) is grandfathered in, not locked out", async () => {
+    const { token, user } = await signup("appr-g");
+    const dealerships = readCollection<any>("dealerships");
+    writeCollection(
+      "dealerships",
+      dealerships.map(d => {
+        if (d.id !== user.dealershipId) return d;
+        const { approvalStatus, ...rest } = d;
+        return rest;
+      })
+    );
+    const res = await request(app).get("/inventory").set("Authorization", `Bearer ${token}`);
+    expect(res.status).toBe(200);
+  });
+});

@@ -110,9 +110,28 @@ export default function registerDealershipRoute(app: Express) {
       name: d.name,
       createdAt: d.createdAt,
       subscriptionStatus: d.subscriptionStatus,
+      // A dealership with no approvalStatus at all predates the gate
+      // and is treated as approved, same as requireApprovedDealership.
+      approvalStatus: d.approvalStatus ?? "approved",
       userCount: users.filter(u => u.dealershipId === d.id).length,
     }));
     res.json({ ok: true, dealerships: items });
+  });
+
+  // Manual vetting of a brand-new dealership signup — the only way a
+  // "pending" dealership becomes usable. Platform-admin-only, same gate
+  // as the list/delete routes around it.
+  app.post("/admin/dealerships/:id/approve", requireAuth, requirePlatformAdmin, (req, res) => {
+    const dealershipId = req.params.id;
+    const dealerships = readCollection<Dealership>("dealerships");
+    const dealership = dealerships.find(d => d.id === dealershipId);
+    if (!dealership) {
+      return res.status(404).json({ ok: false, error: "Dealership not found" });
+    }
+
+    dealership.approvalStatus = "approved";
+    writeCollection("dealerships", dealerships);
+    res.json({ ok: true, dealership: { id: dealership.id, name: dealership.name, approvalStatus: dealership.approvalStatus } });
   });
 
   // Real deletion, not a soft flag — removes the dealership record, every

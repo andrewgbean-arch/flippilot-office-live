@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   fetchAdminDealerships,
+  approveAdminDealership,
   deleteAdminDealership,
   type AdminDealershipSummary,
 } from "@/lib/adminDealershipsApi";
@@ -15,10 +16,22 @@ export default function AdminDealerships() {
   const [error, setError] = useState<string | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [approvingId, setApprovingId] = useState<string | null>(null);
 
   useEffect(() => {
     load();
   }, []);
+
+  async function handleApprove(id: string) {
+    setApprovingId(id);
+    const result = await approveAdminDealership(id);
+    setApprovingId(null);
+    if (!result.ok) {
+      setError(result.error ?? "Could not approve that dealership.");
+      return;
+    }
+    setDealerships(prev => prev.map(d => (d.id === id ? { ...d, approvalStatus: "approved" } : d)));
+  }
 
   async function load() {
     setLoading(true);
@@ -29,7 +42,12 @@ export default function AdminDealerships() {
       return;
     }
     setError(null);
-    setDealerships(result.dealerships);
+    // Pending signups first — those are the ones needing a decision.
+    setDealerships(
+      [...result.dealerships].sort(
+        (a, b) => Number(b.approvalStatus === "pending") - Number(a.approvalStatus === "pending")
+      )
+    );
   }
 
   async function handleDelete(id: string) {
@@ -51,8 +69,8 @@ export default function AdminDealerships() {
         <div className="sn-hero__content">
           <h1 className="sn-hero__title">Dealerships</h1>
           <p className="sn-hero__subtitle">
-            Every dealership signed up to FlipPilot. Deleting one is permanent — it removes the account, every
-            user under it, and all of its data.
+            Every dealership signed up to FlipPilot. New signups wait here for approval before they can use
+            anything. Deleting one is permanent — it removes the account, every user under it, and all of its data.
           </p>
         </div>
       </header>
@@ -70,7 +88,17 @@ export default function AdminDealerships() {
               {dealerships.map(d => (
                 <div key={d.id} className="sn-recent-lead" style={{ alignItems: "flex-start" }}>
                   <div style={{ flex: 1 }}>
-                    <div className="sn-recent-lead__name">{d.name}</div>
+                    <div className="sn-recent-lead__name">
+                      {d.name}
+                      {d.approvalStatus === "pending" && (
+                        <span
+                          className="sn-timeclock__badge sn-timeclock__badge--out"
+                          style={{ marginLeft: 8, verticalAlign: "middle" }}
+                        >
+                          Awaiting approval
+                        </span>
+                      )}
+                    </div>
                     <p style={{ color: "#f5f7ff", fontSize: 13, margin: "4px 0" }}>
                       {d.userCount} user{d.userCount === 1 ? "" : "s"} · {d.subscriptionStatus}
                     </p>
@@ -96,9 +124,20 @@ export default function AdminDealerships() {
                       </div>
                     </div>
                   ) : (
-                    <button className="sn-btn sn-btn--ghost" onClick={() => setPendingDeleteId(d.id)}>
-                      Delete
-                    </button>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      {d.approvalStatus === "pending" && (
+                        <button
+                          className="sn-btn sn-btn--gold"
+                          disabled={approvingId === d.id}
+                          onClick={() => handleApprove(d.id)}
+                        >
+                          {approvingId === d.id ? "Approving…" : "Approve"}
+                        </button>
+                      )}
+                      <button className="sn-btn sn-btn--ghost" onClick={() => setPendingDeleteId(d.id)}>
+                        Delete
+                      </button>
+                    </div>
                   )}
                 </div>
               ))}

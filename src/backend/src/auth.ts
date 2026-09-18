@@ -64,6 +64,15 @@ export interface Dealership {
   // invoice with no VAT number is legitimate; it just can't be called
   // a "VAT Invoice".
   vatNumber?: string;
+  // Manual vetting gate for brand-new dealership signups — a fresh
+  // signup starts "pending" and can't use anything business-related
+  // until a platform admin approves it (see requireApprovedDealership
+  // in subscriptionGate.ts). Deliberately optional and only ever
+  // blocked on an explicit "pending": every dealership that existed
+  // before this field was added has no value here at all, and must
+  // keep working exactly as before rather than being locked out by a
+  // check that demanded a positive "approved".
+  approvalStatus?: "pending" | "approved";
 }
 
 export async function hashPassword(password: string): Promise<string> {

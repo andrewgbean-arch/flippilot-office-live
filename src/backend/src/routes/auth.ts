@@ -47,11 +47,18 @@ export default function registerAuthRoute(app: Express) {
         .json({ ok: false, error: "An account with that email already exists" });
     }
 
-    // Every signup creates its own dealership, isolated from every other
-    // one — there's no "join an existing dealership" invite flow yet, so
-    // this is the whole tenant-creation story for now: sign up = you're
-    // the owner of a brand new dealership, with your own inventory/
-    // leads/staff data that no one else can see.
+    // Every signup creates its own brand-new dealership, isolated from
+    // every other one, with you as its owner (staff joining an EXISTING
+    // dealership go through /auth/join below instead, with an invite
+    // token from that dealership's owner). A new dealership starts
+    // "pending" — a platform admin has to approve it before it can use
+    // anything business-related (see requireApprovedDealership) — so
+    // nobody can self-sign-up as a fake dealer and get straight in.
+    // Under NODE_ENV=test it's auto-approved instead, for the same
+    // reason signupLimiter is loosened there (app.ts): the real
+    // integration suite signs up dozens of throwaway dealerships and
+    // immediately uses them, and the gate itself has its own dedicated
+    // tests that explicitly opt back in to "pending".
     const now = new Date();
     const trialEndsAt = new Date(now.getTime() + TRIAL_DAYS * 86400000);
 
@@ -62,6 +69,10 @@ export default function registerAuthRoute(app: Express) {
       createdAt: now.toISOString(),
       subscriptionStatus: "trialing",
       trialEndsAt: trialEndsAt.toISOString(),
+      approvalStatus:
+        process.env.NODE_ENV === "test" && req.body?.requireApproval !== true
+          ? "approved"
+          : "pending",
     };
 
     const newUser: StoredUser = {
@@ -80,7 +91,12 @@ export default function registerAuthRoute(app: Express) {
     writeCollection("users", [...users, newUser]);
 
     const token = signToken(toPublicUser(newUser));
-    res.json({ ok: true, token, user: toPublicUser(newUser) });
+    res.json({
+      ok: true,
+      token,
+      user: toPublicUser(newUser),
+      approvalStatus: dealership.approvalStatus,
+    });
   });
 
   // Looks up what dealership an invite link points to, so the Join
@@ -146,7 +162,13 @@ export default function registerAuthRoute(app: Express) {
     writeCollection("users", [...users, newUser]);
 
     const authToken = signToken(toPublicUser(newUser));
-    res.json({ ok: true, token: authToken, user: toPublicUser(newUser) });
+    const joinedDealership = readCollection<Dealership>("dealerships").find(d => d.id === payload.dealershipId);
+    res.json({
+      ok: true,
+      token: authToken,
+      user: toPublicUser(newUser),
+      approvalStatus: joinedDealership?.approvalStatus ?? "approved",
+    });
   });
 
   app.post("/auth/login", async (req, res) => {
@@ -169,12 +191,24 @@ export default function registerAuthRoute(app: Express) {
     }
 
     const token = signToken(toPublicUser(user));
-    res.json({ ok: true, token, user: toPublicUser(user) });
+    // Includes the dealership's real approval status so a client (web
+    // or mobile) can route straight to "awaiting approval" instead of
+    // logging the user in and then hitting a 403 on their first real
+    // request. Undefined for a dealership that predates the approval
+    // gate — those are grandfathered as approved.
+    const dealership = readCollection<Dealership>("dealerships").find(d => d.id === user.dealershipId);
+    res.json({
+      ok: true,
+      token,
+      user: toPublicUser(user),
+      approvalStatus: dealership?.approvalStatus ?? "approved",
+    });
   });
 
   app.get("/auth/me", requireAuth, (req, res) => {
     const user = (req as any).user as AuthUser;
-    res.json({ ok: true, user });
+    const dealership = readCollection<Dealership>("dealerships").find(d => d.id === user.dealershipId);
+    res.json({ ok: true, user, approvalStatus: dealership?.approvalStatus ?? "approved" });
   });
 
   // "Security Options" in Settings previously had no onClick at all.
