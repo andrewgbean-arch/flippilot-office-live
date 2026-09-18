@@ -47,6 +47,7 @@ export default function DealerSidebar() {
       items: [
         { to: "/pilot-brain", label: "Talk to Pilot Brain" },
         { to: "/pilot-brain/operations", label: "Operations (Approvals)" },
+        { to: "/pilot-brain/strategy", label: "Strategy (Goals & Briefing)" },
       ],
     },
 

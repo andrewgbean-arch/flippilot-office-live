@@ -281,3 +281,88 @@ async function operatorActionCommand(
 export const approveOperatorAction = (id: string) => operatorActionCommand(id, "approve");
 export const rejectOperatorAction = (id: string) => operatorActionCommand(id, "reject");
 export const rollbackOperatorAction = (id: string) => operatorActionCommand(id, "rollback");
+
+// V7 (The Co-Founder) — real goals with real progress, and one
+// executive-level snapshot combining every earlier version's health
+// signals plus goal progress.
+export type GoalMetric = "revenue" | "profit" | "stockCount" | "leadsAdded" | "salesCount";
+
+export interface BusinessGoal {
+  id: string;
+  metric: GoalMetric;
+  targetValue: number;
+  period: "monthly" | "quarterly";
+  label: string;
+  createdAt: string;
+  createdByName: string;
+}
+
+export interface GoalProgress {
+  goal: BusinessGoal;
+  currentValue: number;
+  percent: number;
+  onTrack: boolean;
+}
+
+export async function fetchGoals(): Promise<{ ok: boolean; goals: GoalProgress[]; error?: string }> {
+  try {
+    const res = await fetch(`${BASE_URL}/pilot-brain/goals`, { headers: authHeaders() });
+    const data = await res.json();
+    return { ok: res.ok, goals: data.goals ?? [], error: data.error };
+  } catch (err) {
+    console.error("fetchGoals: backend unreachable", err);
+    return { ok: false, goals: [], error: "Network error" };
+  }
+}
+
+export async function createGoal(
+  metric: GoalMetric,
+  targetValue: number,
+  period: "monthly" | "quarterly",
+  label: string
+): Promise<{ ok: boolean; goal?: BusinessGoal; error?: string }> {
+  try {
+    const res = await fetch(`${BASE_URL}/pilot-brain/goals`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ metric, targetValue, period, label }),
+    });
+    const data = await res.json();
+    return { ok: res.ok, goal: data.goal, error: data.error };
+  } catch (err) {
+    console.error("createGoal: backend unreachable", err);
+    return { ok: false, error: "Network error" };
+  }
+}
+
+export async function deleteGoal(id: string): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const res = await fetch(`${BASE_URL}/pilot-brain/goals/${id}`, { method: "DELETE", headers: authHeaders() });
+    const data = await res.json();
+    return { ok: res.ok, error: data.error };
+  } catch (err) {
+    console.error("deleteGoal: backend unreachable", err);
+    return { ok: false, error: "Network error" };
+  }
+}
+
+export interface ExecutiveBriefing {
+  businessHealth: number;
+  marketHealth: number | null;
+  strategicHealth: { overall: number; businessHealth: number; marketHealth: number | null; goalProgressAverage: number | null };
+  greatestOpportunity: { title: string; detail: string } | null;
+  greatestRisk: { title: string; detail?: string; message?: string } | null;
+  recommendedFocus: { title: string; detail: string } | null;
+  goalProgress: GoalProgress[];
+}
+
+export async function fetchExecutiveBriefing(): Promise<{ ok: boolean; briefing?: ExecutiveBriefing; error?: string }> {
+  try {
+    const res = await fetch(`${BASE_URL}/pilot-brain/executive-briefing`, { headers: authHeaders() });
+    const data = await res.json();
+    return { ok: res.ok, briefing: data, error: data.error };
+  } catch (err) {
+    console.error("fetchExecutiveBriefing: backend unreachable", err);
+    return { ok: false, error: "Network error" };
+  }
+}

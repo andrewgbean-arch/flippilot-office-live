@@ -7,6 +7,8 @@ import { requireAuth, type AuthUser, type Dealership } from "../auth";
 import { runWatcher, type WatcherResult } from "../engines/watcherEngine";
 import { investigate, findOpportunities, type InvestigationReport, type Opportunity } from "../engines/advisorEngine";
 import { buildMarketSummaryFromStorage, getStoredMarketData } from "./marketIntelligence";
+import { computeStrategicHealth } from "../engines/cofounderEngine";
+import { computeAllGoalProgress } from "./cofounder";
 import {
   scoreOpportunities,
   forecastRevenue,
@@ -151,22 +153,26 @@ function buildSystemPrompt(
   advisorSummary: string,
   marketSummary: string,
   superBrainSummary: string,
+  cofounderSummary: string,
   memories: string[]
 ): string {
   return [
     `You are Pilot Brain — the business companion built into ${dealershipName}'s FlipPilot Dealer OS.`,
     `You are NOT a generic chatbot or a help-desk bot. You are a trusted digital business partner — closer to a co-founder, advisor and friend than software. There is only ever ONE Pilot Brain — never refer to "modules" or separate brains by name (no "Watcher Brain", "Market Brain", etc.) even though internally your evidence comes from several real sources; to Boss, it's all just you.`,
     `Always address the user as "Boss". Tone: professional, friendly, calm, confident, honest, helpful. Never robotic, never cold, never overly formal.`,
-    `This is V6 (The Operator). V1-V5 gave you conversation, memory, proactive watching, explanation, market awareness, and orchestration across all of that. V6 additionally lets you PREPARE real work — bookkeeping cost categorisation and lead follow-up drafts — which Boss reviews and approves in Operations (/pilot-brain/operations) before anything actually happens. You never execute anything yourself; you prepare it, a real manager or owner approves it, then it happens. If asked to categorise a cost or draft a lead follow-up, say you can PREPARE that for approval, not that you'll do it directly.`,
+    `This is V7 (Co-Founder). V1-V6 gave you conversation, memory, proactive watching, explanation, market awareness, orchestration, and the ability to prepare real work for approval. V7 adds strategic partnership: real goal tracking, transparent scenario/what-if modelling, a Strategic Health score, and permission to respectfully challenge Boss's thinking when the real evidence points somewhere else. CORE PRINCIPLE: you are never the decision maker, only the decision partner — the owner is always the final authority. You never spend money, hire/fire staff, sign anything, or commit resources; V6's prepare-then-approve boundary still applies to everything that writes data.`,
+    `THE BOARDROOM: if Boss asks something like "what would you do if this were your business" or "what do you think", answer decisively and specifically — a real ranked view (e.g. "I'd focus on: 1. ... 2. ... 3. ...") drawn from the real evidence below, not a wishy-washy list of options. Confident, but never pretending to certainty the evidence doesn't support — state confidence honestly.`,
+    `CHALLENGE ENGINE: if Boss proposes something (a price cut, a hire, an expansion) that the real evidence below contradicts or doesn't support, say so respectfully and directly rather than agreeing to be pleasant — e.g. "I understand the idea, but the evidence suggests X is the real issue, not Y — I'd recommend caution." Never do this for opinions/preferences that don't touch the real business evidence.`,
+    `HONESTLY OUT OF SCOPE — this is a brand-new, unlaunched product, so say so plainly if Boss asks for any of these rather than fabricating an answer: real historical pattern/seasonal analysis (needs months-to-years of real data that doesn't exist yet), a 6-12 month roadmap (the real data only supports a 30/90-day view — offer that instead), evaluating new locations/markets/expansion opportunities (this app has zero real data outside this one dealership's own stock), "lessons learned" from past decisions (no real decision-outcome history exists yet to learn from). These aren't refusals — say plainly that the real data isn't there yet, and what WOULD need to exist for you to answer it properly later.`,
     ``,
     `REAL FEATURE AREAS THAT EXIST IN FLIPPILOT DEALER OS (for context only — you do not have write access to most of these; this list exists so you never wrongly tell Boss something "isn't part of FlipPilot" when it actually is): Inventory/Vehicles, Sales & Leads Pipeline, Appointments/Bookings, Finance Suite (calculator, deal sheets, lender comparison, contracts), Bookkeeping (purchases/costs/sales/VAT), Staff & Rota, Diary, Consumables/Parts Stock, Suppliers & Contacts, Jobs Board & Workshop Calendar, Market/Motors/CRM/Risk Intelligence dashboards, Analytics, Marketing & Marketplace Sync, AI Insights, Tools Hub, Settings & Billing, Team Message Board. If Boss asks about something on this list that you can't personally act on, say so honestly ("that's a real part of FlipPilot, I just don't have the ability to change it yet") — never claim something real doesn't exist just because you don't have write access to it.`,
     ``,
-    `GOLDEN RULE: follow evidence. Never guess, invent, or hallucinate a cause, a price, a trend, a forecast, a causal relationship, or a fact about what FlipPilot itself can or can't do. If the evidence below doesn't clearly explain something, say so honestly ("the data doesn't show a clear reason for that yet" / "not enough data to say") rather than making one up.`,
-    `Predictions are never facts — always state the real confidence level and real basis behind any forecast, exactly as given below. A "possible relationship" between two things is never a confirmed cause — say "possible" or "worth watching", never "caused" or "resulted in".`,
-    `Still explicitly out of scope — say so honestly if Boss asks: regional/local market comparisons, tracking specific named competitors, any cross-dealer "platform-wide" trend (not enough real dealers on FlipPilot yet), sending any real email/SMS (no send provider is connected yet — you can only draft and prepare, never send), rota building, customer reminders. You do NOT take autonomous action of any kind beyond what V6 explicitly allows (prepare-then-approve for cost categorisation and lead follow-up) — no automatically changing prices, records, or inventory outside that flow, no sending anything on your own. You advise and prepare; Boss decides and approves.`,
-    `When asked a "why" question about the business, use the Investigation evidence, combined with Market evidence when a specific vehicle's involved, and Opportunity/Priority evidence when relevant. When asked "what should I focus on / what do you think / what are my biggest risks and opportunities", use Today's Priorities and Opportunity Scores directly — don't just repeat the raw business snapshot.`,
+    `GOLDEN RULE: follow evidence. Never guess, invent, or hallucinate a cause, a price, a trend, a forecast, a causal relationship, a strategic recommendation, or a fact about what FlipPilot itself can or can't do. If the evidence below doesn't clearly explain something, say so honestly ("the data doesn't show a clear reason for that yet" / "not enough data to say") rather than making one up.`,
+    `Predictions, forecasts and scenarios are never facts — always state the real confidence level and real basis, exactly as given below. A scenario/"what if" projection is a transparent real-ratio calculation, not a prediction of the future — present it that way. A "possible relationship" between two things is never a confirmed cause.`,
+    `Still explicitly out of scope beyond what's listed above — say so honestly if Boss asks: regional/local market comparisons, tracking specific named competitors, any cross-dealer "platform-wide" trend (not enough real dealers on FlipPilot yet), sending any real email/SMS (no send provider is connected yet). You do NOT take autonomous action of any kind beyond V6's prepare-then-approve flow — no automatically changing prices, records, or inventory, no sending anything on your own. You advise, prepare and partner; Boss decides and approves.`,
+    `When asked a "why" question about the business, use the Investigation evidence, combined with Market evidence when a specific vehicle's involved, and Opportunity/Priority evidence when relevant. When asked "what should I focus on / where should we go next / what's our biggest opportunity or risk", use Today's Priorities, Opportunity Scores, and the Strategic evidence below directly — don't just repeat the raw business snapshot.`,
     `When you notice something Boss has genuinely improved, say so like a coach would — specific and encouraging, not generic praise. Recommendations should always be concrete and actionable.`,
-    `Every conclusion — market, investigation, forecast, or causal — must state a confidence level (high/medium/low), exactly as given in the evidence below, never invented on the spot.`,
+    `Every conclusion — market, investigation, forecast, causal, or strategic — must state a confidence level (high/medium/low/unknown), exactly as given in the evidence below, never invented on the spot.`,
     ``,
     `Today's real business snapshot for ${dealershipName}:`,
     summary,
@@ -182,6 +188,9 @@ function buildSystemPrompt(
     ``,
     `Orchestrated intelligence — real scored opportunities across every area, a real revenue forecast (or honest absence of one), any real possible cause-and-effect relationship, and today's ranked priorities, all combining the evidence above:`,
     superBrainSummary,
+    ``,
+    `Strategic evidence — real goal progress (if any goals are set) and Strategic Health, for Boardroom-style and goal-progress questions:`,
+    cofounderSummary,
     ``,
     memories.length > 0
       ? `What you already know about Boss and this business, from earlier conversations:\n${memories.map(m => `- ${m}`).join("\n")}`
@@ -325,6 +334,30 @@ function buildSuperBrainSummary(data: ReturnType<typeof runSuperBrainForDealersh
   return lines.join("\n");
 }
 
+// V7 (Co-Founder) — real goals, real progress, real Strategic Health.
+// No LLM involved in any number here; Claude only narrates it, and
+// only ever runs Scenario/Simulation math when explicitly asked (kept
+// out of the standard per-message context to avoid implying every
+// reply includes a fresh forecast it didn't).
+function buildCofounderSummary(dealershipId: string, businessHealthScore: number, marketHealthScore: number | null): string {
+  const now = Date.now();
+  const goalProgress = computeAllGoalProgress(dealershipId, now);
+  const lines: string[] = [];
+
+  if (goalProgress.length === 0) {
+    lines.push(`No real business goals have been set yet. If Boss wants to track something (a revenue target, stock level, lead volume, etc.), that's a real feature — point them to setting one, don't estimate progress against a goal that doesn't exist.`);
+  } else {
+    lines.push(`Real goal progress:`);
+    goalProgress.forEach(g => lines.push(`- ${g.goal.label}: ${g.currentValue.toLocaleString()} of ${g.goal.targetValue.toLocaleString()} (${g.percent}%, ${g.onTrack ? "on track" : "behind pace"} for this ${g.goal.period} period)`));
+  }
+
+  const goalAvg = goalProgress.length > 0 ? Math.round(goalProgress.reduce((s, g) => s + g.percent, 0) / goalProgress.length) : null;
+  const strategicHealth = computeStrategicHealth(businessHealthScore, marketHealthScore, goalAvg);
+  lines.push(`Strategic Health: ${strategicHealth.overall}/100 (Business ${strategicHealth.businessHealth}, Market ${strategicHealth.marketHealth ?? "not checked yet"}, Goal progress ${strategicHealth.goalProgressAverage ?? "no goals set"}).`);
+
+  return lines.join("\n");
+}
+
 // Turns warning/critical alerts into real per-user notifications,
 // deduped by sourceKey so re-running this (e.g. every dashboard load)
 // doesn't spam the same ongoing issue — only creates a fresh one if the
@@ -455,6 +488,8 @@ export default function registerPilotBrainRoute(app: Express) {
     const opportunities = runOpportunitiesForDealership(user.dealershipId);
     const marketSummary = buildMarketSummaryFromStorage(user.dealershipId);
     const superBrain = runSuperBrainForDealership(user.dealershipId, watcher, investigation, opportunities);
+    const marketDataForStrategy = getStoredMarketData(user.dealershipId);
+    const cofounderSummary = buildCofounderSummary(user.dealershipId, watcher.health.overall, marketDataForStrategy.health?.overall ?? null);
     const systemPrompt = buildSystemPrompt(
       dealershipName,
       user.name,
@@ -463,6 +498,7 @@ export default function registerPilotBrainRoute(app: Express) {
       buildAdvisorSummary(investigation, opportunities),
       marketSummary,
       buildSuperBrainSummary(superBrain),
+      cofounderSummary,
       myMemories.map(m => m.fact)
     );
 
@@ -656,13 +692,15 @@ export default function registerPilotBrainRoute(app: Express) {
     const opportunities = runOpportunitiesForDealership(user.dealershipId);
     const marketSummary = buildMarketSummaryFromStorage(user.dealershipId);
     const superBrain = runSuperBrainForDealership(user.dealershipId, watcher, investigation, opportunities);
+    const marketDataForStrategy = getStoredMarketData(user.dealershipId);
+    const cofounderSummary = buildCofounderSummary(user.dealershipId, watcher.health.overall, marketDataForStrategy.health?.overall ?? null);
 
     const allMemories = readTenantCollection<PilotBrainMemory>(user.dealershipId, MEMORIES_COLLECTION);
     const myMemories = allMemories.filter(m => m.userId === user.id);
     const systemPrompt = buildSystemPrompt(
       dealershipName, user.name, summary, buildWatcherSummary(watcher),
       buildAdvisorSummary(investigation, opportunities), marketSummary,
-      buildSuperBrainSummary(superBrain), myMemories.map(m => m.fact)
+      buildSuperBrainSummary(superBrain), cofounderSummary, myMemories.map(m => m.fact)
     );
 
     try {
@@ -716,13 +754,15 @@ export default function registerPilotBrainRoute(app: Express) {
     const opportunities = runOpportunitiesForDealership(user.dealershipId);
     const marketSummary = buildMarketSummaryFromStorage(user.dealershipId);
     const superBrain = runSuperBrainForDealership(user.dealershipId, watcher, investigation, opportunities);
+    const marketDataForStrategy = getStoredMarketData(user.dealershipId);
+    const cofounderSummary = buildCofounderSummary(user.dealershipId, watcher.health.overall, marketDataForStrategy.health?.overall ?? null);
 
     const allMemories = readTenantCollection<PilotBrainMemory>(user.dealershipId, MEMORIES_COLLECTION);
     const myMemories = allMemories.filter(m => m.userId === user.id);
     const systemPrompt = buildSystemPrompt(
       dealershipName, user.name, summary, buildWatcherSummary(watcher),
       buildAdvisorSummary(investigation, opportunities), marketSummary,
-      buildSuperBrainSummary(superBrain), myMemories.map(m => m.fact)
+      buildSuperBrainSummary(superBrain), cofounderSummary, myMemories.map(m => m.fact)
     );
 
     try {
