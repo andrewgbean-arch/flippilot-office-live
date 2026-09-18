@@ -1,5 +1,5 @@
 import { authHeaders } from "@/lib/authToken";
-import type { Appointment, AppointmentStatus } from "./appointmentTypes";
+import type { Appointment, AppointmentStatus, AppointmentOutcome } from "./appointmentTypes";
 
 import { BASE_URL } from "@/lib/apiBaseUrl";
 
@@ -16,6 +16,7 @@ export async function loadAppointments(): Promise<Appointment[]> {
 
 export interface AppointmentEdit {
   status?: AppointmentStatus;
+  outcome?: AppointmentOutcome;
   requestedDate?: string;
   requestedTime?: string;
   notes?: string;

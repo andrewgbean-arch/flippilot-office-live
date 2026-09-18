@@ -2,7 +2,9 @@ import { useState, useEffect } from "react";
 import { useAppointments } from "@/context/AppointmentsContext";
 import { useAuth } from "@/context/AuthContext";
 import { useNavigate } from "react-router-dom";
-import type { Appointment, AppointmentStatus } from "./appointmentTypes";
+import type { Appointment, AppointmentStatus, AppointmentOutcome } from "./appointmentTypes";
+import type { AppointmentEdit } from "./appointmentStorage.web";
+import { outcomeOptionsFor } from "./appointmentOutcomes";
 import AppointmentReviewModal from "./AppointmentReviewModal";
 import { loadBookingSettings, saveBookingSettings, type BookingSettings, type WeekDay } from "./bookingSettingsStorage.web";
 import "@/staff/StaffDashboard.css";
@@ -310,9 +312,20 @@ function AppointmentRow({
 }: {
   appointment: Appointment;
   onReview: (appointment: Appointment) => void;
-  onQuickAction: (id: string, patch: { status: AppointmentStatus }) => Promise<string | null>;
+  onQuickAction: (id: string, patch: AppointmentEdit) => Promise<string | null>;
   navigate: (path: string) => void;
 }) {
+  const [savingOutcome, setSavingOutcome] = useState(false);
+  const [outcomeError, setOutcomeError] = useState<string | null>(null);
+
+  async function recordOutcome(outcome: AppointmentOutcome) {
+    setSavingOutcome(true);
+    setOutcomeError(null);
+    const err = await onQuickAction(appointment.id, { outcome });
+    setSavingOutcome(false);
+    if (err) setOutcomeError(err);
+  }
+
   const badgeClass =
     appointment.status === "confirmed" || appointment.status === "completed"
       ? "sn-timeclock__badge--in"
@@ -342,6 +355,31 @@ function AppointmentRow({
           >
             View Lead →
           </button>
+        )}
+        {/* What actually happened — the difference between a booking that
+            turned into a sale and one where nobody came. Shown once it's
+            confirmed (so it can be recorded straight after) and stays on
+            a completed one, so an outcome can be added or corrected later. */}
+        {(appointment.status === "confirmed" || appointment.status === "completed") && (
+          <div style={{ marginTop: 8 }}>
+            <div className="sn-recent-lead__status" style={{ marginBottom: 4 }}>
+              {appointment.outcome ? "Outcome" : "What happened?"}
+            </div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {outcomeOptionsFor(appointment.type).map(o => (
+                <button
+                  key={o.value}
+                  className={`sn-btn ${appointment.outcome === o.value ? "sn-btn--gold" : "sn-btn--ghost"}`}
+                  style={{ padding: "4px 10px", fontSize: 12 }}
+                  disabled={savingOutcome}
+                  onClick={() => recordOutcome(o.value)}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+            {outcomeError && <div style={{ color: "#f87171", fontSize: 12, marginTop: 4 }}>{outcomeError}</div>}
+          </div>
         )}
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
