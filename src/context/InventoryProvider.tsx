@@ -132,19 +132,28 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
   // request at login, the next ordinary "add vehicle" saved the demo
   // cars over the dealer's real ones. Now: an empty list is just an
   // empty stock (a brand-new dealer starts with none, and can clear
-  // theirs without it coming back); a failed load shows nothing, says
-  // so (loadError), and blocks saving until a retry succeeds.
+  // theirs without it coming back); a failed FIRST load shows nothing,
+  // says so (loadError), and blocks saving until a retry succeeds.
+  //
+  // A refresh (the header's "Sync AI") is different: memory already
+  // holds this login's real stock, so a failed refresh just means it
+  // didn't get any fresher — it must not blank the screen or block
+  // saving over a blip. canSave is only ever false when memory ISN'T
+  // known-real (never loaded, failed first load, or a login change), so
+  // reading it here tells a refresh from a first load.
   const loadInventory = async () => {
     const seq = ++loadSeq.current;
-    canSave.current = false;
+    const isRefresh = canSave.current;
     setLoading(true);
 
     const fromServer = await loadInventoryFromServer();
     if (seq !== loadSeq.current) return; // the login changed while this was in flight
 
     if (fromServer === null) {
-      setVehicles([]);
-      setLoadError(true);
+      if (!isRefresh) {
+        setVehicles([]);
+        setLoadError(true);
+      }
       setLoading(false);
       return;
     }
@@ -154,11 +163,14 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
       canSave.current = true;
       setLoadError(false);
     } catch (err) {
-      // Real data the AI layer couldn't process: fail closed like any
-      // other failed load, rather than fall back to invented cars.
+      // Real data the AI layer couldn't process: on a first load, fail
+      // closed like any other failed load rather than fall back to
+      // invented cars; on a refresh, keep the last good stock.
       console.error("Inventory load failed while preparing vehicles:", err);
-      setVehicles([]);
-      setLoadError(true);
+      if (!isRefresh) {
+        setVehicles([]);
+        setLoadError(true);
+      }
     }
     setLoading(false);
   };
