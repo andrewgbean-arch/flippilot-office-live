@@ -1,17 +1,8 @@
 import { authHeaders } from "@/lib/authToken";
+import { loadJson, loadList } from "@/lib/loadJson";
 import type { WorkPattern, LeaveRequest, Shift, RotaSettings } from "./plannerTypes";
 
 import { BASE_URL } from "@/lib/apiBaseUrl";
-
-async function getJson<T>(path: string, fallback: T): Promise<T> {
-  try {
-    const res = await fetch(`${BASE_URL}${path}`, { headers: authHeaders() });
-    return await res.json();
-  } catch (err) {
-    console.error(`${path}: backend unreachable`, err);
-    return fallback;
-  }
-}
 
 async function sendJson(path: string, method: string, body?: unknown): Promise<any> {
   try {
@@ -28,18 +19,24 @@ async function sendJson(path: string, method: string, body?: unknown): Promise<a
   }
 }
 
-export async function loadWorkPatterns(): Promise<WorkPattern[]> {
-  const data = await getJson<{ items?: WorkPattern[] }>("/work-patterns", {});
-  return Array.isArray(data.items) ? data.items : [];
+// Every loader below returns null when the data couldn't be read
+// (dropped connection, 401/402/403/5xx, wrong shape) and only ever
+// returns [] / real settings for a successful answer. Work patterns and
+// shifts are saved back as WHOLE lists, so a failed read taken for "no
+// patterns / no shifts" wiped the team's rota on the next edit (see
+// loadJson.ts). The rota-settings loader also used to fall back to
+// invented default opening hours, which the next save then wrote over
+// the real ones.
+export async function loadWorkPatterns(): Promise<WorkPattern[] | null> {
+  return loadList<WorkPattern>("/work-patterns");
 }
 
 export async function saveWorkPatterns(items: WorkPattern[]): Promise<{ ok: boolean; error?: string }> {
   return sendJson("/work-patterns", "PUT", { items });
 }
 
-export async function loadLeave(): Promise<LeaveRequest[]> {
-  const data = await getJson<{ items?: LeaveRequest[] }>("/leave", {});
-  return Array.isArray(data.items) ? data.items : [];
+export async function loadLeave(): Promise<LeaveRequest[] | null> {
+  return loadList<LeaveRequest>("/leave");
 }
 
 export async function requestLeave(input: {
@@ -62,20 +59,20 @@ export async function withdrawLeave(id: string): Promise<{ ok: boolean; error?: 
   return sendJson(`/leave/${id}`, "DELETE");
 }
 
-export async function loadRotaSettings(): Promise<RotaSettings> {
-  const data = await getJson<{ settings?: RotaSettings }>("/rota-settings", {});
-  return (
-    data.settings ?? { openDays: ["mon", "tue", "wed", "thu", "fri", "sat"], openTime: "09:00", closeTime: "18:00" }
-  );
+export async function loadRotaSettings(): Promise<RotaSettings | null> {
+  const data = (await loadJson("/rota-settings")) as { settings?: RotaSettings } | null;
+  const settings = data?.settings;
+  // The backend answers with its own defaults when none are saved, so a
+  // successful response always carries settings.
+  return settings && Array.isArray(settings.openDays) ? settings : null;
 }
 
 export async function saveRotaSettings(settings: RotaSettings): Promise<{ ok: boolean; error?: string }> {
   return sendJson("/rota-settings", "PUT", settings);
 }
 
-export async function loadShifts(): Promise<Shift[]> {
-  const data = await getJson<{ items?: Shift[] }>("/shifts", {});
-  return Array.isArray(data.items) ? data.items : [];
+export async function loadShifts(): Promise<Shift[] | null> {
+  return loadList<Shift>("/shifts");
 }
 
 export async function saveShifts(items: Shift[]): Promise<{ ok: boolean; error?: string }> {

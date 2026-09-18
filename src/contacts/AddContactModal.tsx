@@ -39,8 +39,12 @@ export default function AddContactModal({ existing, onClose }: AddContactModalPr
     };
 
     if (existing) {
-      await updateContact(existing.id, fields);
+      const ok = await updateContact(existing.id, fields);
       setSaving(false);
+      if (!ok) {
+        setError("Couldn't save because your contacts couldn't be loaded. Nothing was changed — try again shortly.");
+        return;
+      }
       onClose();
       return;
     }

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState } from "react";
 import type { WorkPattern, LeaveRequest, Shift, RotaSettings } from "@/planner/plannerTypes";
 import {
   loadWorkPatterns,
@@ -15,12 +15,27 @@ import {
 } from "@/planner/plannerStorage.web";
 import { useAuth } from "@/context/AuthContext";
 import { sendNotification } from "@/notifications/notificationStorage.web";
+import { useGuardedLoad } from "@/lib/useGuardedLoad";
 
 const DEFAULT_ROTA_SETTINGS: RotaSettings = {
   openDays: ["mon", "tue", "wed", "thu", "fri", "sat"],
   openTime: "09:00",
   closeTime: "18:00",
 };
+
+// Work patterns, shifts and the rota settings are all saved by replacing
+// the server's whole copy, so they are only ever saved after ALL of the
+// planner's data has loaded. Returned when a write is refused because it
+// hasn't.
+const NOT_LOADED_ERROR =
+  "Couldn't save — the rota hasn't loaded, so saving now could overwrite it. Use Try again at the top of the page, then repeat this.";
+
+interface LoadedPlanner {
+  workPatterns: WorkPattern[];
+  leave: LeaveRequest[];
+  shifts: Shift[];
+  rotaSettings: RotaSettings;
+}
 
 interface PlannerContextType {
   workPatterns: WorkPattern[];
@@ -46,35 +61,48 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
   const [leave, setLeave] = useState<LeaveRequest[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [rotaSettings, setRotaSettings] = useState<RotaSettings>(DEFAULT_ROTA_SETTINGS);
-  const [loading, setLoading] = useState(true);
   const { user } = useAuth();
 
   // Keyed on the authenticated user's dealershipId, not `[]` — same
   // auth-reactive fetch fix applied to every other provider this app
   // (see InventoryProvider/LeadsContext/StaffContext/JobsContext for
   // the confirmed bug a plain mount-once effect causes here).
-  useEffect(() => {
-    if (!user?.dealershipId) {
-      setLoading(false);
-      return;
-    }
-    (async () => {
-      setLoading(true);
+  //
+  // A failed load used to fall back to an empty rota with invented
+  // default opening hours, and the next work-pattern/shift/settings save
+  // wrote that over the team's real one. Now the planner counts as
+  // loaded only if all four reads succeed; otherwise it is reported to
+  // the shared banner and guardSave() blocks the writes below.
+  const { loading, guardSave } = useGuardedLoad<LoadedPlanner>({
+    id: "rota",
+    label: "rota",
+    key: user?.dealershipId,
+    load: async () => {
       const [wp, lv, sh, rs] = await Promise.all([
         loadWorkPatterns(),
         loadLeave(),
         loadShifts(),
         loadRotaSettings(),
       ]);
-      setWorkPatterns(wp);
-      setLeave(lv);
-      setShifts(sh);
-      setRotaSettings(rs);
-      setLoading(false);
-    })();
-  }, [user?.dealershipId]);
+      if (wp === null || lv === null || sh === null || rs === null) return null;
+      return { workPatterns: wp, leave: lv, shifts: sh, rotaSettings: rs };
+    },
+    apply: data => {
+      setWorkPatterns(data.workPatterns);
+      setLeave(data.leave);
+      setShifts(data.shifts);
+      setRotaSettings(data.rotaSettings);
+    },
+    clear: () => {
+      setWorkPatterns([]);
+      setLeave([]);
+      setShifts([]);
+      setRotaSettings(DEFAULT_ROTA_SETTINGS);
+    },
+  });
 
   async function saveWorkPattern(pattern: WorkPattern) {
+    if (!guardSave()) return NOT_LOADED_ERROR;
     const updated = [...workPatterns.filter(p => p.userId !== pattern.userId), pattern];
     const res = await saveWorkPatterns(updated);
     if (!res.ok) return res.error ?? "Could not save work pattern";
@@ -83,6 +111,7 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function removeWorkPattern(userId: string) {
+    if (!guardSave()) return NOT_LOADED_ERROR;
     const updated = workPatterns.filter(p => p.userId !== userId);
     const res = await saveWorkPatterns(updated);
     if (!res.ok) return res.error ?? "Could not save work pattern";
@@ -120,6 +149,7 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function updateRotaSettings(settings: RotaSettings) {
+    if (!guardSave()) return NOT_LOADED_ERROR;
     const res = await saveRotaSettings(settings);
     if (!res.ok) return res.error ?? "Could not save rota settings";
     setRotaSettings(settings);
@@ -127,6 +157,7 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function saveShift(shift: Shift) {
+    if (!guardSave()) return NOT_LOADED_ERROR;
     const updated = [...shifts.filter(s => s.id !== shift.id), shift];
     const res = await saveShifts(updated);
     if (!res.ok) return res.error ?? "Could not save shift";
@@ -135,6 +166,7 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function removeShift(id: string) {
+    if (!guardSave()) return NOT_LOADED_ERROR;
     const updated = shifts.filter(s => s.id !== id);
     const res = await saveShifts(updated);
     if (!res.ok) return res.error ?? "Could not remove shift";

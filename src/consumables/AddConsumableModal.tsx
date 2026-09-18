@@ -41,8 +41,12 @@ export default function AddConsumableModal({ existing, onClose }: AddConsumableM
     };
 
     if (existing) {
-      await updateConsumable(existing.id, fields);
+      const ok = await updateConsumable(existing.id, fields);
       setSaving(false);
+      if (!ok) {
+        setError("Couldn't save because your consumables couldn't be loaded. Nothing was changed — try again shortly.");
+        return;
+      }
       onClose();
       return;
     }

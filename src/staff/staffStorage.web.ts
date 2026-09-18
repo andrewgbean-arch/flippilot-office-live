@@ -1,5 +1,6 @@
 import type { StaffRecord } from "@/staff/staffTypes";
 import { authHeaders } from "@/lib/authToken";
+import { loadList } from "@/lib/loadJson";
 
 import { BASE_URL } from "@/lib/apiBaseUrl";
 
@@ -25,19 +26,19 @@ export async function saveStaff(staff: StaffRecord[]): Promise<boolean> {
   }
 }
 
-export async function loadStaff(): Promise<StaffRecord[]> {
-  try {
-    const res = await fetch(`${BASE_URL}/staff`, { headers: authHeaders() });
-    const data = await res.json();
-    return Array.isArray(data.items) ? data.items : [];
-  } catch (err) {
-    console.error("loadStaff: backend unreachable", err);
-    return [];
-  }
+// null = the staff list couldn't be read (dropped connection,
+// 401/402/403/5xx, not a list). [] only ever means the server said there
+// are none. Every add/update/remove re-reads this list and saves it back
+// with the change, so a failed read taken for "no staff" replaced the
+// whole roster with just the one record being added (see loadJson.ts).
+export async function loadStaff(): Promise<StaffRecord[] | null> {
+  return loadList<StaffRecord>("/staff");
 }
 
-export async function deleteStaff(id: string) {
+// null = nothing was deleted because the current list couldn't be read.
+export async function deleteStaff(id: string): Promise<StaffRecord[] | null> {
   const staff = await loadStaff();
+  if (staff === null) return null;
   const updated = staff.filter(s => s.id !== id);
   await saveStaff(updated);
   return updated;

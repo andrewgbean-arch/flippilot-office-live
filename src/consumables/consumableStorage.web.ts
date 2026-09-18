@@ -1,17 +1,16 @@
 import { authHeaders } from "@/lib/authToken";
+import { loadList } from "@/lib/loadJson";
 import type { Consumable } from "./consumableTypes";
 
 import { BASE_URL } from "@/lib/apiBaseUrl";
 
-export async function loadConsumables(): Promise<Consumable[]> {
-  try {
-    const res = await fetch(`${BASE_URL}/consumables`, { headers: authHeaders() });
-    const data = await res.json();
-    return Array.isArray(data.items) ? data.items : [];
-  } catch (err) {
-    console.error("loadConsumables: backend unreachable", err);
-    return [];
-  }
+// null = the consumables couldn't be read (dropped connection,
+// 401/402/403/5xx, not a list). [] only ever means the server said there
+// are none. Editing a stock level or importing a CSV saves the whole
+// list back, so a failed read taken for "no consumables" wiped the rest
+// on the next edit (see loadJson.ts).
+export async function loadConsumables(): Promise<Consumable[] | null> {
+  return loadList<Consumable>("/consumables");
 }
 
 export async function addConsumable(input: {

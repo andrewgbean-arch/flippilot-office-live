@@ -1,17 +1,16 @@
 import { authHeaders } from "@/lib/authToken";
+import { loadList } from "@/lib/loadJson";
 import type { Contact, ContactCategory } from "./contactTypes";
 
 import { BASE_URL } from "@/lib/apiBaseUrl";
 
-export async function loadContacts(): Promise<Contact[]> {
-  try {
-    const res = await fetch(`${BASE_URL}/contacts`, { headers: authHeaders() });
-    const data = await res.json();
-    return Array.isArray(data.items) ? data.items : [];
-  } catch (err) {
-    console.error("loadContacts: backend unreachable", err);
-    return [];
-  }
+// null = the contacts couldn't be read (dropped connection,
+// 401/402/403/5xx, not a list). [] only ever means the server said there
+// are none. Editing a contact saves the whole list back, so a failed
+// read taken for "no contacts" wiped the rest on the next edit (see
+// loadJson.ts).
+export async function loadContacts(): Promise<Contact[] | null> {
+  return loadList<Contact>("/contacts");
 }
 
 export async function addContact(input: {
