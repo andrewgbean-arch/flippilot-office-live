@@ -2,25 +2,18 @@ import React from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { FiArrowLeft } from "react-icons/fi";
 
-import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
+import { useInventory } from "@/context/InventoryProvider";
 
 import { SupernovaHeroHeader } from "@/components/supernova/SupernovaHeroHeader";
 import { SupernovaSectionDivider } from "@/components/supernova/SupernovaSectionDivider";
 import { SupernovaGlowCard } from "@/components/supernova/SupernovaGlowCard";
 
-interface MOTHistoryEntry {
-  date: string;
-  result: "PASS" | "FAIL";
-  mileage: number | null;
-  advisories: string[];
-}
-
 export default function MOTTimeline() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { vehicles } = useVehicleHistory();
+  const { vehicles } = useInventory();
 
-  const vehicle = vehicles.find((v) => v.id === id);
+  const vehicle = vehicles.find((v) => String(v.id) === id);
 
   if (!vehicle) {
     return (
@@ -37,43 +30,14 @@ export default function MOTTimeline() {
   }
 
   const mot = vehicle.mot;
-
-  // ⭐ Build a synthetic MOT history from real fields
-  const motHistory: MOTHistoryEntry[] = (() => {
-    if (!mot) return [];
-
-    const expiry = mot.motExpiry ?? mot.expiryDate ?? null;
-
-    const syntheticDate = expiry
-      ? (new Date(new Date(expiry).setFullYear(new Date(expiry).getFullYear() - 1))
-          .toISOString()
-          .split("T")[0] ?? "Unknown")
-      : "Unknown";
-
-    const result = mot.failures && mot.failures.length > 0 ? "FAIL" : "PASS";
-
-    return [
-      {
-        date: syntheticDate,
-        result,
-        mileage: mot.mileage ?? null,
-        advisories: mot.advisories ?? [],
-      },
-    ];
-  })();
-
-  const expiry =
-    mot?.expiryDate ??
-    mot?.motExpiry ??
-    null;
+  const motHistory = mot?.history ?? [];
 
   const expiryBadge = (() => {
-    if (!expiry) return "bg-gray-600 text-white";
+    if (!mot?.expiry) return "bg-gray-600 text-white";
 
-    const exp = new Date(expiry);
+    const exp = new Date(mot.expiry);
     const now = new Date();
-    const diff = exp.getTime() - now.getTime();
-    const days = diff / (1000 * 60 * 60 * 24);
+    const days = (exp.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
 
     if (days < 0) return "bg-red-600 text-white";
     if (days < 30) return "bg-yellow-500 text-black";
@@ -83,9 +47,9 @@ export default function MOTTimeline() {
   const riskScore = (() => {
     if (!motHistory.length) return 50;
 
-    const fails = motHistory.filter((m) => m.result === "FAIL").length;
+    const fails = motHistory.filter((h) => h.result?.toUpperCase() === "FAIL").length;
     const advisories = motHistory.reduce(
-      (sum, m) => sum + (m.advisories?.length ?? 0),
+      (sum, h) => sum + (h.advisories?.length ?? 0),
       0
     );
 
@@ -102,7 +66,7 @@ export default function MOTTimeline() {
       </button>
 
       <SupernovaHeroHeader
-        title={`MOT Timeline: ${vehicle.title}`}
+        title={`MOT Timeline: ${vehicle.make} ${vehicle.model}`}
         subtitle="Dealer AI • MOT History & Risk Analysis"
       />
 
@@ -114,7 +78,7 @@ export default function MOTTimeline() {
             <div>
               <p className="text-white/60 text-sm">Expiry</p>
               <span className={`px-3 py-1 rounded-lg text-sm font-bold ${expiryBadge}`}>
-                {expiry ?? "Unknown"}
+                {mot?.expiry ?? "Unknown"}
               </span>
             </div>
 
@@ -144,16 +108,16 @@ export default function MOTTimeline() {
             <SupernovaGlowCard key={index}>
               <div className="flex flex-col gap-3">
                 <div className="flex justify-between items-center">
-                  <h2 className="text-xl font-bold">{entry.date}</h2>
+                  <h2 className="text-xl font-bold">{entry.date ?? "Unknown date"}</h2>
 
                   <span
                     className={`px-3 py-1 rounded-lg text-xs font-bold ${
-                      entry.result === "PASS"
+                      entry.result?.toUpperCase() === "PASS"
                         ? "bg-green-600 text-white"
                         : "bg-red-600 text-white"
                     }`}
                   >
-                    {entry.result}
+                    {entry.result?.toUpperCase() ?? "UNKNOWN"}
                   </span>
                 </div>
 
@@ -161,7 +125,7 @@ export default function MOTTimeline() {
                   Mileage: {entry.mileage ?? "—"}
                 </p>
 
-                {entry.advisories.length ? (
+                {entry.advisories?.length ? (
                   <div>
                     <p className="text-white/60 text-sm mb-1">Advisories:</p>
                     <ul className="list-disc list-inside text-white/80 text-sm">
