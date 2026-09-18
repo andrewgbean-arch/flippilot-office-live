@@ -1,8 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from "react";
 
-import { ultraInventory } from "../dealer/ultraInventory";
-import { dummyVehicles } from "../dealer/dummyVehicles";
-
 import { loadInventoryFromServer, saveInventoryToServer } from "./inventoryStorage.web";
 
 import type { Vehicle } from "../types/Vehicle";
@@ -18,6 +15,9 @@ const MOT_WARNING_DAYS = 30;
 interface InventoryContextType {
   vehicles: Vehicle[];
   loading: boolean;
+  // True when the dealer's real stock couldn't be loaded. `vehicles` is
+  // empty in that state and nothing is saved until a retry succeeds.
+  loadError: boolean;
   refreshInventory: () => void;
 
   updateVehicleMOT: (vehicleId: string, motData: Vehicle["mot"]) => void;
@@ -60,9 +60,30 @@ const InventoryContext = createContext<InventoryContextType | undefined>(undefin
 export function InventoryProvider({ children }: { children: React.ReactNode }) {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const { addNotification } = useDealerNotifications();
   const { user } = useAuth();
   const motWarnedIds = useRef<Set<string>>(new Set());
+
+  // True only while `vehicles` is known to be THIS login's real stock,
+  // i.e. a load has succeeded for it. Every save replaces the server's
+  // whole stock list with what's in memory, so saving from any other
+  // state — before the first load lands, after a failed one, or while
+  // holding the previous login's cars — would overwrite the wrong thing.
+  const canSave = useRef(false);
+  // Bumped on every load and on every login change, so a slow response
+  // that arrives after the login has changed can't land in the new one.
+  const loadSeq = useRef(0);
+
+  function persist(vehiclesToSave: Vehicle[]) {
+    if (!canSave.current) {
+      console.warn(
+        "Inventory not saved: the stock hasn't loaded successfully, and saving now would overwrite it."
+      );
+      return;
+    }
+    saveInventoryToServer(vehiclesToSave);
+  }
 
   // ⭐ MOT EXPIRY WARNINGS
   //
@@ -100,73 +121,71 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
     });
   }, [vehicles, loading, addNotification]);
 
-  // ⭐ SAFE LOAD — NEVER THROWS
+  // ⭐ LOAD — THE SERVER IS THE ONLY SOURCE OF TRUTH
   //
-  // Previously this always rebuilt the list from local seed data on
-  // every load — nothing was ever actually persisted (createVehicleFromMOT/
-  // updateVehicleMOT only touched React state, so an added/edited vehicle
-  // vanished on refresh). Now the real backend is the source of truth:
-  // if it already has vehicles, use those; if it's empty (first run),
-  // seed it once from the local demo data so the nice sample inventory
-  // still shows up, but from then on the backend is authoritative.
+  // This used to seed 8 demo cars into a dealer's REAL stock whenever
+  // the server answered with an empty list (and, because a failed
+  // request also looked like an empty list, whenever it failed). Two
+  // real consequences, both reproduced live: those demo cars were
+  // "In Stock", so the public /store page and the anonymous CSV feed
+  // published them as the dealer's own stock; and after one dropped
+  // request at login, the next ordinary "add vehicle" saved the demo
+  // cars over the dealer's real ones. Now: an empty list is just an
+  // empty stock (a brand-new dealer starts with none, and can clear
+  // theirs without it coming back); a failed load shows nothing, says
+  // so (loadError), and blocks saving until a retry succeeds.
   const loadInventory = async () => {
+    const seq = ++loadSeq.current;
+    canSave.current = false;
     setLoading(true);
 
-    try {
-      const fromServer = await loadInventoryFromServer();
+    const fromServer = await loadInventoryFromServer();
+    if (seq !== loadSeq.current) return; // the login changed while this was in flight
 
-      if (fromServer.length > 0) {
-        setVehicles(fromServer.map(v => enrichVehicleWithAI(v)));
-        setLoading(false);
-        return;
-      }
-
-      const local = ultraInventory || [];
-      const fallback = dummyVehicles || [];
-
-      const mergedRaw = [...local, ...fallback];
-
-      await saveInventoryToServer(mergedRaw);
-
-      const merged = mergedRaw.map(v => enrichVehicleWithAI(v));
-      setVehicles(merged);
-    } catch (err) {
-      console.error("Inventory load failed:", err);
-
-      // ⭐ Guaranteed fallback
-      setVehicles(dummyVehicles.map(v => enrichVehicleWithAI(v)));
-    }
-
-    setLoading(false);
-  };
-
-  // ⭐ STRICTMODE‑SAFE EFFECT (runs twice but never crashes)
-  //
-  // Was `}, [])` — fetched once at app boot and never again. Confirmed
-  // live: a real user logging in via the normal form (no full page
-  // reload) got stuck seeing only the 8-vehicle demo fallback forever,
-  // even though their real 16-vehicle inventory genuinely existed on
-  // the backend — the ONE fetch this ran happened during the brief
-  // unauthenticated moment before login, got no data, and silently
-  // reseeded/kept the local demo set. Depending on the authenticated
-  // user's dealershipId makes this re-run exactly when a real login
-  // completes (or a different account logs in over an old session in
-  // the same tab), instead of only on the very first page load.
-  useEffect(() => {
-    if (!user?.dealershipId) {
+    if (fromServer === null) {
+      setVehicles([]);
+      setLoadError(true);
       setLoading(false);
       return;
     }
 
-    (async () => {
-      try {
-        await loadInventory();
-      } catch (err) {
-        console.warn("Inventory failed to load:", err);
-        setVehicles(dummyVehicles.map(v => enrichVehicleWithAI(v)));
-        setLoading(false);
-      }
-    })();
+    try {
+      setVehicles(fromServer.map(v => enrichVehicleWithAI(v)));
+      canSave.current = true;
+      setLoadError(false);
+    } catch (err) {
+      // Real data the AI layer couldn't process: fail closed like any
+      // other failed load, rather than fall back to invented cars.
+      console.error("Inventory load failed while preparing vehicles:", err);
+      setVehicles([]);
+      setLoadError(true);
+    }
+    setLoading(false);
+  };
+
+  // Was `}, [])` — fetched once at app boot and never again. Confirmed
+  // live: a real user logging in via the normal form (no full page
+  // reload) got stuck with whatever the ONE fetch during the brief
+  // unauthenticated moment before login had produced, even though their
+  // real inventory genuinely existed on the backend. Depending on the
+  // authenticated user's dealershipId makes this re-run exactly when a
+  // real login completes (or a different account logs in over an old
+  // session in the same tab), instead of only on the very first page
+  // load.
+  useEffect(() => {
+    // Whatever is in memory now belongs to whoever was logged in before
+    // (or to nobody) — never to be saved into this account.
+    canSave.current = false;
+
+    if (!user?.dealershipId) {
+      loadSeq.current += 1; // drop any load still in flight for the last login
+      setVehicles([]);
+      setLoadError(false);
+      setLoading(false);
+      return;
+    }
+
+    void loadInventory();
   }, [user?.dealershipId]);
 
   // ⭐ UPDATE VEHICLE MOT
@@ -177,7 +196,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
           ? { ...v, mot: motData }
           : v
       );
-      saveInventoryToServer(updated);
+      persist(updated);
       return updated;
     });
   }
@@ -196,7 +215,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
           ? { ...v, sellPrice, status: "sold" as Vehicle["status"] }
           : v
       );
-      saveInventoryToServer(updated);
+      persist(updated);
       return updated;
     });
   }
@@ -211,7 +230,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
       const updated = prev.map(v =>
         v.id === vehicleId ? { ...v, ...patch } : v
       );
-      saveInventoryToServer(updated);
+      persist(updated);
       return updated;
     });
   }
@@ -219,7 +238,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
   function deleteVehicle(vehicleId: string) {
     setVehicles(prev => {
       const updated = prev.filter(v => v.id !== vehicleId);
-      saveInventoryToServer(updated);
+      persist(updated);
       return updated;
     });
   }
@@ -289,7 +308,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
     const enriched = enrichVehicleWithAI(newVehicle);
     setVehicles(prev => {
       const updated = [...prev, enriched];
-      saveInventoryToServer(updated);
+      persist(updated);
       return updated;
     });
 
@@ -388,7 +407,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
     const enriched = buildVehicle(data);
     setVehicles(prev => {
       const updated = [...prev, enriched];
-      saveInventoryToServer(updated);
+      persist(updated);
       return updated;
     });
 
@@ -401,7 +420,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
     const built = rows.map(buildVehicle);
     setVehicles(prev => {
       const updated = [...prev, ...built];
-      saveInventoryToServer(updated);
+      persist(updated);
       return updated;
     });
     return built;
@@ -412,6 +431,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
       value={{
         vehicles,
         loading,
+        loadError,
         refreshInventory: loadInventory,
         updateVehicleMOT,
         updateVehicleSale,

@@ -10,6 +10,7 @@ import DashboardHeader from "../components/DashboardHeader";
 import DashboardFooter from "../components/DashboardFooter";
 import ErrorBoundary from "../components/ErrorBoundary";
 import TrialBanner from "../components/TrialBanner";
+import InventoryLoadErrorBanner from "../components/InventoryLoadErrorBanner";
 
 import { useInventory } from "@/context/InventoryProvider";
 import { useIntelligence } from "@/context/IntelligenceProvider";
@@ -96,6 +97,7 @@ export default function DealerLayout() {
 
         <DashboardHeader />
         <TrialBanner />
+        <InventoryLoadErrorBanner />
 
         {!hideHUD && (
           <>
