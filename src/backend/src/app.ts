@@ -12,6 +12,7 @@ import registerStaffRoute from "./routes/staff";
 import registerBookkeepingRoute from "./routes/bookkeeping";
 import registerJobsRoute from "./routes/jobs";
 import registerTeamRoute from "./routes/team";
+import registerStaffMessagesRoute from "./routes/staffMessages";
 import registerTimekeepingRoute from "./routes/timekeeping";
 import registerPlannerRoutes from "./routes/planner";
 import registerNotificationsRoute from "./routes/notifications";
@@ -132,6 +133,7 @@ app.use(
     "/dvla",
     "/jobs",
     "/team",
+    "/staff-messages",
     "/timekeeping",
     "/work-patterns",
     "/leave",
@@ -156,6 +158,7 @@ registerStaffRoute(app);
 registerBookkeepingRoute(app);
 registerJobsRoute(app);
 registerTeamRoute(app);
+registerStaffMessagesRoute(app);
 registerTimekeepingRoute(app);
 registerPlannerRoutes(app);
 registerNotificationsRoute(app);

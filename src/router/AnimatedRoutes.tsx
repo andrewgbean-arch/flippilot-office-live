@@ -87,6 +87,7 @@ import SupplierDetail from "@/bookkeeping/SupplierDetail";
 
 /* STAFF */
 import { StaffDashboard } from "@/staff/StaffDashboard";
+import StaffMessages from "@/staff/StaffMessages";
 import AddStaff from "@/staff/AddStaff";
 import PermissionsManager from "@/staff/PermissionsManager";
 import StaffDetail from "@/staff/StaffDetail";
@@ -246,6 +247,7 @@ export default function AnimatedRoutes() {
 
         {/* STAFF */}
         <Route path="dealer/staff" element={<StaffDashboard />} />
+        <Route path="dealer/staff/message" element={<StaffMessages />} />
         <Route path="dealer/staff/add" element={<AddStaff />} />
         <Route path="dealer/staff/permissions" element={<PermissionsManager />} />
         <Route path="dealer/staff/planner" element={<RotaPlanner />} />
