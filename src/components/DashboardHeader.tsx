@@ -60,7 +60,7 @@ export default function DashboardHeader() {
         bg-black/40 backdrop-blur-xl
         border-b border-yellow-400/20
         shadow-[0_0_30px_rgba(255,215,0,0.25)]
-        px-10 py-6 flex items-center justify-between
+        px-4 lg:px-10 py-6 flex flex-wrap items-center justify-between gap-y-3
         animate-fadeIn
       "
     >
@@ -76,11 +76,18 @@ export default function DashboardHeader() {
         <div className="w-2 h-10 bg-yellow-400 rounded-full animate-pulse shadow-[0_0_15px_rgba(255,215,0,0.8)]" />
       </div>
 
-      {/* RIGHT — STATUS + SYNC */}
-      <div className="flex items-center gap-5">
+      {/* RIGHT — STATUS + SYNC. flex-wrap so on a normal laptop-width
+          screen (below ~1400px) these drop to a second line instead of
+          overflowing off the right edge — they used to run past the
+          viewport and get clipped by the layout's overflow-hidden,
+          which made the Log Out button at the end completely
+          unreachable on anything but a very wide window. */}
+      <div className="flex flex-wrap items-center justify-end gap-3 lg:gap-5">
 
-        {/* BRAIN MODE BADGE */}
+        {/* BRAIN MODE BADGE — decorative status, hidden below lg to give
+            the essential controls (sync/user/logout) room to stay put */}
         <div className="
+          hidden lg:block
           px-3 py-1 rounded-lg text-sm font-semibold
           bg-black/50 border border-yellow-400/30
           text-yellow-300 shadow-[0_0_12px_rgba(255,215,0,0.4)]
@@ -91,6 +98,7 @@ export default function DashboardHeader() {
         {/* MARKET TREND BADGE — real fleet-wide demand trend, computed
             from IntelligenceProvider's per-vehicle market intel */}
         <div className={`
+          hidden lg:block
           px-3 py-1 rounded-lg text-sm font-semibold border shadow-[0_0_12px_rgba(0,0,0,0.2)]
           ${hud.marketTrend === "rising"
             ? "bg-black/50 border-green-400/30 text-green-300 shadow-[0_0_12px_rgba(0,255,0,0.4)]"
