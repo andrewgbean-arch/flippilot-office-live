@@ -14,6 +14,7 @@ import { authHeaders } from "@/lib/authToken";
 import { useTour } from "@/tour/TourProvider";
 import { toCSV, downloadCSV } from "@/lib/csv";
 import type { TeamMember } from "@/jobs/jobTypes";
+import PilotBrainWebAccessCard from "./PilotBrainWebAccessCard";
 
 import { BASE_URL } from "@/lib/apiBaseUrl";
 
@@ -656,6 +657,10 @@ export default function Settings() {
             <SupernovaGlowButton label="Manage Email Sending" onClick={() => navigate("/dealer/settings/email")} />
           </SupernovaGlowCard>
         )}
+
+        {/* Pilot Brain web access — owner only: it decides whether the
+            assistant may run live web searches for this dealership. */}
+        {user?.role === "owner" && <PilotBrainWebAccessCard />}
 
         {/* Product Tour — the same guided walkthrough that runs
             automatically on a new account's first login, re-triggerable
