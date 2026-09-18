@@ -16,6 +16,24 @@ const SpeechRecognitionCtor: typeof window.SpeechRecognition | undefined =
 
 const VOICE_OUTPUT_KEY = "flippilot_pilot_brain_voice_output";
 
+// Voices differ per OS/browser and there's no reliable "gender" field
+// on the Web Speech API — just a name. This matches against common
+// real female voice names across Windows/Chrome/macOS rather than
+// guessing at a fixed index, and falls back to the browser's own
+// default (undefined) if none of them are installed, so it never
+// crashes or picks something arbitrary on an unfamiliar system.
+const FEMALE_VOICE_HINTS = [
+  "female", "hazel", "susan", "samantha", "zira", "victoria",
+  "karen", "moira", "tessa", "fiona", "aria", "libby", "sonia",
+];
+
+function pickFemaleVoice(synth: SpeechSynthesis): SpeechSynthesisVoice | undefined {
+  const voices = synth.getVoices();
+  const englishVoices = voices.filter(v => v.lang.toLowerCase().startsWith("en"));
+  const pool = englishVoices.length > 0 ? englishVoices : voices;
+  return pool.find(v => FEMALE_VOICE_HINTS.some(hint => v.name.toLowerCase().includes(hint)));
+}
+
 // V1 (Companion) — natural conversation + memory + business awareness
 // only. No monitoring, no forecasting, no market research yet (later
 // versions) — the backend's own system prompt tells the model the
@@ -30,6 +48,11 @@ export default function PilotBrainChat() {
 
   const [listening, setListening] = useState(false);
   const recognitionRef = useRef<InstanceType<NonNullable<typeof SpeechRecognitionCtor>> | null>(null);
+  // Chrome silently drops speech if the SpeechSynthesisUtterance has no
+  // surviving reference — it can get garbage-collected before it fires.
+  // Keeping it here (not just as a local variable in speak()) is what
+  // actually makes voice output work, not just what "looks tidier".
+  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
 
   // A per-viewer convenience (like a remembered tab), not app state —
   // fine to lose in a private window, never shared between viewers.
@@ -72,10 +95,23 @@ export default function PilotBrainChat() {
 
   function speak(text: string) {
     if (!voiceOutput || !window.speechSynthesis) return;
-    window.speechSynthesis.cancel(); // don't stack replies if one's still talking
+    const synth = window.speechSynthesis;
+
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.rate = 1;
-    window.speechSynthesis.speak(utterance);
+    utterance.voice = pickFemaleVoice(synth) ?? null;
+    utteranceRef.current = utterance; // keep alive — see the ref's own comment
+
+    // Cancelling and immediately speaking in the same tick races in
+    // Chrome and can drop the new utterance entirely — only cancel if
+    // something is actually mid-speech, and let that cancellation
+    // settle on the next tick before starting the new one.
+    if (synth.speaking || synth.pending) {
+      synth.cancel();
+      setTimeout(() => synth.speak(utterance), 50);
+    } else {
+      synth.speak(utterance);
+    }
   }
 
   function toggleListening() {
@@ -157,7 +193,7 @@ export default function PilotBrainChat() {
           {window.speechSynthesis && (
             <button
               onClick={toggleVoiceOutput}
-              title={voiceOutput ? "Replies are read aloud — click to turn off" : "Turn on reading replies aloud"}
+              title={voiceOutput ? "Wendy reads replies aloud — click to turn off" : "Turn on Wendy reading replies aloud"}
               style={{
                 display: "flex", alignItems: "center", gap: 6,
                 padding: "8px 14px", borderRadius: 999,
@@ -168,7 +204,7 @@ export default function PilotBrainChat() {
               }}
             >
               {voiceOutput ? <FiVolume2 /> : <FiVolumeX />}
-              {voiceOutput ? "Voice on" : "Voice off"}
+              {voiceOutput ? "Wendy: On" : "Wendy: Off"}
             </button>
           )}
         </div>
