@@ -98,7 +98,11 @@ export default function PilotBrainChat() {
     const synth = window.speechSynthesis;
 
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 1;
+    // Default rate/pitch (both 1) reads flat and sluggish on most
+    // synthetic voices — a bit brisker and a touch brighter sounds far
+    // more natural and upbeat without tipping into chipmunk territory.
+    utterance.rate = 1.15;
+    utterance.pitch = 1.1;
     utterance.voice = pickFemaleVoice(synth) ?? null;
     utteranceRef.current = utterance; // keep alive — see the ref's own comment
 
