@@ -358,7 +358,9 @@ export default function registerPilotBrainRoute(app: Express) {
         },
         body: JSON.stringify({
           model: "tts-1",
-          voice: "nova",
+          // "fable" reads with a British/English character — OpenAI's
+          // other voices (nova, shimmer, etc.) default to American.
+          voice: "fable",
           input: text.trim(),
         }),
       });
