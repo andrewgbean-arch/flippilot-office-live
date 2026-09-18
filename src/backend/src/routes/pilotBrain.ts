@@ -2,10 +2,23 @@ import { randomUUID } from "crypto";
 import { Readable } from "stream";
 import { Express, Request } from "express";
 import rateLimit from "express-rate-limit";
-import { readCollection, readTenantCollection, writeTenantCollection } from "../db";
+import { readCollection, readTenantCollection, writeTenantCollection, readTenantDoc } from "../db";
 import { requireAuth, type AuthUser, type Dealership } from "../auth";
 import { runWatcher, type WatcherResult } from "../engines/watcherEngine";
+import { investigate, findOpportunities, type InvestigationReport, type Opportunity } from "../engines/advisorEngine";
 import type { StaffNotification } from "./notifications";
+
+interface BookkeepingDoc {
+  purchases: { vehicleId: string; purchasePrice: number; date: string }[];
+  sales: { vehicleId: string; salePrice: number; date: string }[];
+  costs: { vehicleId: string; amount: number; date: string }[];
+}
+
+const EMPTY_BOOKKEEPING: BookkeepingDoc = { purchases: [], sales: [], costs: [] };
+
+function readBookkeeping(dealershipId: string): BookkeepingDoc {
+  return readTenantDoc<BookkeepingDoc>(dealershipId, "bookkeeping", EMPTY_BOOKKEEPING);
+}
 
 export interface PilotBrainMessage {
   id: string;
@@ -119,18 +132,33 @@ function buildWatcherSummary(watcher: WatcherResult): string {
   return lines.join("\n");
 }
 
-function buildSystemPrompt(dealershipName: string, userName: string, summary: string, watcherSummary: string, memories: string[]): string {
+function buildSystemPrompt(
+  dealershipName: string,
+  userName: string,
+  summary: string,
+  watcherSummary: string,
+  advisorSummary: string,
+  memories: string[]
+): string {
   return [
     `You are Pilot Brain — the business companion built into ${dealershipName}'s FlipPilot Dealer OS.`,
     `You are NOT a generic chatbot or a help-desk bot. You are a trusted digital business partner — closer to a co-founder, advisor and friend than software.`,
     `Always address the user as "Boss". Tone: professional, friendly, calm, confident, honest, helpful. Never robotic, never cold, never overly formal.`,
-    `This is V2 (Watcher). On top of V1's conversation and memory, you now proactively notice problems — uncontacted leads, aging stock, incomplete appointments, slowing sales — and can mention them unprompted when relevant. You do NOT yet deeply investigate or explain WHY something is happening, or forecast the market — that's a later version. If Boss asks for something outside that scope, say so honestly rather than pretending.`,
+    `This is V3 (Advisor). V1 gave you conversation and memory. V2 gave you the ability to notice problems unprompted. V3 gives you the ability to EXPLAIN — why something happened, why it matters, and what to do about it — using the real investigation evidence below, never a guess.`,
+    ``,
+    `GOLDEN RULE: follow evidence. Never guess, invent, or hallucinate a cause. If the evidence below doesn't clearly explain something, say so honestly ("the data doesn't show a clear reason for that yet") rather than making one up.`,
+    `Still out of scope for this version — say so honestly if Boss asks: external market research, internet/competitor pricing, forecasting future performance, autonomous buying decisions, or acting on your own without being asked. Those are later versions.`,
+    `When asked a "why" question (why are sales down, why is stock ageing, why did leads drop, etc.), answer using this structure: What happened → Why it happened (cite the real evidence below) → Why it matters → What you recommend. State your confidence level plainly (the investigation evidence below already tells you how confident to be, based on real sample size).`,
+    `When you notice something Boss has genuinely improved (a real positive change in the evidence below), say so like a coach would — specific and encouraging, not generic praise ("well done!"). Recommendations should always be concrete and actionable (e.g. "contact the 3 leads open over 24 hours" not "improve sales").`,
     ``,
     `Today's real business snapshot for ${dealershipName}:`,
     summary,
     ``,
     `What you've been watching for (real, computed just now — not guesses):`,
     watcherSummary,
+    ``,
+    `Investigation evidence — real period-over-period comparisons and ranked likely factors, computed just now, for answering any "why" question:`,
+    advisorSummary,
     ``,
     memories.length > 0
       ? `What you already know about Boss and this business, from earlier conversations:\n${memories.map(m => `- ${m}`).join("\n")}`
@@ -153,7 +181,59 @@ function runWatcherForDealership(dealershipId: string): WatcherResult {
   const leads = readTenantCollection<any>(dealershipId, "leads");
   const appointments = readTenantCollection<any>(dealershipId, "appointments");
   const jobs = readTenantCollection<any>(dealershipId, "jobs");
-  return runWatcher(vehicles, leads, appointments, jobs);
+  const bookkeeping = readBookkeeping(dealershipId);
+  return runWatcher(vehicles, leads, appointments, jobs, bookkeeping.sales);
+}
+
+// V3 (Advisor) — real evidence for "why" questions, built the same way
+// as the V1/V2 summaries: computed here, narrated by the model, never
+// invented by it.
+function runInvestigationForDealership(dealershipId: string, windowDays: number): InvestigationReport {
+  const vehicles = readTenantCollection<any>(dealershipId, "vehicles");
+  const leads = readTenantCollection<any>(dealershipId, "leads");
+  const appointments = readTenantCollection<any>(dealershipId, "appointments");
+  const bookkeeping = readBookkeeping(dealershipId);
+  return investigate(vehicles, leads, appointments, bookkeeping, windowDays);
+}
+
+function runOpportunitiesForDealership(dealershipId: string): Opportunity[] {
+  const vehicles = readTenantCollection<any>(dealershipId, "vehicles");
+  const leads = readTenantCollection<any>(dealershipId, "leads");
+  const bookkeeping = readBookkeeping(dealershipId);
+  return findOpportunities(leads, bookkeeping, vehicles);
+}
+
+function formatComparison(c: { metric: string; current: number; previous: number; changePercent: number | null }): string {
+  const changeText = c.changePercent == null
+    ? "no prior data to compare against"
+    : `${c.changePercent >= 0 ? "+" : ""}${c.changePercent}% vs the previous period (was ${c.previous})`;
+  return `${c.metric}: ${c.current} (${changeText})`;
+}
+
+function buildAdvisorSummary(report: InvestigationReport, opportunities: Opportunity[]): string {
+  const lines = [
+    `Investigation window: last ${report.windowDays} days vs the ${report.windowDays} days before that. Confidence in this comparison: ${report.confidence} (based on real sample size — few leads/sales in the window makes percentage swings noisy).`,
+    formatComparison(report.sales),
+    formatComparison(report.revenue),
+    formatComparison(report.profit),
+    formatComparison(report.leadsAdded),
+    formatComparison(report.leadConversionRate),
+    formatComparison(report.appointmentsBooked),
+  ];
+
+  if (report.likelyFactors.length > 0) {
+    lines.push(`Likely contributing factors (ranked by how much each real metric actually moved):`);
+    report.likelyFactors.forEach(f => lines.push(`- ${f}`));
+  } else {
+    lines.push(`No single factor moved enough (10%+) to call out as a likely cause — things are broadly stable.`);
+  }
+
+  if (opportunities.length > 0) {
+    lines.push(`Real opportunities/positives worth acknowledging:`);
+    opportunities.forEach(o => lines.push(`- ${o.title}: ${o.detail}`));
+  }
+
+  return lines.join("\n");
 }
 
 // Turns warning/critical alerts into real per-user notifications,
@@ -200,7 +280,7 @@ function notifyDealershipFromWatcher(dealershipId: string, watcher: WatcherResul
   }
 }
 
-async function callClaude(apiKey: string, systemPrompt: string, messages: { role: string; content: string }[]): Promise<string> {
+async function callClaude(apiKey: string, systemPrompt: string, messages: { role: string; content: string }[], maxTokens = 500): Promise<string> {
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -210,7 +290,7 @@ async function callClaude(apiKey: string, systemPrompt: string, messages: { role
     },
     body: JSON.stringify({
       model: "claude-haiku-4-5-20251001",
-      max_tokens: 500,
+      max_tokens: maxTokens,
       system: systemPrompt,
       messages,
     }),
@@ -268,11 +348,14 @@ export default function registerPilotBrainRoute(app: Express) {
     const summary = buildBusinessSummary(user.dealershipId);
     const watcher = runWatcherForDealership(user.dealershipId);
     notifyDealershipFromWatcher(user.dealershipId, watcher);
+    const investigation = runInvestigationForDealership(user.dealershipId, 30);
+    const opportunities = runOpportunitiesForDealership(user.dealershipId);
     const systemPrompt = buildSystemPrompt(
       dealershipName,
       user.name,
       summary,
       buildWatcherSummary(watcher),
+      buildAdvisorSummary(investigation, opportunities),
       myMemories.map(m => m.fact)
     );
 
@@ -402,6 +485,60 @@ export default function registerPilotBrainRoute(app: Express) {
     res.json({ ok: true, ...watcher });
   });
 
+  // V3 (Advisor), Performance Review Engine (Module 4) — a real
+  // AI-written review for a given period, using the same real
+  // Investigation Engine evidence as chat's "why" answers, just for a
+  // fixed reporting window instead of a rolling 30 days.
+  const REVIEW_WINDOWS: Record<string, number> = { daily: 1, weekly: 7, monthly: 30, quarterly: 90 };
+  app.get("/pilot-brain/review", requireAuth, async (req, res) => {
+    const user = authUser(req);
+    const period = typeof req.query.period === "string" ? req.query.period : "weekly";
+    const windowDays = REVIEW_WINDOWS[period];
+    if (!windowDays) {
+      return res.status(400).json({ ok: false, error: "period must be one of: daily, weekly, monthly, quarterly" });
+    }
+
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) {
+      return res.status(400).json({
+        ok: false,
+        error: "Pilot Brain needs an API key — set ANTHROPIC_API_KEY in backend/.env to enable this.",
+      });
+    }
+
+    const dealership = readCollection<Dealership>("dealerships").find(d => d.id === user.dealershipId);
+    const dealershipName = dealership?.name ?? "your dealership";
+    const summary = buildBusinessSummary(user.dealershipId);
+    const watcher = runWatcherForDealership(user.dealershipId);
+    const investigation = runInvestigationForDealership(user.dealershipId, windowDays);
+    const opportunities = runOpportunitiesForDealership(user.dealershipId);
+
+    const allMemories = readTenantCollection<PilotBrainMemory>(user.dealershipId, MEMORIES_COLLECTION);
+    const myMemories = allMemories.filter(m => m.userId === user.id);
+    const systemPrompt = buildSystemPrompt(
+      dealershipName, user.name, summary, buildWatcherSummary(watcher),
+      buildAdvisorSummary(investigation, opportunities), myMemories.map(m => m.fact)
+    );
+
+    try {
+      const reply = await callClaude(apiKey, systemPrompt, [
+        {
+          role: "user",
+          content:
+            `Write a ${period} performance review using ONLY the real investigation evidence above — sales, revenue, profit, leads, conversion, appointments. For each metric that's worth mentioning, state what happened, why (if the evidence shows a likely factor), and one practical recommendation. Keep it tight and structured, like a real report — short lines, not a wall of prose. If the evidence is too thin to say something meaningful (e.g. a brand new dealership with almost no data yet), say that honestly instead of padding it out.`,
+        },
+      ], 700);
+      res.json({
+        ok: true,
+        period,
+        review: reply.replace(/<remember>[\s\S]*?<\/remember>\s*$/, "").trim(),
+      });
+    } catch (err) {
+      console.error("pilot-brain/review: Anthropic call failed", err);
+      res.status(502).json({ ok: false, error: "Could not generate a review right now." });
+    }
+  });
+
   app.get("/pilot-brain/memories", requireAuth, (req, res) => {
     const user = authUser(req);
     const memories = readTenantCollection<PilotBrainMemory>(user.dealershipId, MEMORIES_COLLECTION)
@@ -430,10 +567,15 @@ export default function registerPilotBrainRoute(app: Express) {
     const summary = buildBusinessSummary(user.dealershipId);
     const watcher = runWatcherForDealership(user.dealershipId);
     notifyDealershipFromWatcher(user.dealershipId, watcher);
+    const investigation = runInvestigationForDealership(user.dealershipId, 30);
+    const opportunities = runOpportunitiesForDealership(user.dealershipId);
 
     const allMemories = readTenantCollection<PilotBrainMemory>(user.dealershipId, MEMORIES_COLLECTION);
     const myMemories = allMemories.filter(m => m.userId === user.id);
-    const systemPrompt = buildSystemPrompt(dealershipName, user.name, summary, buildWatcherSummary(watcher), myMemories.map(m => m.fact));
+    const systemPrompt = buildSystemPrompt(
+      dealershipName, user.name, summary, buildWatcherSummary(watcher),
+      buildAdvisorSummary(investigation, opportunities), myMemories.map(m => m.fact)
+    );
 
     try {
       const reply = await callClaude(apiKey, systemPrompt, [

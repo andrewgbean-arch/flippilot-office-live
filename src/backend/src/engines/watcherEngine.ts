@@ -3,15 +3,13 @@
 // Pure functions, no I/O — the route (pilotBrain.ts) reads tenant data
 // in and persists alerts as real notifications out.
 //
-// Real constraint that shapes several choices below: this app's
-// bookkeeping data (purchases/costs/sales/invoices) lives only in each
-// browser's localStorage (see project memory on BookkeepingProvider),
-// not on the backend — so nothing here can see real profit or sale
-// price. "Sales Health" is instead computed from Lead status, the only
-// sales signal the backend genuinely has. Lead also has no per-status
-// timestamp (only createdAt), so "time since last contact" is honestly
-// approximated as "time since this lead was created, if it's still
-// open" rather than inventing a field that doesn't exist.
+// Real constraint that still shapes one choice below: Lead has no
+// per-status-change timestamp (only createdAt), so "time since last
+// contact" is honestly approximated as "time since this lead was
+// created, if it's still open" rather than inventing a field that
+// doesn't exist. (Sales Health USED to be a Lead-status proxy because
+// bookkeeping was believed to be localStorage-only — that was wrong,
+// see project memory correction; it now reads real sales data below.)
 
 export type Severity = "info" | "warning" | "critical";
 
@@ -63,7 +61,13 @@ function daysSince(iso: string | undefined | null, now: number): number | null {
   return (now - t) / 86400000;
 }
 
-export function runWatcher(vehicles: any[], leads: any[], appointments: any[], jobs: any[]): WatcherResult {
+export function runWatcher(
+  vehicles: any[],
+  leads: any[],
+  appointments: any[],
+  jobs: any[],
+  sales: { vehicleId: string; salePrice: number; date: string }[] = []
+): WatcherResult {
   const now = Date.now();
   const inStock = vehicles.filter(v => String(v.status ?? "").toLowerCase() !== "sold");
   const openLeads = leads.filter(l => OPEN_LEAD_STATUSES.includes(String(l.status ?? "").toLowerCase()));
@@ -208,16 +212,18 @@ export function runWatcher(vehicles: any[], leads: any[], appointments: any[], j
     ? 100
     : Math.max(0, Math.round(100 - (agingVehicles.length / inStock.length) * 100));
 
-  // Rolling 30-day conversion rate, not all-time — an all-time ratio
-  // would only ever fall as old dead leads pile up in the denominator,
-  // which would be a real number computed in a misleading way (same
-  // "correct function, wrong data shape" trap flagged elsewhere in
-  // project memory), not a genuine measure of how sales are going now.
-  const leadsLast30Days = leads.filter(l => (daysSince(l.createdAt, now) ?? 999) <= 30);
-  const wonLast30Days = leadsLast30Days.filter(l => String(l.status ?? "").toLowerCase() === "won");
-  const salesHealth = leadsLast30Days.length === 0
-    ? 70 // not enough recent volume to judge — neutral, not a fabricated pass/fail
-    : Math.max(0, Math.min(100, Math.round((wonLast30Days.length / leadsLast30Days.length) * 200)));
+  // Real sales momentum — this 30-day window vs the 30 days before it,
+  // not an all-time ratio (which would only ever fall as old records
+  // pile into the denominator — a real number computed in a misleading
+  // way, same trap flagged elsewhere in project memory).
+  const salesLast30Days = sales.filter(s => (daysSince(s.date, now) ?? 999) <= 30).length;
+  const salesPrev30Days = sales.filter(s => {
+    const age = daysSince(s.date, now);
+    return age != null && age > 30 && age <= 60;
+  }).length;
+  const salesHealth = salesPrev30Days === 0
+    ? (salesLast30Days > 0 ? 80 : 50) // no prior baseline to compare against — neutral-to-positive if anything sold, neutral otherwise
+    : Math.max(0, Math.min(100, Math.round(50 + ((salesLast30Days - salesPrev30Days) / salesPrev30Days) * 100)));
 
   const activityHealth = recentActivityCount === 0 ? 40 : Math.min(100, 60 + recentActivityCount * 5);
 

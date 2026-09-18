@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { FiMic, FiMicOff, FiVolume2, FiVolumeX } from "react-icons/fi";
-import { fetchPilotBrainMessages, sendPilotBrainMessage, fetchSpeech, OPENAI_VOICES, type OpenAiVoice, type PilotBrainMessage } from "@/lib/pilotBrainApi";
+import { fetchPilotBrainMessages, sendPilotBrainMessage, fetchSpeech, fetchMorningBriefing, fetchPerformanceReview, OPENAI_VOICES, type OpenAiVoice, type PilotBrainMessage, type ReviewPeriod } from "@/lib/pilotBrainApi";
 import { authHeaders } from "@/lib/authToken";
 import { BASE_URL } from "@/lib/apiBaseUrl";
 import "@/staff/StaffDashboard.css";
@@ -263,6 +263,48 @@ export default function PilotBrainChat() {
     setPreviewing(null);
   }
 
+  // Morning Briefing (V1) and Performance Review (V3) — both existed
+  // as real backend endpoints already, but neither had ever been wired
+  // to a button; a dealer had no way to actually trigger them. Shown
+  // in the thread as a normal assistant message (not persisted to
+  // history — same "not cached, always a fresh real request" scope as
+  // the briefing endpoint always had) so it reads naturally and gets
+  // read aloud too if Wendy's on.
+  const [reportLoading, setReportLoading] = useState<"briefing" | "review" | null>(null);
+  const [reviewPeriod, setReviewPeriod] = useState<ReviewPeriod>("weekly");
+
+  async function runBriefing() {
+    setReportLoading("briefing");
+    const result = await fetchMorningBriefing();
+    setReportLoading(null);
+    if (!result.ok || !result.briefing) {
+      setError(result.error ?? "Couldn't generate a briefing right now.");
+      return;
+    }
+    const msg: PilotBrainMessage = {
+      id: `briefing-${Date.now()}`, userId: "pilot-brain", role: "assistant",
+      content: result.briefing, createdAt: new Date().toISOString(),
+    };
+    setMessages(prev => [...prev, msg]);
+    speak(result.briefing);
+  }
+
+  async function runReview() {
+    setReportLoading("review");
+    const result = await fetchPerformanceReview(reviewPeriod);
+    setReportLoading(null);
+    if (!result.ok || !result.review) {
+      setError(result.error ?? "Couldn't generate a review right now.");
+      return;
+    }
+    const msg: PilotBrainMessage = {
+      id: `review-${Date.now()}`, userId: "pilot-brain", role: "assistant",
+      content: result.review, createdAt: new Date().toISOString(),
+    };
+    setMessages(prev => [...prev, msg]);
+    speak(result.review);
+  }
+
   function toggleListening() {
     if (!SpeechRecognitionCtor) return;
 
@@ -382,6 +424,43 @@ export default function PilotBrainChat() {
             style={{ fontSize: 12, padding: "4px 10px" }}
           >
             {previewing === voiceChoice ? "Playing…" : "Try this voice"}
+          </button>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+          <button
+            onClick={runBriefing}
+            disabled={reportLoading !== null}
+            className="sn-btn"
+            style={{ fontSize: 12, padding: "4px 10px" }}
+          >
+            {reportLoading === "briefing" ? "Thinking…" : "Morning Briefing"}
+          </button>
+
+          <label htmlFor="pilot-brain-review-period" style={{ color: "#f5f7ff80", fontSize: 12, marginLeft: 8 }}>
+            Review:
+          </label>
+          <select
+            id="pilot-brain-review-period"
+            value={reviewPeriod}
+            onChange={e => setReviewPeriod(e.target.value as ReviewPeriod)}
+            style={{
+              background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.15)",
+              borderRadius: 8, color: "#f5f7ff", fontSize: 12, padding: "4px 8px",
+            }}
+          >
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+            <option value="quarterly">Quarterly</option>
+          </select>
+          <button
+            onClick={runReview}
+            disabled={reportLoading !== null}
+            className="sn-btn"
+            style={{ fontSize: 12, padding: "4px 10px" }}
+          >
+            {reportLoading === "review" ? "Investigating…" : "Get Review"}
           </button>
         </div>
       </header>

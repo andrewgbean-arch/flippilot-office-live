@@ -116,3 +116,16 @@ export async function fetchMorningBriefing(): Promise<{ ok: boolean; briefing?: 
     return { ok: false, error: "Network error" };
   }
 }
+
+export type ReviewPeriod = "daily" | "weekly" | "monthly" | "quarterly";
+
+export async function fetchPerformanceReview(period: ReviewPeriod): Promise<{ ok: boolean; review?: string; error?: string }> {
+  try {
+    const res = await fetch(`${BASE_URL}/pilot-brain/review?period=${period}`, { headers: authHeaders() });
+    const data = await res.json();
+    return { ok: res.ok, review: data.review, error: data.error };
+  } catch (err) {
+    console.error("fetchPerformanceReview: backend unreachable", err);
+    return { ok: false, error: "Network error" };
+  }
+}
