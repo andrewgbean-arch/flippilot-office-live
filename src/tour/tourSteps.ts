@@ -72,7 +72,10 @@ export const TOUR_STEPS: TourStep[] = [
   },
   {
     id: "vehicle-list-buttons",
-    route: "/dealer/inventory/list",
+    // These buttons live on a vehicle's row, so a dealer with no stock
+    // yet (every new account now starts that way) has nothing to
+    // spotlight — skip it, same as the vehicle-record step below.
+    route: (ctx) => (ctx.firstVehicleId ? "/dealer/inventory/list" : null),
     target: "tour-vehicle-list-buttons",
     title: "Opening a vehicle",
     narration:
