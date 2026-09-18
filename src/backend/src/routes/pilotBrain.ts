@@ -6,7 +6,17 @@ import { readCollection, readTenantCollection, writeTenantCollection, readTenant
 import { requireAuth, type AuthUser, type Dealership } from "../auth";
 import { runWatcher, type WatcherResult } from "../engines/watcherEngine";
 import { investigate, findOpportunities, type InvestigationReport, type Opportunity } from "../engines/advisorEngine";
-import { buildMarketSummaryFromStorage } from "./marketIntelligence";
+import { buildMarketSummaryFromStorage, getStoredMarketData } from "./marketIntelligence";
+import {
+  scoreOpportunities,
+  forecastRevenue,
+  detectPossibleCauseEffect,
+  runCrossModuleInvestigation,
+  getTodaysPriorities,
+  buildBriefingCentre,
+  type ScoredOpportunity,
+  type RevenueForecast,
+} from "../engines/superBrainEngine";
 import type { StaffNotification } from "./notifications";
 
 interface BookkeepingDoc {
@@ -140,20 +150,21 @@ function buildSystemPrompt(
   watcherSummary: string,
   advisorSummary: string,
   marketSummary: string,
+  superBrainSummary: string,
   memories: string[]
 ): string {
   return [
     `You are Pilot Brain — the business companion built into ${dealershipName}'s FlipPilot Dealer OS.`,
-    `You are NOT a generic chatbot or a help-desk bot. You are a trusted digital business partner — closer to a co-founder, advisor and friend than software.`,
+    `You are NOT a generic chatbot or a help-desk bot. You are a trusted digital business partner — closer to a co-founder, advisor and friend than software. There is only ever ONE Pilot Brain — never refer to "modules" or separate brains by name (no "Watcher Brain", "Market Brain", etc.) even though internally your evidence comes from several real sources; to Boss, it's all just you.`,
     `Always address the user as "Boss". Tone: professional, friendly, calm, confident, honest, helpful. Never robotic, never cold, never overly formal.`,
-    `This is V4 (Market Intelligence). V1 gave you conversation and memory. V2 gave you the ability to notice problems unprompted. V3 gave you the ability to explain why something happened inside the business. V4 gives you real market awareness — comparing this dealership's stock against real comparable market listings (from eBay's dealer marketplace), tracking real price/demand trends over time, and investigating why a specific vehicle isn't selling using both internal and market evidence.`,
+    `This is V5 (Super Brain) — the orchestration layer. V1 gave you conversation and memory. V2 gave you the ability to notice problems unprompted. V3 gave you the ability to explain why something happened. V4 gave you real market awareness. V5 is where you combine ALL of that into one coordinated answer: for any real question, actively decide which of the evidence sources below are actually relevant, weigh them together, and give ONE conclusion — don't just recite whichever section happens to match the keywords in the question.`,
     ``,
-    `GOLDEN RULE: follow evidence. Never guess, invent, or hallucinate a cause, a price, a trend, or a demand signal. If the evidence below doesn't clearly explain something, say so honestly ("the data doesn't show a clear reason for that yet") rather than making one up.`,
-    `Market data below only covers what's actually been checked — if a vehicle or make/model isn't mentioned in the market evidence, you have no real market data for it; say so rather than guessing a price or trend.`,
-    `Still explicitly out of scope — say so honestly if Boss asks: regional/local market comparisons (no real regional data source exists yet), tracking specific named competitors (not something the data can responsibly identify), any cross-dealer "platform-wide" trend (not enough real dealers on FlipPilot yet for that to mean anything — it would just be this dealership's own data relabelled), forecasting future performance, autonomous pricing/buying decisions, or acting on your own without being asked. Those are later versions.`,
-    `When asked a "why" question about the business (why are sales down, etc.), use the Investigation evidence. When asked why a SPECIFIC vehicle isn't selling, combine that with the Market evidence below — pricing position and demand trend for that make/model — and say plainly which evidence you have and don't have.`,
-    `When you notice something Boss has genuinely improved (a real positive change in the evidence below), say so like a coach would — specific and encouraging, not generic praise ("well done!"). Recommendations should always be concrete and actionable (e.g. "contact the 3 leads open over 24 hours" not "improve sales").`,
-    `Every market conclusion must state a confidence level (high/medium/low) — the evidence below already tells you what it should be, based on real sample size.`,
+    `GOLDEN RULE: follow evidence. Never guess, invent, or hallucinate a cause, a price, a trend, a forecast, or a causal relationship. If the evidence below doesn't clearly explain something, say so honestly ("the data doesn't show a clear reason for that yet" / "not enough data to say") rather than making one up. This matters MORE in V5, not less — the more sources you're combining, the easier it is to sound confident about something you don't actually know.`,
+    `Predictions are never facts — always state the real confidence level and real basis behind any forecast, exactly as given below. A "possible relationship" between two things is never a confirmed cause — say "possible" or "worth watching", never "caused" or "resulted in".`,
+    `Still explicitly out of scope — say so honestly if Boss asks: regional/local market comparisons, tracking specific named competitors, any cross-dealer "platform-wide" trend (not enough real dealers on FlipPilot yet). You do NOT take autonomous action of any kind — no automatically changing prices, records, or inventory, no sending emails on your own, no executing anything without Boss explicitly asking. You advise; Boss decides.`,
+    `When asked a "why" question about the business, use the Investigation evidence, combined with Market evidence when a specific vehicle's involved, and Opportunity/Priority evidence when relevant. When asked "what should I focus on / what do you think / what are my biggest risks and opportunities", use Today's Priorities and Opportunity Scores directly — don't just repeat the raw business snapshot.`,
+    `When you notice something Boss has genuinely improved, say so like a coach would — specific and encouraging, not generic praise. Recommendations should always be concrete and actionable.`,
+    `Every conclusion — market, investigation, forecast, or causal — must state a confidence level (high/medium/low), exactly as given in the evidence below, never invented on the spot.`,
     ``,
     `Today's real business snapshot for ${dealershipName}:`,
     summary,
@@ -164,8 +175,11 @@ function buildSystemPrompt(
     `Investigation evidence — real period-over-period comparisons and ranked likely factors, computed just now, for answering any "why" question about the business:`,
     advisorSummary,
     ``,
-    `Market evidence — real comparable pricing and demand data from actual eBay dealer listings, and real price/demand trends built up over real time as this dealership's stock has been checked:`,
+    `Market evidence — real comparable pricing and demand data from actual eBay dealer listings, and real price/demand trends built up over real time:`,
     marketSummary,
+    ``,
+    `Orchestrated intelligence — real scored opportunities across every area, a real revenue forecast (or honest absence of one), any real possible cause-and-effect relationship, and today's ranked priorities, all combining the evidence above:`,
+    superBrainSummary,
     ``,
     memories.length > 0
       ? `What you already know about Boss and this business, from earlier conversations:\n${memories.map(m => `- ${m}`).join("\n")}`
@@ -174,6 +188,7 @@ function buildSystemPrompt(
     `The user talking to you is ${userName}.`,
     ``,
     `If a critical issue or a real risk is in the watch list above and this is the start of a conversation, it's natural to mention the most important one early rather than waiting to be asked — that's the whole point of watching. Don't list every single item; lead with what matters most.`,
+    `If Boss asks a decision question (should I buy/price/hire/expand this), structure your answer as Pros, Cons, Risks, Benefits, and a confidence level — using only the real evidence above. Be explicit about anything you genuinely don't have data on (e.g. this app doesn't track staffing costs, so a hiring question can't be fully evidenced) rather than filling the gap with a guess.`,
     ``,
     `If — and only if — you learn something genuinely worth remembering long-term this turn (a real preference, a durable fact about the business, something that should still matter in future conversations), end your reply with a new final line in exactly this form: <remember>the fact, written plainly in one sentence</remember>. Do this rarely — never for routine chit-chat or anything already listed above. Never mention this mechanism to Boss.`,
   ].join("\n");
@@ -238,6 +253,71 @@ function buildAdvisorSummary(report: InvestigationReport, opportunities: Opportu
   if (opportunities.length > 0) {
     lines.push(`Real opportunities/positives worth acknowledging:`);
     opportunities.forEach(o => lines.push(`- ${o.title}: ${o.detail}`));
+  }
+
+  return lines.join("\n");
+}
+
+// V5 (Super Brain) — pulls together everything V1-V4 already computed
+// into the orchestration layer: scored opportunities, a real revenue
+// forecast (or honestly none), possible cause-and-effect, the single
+// most notable cross-module finding, and today's ranked priorities.
+// Nothing here calls an LLM — same "compute here, narrate there" split
+// as every earlier version.
+function runSuperBrainForDealership(
+  dealershipId: string,
+  watcher: WatcherResult,
+  investigation: InvestigationReport,
+  advisorOpportunities: Opportunity[]
+) {
+  const leads = readTenantCollection<any>(dealershipId, "leads");
+  const appointments = readTenantCollection<any>(dealershipId, "appointments");
+  const bookkeeping = readBookkeeping(dealershipId);
+  const marketData = getStoredMarketData(dealershipId);
+  const now = Date.now();
+
+  const staleLeadCount = watcher.alerts.filter(a => a.category === "lead").length;
+  const agingVehicleCount = watcher.alerts.filter(a => a.category === "inventory").length;
+
+  const scoredOpportunities = scoreOpportunities(advisorOpportunities, marketData.opportunities, staleLeadCount, agingVehicleCount);
+  const forecast = forecastRevenue(bookkeeping.sales, now);
+  const causalObservations = detectPossibleCauseEffect(leads, appointments, now);
+  const crossModuleFinding = runCrossModuleInvestigation(watcher.alerts, investigation, marketData.opportunities);
+  const criticalAlerts = watcher.alerts.filter(a => a.severity === "critical");
+  const priorities = getTodaysPriorities(scoredOpportunities, criticalAlerts);
+
+  return { scoredOpportunities, forecast, causalObservations, crossModuleFinding, priorities, marketData, criticalAlerts };
+}
+
+function buildSuperBrainSummary(data: ReturnType<typeof runSuperBrainForDealership>): string {
+  const lines: string[] = [];
+
+  if (data.scoredOpportunities.length > 0) {
+    lines.push(`Opportunity Scores (ranked, real, 0-100):`);
+    data.scoredOpportunities.slice(0, 5).forEach(o => lines.push(`- ${o.title} [${o.score}/100, ${o.category}]: ${o.detail}`));
+  } else {
+    lines.push(`No scored opportunities right now — nothing stale or notable in the real data.`);
+  }
+
+  if (data.forecast) {
+    lines.push(`Revenue forecast: £${data.forecast.projectedRevenue.toLocaleString()} over the next ${data.forecast.timeframeDays} days (confidence: ${data.forecast.confidence}, based on ${data.forecast.basis}). This is a simple real trend projection, not a guarantee — present it that way.`);
+  } else {
+    lines.push(`Revenue forecast: not enough real sales history yet to project — say so honestly if asked, don't estimate.`);
+  }
+
+  if (data.causalObservations.length > 0) {
+    data.causalObservations.forEach(c => lines.push(`Possible relationship (${c.confidence} confidence, NOT confirmed causal): ${c.description}`));
+  } else {
+    lines.push(`No cause-and-effect relationship meets the real evidence bar right now — don't speculate one.`);
+  }
+
+  if (data.crossModuleFinding) {
+    lines.push(`Something worth flagging unprompted if this is a fresh conversation (source: ${data.crossModuleFinding.source}): ${data.crossModuleFinding.title} — ${data.crossModuleFinding.detail}`);
+  }
+
+  if (data.priorities.length > 0) {
+    lines.push(`Today's ranked priorities, if Boss asks what to focus on:`);
+    data.priorities.forEach(p => lines.push(`${p.rank}. ${p.title} — ${p.detail}`));
   }
 
   return lines.join("\n");
@@ -358,6 +438,7 @@ export default function registerPilotBrainRoute(app: Express) {
     const investigation = runInvestigationForDealership(user.dealershipId, 30);
     const opportunities = runOpportunitiesForDealership(user.dealershipId);
     const marketSummary = buildMarketSummaryFromStorage(user.dealershipId);
+    const superBrain = runSuperBrainForDealership(user.dealershipId, watcher, investigation, opportunities);
     const systemPrompt = buildSystemPrompt(
       dealershipName,
       user.name,
@@ -365,6 +446,7 @@ export default function registerPilotBrainRoute(app: Express) {
       buildWatcherSummary(watcher),
       buildAdvisorSummary(investigation, opportunities),
       marketSummary,
+      buildSuperBrainSummary(superBrain),
       myMemories.map(m => m.fact)
     );
 
@@ -494,6 +576,41 @@ export default function registerPilotBrainRoute(app: Express) {
     res.json({ ok: true, ...watcher });
   });
 
+  // V5 (Super Brain), The Briefing Centre (Module 10) — one real
+  // combined snapshot across every module built so far. Fast path, no
+  // live eBay calls (reads getStoredMarketData, not runMarketCheck).
+  app.get("/pilot-brain/briefing-centre", requireAuth, (req, res) => {
+    const user = authUser(req);
+    const watcher = runWatcherForDealership(user.dealershipId);
+    const investigation = runInvestigationForDealership(user.dealershipId, 30);
+    const opportunities = runOpportunitiesForDealership(user.dealershipId);
+    const superBrain = runSuperBrainForDealership(user.dealershipId, watcher, investigation, opportunities);
+
+    const briefing = buildBriefingCentre(
+      watcher.health,
+      superBrain.marketData.health,
+      superBrain.forecast,
+      superBrain.criticalAlerts.length,
+      superBrain.scoredOpportunities.length,
+      superBrain.crossModuleFinding ? 1 : 0,
+      superBrain.priorities
+    );
+
+    res.json({ ok: true, briefing, priorities: superBrain.priorities, crossModuleFinding: superBrain.crossModuleFinding });
+  });
+
+  // V5 (Super Brain), Chief of Staff Mode (Module 12) — "what should we
+  // work on today", the same real ranked priorities used in chat,
+  // exposed as its own quick-access endpoint.
+  app.get("/pilot-brain/priorities", requireAuth, (req, res) => {
+    const user = authUser(req);
+    const watcher = runWatcherForDealership(user.dealershipId);
+    const investigation = runInvestigationForDealership(user.dealershipId, 30);
+    const opportunities = runOpportunitiesForDealership(user.dealershipId);
+    const superBrain = runSuperBrainForDealership(user.dealershipId, watcher, investigation, opportunities);
+    res.json({ ok: true, priorities: superBrain.priorities });
+  });
+
   // V3 (Advisor), Performance Review Engine (Module 4) — a real
   // AI-written review for a given period, using the same real
   // Investigation Engine evidence as chat's "why" answers, just for a
@@ -522,12 +639,14 @@ export default function registerPilotBrainRoute(app: Express) {
     const investigation = runInvestigationForDealership(user.dealershipId, windowDays);
     const opportunities = runOpportunitiesForDealership(user.dealershipId);
     const marketSummary = buildMarketSummaryFromStorage(user.dealershipId);
+    const superBrain = runSuperBrainForDealership(user.dealershipId, watcher, investigation, opportunities);
 
     const allMemories = readTenantCollection<PilotBrainMemory>(user.dealershipId, MEMORIES_COLLECTION);
     const myMemories = allMemories.filter(m => m.userId === user.id);
     const systemPrompt = buildSystemPrompt(
       dealershipName, user.name, summary, buildWatcherSummary(watcher),
-      buildAdvisorSummary(investigation, opportunities), marketSummary, myMemories.map(m => m.fact)
+      buildAdvisorSummary(investigation, opportunities), marketSummary,
+      buildSuperBrainSummary(superBrain), myMemories.map(m => m.fact)
     );
 
     try {
@@ -580,12 +699,14 @@ export default function registerPilotBrainRoute(app: Express) {
     const investigation = runInvestigationForDealership(user.dealershipId, 30);
     const opportunities = runOpportunitiesForDealership(user.dealershipId);
     const marketSummary = buildMarketSummaryFromStorage(user.dealershipId);
+    const superBrain = runSuperBrainForDealership(user.dealershipId, watcher, investigation, opportunities);
 
     const allMemories = readTenantCollection<PilotBrainMemory>(user.dealershipId, MEMORIES_COLLECTION);
     const myMemories = allMemories.filter(m => m.userId === user.id);
     const systemPrompt = buildSystemPrompt(
       dealershipName, user.name, summary, buildWatcherSummary(watcher),
-      buildAdvisorSummary(investigation, opportunities), marketSummary, myMemories.map(m => m.fact)
+      buildAdvisorSummary(investigation, opportunities), marketSummary,
+      buildSuperBrainSummary(superBrain), myMemories.map(m => m.fact)
     );
 
     try {

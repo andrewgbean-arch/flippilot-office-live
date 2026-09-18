@@ -183,3 +183,22 @@ export async function fetchMarketCheck(): Promise<MarketCheckResult | null> {
     return null;
   }
 }
+
+// V5 (Super Brain), Chief of Staff Mode — "what should we work on
+// today", a real ranked top-4 combining every module built so far.
+export interface TodaysPriority {
+  rank: number;
+  title: string;
+  detail: string;
+}
+
+export async function fetchTodaysPriorities(): Promise<{ ok: boolean; priorities: TodaysPriority[]; error?: string }> {
+  try {
+    const res = await fetch(`${BASE_URL}/pilot-brain/priorities`, { headers: authHeaders() });
+    const data = await res.json();
+    return { ok: res.ok, priorities: data.priorities ?? [], error: data.error };
+  } catch (err) {
+    console.error("fetchTodaysPriorities: backend unreachable", err);
+    return { ok: false, priorities: [], error: "Network error" };
+  }
+}

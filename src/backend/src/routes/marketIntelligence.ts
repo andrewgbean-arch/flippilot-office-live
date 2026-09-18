@@ -19,6 +19,46 @@ import {
   type PlatformInsight,
 } from "../engines/marketEngine";
 
+export interface StoredMarketData {
+  health: MarketHealth | null; // null when no real market data has ever been recorded
+  opportunities: MarketOpportunity[];
+}
+
+// V5's fast path — same "read only what's already recorded, no live
+// eBay calls" reasoning as buildMarketSummaryFromStorage, but returns
+// structured data instead of prose, for superBrainEngine's Opportunity
+// Scoring and Briefing Centre (which need real numbers, not text).
+export function getStoredMarketData(dealershipId: string): StoredMarketData {
+  const vehicles = readTenantCollection<any>(dealershipId, "vehicles");
+  const inStock = vehicles.filter(v => String(v.status ?? "").toLowerCase() !== "sold" && v.make && v.model);
+  const snapshots = readCollection<MarketSnapshot>(SNAPSHOTS_COLLECTION);
+
+  const pricingIntel: PricingIntelligence[] = [];
+  const compsUsed: { demandScore: number; sampleSize: number }[] = [];
+
+  for (const v of inStock) {
+    const matching = snapshots.filter(s => s.make === v.make && s.model === v.model);
+    if (matching.length === 0) continue;
+    const latest = [...matching].sort((a, b) => b.capturedAt.localeCompare(a.capturedAt))[0]!;
+    compsUsed.push({ demandScore: latest.demandScore, sampleSize: latest.sampleSize });
+    if (v.priceRetail) {
+      pricingIntel.push(computePricingIntelligence(v.id, v.make, v.model, v.priceRetail, {
+        average: latest.avgPrice,
+        sampleSize: latest.sampleSize,
+      }));
+    }
+  }
+
+  if (compsUsed.length === 0) {
+    return { health: null, opportunities: [] };
+  }
+
+  return {
+    health: computeMarketHealth(pricingIntel, compsUsed),
+    opportunities: findMarketOpportunities(pricingIntel),
+  };
+}
+
 const SNAPSHOTS_COLLECTION = "marketSnapshots";
 
 // Platform Intelligence framework (see marketEngine.ts's

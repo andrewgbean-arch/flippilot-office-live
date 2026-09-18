@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { FiMic, FiMicOff, FiVolume2, FiVolumeX } from "react-icons/fi";
-import { fetchPilotBrainMessages, sendPilotBrainMessage, fetchSpeech, fetchMorningBriefing, fetchPerformanceReview, OPENAI_VOICES, type OpenAiVoice, type PilotBrainMessage, type ReviewPeriod } from "@/lib/pilotBrainApi";
+import { fetchPilotBrainMessages, sendPilotBrainMessage, fetchSpeech, fetchMorningBriefing, fetchPerformanceReview, fetchTodaysPriorities, OPENAI_VOICES, type OpenAiVoice, type PilotBrainMessage, type ReviewPeriod } from "@/lib/pilotBrainApi";
 import { authHeaders } from "@/lib/authToken";
 import { BASE_URL } from "@/lib/apiBaseUrl";
 import "@/staff/StaffDashboard.css";
@@ -270,7 +270,7 @@ export default function PilotBrainChat() {
   // history — same "not cached, always a fresh real request" scope as
   // the briefing endpoint always had) so it reads naturally and gets
   // read aloud too if Wendy's on.
-  const [reportLoading, setReportLoading] = useState<"briefing" | "review" | null>(null);
+  const [reportLoading, setReportLoading] = useState<"briefing" | "review" | "priorities" | null>(null);
   const [reviewPeriod, setReviewPeriod] = useState<ReviewPeriod>("weekly");
 
   async function runBriefing() {
@@ -303,6 +303,28 @@ export default function PilotBrainChat() {
     };
     setMessages(prev => [...prev, msg]);
     speak(result.review);
+  }
+
+  // V5 (Super Brain), Chief of Staff Mode — real ranked data, no
+  // Claude call needed to display it (unlike Briefing/Review, which
+  // are AI-written prose), so this is instant and free.
+  async function runPriorities() {
+    setReportLoading("priorities");
+    const result = await fetchTodaysPriorities();
+    setReportLoading(null);
+    if (!result.ok) {
+      setError(result.error ?? "Couldn't load priorities right now.");
+      return;
+    }
+    const content = result.priorities.length === 0
+      ? "Nothing urgent stands out right now, Boss — everything's on track."
+      : result.priorities.map(p => `${p.rank}. ${p.title} — ${p.detail}`).join("\n");
+    const msg: PilotBrainMessage = {
+      id: `priorities-${Date.now()}`, userId: "pilot-brain", role: "assistant",
+      content, createdAt: new Date().toISOString(),
+    };
+    setMessages(prev => [...prev, msg]);
+    speak(content);
   }
 
   function toggleListening() {
@@ -461,6 +483,15 @@ export default function PilotBrainChat() {
             style={{ fontSize: 12, padding: "4px 10px" }}
           >
             {reportLoading === "review" ? "Investigating…" : "Get Review"}
+          </button>
+
+          <button
+            onClick={runPriorities}
+            disabled={reportLoading !== null}
+            className="sn-btn"
+            style={{ fontSize: 12, padding: "4px 10px", marginLeft: 8 }}
+          >
+            {reportLoading === "priorities" ? "Thinking…" : "Today's Priorities"}
           </button>
         </div>
       </header>
