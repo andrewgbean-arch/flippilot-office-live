@@ -221,7 +221,7 @@ export async function fetchTodaysPriorities(): Promise<{ ok: boolean; priorities
 // V6 (The Operator) — real prepared actions, waiting for a real human
 // approval before anything is written. Pilot Brain never executes
 // these on its own.
-export type OperatorActionType = "bookkeeping_categorize" | "lead_followup";
+export type OperatorActionType = "bookkeeping_categorize" | "lead_followup" | "rota_shift" | "appointment_followup";
 export type OperatorActionStatus = "prepared" | "rejected" | "completed" | "rolled_back";
 
 export interface OperatorAction {

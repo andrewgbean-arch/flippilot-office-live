@@ -59,7 +59,7 @@ export interface RotaSettings {
   closeTime: string;
 }
 
-const DEFAULT_ROTA_SETTINGS: RotaSettings = {
+export const DEFAULT_ROTA_SETTINGS: RotaSettings = {
   openDays: ["mon", "tue", "wed", "thu", "fri", "sat"],
   openTime: "09:00",
   closeTime: "18:00",

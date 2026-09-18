@@ -128,9 +128,14 @@ export default function PilotBrainOperations() {
                         <div style={{ color: "#f5f7ff", fontWeight: 600 }}>{a.title}</div>
                         <div style={{ color: "#f5f7ff99", fontSize: 13, marginTop: 4 }}>{a.description}</div>
                         <div style={{ color: "#f5f7ff60", fontSize: 12, marginTop: 4, fontStyle: "italic" }}>{a.reason}</div>
-                        {a.type === "lead_followup" && typeof a.payload.draftMessage === "string" && (
+                        {(a.type === "lead_followup" || a.type === "appointment_followup") && typeof a.payload.draftMessage === "string" && (
                           <div style={{ marginTop: 8, padding: 10, background: "rgba(255,255,255,0.04)", borderRadius: 8, fontSize: 13, color: "#f5f7ffcc", whiteSpace: "pre-wrap" }}>
                             {a.payload.draftMessage}
+                          </div>
+                        )}
+                        {a.type === "rota_shift" && typeof a.payload.date === "string" && (
+                          <div style={{ marginTop: 8, padding: 10, background: "rgba(255,255,255,0.04)", borderRadius: 8, fontSize: 13, color: "#f5f7ffcc" }}>
+                            {String(a.payload.userName)} — {String(a.payload.date)}, {String(a.payload.start)}–{String(a.payload.end)}
                           </div>
                         )}
                       </div>

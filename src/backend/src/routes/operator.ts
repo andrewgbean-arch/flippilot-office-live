@@ -5,10 +5,14 @@ import { requireAuth, requireStaffRole, type AuthUser } from "../auth";
 import {
   findCostsNeedingCategorization,
   findLeadsNeedingFollowUp,
+  findRotaGaps,
+  findOverdueAppointments,
   type CostEntry,
   type Lead,
 } from "../engines/operatorEngine";
 import { callClaude } from "./pilotBrain";
+import { DEFAULT_ROTA_SETTINGS, type Shift, type WorkPattern, type LeaveRequest, type RotaSettings } from "./planner";
+import type { Appointment } from "./publicBooking";
 
 // Pilot Brain V6 (The Operator) — the Action Orchestrator, Approval
 // Centre, Workflow Engine, Audit Engine, and Rollback Engine (Modules
@@ -23,7 +27,7 @@ import { callClaude } from "./pilotBrain";
 
 const ACTIONS_COLLECTION = "pilotBrainActions";
 
-type ActionType = "bookkeeping_categorize" | "lead_followup";
+type ActionType = "bookkeeping_categorize" | "lead_followup" | "rota_shift" | "appointment_followup";
 type ActionStatus = "prepared" | "approved" | "rejected" | "completed" | "rolled_back";
 
 interface BookkeepingCategorizePayload {
@@ -40,6 +44,24 @@ interface LeadFollowupPayload {
   taskId?: string; // set once executed, used by rollback to find the real task to remove
 }
 
+interface RotaShiftPayload {
+  date: string;
+  userId: string;
+  userName: string;
+  start: string;
+  end: string;
+  shiftId?: string; // set once executed, used by rollback to find the real shift to remove
+}
+
+interface AppointmentFollowupPayload {
+  appointmentId: string;
+  customerName: string;
+  draftMessage: string;
+  taskId?: string; // same rollback pattern as LeadFollowupPayload
+}
+
+type ActionPayload = BookkeepingCategorizePayload | LeadFollowupPayload | RotaShiftPayload | AppointmentFollowupPayload;
+
 interface PreparedAction {
   id: string;
   type: ActionType;
@@ -47,13 +69,25 @@ interface PreparedAction {
   title: string;
   description: string;
   reason: string;
-  payload: BookkeepingCategorizePayload | LeadFollowupPayload;
+  payload: ActionPayload;
   preparedAt: string;
   reviewedBy?: string;
   reviewedByName?: string;
   reviewedAt?: string;
   completedAt?: string;
   rolledBackAt?: string;
+}
+
+// One dedupe key per real target, prefixed by type so different action
+// types can never collide — prepare uses this to never re-prepare
+// something already pending or done for the same real target.
+function actionKey(a: PreparedAction): string {
+  switch (a.type) {
+    case "bookkeeping_categorize": return `cost:${(a.payload as BookkeepingCategorizePayload).costId}`;
+    case "lead_followup": return `lead:${(a.payload as LeadFollowupPayload).leadId}`;
+    case "rota_shift": return `shift-gap:${(a.payload as RotaShiftPayload).date}`;
+    case "appointment_followup": return `appointment:${(a.payload as AppointmentFollowupPayload).appointmentId}`;
+  }
 }
 
 interface BookkeepingDoc {
@@ -104,11 +138,7 @@ export default function registerOperatorRoute(app: Express) {
     const user = authUser(req);
     const existing = readActions(user.dealershipId);
     const activeKeys = new Set(
-      existing
-        .filter(a => a.status === "prepared" || a.status === "completed")
-        .map(a => a.type === "bookkeeping_categorize"
-          ? `cost:${(a.payload as BookkeepingCategorizePayload).costId}`
-          : `lead:${(a.payload as LeadFollowupPayload).leadId}`)
+      existing.filter(a => a.status === "prepared" || a.status === "completed").map(actionKey)
     );
 
     const now = Date.now();
@@ -163,6 +193,65 @@ export default function registerOperatorRoute(app: Express) {
       });
     }
 
+    // Rota gaps — fully deterministic, no LLM call. Real gap definition:
+    // an open day with zero shifts scheduled at all; candidate is
+    // whoever's available, not on approved leave, and least already
+    // committed over the same window (see findRotaGaps).
+    const shifts = readTenantCollection<Shift>(user.dealershipId, "shifts");
+    const workPatterns = readTenantCollection<WorkPattern>(user.dealershipId, "workPatterns");
+    const leaveRequests = readTenantCollection<LeaveRequest>(user.dealershipId, "leave");
+    const rotaSettings = readTenantDoc<RotaSettings>(user.dealershipId, "rotaSettings", DEFAULT_ROTA_SETTINGS);
+
+    for (const gap of findRotaGaps(shifts, workPatterns, leaveRequests, rotaSettings, now)) {
+      if (activeKeys.has(`shift-gap:${gap.date}`)) continue;
+      newActions.push({
+        id: randomUUID(),
+        type: "rota_shift",
+        status: "prepared",
+        title: `Cover ${gap.date} with ${gap.userName}`,
+        description: `${gap.date} is an open day with no shifts scheduled at all yet.`,
+        reason: `${gap.userName} is available that day per their real work pattern, not on approved leave, and currently has the least time scheduled over the next 7 days of anyone eligible.`,
+        payload: { date: gap.date, userId: gap.userId, userName: gap.userName, start: gap.start, end: gap.end },
+        preparedAt: new Date(now).toISOString(),
+      });
+    }
+
+    // Overdue appointments — WHICH ones is fully evidence-based
+    // (findOverdueAppointments, the exact same signal the Watcher
+    // already flags); Claude is only ever asked to draft the message
+    // TEXT for an appointment the real data already selected.
+    const appointments = readTenantCollection<Appointment>(user.dealershipId, "appointments");
+    const overdueAppointments = findOverdueAppointments(appointments, now).filter(
+      a => !activeKeys.has(`appointment:${a.id}`)
+    );
+
+    for (const appt of overdueAppointments.slice(0, 5)) { // capped — same reasoning as the lead loop above
+      const kindLabel = appt.type.replace("_", " ");
+      let apptDraftMessage = `Hi ${appt.customerName}, sorry for the delay — following up on your ${kindLabel} request for ${appt.requestedDate}. Is this still something you'd like to arrange? Let us know a time that works and we'll get it booked in.`;
+      if (apiKey) {
+        try {
+          apptDraftMessage = await callClaude(
+            apiKey,
+            `You are drafting a short, genuine follow-up message from a UK used-car dealer to ${appt.customerName}, whose ${kindLabel} request for ${appt.requestedDate} was never confirmed, declined, or marked complete. Friendly, apologetic for the delay, brief, no pressure, no fabricated details beyond what's given. 2-3 sentences, no subject line, just the message body.`,
+            [{ role: "user", content: "Draft the follow-up message." }],
+            200
+          );
+        } catch (err) {
+          console.error("prepare appointment_followup: Claude draft failed, using fallback text", err);
+        }
+      }
+      newActions.push({
+        id: randomUUID(),
+        type: "appointment_followup",
+        status: "prepared",
+        title: `Follow up on ${appt.customerName}'s overdue appointment`,
+        description: `${kindLabel} request for ${appt.requestedDate} at ${appt.requestedTime} was never confirmed, declined, or marked complete.`,
+        reason: `Same real staleness signal the Watcher already flags — a pending appointment whose requested time has already passed.`,
+        payload: { appointmentId: appt.id, customerName: appt.customerName, draftMessage: apptDraftMessage },
+        preparedAt: new Date(now).toISOString(),
+      });
+    }
+
     if (newActions.length > 0) {
       writeActions(user.dealershipId, [...existing, ...newActions]);
     }
@@ -182,31 +271,72 @@ export default function registerOperatorRoute(app: Express) {
 
     const now = new Date().toISOString();
 
-    if (action.type === "bookkeeping_categorize") {
-      const payload = action.payload as BookkeepingCategorizePayload;
-      const bookkeeping = readTenantDoc<BookkeepingDoc>(user.dealershipId, "bookkeeping", EMPTY_BOOKKEEPING);
-      const updatedCosts = bookkeeping.costs.map(c =>
-        c.id === payload.costId ? { ...c, category: payload.suggestedCategory } : c
-      );
-      writeTenantDoc(user.dealershipId, "bookkeeping", { ...bookkeeping, costs: updatedCosts });
-    } else {
-      const payload = action.payload as LeadFollowupPayload;
-      const jobs = readTenantCollection<any>(user.dealershipId, "jobs");
-      const leads = readTenantCollection<Lead>(user.dealershipId, "leads");
-      const lead = leads.find(l => l.id === payload.leadId);
-      const newJob = {
-        id: randomUUID(),
-        title: `Follow up: ${payload.leadName}`,
-        notes: `Prepared by Pilot Brain — never sent automatically. Draft message:\n\n${payload.draftMessage}`,
-        status: "todo",
-        priority: "medium",
-        vehicleId: lead?.interestedVehicleId ?? null,
-        vehicleLabel: lead?.vehicleInterest ?? null,
-        createdAt: now,
-        createdByName: "Pilot Brain",
-      };
-      writeTenantCollection(user.dealershipId, "jobs", [...jobs, newJob]);
-      payload.taskId = newJob.id;
+    switch (action.type) {
+      case "bookkeeping_categorize": {
+        const payload = action.payload as BookkeepingCategorizePayload;
+        const bookkeeping = readTenantDoc<BookkeepingDoc>(user.dealershipId, "bookkeeping", EMPTY_BOOKKEEPING);
+        const updatedCosts = bookkeeping.costs.map(c =>
+          c.id === payload.costId ? { ...c, category: payload.suggestedCategory } : c
+        );
+        writeTenantDoc(user.dealershipId, "bookkeeping", { ...bookkeeping, costs: updatedCosts });
+        break;
+      }
+      case "lead_followup": {
+        const payload = action.payload as LeadFollowupPayload;
+        const jobs = readTenantCollection<any>(user.dealershipId, "jobs");
+        const leads = readTenantCollection<Lead>(user.dealershipId, "leads");
+        const lead = leads.find(l => l.id === payload.leadId);
+        const newJob = {
+          id: randomUUID(),
+          title: `Follow up: ${payload.leadName}`,
+          notes: `Prepared by Pilot Brain — never sent automatically. Draft message:\n\n${payload.draftMessage}`,
+          status: "todo",
+          priority: "medium",
+          vehicleId: lead?.interestedVehicleId ?? null,
+          vehicleLabel: lead?.vehicleInterest ?? null,
+          createdAt: now,
+          createdByName: "Pilot Brain",
+        };
+        writeTenantCollection(user.dealershipId, "jobs", [...jobs, newJob]);
+        payload.taskId = newJob.id;
+        break;
+      }
+      case "rota_shift": {
+        const payload = action.payload as RotaShiftPayload;
+        const shifts = readTenantCollection<Shift>(user.dealershipId, "shifts");
+        const newShift: Shift = {
+          id: randomUUID(),
+          userId: payload.userId,
+          userName: payload.userName,
+          date: payload.date,
+          start: payload.start,
+          end: payload.end,
+          notes: "Prepared by Pilot Brain — never sent automatically.",
+          autoGenerated: false,
+          createdAt: now,
+        };
+        writeTenantCollection(user.dealershipId, "shifts", [...shifts, newShift]);
+        payload.shiftId = newShift.id;
+        break;
+      }
+      case "appointment_followup": {
+        const payload = action.payload as AppointmentFollowupPayload;
+        const jobs = readTenantCollection<any>(user.dealershipId, "jobs");
+        const newJob = {
+          id: randomUUID(),
+          title: `Follow up: ${payload.customerName} (overdue appointment)`,
+          notes: `Prepared by Pilot Brain — never sent automatically. Draft message:\n\n${payload.draftMessage}`,
+          status: "todo",
+          priority: "medium",
+          vehicleId: null,
+          vehicleLabel: null,
+          createdAt: now,
+          createdByName: "Pilot Brain",
+        };
+        writeTenantCollection(user.dealershipId, "jobs", [...jobs, newJob]);
+        payload.taskId = newJob.id;
+        break;
+      }
     }
 
     const updated = actions.map(a => a.id === action.id
@@ -246,18 +376,32 @@ export default function registerOperatorRoute(app: Express) {
       return res.status(400).json({ ok: false, error: "Only completed actions can be rolled back" });
     }
 
-    if (action.type === "bookkeeping_categorize") {
-      const payload = action.payload as BookkeepingCategorizePayload;
-      const bookkeeping = readTenantDoc<BookkeepingDoc>(user.dealershipId, "bookkeeping", EMPTY_BOOKKEEPING);
-      const updatedCosts = bookkeeping.costs.map(c =>
-        c.id === payload.costId ? { ...c, category: payload.currentCategory ?? undefined } : c
-      );
-      writeTenantDoc(user.dealershipId, "bookkeeping", { ...bookkeeping, costs: updatedCosts });
-    } else {
-      const payload = action.payload as LeadFollowupPayload;
-      if (payload.taskId) {
-        const jobs = readTenantCollection<any>(user.dealershipId, "jobs");
-        writeTenantCollection(user.dealershipId, "jobs", jobs.filter((j: any) => j.id !== payload.taskId));
+    switch (action.type) {
+      case "bookkeeping_categorize": {
+        const payload = action.payload as BookkeepingCategorizePayload;
+        const bookkeeping = readTenantDoc<BookkeepingDoc>(user.dealershipId, "bookkeeping", EMPTY_BOOKKEEPING);
+        const updatedCosts = bookkeeping.costs.map(c =>
+          c.id === payload.costId ? { ...c, category: payload.currentCategory ?? undefined } : c
+        );
+        writeTenantDoc(user.dealershipId, "bookkeeping", { ...bookkeeping, costs: updatedCosts });
+        break;
+      }
+      case "lead_followup":
+      case "appointment_followup": {
+        const payload = action.payload as LeadFollowupPayload | AppointmentFollowupPayload;
+        if (payload.taskId) {
+          const jobs = readTenantCollection<any>(user.dealershipId, "jobs");
+          writeTenantCollection(user.dealershipId, "jobs", jobs.filter((j: any) => j.id !== payload.taskId));
+        }
+        break;
+      }
+      case "rota_shift": {
+        const payload = action.payload as RotaShiftPayload;
+        if (payload.shiftId) {
+          const shifts = readTenantCollection<Shift>(user.dealershipId, "shifts");
+          writeTenantCollection(user.dealershipId, "shifts", shifts.filter(s => s.id !== payload.shiftId));
+        }
+        break;
       }
     }
 
