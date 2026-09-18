@@ -51,6 +51,12 @@ export interface Dealership {
   trialEndsAt: string;
   stripeCustomerId?: string;
   stripeSubscriptionId?: string;
+  // Whether the Pilot Brain add-on is part of this dealership's real
+  // subscription — set from the actual Stripe subscription items
+  // (never just trusted from checkout intent), so it stays accurate if
+  // the dealer adds/removes it later via the billing portal. Undefined
+  // for a dealership that's never subscribed at all.
+  pilotBrainEnabled?: boolean;
   phone?: string;
   address?: string;
   // Shown on customer invoices when set. Optional — not every dealer

@@ -23,6 +23,23 @@ function getPriceId(): string {
   return id;
 }
 
+// The Pilot Brain premium add-on — a separate real Stripe Price,
+// optional at checkout. Genuinely optional, not required: unset simply
+// means the add-on can't be purchased yet, not a hard error, since the
+// core product must keep working before this exists.
+function getPilotBrainPriceId(): string | undefined {
+  return process.env.STRIPE_PILOT_BRAIN_PRICE_ID || undefined;
+}
+
+// Real, current truth about whether this subscription includes the
+// Pilot Brain add-on — checked against its actual line items every
+// time, never assumed from what was originally purchased.
+function subscriptionHasPilotBrain(subscription: Stripe.Subscription): boolean {
+  const pilotBrainPriceId = getPilotBrainPriceId();
+  if (!pilotBrainPriceId) return false;
+  return subscription.items.data.some(item => item.price.id === pilotBrainPriceId);
+}
+
 function findDealership(id: string): Dealership | undefined {
   return readCollection<Dealership>("dealerships").find(d => d.id === id);
 }
@@ -61,11 +78,17 @@ export async function handleStripeWebhook(req: Request, res: Response) {
     case "checkout.session.completed": {
       const session = event.data.object as Stripe.Checkout.Session;
       const dealershipId = session.metadata?.dealershipId;
-      if (dealershipId) {
+      if (dealershipId && session.subscription) {
+        // Real subscription items, not checkout-time intent — a dealer
+        // could in theory have their checkout line items differ from
+        // what actually lands on the subscription, so this is derived
+        // from Stripe's own subscription record, not assumed.
+        const subscription = await getStripe().subscriptions.retrieve(String(session.subscription));
         updateDealership(dealershipId, {
           subscriptionStatus: "active",
           stripeCustomerId: String(session.customer),
-          stripeSubscriptionId: String(session.subscription),
+          stripeSubscriptionId: subscription.id,
+          pilotBrainEnabled: subscriptionHasPilotBrain(subscription),
         });
       }
       break;
@@ -85,7 +108,13 @@ export async function handleStripeWebhook(req: Request, res: Response) {
             : subscription.status === "past_due"
             ? "past_due"
             : "canceled";
-        updateDealership(dealership.id, { subscriptionStatus: status });
+        // Re-derived on every update, not just at checkout — this is
+        // what makes adding/removing the add-on later via the real
+        // Stripe billing portal actually take effect here too.
+        updateDealership(dealership.id, {
+          subscriptionStatus: status,
+          pilotBrainEnabled: subscriptionHasPilotBrain(subscription),
+        });
       }
       break;
     }
@@ -108,10 +137,20 @@ export default function registerBillingRoute(app: Express) {
         return res.status(404).json({ ok: false, error: "Dealership not found" });
       }
 
+      // Pilot Brain is opt-in at checkout — only added as a real line
+      // item when explicitly requested and only when a real price for
+      // it has actually been configured, so an unset env var can never
+      // silently charge for something that doesn't exist yet.
+      const includePilotBrain = Boolean(req.body?.includePilotBrain) && Boolean(getPilotBrainPriceId());
+      const lineItems = [{ price: getPriceId(), quantity: 1 }];
+      if (includePilotBrain) {
+        lineItems.push({ price: getPilotBrainPriceId()!, quantity: 1 });
+      }
+
       const session = await getStripe().checkout.sessions.create({
         mode: "subscription",
         payment_method_types: ["card"],
-        line_items: [{ price: getPriceId(), quantity: 1 }],
+        line_items: lineItems,
         ...(dealership.stripeCustomerId
           ? { customer: dealership.stripeCustomerId }
           : { customer_email: user.email }),

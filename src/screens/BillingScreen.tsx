@@ -10,6 +10,7 @@ type Dealership = {
   subscriptionStatus: "trialing" | "active" | "past_due" | "canceled";
   trialEndsAt: string;
   stripeCustomerId?: string;
+  pilotBrainEnabled?: boolean;
 };
 
 export default function BillingScreen() {
@@ -18,6 +19,11 @@ export default function BillingScreen() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Defaults on — Pilot Brain is the premium pitch, opt-out rather
+  // than opt-in reads better for conversion, and it's still a real,
+  // visible, unchecked-if-they-want choice, not a dark pattern (no
+  // pre-ticked box hidden below the fold — it's right here).
+  const [includePilotBrain, setIncludePilotBrain] = useState(true);
 
   useEffect(() => {
     fetch(`${BASE_URL}/dealership/me`, { headers: authHeaders() })
@@ -34,7 +40,8 @@ export default function BillingScreen() {
     try {
       const res = await fetch(`${BASE_URL}/billing/create-checkout-session`, {
         method: "POST",
-        headers: authHeaders(),
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ includePilotBrain }),
       });
       const data = await res.json();
       if (!data.ok) {
@@ -129,6 +136,19 @@ export default function BillingScreen() {
           </span>
         </div>
 
+        {dealership.subscriptionStatus === "active" && (
+          <div className="flex items-center justify-between">
+            <span className="text-white/70">Pilot Brain add-on</span>
+            <span className={`px-3 py-1 rounded-full text-sm font-semibold border ${
+              dealership.pilotBrainEnabled
+                ? "text-emerald-300 bg-emerald-500/20 border-emerald-500/60"
+                : "text-white/50 bg-white/5 border-white/20"
+            }`}>
+              {dealership.pilotBrainEnabled ? "Active" : "Not added"}
+            </span>
+          </div>
+        )}
+
         {error && (
           <p className="text-red-300 text-sm bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2">
             {error}
@@ -136,21 +156,42 @@ export default function BillingScreen() {
         )}
 
         {dealership.subscriptionStatus === "active" ? (
-          <button
-            onClick={handleManageBilling}
-            disabled={actionLoading}
-            className="w-full py-2.5 rounded-lg bg-black/50 border border-yellow-400/40 text-yellow-300 font-semibold hover:bg-black/70 transition disabled:opacity-50"
-          >
-            {actionLoading ? "Opening…" : "Manage Billing"}
-          </button>
+          <>
+            {!dealership.pilotBrainEnabled && (
+              <p className="text-white/50 text-sm">
+                Want Pilot Brain — your always-on business companion, watching, explaining, and checking the market for less than a day's staff wages a month? Add it from the billing portal below.
+              </p>
+            )}
+            <button
+              onClick={handleManageBilling}
+              disabled={actionLoading}
+              className="w-full py-2.5 rounded-lg bg-black/50 border border-yellow-400/40 text-yellow-300 font-semibold hover:bg-black/70 transition disabled:opacity-50"
+            >
+              {actionLoading ? "Opening…" : "Manage Billing"}
+            </button>
+          </>
         ) : (
-          <button
-            onClick={handleSubscribe}
-            disabled={actionLoading}
-            className="w-full py-2.5 rounded-lg bg-yellow-500 text-black font-semibold hover:bg-yellow-400 transition disabled:opacity-50"
-          >
-            {actionLoading ? "Starting checkout…" : "Subscribe Now"}
-          </button>
+          <>
+            <label className="flex items-start gap-3 bg-black/30 border border-white/10 rounded-lg p-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={includePilotBrain}
+                onChange={e => setIncludePilotBrain(e.target.checked)}
+                className="mt-1"
+              />
+              <span className="text-sm text-white/80">
+                <span className="font-semibold text-yellow-300">Include Pilot Brain</span> — your always-on business companion.
+                Watches your leads and stock, explains what's happening and why, and checks real market pricing. Less than a day's staff wages a month.
+              </span>
+            </label>
+            <button
+              onClick={handleSubscribe}
+              disabled={actionLoading}
+              className="w-full py-2.5 rounded-lg bg-yellow-500 text-black font-semibold hover:bg-yellow-400 transition disabled:opacity-50"
+            >
+              {actionLoading ? "Starting checkout…" : "Subscribe Now"}
+            </button>
+          </>
         )}
       </div>
     </div>

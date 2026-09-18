@@ -37,3 +37,41 @@ export function requireActiveSubscription(
     subscriptionStatus: dealership.subscriptionStatus,
   });
 }
+
+// Pilot Brain is a real premium add-on, priced separately (see
+// billing.ts) — a dealer on the core plan alone shouldn't reach it.
+// Runs AFTER requireActiveSubscription, so trial/active status is
+// already confirmed by the time this checks. During a real trial,
+// Pilot Brain is included so a dealer can actually experience the
+// premium feature before deciding whether to add it — the same
+// reasoning as giving trial access to the rest of the product.
+export function requirePilotBrainAccess(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  const user = (req as Request & { user?: AuthUser }).user;
+  if (!user) {
+    return res.status(401).json({ ok: false, error: "Not authenticated" });
+  }
+
+  const dealerships = readCollection<Dealership>("dealerships");
+  const dealership = dealerships.find(d => d.id === user.dealershipId);
+  if (!dealership) {
+    return res.status(404).json({ ok: false, error: "Dealership not found" });
+  }
+
+  const trialActive =
+    dealership.subscriptionStatus === "trialing" &&
+    new Date(dealership.trialEndsAt).getTime() > Date.now();
+
+  if (trialActive || dealership.pilotBrainEnabled) {
+    return next();
+  }
+
+  return res.status(402).json({
+    ok: false,
+    error: "Pilot Brain is a premium add-on — subscribe to it in Billing to keep using it.",
+    pilotBrainEnabled: false,
+  });
+}
