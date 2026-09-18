@@ -31,6 +31,9 @@ import AppointmentsBoard from "@/appointments/AppointmentsBoard";
 /* DASHBOARD */
 import DealerDashboard from "@/dealer/dashboard/DealerDashboard";
 
+/* PILOT BRAIN */
+import PilotBrainChat from "@/pilotbrain/PilotBrainChat";
+
 /* FEEDBACK & CONSUMABLES */
 import FeedbackBoard from "@/feedback/FeedbackBoard";
 import ContactSupport from "@/support/ContactSupport";
@@ -226,6 +229,7 @@ export default function AnimatedRoutes() {
         {/* BOOKKEEPING */}
         <Route path="bookkeeping" element={<BookkeepingScreen />} />
         <Route path="jobs" element={<JobsBoard />} />
+        <Route path="pilot-brain" element={<PilotBrainChat />} />
         <Route path="feedback" element={<FeedbackBoard />} />
         <Route path="support" element={<ContactSupport />} />
         <Route path="admin/support" element={<SupportInbox />} />

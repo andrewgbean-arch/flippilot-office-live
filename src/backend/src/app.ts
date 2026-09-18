@@ -21,6 +21,7 @@ import registerConsumablesRoute from "./routes/consumables";
 import registerContactsRoute from "./routes/contacts";
 import registerDiaryRoute from "./routes/diary";
 import registerAiListingRoute from "./routes/aiListing";
+import registerPilotBrainRoute from "./routes/pilotBrain";
 import registerMarketCompsRoute from "./routes/marketComps";
 import registerGooglePriceGuideRoute from "./routes/googlePriceGuide";
 import registerPublicBookingRoute from "./routes/publicBooking";
@@ -148,6 +149,7 @@ app.use(
     "/diary",
     "/ai",
     "/market",
+    "/pilot-brain",
   ],
   requireAuth,
   requireActiveSubscription
@@ -167,6 +169,7 @@ registerConsumablesRoute(app);
 registerContactsRoute(app);
 registerDiaryRoute(app);
 registerAiListingRoute(app);
+registerPilotBrainRoute(app);
 registerMarketCompsRoute(app);
 registerGooglePriceGuideRoute(app);
 registerAppointmentsRoute(app);

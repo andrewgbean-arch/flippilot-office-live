@@ -21,6 +21,7 @@ import {
   FiMessageSquare,
   FiPackage,
   FiPhoneCall,
+  FiCpu,
 } from "react-icons/fi";
 
 export default function DealerSidebar() {
@@ -38,6 +39,12 @@ export default function DealerSidebar() {
       label: "Dashboard",
       icon: FiHome,
       items: [{ to: "/dealer-dashboard", label: "Dealer Dashboard" }],
+    },
+
+    {
+      label: "Pilot Brain",
+      icon: FiCpu,
+      items: [{ to: "/pilot-brain", label: "Talk to Pilot Brain" }],
     },
 
     {
