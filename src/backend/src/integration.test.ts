@@ -1814,3 +1814,198 @@ describe("appointment outcomes — what actually happened, not just that it was 
     expect(after).toContain("too few to call a trend");
   });
 });
+
+// Pay summary — gross pay for clocked hours at an owner-set rate. This is
+// other people's wages, so the tests are mostly about who can see what:
+// rates are owner-only (and deliberately NOT on the work pattern, which
+// every staff member can read), and a staff member only ever sees their
+// own summary. The arithmetic itself is unit-tested in payEngine.test.ts.
+describe("pay summary — access control and wiring", () => {
+  const PERIOD = "start=2026-09-14&end=2026-09-20";
+
+  // A fresh dealership per test — signup() reuses an email if the suffix
+  // repeats, which would 409 every call after the first.
+  let setupCounter = 0;
+  async function setup() {
+    setupCounter += 1;
+    const owner = await signup(`pay-owner-${setupCounter}`);
+    const staff = await joinStaff(owner.token, "sales");
+    const colleague = await joinStaff(owner.token, "general");
+    const dealershipId = owner.user.dealershipId as string;
+
+    // 8h30m for staff and 4h for the colleague, both on Mon 14 Sept.
+    writeTenantCollection(dealershipId, "timekeeping", [
+      { id: "t1", userId: staff.user.id, userName: "Staff", clockIn: "2026-09-14T08:00:00Z", clockOut: "2026-09-14T16:30:00Z" },
+      { id: "t2", userId: colleague.user.id, userName: "Colleague", clockIn: "2026-09-14T08:00:00Z", clockOut: "2026-09-14T12:00:00Z" },
+    ]);
+    return { owner, staff, colleague, dealershipId };
+  }
+
+  const setRate = (ownerToken: string, userId: string, hourlyRate: unknown) =>
+    request(app).put(`/pay/rates/${userId}`).set("Authorization", `Bearer ${ownerToken}`).send({ hourlyRate });
+
+  it("the owner can set a rate and read it back", async () => {
+    const { owner, staff } = await setup();
+    const res = await setRate(owner.token, staff.user.id, 12.5);
+    expect(res.status).toBe(200);
+    expect(res.body.rate.hourlyRate).toBe(12.5);
+
+    const list = await request(app).get("/pay/rates").set("Authorization", `Bearer ${owner.token}`);
+    expect(list.status).toBe(200);
+    expect(list.body.items).toHaveLength(1);
+    expect(list.body.items[0].userId).toBe(staff.user.id);
+  });
+
+  it("staff can't read the rates list, set a rate, or clear one", async () => {
+    const { owner, staff, colleague } = await setup();
+    await setRate(owner.token, colleague.user.id, 14);
+
+    expect((await request(app).get("/pay/rates").set("Authorization", `Bearer ${staff.token}`)).status).toBe(403);
+    expect((await setRate(staff.token, staff.user.id, 99)).status).toBe(403);
+    expect(
+      (await request(app).delete(`/pay/rates/${colleague.user.id}`).set("Authorization", `Bearer ${staff.token}`)).status
+    ).toBe(403);
+
+    // and the colleague's rate is untouched
+    const list = await request(app).get("/pay/rates").set("Authorization", `Bearer ${owner.token}`);
+    expect(list.body.items[0].hourlyRate).toBe(14);
+  });
+
+  it("rejects nonsense rates instead of quietly saving them as someone's wage", async () => {
+    const { owner, staff } = await setup();
+    for (const bad of [0, -5, "12.50", null, 501, 12.345]) {
+      expect((await setRate(owner.token, staff.user.id, bad)).status).toBe(400);
+    }
+    // ...but ordinary penny-precision rates are fine, floating-point noise and all
+    expect((await setRate(owner.token, staff.user.id, 11.44)).status).toBe(200);
+  });
+
+  it("can't set a rate for someone in a different dealership", async () => {
+    const { owner } = await setup();
+    const other = await signup("pay-other-dealer");
+    const res = await setRate(owner.token, other.user.id, 12);
+    expect(res.status).toBe(404);
+  });
+
+  it("a staff member sees their own summary — hours, their rate, and the gross worked out from them", async () => {
+    const { owner, staff } = await setup();
+    await setRate(owner.token, staff.user.id, 12.5);
+
+    const res = await request(app).get(`/pay/summary?${PERIOD}`).set("Authorization", `Bearer ${staff.token}`);
+    expect(res.status).toBe(200);
+    expect(res.body.summary.totalHours).toBe(8.5);
+    expect(res.body.summary.hourlyRate).toBe(12.5);
+    expect(res.body.summary.grossPay).toBe(106.25);
+    expect(res.body.summary.days).toHaveLength(1);
+  });
+
+  it("with no rate set, the hours still show but there's no pay figure", async () => {
+    const { staff } = await setup();
+    const res = await request(app).get(`/pay/summary?${PERIOD}`).set("Authorization", `Bearer ${staff.token}`);
+    expect(res.status).toBe(200);
+    expect(res.body.summary.totalHours).toBe(8.5);
+    expect(res.body.summary.hourlyRate).toBeNull();
+    expect(res.body.summary.grossPay).toBeNull();
+  });
+
+  it("clearing a rate takes the pay figure away again", async () => {
+    const { owner, staff } = await setup();
+    await setRate(owner.token, staff.user.id, 12.5);
+    await request(app).delete(`/pay/rates/${staff.user.id}`).set("Authorization", `Bearer ${owner.token}`);
+    const res = await request(app).get(`/pay/summary?${PERIOD}`).set("Authorization", `Bearer ${staff.token}`);
+    expect(res.body.summary.grossPay).toBeNull();
+  });
+
+  it("a staff member can't view a colleague's summary — or the owner's — and learns nothing about who exists", async () => {
+    const { owner, staff, colleague } = await setup();
+    await setRate(owner.token, colleague.user.id, 30);
+
+    const ofColleague = await request(app)
+      .get(`/pay/summary?${PERIOD}&userId=${colleague.user.id}`)
+      .set("Authorization", `Bearer ${staff.token}`);
+    expect(ofColleague.status).toBe(403);
+    expect(JSON.stringify(ofColleague.body)).not.toContain("30");
+
+    const ofOwner = await request(app)
+      .get(`/pay/summary?${PERIOD}&userId=${owner.user.id}`)
+      .set("Authorization", `Bearer ${staff.token}`);
+    expect(ofOwner.status).toBe(403);
+
+    // a made-up id gets the same answer as a real one (no probing who exists)
+    const ofNobody = await request(app)
+      .get(`/pay/summary?${PERIOD}&userId=does-not-exist`)
+      .set("Authorization", `Bearer ${staff.token}`);
+    expect(ofNobody.status).toBe(403);
+  });
+
+  it("the owner can view a staff member's summary; an unknown or other-dealership id is a 404", async () => {
+    const { owner, staff } = await setup();
+    await setRate(owner.token, staff.user.id, 12.5);
+
+    const ok = await request(app)
+      .get(`/pay/summary?${PERIOD}&userId=${staff.user.id}`)
+      .set("Authorization", `Bearer ${owner.token}`);
+    expect(ok.status).toBe(200);
+    expect(ok.body.summary.grossPay).toBe(106.25);
+
+    const unknown = await request(app)
+      .get(`/pay/summary?${PERIOD}&userId=does-not-exist`)
+      .set("Authorization", `Bearer ${owner.token}`);
+    expect(unknown.status).toBe(404);
+
+    const otherDealer = await signup("pay-other-dealer-2");
+    const crossTenant = await request(app)
+      .get(`/pay/summary?${PERIOD}&userId=${otherDealer.user.id}`)
+      .set("Authorization", `Bearer ${owner.token}`);
+    expect(crossTenant.status).toBe(404);
+  });
+
+  it("the team overview is owner-only, covers everyone including people with no rate, and stays totals-only", async () => {
+    const { owner, staff, colleague } = await setup();
+    await setRate(owner.token, staff.user.id, 12.5);
+
+    expect((await request(app).get(`/pay/team-summary?${PERIOD}`).set("Authorization", `Bearer ${staff.token}`)).status).toBe(403);
+
+    const res = await request(app).get(`/pay/team-summary?${PERIOD}`).set("Authorization", `Bearer ${owner.token}`);
+    expect(res.status).toBe(200);
+    expect(res.body.summaries).toHaveLength(3); // owner + 2 staff
+    const byId = Object.fromEntries(res.body.summaries.map((s: any) => [s.userId, s]));
+    expect(byId[staff.user.id].grossPay).toBe(106.25);
+    expect(byId[colleague.user.id].totalHours).toBe(4);
+    expect(byId[colleague.user.id].grossPay).toBeNull(); // no rate set — shown as needing one, not guessed
+    expect(byId[owner.user.id].role).toBe("owner");
+    expect(byId[staff.user.id].days).toBeUndefined();
+  });
+
+  it("validates the period instead of computing something silly", async () => {
+    const { staff } = await setup();
+    const get = (qs: string) => request(app).get(`/pay/summary?${qs}`).set("Authorization", `Bearer ${staff.token}`);
+    expect((await get("")).status).toBe(400);
+    expect((await get("start=2026-09-14")).status).toBe(400);
+    expect((await get("start=14/09/2026&end=20/09/2026")).status).toBe(400);
+    expect((await get("start=2026-02-31&end=2026-03-01")).status).toBe(400);
+    expect((await get("start=2026-09-20&end=2026-09-14")).status).toBe(400);
+    expect((await get("start=2020-01-01&end=2026-09-14")).status).toBe(400); // far too long
+  });
+
+  it("is behind the same login wall as everything else", async () => {
+    expect((await request(app).get(`/pay/summary?${PERIOD}`)).status).toBe(401);
+    expect((await request(app).get("/pay/rates")).status).toBe(401);
+  });
+
+  it("a pending (unapproved) dealership can't use it either", async () => {
+    const email = `integration-test-${runId}-pay-pending@test.local`;
+    const res = await request(app).post("/auth/signup").send({
+      email,
+      password: "integrationtestpass123",
+      name: "Pending Pay",
+      dealershipName: "Pending Pay Motors",
+      requireApproval: true,
+    });
+    trackUser(email);
+    trackDealership(res.body.user.dealershipId);
+    const summary = await request(app).get(`/pay/summary?${PERIOD}`).set("Authorization", `Bearer ${res.body.token}`);
+    expect(summary.status).toBe(403);
+    expect(summary.body.approvalStatus).toBe("pending");
+  });
+});

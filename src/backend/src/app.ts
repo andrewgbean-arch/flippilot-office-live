@@ -21,6 +21,7 @@ import registerConsumablesRoute from "./routes/consumables";
 import registerContactsRoute from "./routes/contacts";
 import registerCustomersRoute from "./routes/customers";
 import registerEmailSettingsRoute from "./routes/emailSettings";
+import registerPayRoute from "./routes/pay";
 import registerDiaryRoute from "./routes/diary";
 import registerAiListingRoute from "./routes/aiListing";
 import registerPilotBrainRoute from "./routes/pilotBrain";
@@ -158,6 +159,7 @@ app.use(
     "/contacts",
     "/customers",
     "/email-settings",
+    "/pay",
     "/diary",
     "/ai",
     "/market",
@@ -191,6 +193,7 @@ registerConsumablesRoute(app);
 registerContactsRoute(app);
 registerCustomersRoute(app);
 registerEmailSettingsRoute(app);
+registerPayRoute(app);
 registerDiaryRoute(app);
 registerAiListingRoute(app);
 registerPilotBrainRoute(app);
