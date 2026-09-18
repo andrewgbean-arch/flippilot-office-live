@@ -6,6 +6,7 @@ import { readCollection, readTenantCollection, writeTenantCollection, readTenant
 import { requireAuth, type AuthUser, type Dealership } from "../auth";
 import { runWatcher, type WatcherResult } from "../engines/watcherEngine";
 import { investigate, findOpportunities, type InvestigationReport, type Opportunity } from "../engines/advisorEngine";
+import { buildMarketSummaryFromStorage } from "./marketIntelligence";
 import type { StaffNotification } from "./notifications";
 
 interface BookkeepingDoc {
@@ -138,18 +139,21 @@ function buildSystemPrompt(
   summary: string,
   watcherSummary: string,
   advisorSummary: string,
+  marketSummary: string,
   memories: string[]
 ): string {
   return [
     `You are Pilot Brain — the business companion built into ${dealershipName}'s FlipPilot Dealer OS.`,
     `You are NOT a generic chatbot or a help-desk bot. You are a trusted digital business partner — closer to a co-founder, advisor and friend than software.`,
     `Always address the user as "Boss". Tone: professional, friendly, calm, confident, honest, helpful. Never robotic, never cold, never overly formal.`,
-    `This is V3 (Advisor). V1 gave you conversation and memory. V2 gave you the ability to notice problems unprompted. V3 gives you the ability to EXPLAIN — why something happened, why it matters, and what to do about it — using the real investigation evidence below, never a guess.`,
+    `This is V4 (Market Intelligence). V1 gave you conversation and memory. V2 gave you the ability to notice problems unprompted. V3 gave you the ability to explain why something happened inside the business. V4 gives you real market awareness — comparing this dealership's stock against real comparable market listings (from eBay's dealer marketplace), tracking real price/demand trends over time, and investigating why a specific vehicle isn't selling using both internal and market evidence.`,
     ``,
-    `GOLDEN RULE: follow evidence. Never guess, invent, or hallucinate a cause. If the evidence below doesn't clearly explain something, say so honestly ("the data doesn't show a clear reason for that yet") rather than making one up.`,
-    `Still out of scope for this version — say so honestly if Boss asks: external market research, internet/competitor pricing, forecasting future performance, autonomous buying decisions, or acting on your own without being asked. Those are later versions.`,
-    `When asked a "why" question (why are sales down, why is stock ageing, why did leads drop, etc.), answer using this structure: What happened → Why it happened (cite the real evidence below) → Why it matters → What you recommend. State your confidence level plainly (the investigation evidence below already tells you how confident to be, based on real sample size).`,
+    `GOLDEN RULE: follow evidence. Never guess, invent, or hallucinate a cause, a price, a trend, or a demand signal. If the evidence below doesn't clearly explain something, say so honestly ("the data doesn't show a clear reason for that yet") rather than making one up.`,
+    `Market data below only covers what's actually been checked — if a vehicle or make/model isn't mentioned in the market evidence, you have no real market data for it; say so rather than guessing a price or trend.`,
+    `Still explicitly out of scope — say so honestly if Boss asks: regional/local market comparisons (no real regional data source exists yet), tracking specific named competitors (not something the data can responsibly identify), any cross-dealer "platform-wide" trend (not enough real dealers on FlipPilot yet for that to mean anything — it would just be this dealership's own data relabelled), forecasting future performance, autonomous pricing/buying decisions, or acting on your own without being asked. Those are later versions.`,
+    `When asked a "why" question about the business (why are sales down, etc.), use the Investigation evidence. When asked why a SPECIFIC vehicle isn't selling, combine that with the Market evidence below — pricing position and demand trend for that make/model — and say plainly which evidence you have and don't have.`,
     `When you notice something Boss has genuinely improved (a real positive change in the evidence below), say so like a coach would — specific and encouraging, not generic praise ("well done!"). Recommendations should always be concrete and actionable (e.g. "contact the 3 leads open over 24 hours" not "improve sales").`,
+    `Every market conclusion must state a confidence level (high/medium/low) — the evidence below already tells you what it should be, based on real sample size.`,
     ``,
     `Today's real business snapshot for ${dealershipName}:`,
     summary,
@@ -157,8 +161,11 @@ function buildSystemPrompt(
     `What you've been watching for (real, computed just now — not guesses):`,
     watcherSummary,
     ``,
-    `Investigation evidence — real period-over-period comparisons and ranked likely factors, computed just now, for answering any "why" question:`,
+    `Investigation evidence — real period-over-period comparisons and ranked likely factors, computed just now, for answering any "why" question about the business:`,
     advisorSummary,
+    ``,
+    `Market evidence — real comparable pricing and demand data from actual eBay dealer listings, and real price/demand trends built up over real time as this dealership's stock has been checked:`,
+    marketSummary,
     ``,
     memories.length > 0
       ? `What you already know about Boss and this business, from earlier conversations:\n${memories.map(m => `- ${m}`).join("\n")}`
@@ -350,12 +357,14 @@ export default function registerPilotBrainRoute(app: Express) {
     notifyDealershipFromWatcher(user.dealershipId, watcher);
     const investigation = runInvestigationForDealership(user.dealershipId, 30);
     const opportunities = runOpportunitiesForDealership(user.dealershipId);
+    const marketSummary = buildMarketSummaryFromStorage(user.dealershipId);
     const systemPrompt = buildSystemPrompt(
       dealershipName,
       user.name,
       summary,
       buildWatcherSummary(watcher),
       buildAdvisorSummary(investigation, opportunities),
+      marketSummary,
       myMemories.map(m => m.fact)
     );
 
@@ -512,12 +521,13 @@ export default function registerPilotBrainRoute(app: Express) {
     const watcher = runWatcherForDealership(user.dealershipId);
     const investigation = runInvestigationForDealership(user.dealershipId, windowDays);
     const opportunities = runOpportunitiesForDealership(user.dealershipId);
+    const marketSummary = buildMarketSummaryFromStorage(user.dealershipId);
 
     const allMemories = readTenantCollection<PilotBrainMemory>(user.dealershipId, MEMORIES_COLLECTION);
     const myMemories = allMemories.filter(m => m.userId === user.id);
     const systemPrompt = buildSystemPrompt(
       dealershipName, user.name, summary, buildWatcherSummary(watcher),
-      buildAdvisorSummary(investigation, opportunities), myMemories.map(m => m.fact)
+      buildAdvisorSummary(investigation, opportunities), marketSummary, myMemories.map(m => m.fact)
     );
 
     try {
@@ -525,7 +535,7 @@ export default function registerPilotBrainRoute(app: Express) {
         {
           role: "user",
           content:
-            `Write a ${period} performance review using ONLY the real investigation evidence above — sales, revenue, profit, leads, conversion, appointments. For each metric that's worth mentioning, state what happened, why (if the evidence shows a likely factor), and one practical recommendation. Keep it tight and structured, like a real report — short lines, not a wall of prose. If the evidence is too thin to say something meaningful (e.g. a brand new dealership with almost no data yet), say that honestly instead of padding it out.`,
+            `Write a ${period} performance review using ONLY the real evidence above — sales, revenue, profit, leads, conversion, appointments, AND a separate "Market Findings" section covering real pricing/demand data and trends from the market evidence above (skip this section entirely, honestly, if no real market data has been checked yet — don't pad it out). For each metric that's worth mentioning, state what happened, why (if the evidence shows a likely factor), and one practical recommendation. Keep it tight and structured, like a real report — short lines, not a wall of prose. If the evidence is too thin to say something meaningful (e.g. a brand new dealership with almost no data yet), say that honestly instead of padding it out.`,
         },
       ], 700);
       res.json({
@@ -569,12 +579,13 @@ export default function registerPilotBrainRoute(app: Express) {
     notifyDealershipFromWatcher(user.dealershipId, watcher);
     const investigation = runInvestigationForDealership(user.dealershipId, 30);
     const opportunities = runOpportunitiesForDealership(user.dealershipId);
+    const marketSummary = buildMarketSummaryFromStorage(user.dealershipId);
 
     const allMemories = readTenantCollection<PilotBrainMemory>(user.dealershipId, MEMORIES_COLLECTION);
     const myMemories = allMemories.filter(m => m.userId === user.id);
     const systemPrompt = buildSystemPrompt(
       dealershipName, user.name, summary, buildWatcherSummary(watcher),
-      buildAdvisorSummary(investigation, opportunities), myMemories.map(m => m.fact)
+      buildAdvisorSummary(investigation, opportunities), marketSummary, myMemories.map(m => m.fact)
     );
 
     try {
