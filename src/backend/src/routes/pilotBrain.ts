@@ -567,7 +567,13 @@ export default function registerPilotBrainRoute(app: Express) {
     if (typeof text !== "string" || !text.trim()) {
       return res.status(400).json({ ok: false, error: "Text can't be empty" });
     }
-    if (text.length > 2000) {
+    // OpenAI's tts-1 hard-rejects input over 4096 characters — this cap
+    // matches that real vendor limit rather than an arbitrary lower one.
+    // A 2000-char cap here was silently falling back to the free browser
+    // voice on Wendy's longer, more detailed replies (real replies
+    // legitimately run 2000-3000+ characters), which sounds broken even
+    // though the fallback itself was working exactly as designed.
+    if (text.length > 4096) {
       return res.status(400).json({ ok: false, error: "Text is too long to speak" });
     }
     // Whitelisted rather than passed straight through — this value goes
