@@ -1,4 +1,5 @@
 import { randomUUID } from "crypto";
+import { Readable } from "stream";
 import { Express, Request } from "express";
 import rateLimit from "express-rate-limit";
 import { readCollection, readTenantCollection, writeTenantCollection } from "../db";
@@ -375,9 +376,14 @@ export default function registerPilotBrainRoute(app: Express) {
         return res.status(502).json({ ok: false, error: "Could not generate voice right now." });
       }
 
-      const audioBuffer = Buffer.from(await response.arrayBuffer());
+      // Piped through as OpenAI produces it, not buffered into memory
+      // first — buffering here would force the client to wait for the
+      // ENTIRE file before it could even start receiving bytes, which
+      // is most of the real "5 seconds before anything plays" latency
+      // for a longer reply. The frontend now plays progressively as
+      // this streams in (see PilotBrainChat.tsx's speak()).
       res.set("Content-Type", "audio/mpeg");
-      res.send(audioBuffer);
+      Readable.fromWeb(response.body as import("stream/web").ReadableStream<Uint8Array>).pipe(res);
     } catch (err) {
       console.error("pilot-brain/speak: request failed", err);
       res.status(502).json({ ok: false, error: "Could not generate voice right now." });

@@ -1,7 +1,20 @@
 import { useEffect, useRef, useState } from "react";
 import { FiMic, FiMicOff, FiVolume2, FiVolumeX } from "react-icons/fi";
 import { fetchPilotBrainMessages, sendPilotBrainMessage, fetchSpeech, OPENAI_VOICES, type OpenAiVoice, type PilotBrainMessage } from "@/lib/pilotBrainApi";
+import { authHeaders } from "@/lib/authToken";
+import { BASE_URL } from "@/lib/apiBaseUrl";
 import "@/staff/StaffDashboard.css";
+
+// MediaSource lets audio start playing as soon as enough of the stream
+// has arrived, instead of waiting for the whole file — real fix for
+// the multi-second gap on a longer reply. Not universally supported
+// for audio/mpeg (patchy on Firefox/Safari), so this is feature-
+// detected and falls back to the simpler full-download approach
+// (fetchSpeech) when it isn't available.
+const canStreamMp3 =
+  typeof window !== "undefined" &&
+  "MediaSource" in window &&
+  MediaSource.isTypeSupported("audio/mpeg");
 
 // Real browser speech APIs, no bundled asset or third-party service —
 // same "synthesize, don't ship an asset" approach as the notification
@@ -155,11 +168,66 @@ export default function PilotBrainChat() {
     }
   }
 
-  async function speak(text: string, voiceOverride?: OpenAiVoice) {
-    if (!voiceOutput && !voiceOverride) return; // voiceOverride lets the "try this voice" preview bypass the toggle
+  // Plays as the response streams in rather than waiting for the whole
+  // MP3 to finish generating — cuts the "time before anything plays"
+  // for a longer reply down to roughly the first chunk's worth of
+  // audio instead of the full file. Falls back to the simpler
+  // buffered path on any error (unsupported codec quirk, network
+  // hiccup, etc.) rather than leaving Wendy silent.
+  async function speakStreaming(text: string, voice: OpenAiVoice): Promise<boolean> {
+    try {
+      const res = await fetch(`${BASE_URL}/pilot-brain/speak`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ text, voice }),
+      });
+      if (!res.ok || !res.body) return false;
 
-    stopAiAudio();
-    const audioUrl = await fetchSpeech(text, voiceOverride ?? voiceChoice);
+      const mediaSource = new MediaSource();
+      const audio = new Audio();
+      audio.src = URL.createObjectURL(mediaSource);
+      audioRef.current = audio;
+
+      await new Promise<void>((resolve, reject) => {
+        mediaSource.addEventListener("sourceopen", async () => {
+          try {
+            const sourceBuffer = mediaSource.addSourceBuffer("audio/mpeg");
+            const reader = res.body!.getReader();
+
+            // A SourceBuffer can only handle one appendBuffer() at a
+            // time — each chunk has to wait for the previous one's
+            // "updateend" before the next can be appended.
+            const waitForUpdateEnd = () =>
+              new Promise<void>(r => sourceBuffer.addEventListener("updateend", () => r(), { once: true }));
+
+            audio.play().catch(() => {}); // starts once enough is buffered; browser handles the wait
+
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              sourceBuffer.appendBuffer(value);
+              await waitForUpdateEnd();
+            }
+            mediaSource.endOfStream();
+            resolve();
+          } catch (err) {
+            reject(err);
+          }
+        }, { once: true });
+      });
+
+      audio.onended = () => URL.revokeObjectURL(audio.src);
+      return true;
+    } catch (err) {
+      console.error("speakStreaming failed, falling back", err);
+      return false;
+    }
+  }
+
+  // Full-download fallback — used when the browser can't stream MP3
+  // via MediaSource, or when streaming playback itself fails.
+  async function speakBuffered(text: string, voice: OpenAiVoice) {
+    const audioUrl = await fetchSpeech(text, voice);
     if (!audioUrl) {
       speakWithBrowserVoice(text); // real AI voice unavailable/failed — don't go silent
       return;
@@ -173,6 +241,19 @@ export default function PilotBrainChat() {
       speakWithBrowserVoice(text);
     };
     audio.play().catch(() => speakWithBrowserVoice(text));
+  }
+
+  async function speak(text: string, voiceOverride?: OpenAiVoice) {
+    if (!voiceOutput && !voiceOverride) return; // voiceOverride lets the "try this voice" preview bypass the toggle
+
+    stopAiAudio();
+    const voice = voiceOverride ?? voiceChoice;
+
+    if (canStreamMp3) {
+      const streamed = await speakStreaming(text, voice);
+      if (streamed) return;
+    }
+    await speakBuffered(text, voice);
   }
 
   const [previewing, setPreviewing] = useState<OpenAiVoice | null>(null);
