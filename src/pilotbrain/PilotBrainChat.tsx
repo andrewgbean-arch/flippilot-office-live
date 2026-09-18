@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { FiMic, FiMicOff, FiVolume2, FiVolumeX } from "react-icons/fi";
-import { fetchPilotBrainMessages, sendPilotBrainMessage, fetchSpeech, type PilotBrainMessage } from "@/lib/pilotBrainApi";
+import { fetchPilotBrainMessages, sendPilotBrainMessage, fetchSpeech, OPENAI_VOICES, type OpenAiVoice, type PilotBrainMessage } from "@/lib/pilotBrainApi";
 import "@/staff/StaffDashboard.css";
 
 // Real browser speech APIs, no bundled asset or third-party service —
@@ -15,6 +15,8 @@ const SpeechRecognitionCtor: typeof window.SpeechRecognition | undefined =
     : undefined;
 
 const VOICE_OUTPUT_KEY = "flippilot_pilot_brain_voice_output";
+const VOICE_CHOICE_KEY = "flippilot_pilot_brain_voice_choice";
+const DEFAULT_VOICE: OpenAiVoice = "fable";
 
 // Voices differ per OS/browser and there's no reliable "gender" field
 // on the Web Speech API — just a name. This matches against common
@@ -67,6 +69,22 @@ export default function PilotBrainChat() {
       return false;
     }
   });
+
+  const [voiceChoice, setVoiceChoice] = useState<OpenAiVoice>(() => {
+    try {
+      const saved = localStorage.getItem(VOICE_CHOICE_KEY);
+      return (OPENAI_VOICES as readonly string[]).includes(saved ?? "") ? (saved as OpenAiVoice) : DEFAULT_VOICE;
+    } catch {
+      return DEFAULT_VOICE;
+    }
+  });
+
+  function changeVoice(next: OpenAiVoice) {
+    setVoiceChoice(next);
+    try {
+      localStorage.setItem(VOICE_CHOICE_KEY, next);
+    } catch {}
+  }
 
   useEffect(() => {
     fetchPilotBrainMessages().then(result => {
@@ -137,11 +155,11 @@ export default function PilotBrainChat() {
     }
   }
 
-  async function speak(text: string) {
-    if (!voiceOutput) return;
+  async function speak(text: string, voiceOverride?: OpenAiVoice) {
+    if (!voiceOutput && !voiceOverride) return; // voiceOverride lets the "try this voice" preview bypass the toggle
 
     stopAiAudio();
-    const audioUrl = await fetchSpeech(text);
+    const audioUrl = await fetchSpeech(text, voiceOverride ?? voiceChoice);
     if (!audioUrl) {
       speakWithBrowserVoice(text); // real AI voice unavailable/failed — don't go silent
       return;
@@ -155,6 +173,13 @@ export default function PilotBrainChat() {
       speakWithBrowserVoice(text);
     };
     audio.play().catch(() => speakWithBrowserVoice(text));
+  }
+
+  const [previewing, setPreviewing] = useState<OpenAiVoice | null>(null);
+  async function previewVoice(voice: OpenAiVoice) {
+    setPreviewing(voice);
+    await speak(`Hello Boss, this is the ${voice} voice.`, voice);
+    setPreviewing(null);
   }
 
   function toggleListening() {
@@ -250,6 +275,33 @@ export default function PilotBrainChat() {
               {voiceOutput ? "Wendy: On" : "Wendy: Off"}
             </button>
           )}
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+          <label htmlFor="pilot-brain-voice-choice" style={{ color: "#f5f7ff80", fontSize: 12 }}>
+            Voice:
+          </label>
+          <select
+            id="pilot-brain-voice-choice"
+            value={voiceChoice}
+            onChange={e => changeVoice(e.target.value as OpenAiVoice)}
+            style={{
+              background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.15)",
+              borderRadius: 8, color: "#f5f7ff", fontSize: 12, padding: "4px 8px",
+            }}
+          >
+            {OPENAI_VOICES.map(v => (
+              <option key={v} value={v}>{v}</option>
+            ))}
+          </select>
+          <button
+            onClick={() => previewVoice(voiceChoice)}
+            disabled={previewing !== null}
+            className="sn-btn"
+            style={{ fontSize: 12, padding: "4px 10px" }}
+          >
+            {previewing === voiceChoice ? "Playing…" : "Try this voice"}
+          </button>
         </div>
       </header>
 

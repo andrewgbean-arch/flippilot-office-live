@@ -84,15 +84,18 @@ export async function fetchWatcher(): Promise<WatcherResult | null> {
   }
 }
 
+export const OPENAI_VOICES = ["alloy", "echo", "fable", "onyx", "nova", "shimmer"] as const;
+export type OpenAiVoice = (typeof OPENAI_VOICES)[number];
+
 // Real AI voice (OpenAI tts-1) — returns a playable object URL, or null
 // if it's not available/configured/failed, so the caller can fall back
 // to the free browser voice rather than going silent.
-export async function fetchSpeech(text: string): Promise<string | null> {
+export async function fetchSpeech(text: string, voice: OpenAiVoice): Promise<string | null> {
   try {
     const res = await fetch(`${BASE_URL}/pilot-brain/speak`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...authHeaders() },
-      body: JSON.stringify({ text }),
+      body: JSON.stringify({ text, voice }),
     });
     if (!res.ok) return null;
     const blob = await res.blob();

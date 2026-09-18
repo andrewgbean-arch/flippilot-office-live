@@ -332,14 +332,20 @@ export default function registerPilotBrainRoute(app: Express) {
   // key from Anthropic, hence its own rate limit. Returns raw MP3 bytes
   // rather than a URL — nothing is stored, each call is generated fresh
   // and streamed straight through.
+  const OPENAI_VOICES = ["alloy", "echo", "fable", "onyx", "nova", "shimmer"] as const;
+
   app.post("/pilot-brain/speak", requireAuth, speakLimiter, async (req, res) => {
-    const { text } = req.body ?? {};
+    const { text, voice } = req.body ?? {};
     if (typeof text !== "string" || !text.trim()) {
       return res.status(400).json({ ok: false, error: "Text can't be empty" });
     }
     if (text.length > 2000) {
       return res.status(400).json({ ok: false, error: "Text is too long to speak" });
     }
+    // Whitelisted rather than passed straight through — this value goes
+    // directly into a real paid API call, so an unvalidated field here
+    // would let a client pass anything through to OpenAI on our key.
+    const selectedVoice = OPENAI_VOICES.includes(voice) ? voice : "fable";
 
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
@@ -358,9 +364,7 @@ export default function registerPilotBrainRoute(app: Express) {
         },
         body: JSON.stringify({
           model: "tts-1",
-          // "fable" reads with a British/English character — OpenAI's
-          // other voices (nova, shimmer, etc.) default to American.
-          voice: "fable",
+          voice: selectedVoice,
           input: text.trim(),
         }),
       });
