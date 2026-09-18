@@ -44,7 +44,10 @@ export default function DealerSidebar() {
     {
       label: "Pilot Brain",
       icon: FiCpu,
-      items: [{ to: "/pilot-brain", label: "Talk to Pilot Brain" }],
+      items: [
+        { to: "/pilot-brain", label: "Talk to Pilot Brain" },
+        { to: "/pilot-brain/operations", label: "Operations (Approvals)" },
+      ],
     },
 
     {

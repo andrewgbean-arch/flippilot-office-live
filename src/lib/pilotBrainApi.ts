@@ -202,3 +202,67 @@ export async function fetchTodaysPriorities(): Promise<{ ok: boolean; priorities
     return { ok: false, priorities: [], error: "Network error" };
   }
 }
+
+// V6 (The Operator) — real prepared actions, waiting for a real human
+// approval before anything is written. Pilot Brain never executes
+// these on its own.
+export type OperatorActionType = "bookkeeping_categorize" | "lead_followup";
+export type OperatorActionStatus = "prepared" | "rejected" | "completed" | "rolled_back";
+
+export interface OperatorAction {
+  id: string;
+  type: OperatorActionType;
+  status: OperatorActionStatus;
+  title: string;
+  description: string;
+  reason: string;
+  payload: Record<string, unknown>;
+  preparedAt: string;
+  reviewedByName?: string;
+  reviewedAt?: string;
+  completedAt?: string;
+  rolledBackAt?: string;
+}
+
+export async function fetchOperatorActions(): Promise<{ ok: boolean; actions: OperatorAction[]; error?: string }> {
+  try {
+    const res = await fetch(`${BASE_URL}/pilot-brain/actions`, { headers: authHeaders() });
+    const data = await res.json();
+    return { ok: res.ok, actions: data.actions ?? [], error: data.error };
+  } catch (err) {
+    console.error("fetchOperatorActions: backend unreachable", err);
+    return { ok: false, actions: [], error: "Network error" };
+  }
+}
+
+export async function prepareOperatorActions(): Promise<{ ok: boolean; prepared: number; error?: string }> {
+  try {
+    const res = await fetch(`${BASE_URL}/pilot-brain/actions/prepare`, { method: "POST", headers: authHeaders() });
+    const data = await res.json();
+    return { ok: res.ok, prepared: data.prepared ?? 0, error: data.error };
+  } catch (err) {
+    console.error("prepareOperatorActions: backend unreachable", err);
+    return { ok: false, prepared: 0, error: "Network error" };
+  }
+}
+
+async function operatorActionCommand(
+  id: string,
+  command: "approve" | "reject" | "rollback"
+): Promise<{ ok: boolean; action?: OperatorAction; error?: string }> {
+  try {
+    const res = await fetch(`${BASE_URL}/pilot-brain/actions/${id}/${command}`, {
+      method: "POST",
+      headers: authHeaders(),
+    });
+    const data = await res.json();
+    return { ok: res.ok, action: data.action, error: data.error };
+  } catch (err) {
+    console.error(`operatorActionCommand(${command}): backend unreachable`, err);
+    return { ok: false, error: "Network error" };
+  }
+}
+
+export const approveOperatorAction = (id: string) => operatorActionCommand(id, "approve");
+export const rejectOperatorAction = (id: string) => operatorActionCommand(id, "reject");
+export const rollbackOperatorAction = (id: string) => operatorActionCommand(id, "rollback");

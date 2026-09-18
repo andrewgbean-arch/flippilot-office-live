@@ -367,7 +367,7 @@ function notifyDealershipFromWatcher(dealershipId: string, watcher: WatcherResul
   }
 }
 
-async function callClaude(apiKey: string, systemPrompt: string, messages: { role: string; content: string }[], maxTokens = 500): Promise<string> {
+export async function callClaude(apiKey: string, systemPrompt: string, messages: { role: string; content: string }[], maxTokens = 500): Promise<string> {
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
