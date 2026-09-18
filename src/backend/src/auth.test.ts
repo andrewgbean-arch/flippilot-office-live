@@ -1,5 +1,13 @@
 import { describe, it, expect, vi, beforeAll } from "vitest";
 
+// auth.ts imports db.ts (requireAuth looks the account up in `users`),
+// and db.ts opens the real SQLite file the moment it's imported. These
+// are pure-function tests that never touch storage, so keep them off
+// the real database — otherwise this file would open the same file
+// integration.test.ts is using, from a parallel worker, on a fresh
+// checkout where neither has created it yet.
+vi.mock("./db", () => ({ readCollection: vi.fn(() => []) }));
+
 beforeAll(() => {
   // getJwtSecret() reads process.env lazily, not at import time — see
   // its own comment in auth.ts about why (bit by the opposite bug

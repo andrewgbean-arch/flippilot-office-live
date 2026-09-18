@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { Request, Response, NextFunction } from "express";
+import { readCollection } from "./db";
 
 const TOKEN_TTL = "7d";
 
@@ -38,6 +39,13 @@ export interface AuthUser {
 
 export interface StoredUser extends AuthUser {
   passwordHash: string;
+}
+
+// The stored account minus its password hash — the only shape that's
+// ever safe to attach to a request or send to a client.
+export function toPublicUser(user: StoredUser): AuthUser {
+  const { passwordHash, ...publicUser } = user;
+  return publicUser;
 }
 
 export type SubscriptionStatus = "trialing" | "active" | "past_due" | "canceled";
@@ -221,6 +229,20 @@ export function verifyPasswordResetToken(token: string): string | null {
 // otherwise. Every real data route (inventory/leads/staff) uses this —
 // previously those endpoints had zero access control, so anyone who
 // found the URL could read or overwrite the dealer's data.
+//
+// A valid signature only proves this server issued the token at some
+// point in the last 7 days — not that the account still exists, or
+// still has the access it had then. Trusting the token's baked-in
+// claims meant an employee the owner removed kept full access to that
+// dealership's leads/customers/bookkeeping until their token expired,
+// and a role change (manager demoted to sales) did nothing until the
+// person happened to log in again. So the token is used only to say
+// WHICH account this is; who they are right now (role, staffRole,
+// dealershipId) always comes from the stored user. One `users` read per
+// request — fine at current scale; cache it if that ever shows up in
+// profiling, but a cache would reintroduce a window where a removed
+// account still works, so it'd need explicit invalidation on every
+// users write.
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
   const header = req.headers.authorization;
   const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
@@ -229,12 +251,19 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
     return res.status(401).json({ ok: false, error: "Not authenticated" });
   }
 
-  const user = verifyToken(token);
-  if (!user) {
+  const claims = verifyToken(token);
+  if (!claims) {
     return res.status(401).json({ ok: false, error: "Invalid or expired session" });
   }
 
-  (req as Request & { user: AuthUser }).user = user;
+  const stored = readCollection<StoredUser>("users").find(u => u.id === claims.id);
+  if (!stored) {
+    // Same message as a bad/expired token on purpose — don't tell the
+    // caller which of the two it was.
+    return res.status(401).json({ ok: false, error: "Invalid or expired session" });
+  }
+
+  (req as Request & { user: AuthUser }).user = toPublicUser(stored);
   next();
 }
 

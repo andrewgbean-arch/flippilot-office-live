@@ -1139,3 +1139,171 @@ describe("new-dealership approval gate", () => {
     expect(res.status).toBe(200);
   });
 });
+
+// requireAuth used to trust the claims baked into the JWT and never look
+// the account up, so an employee the owner removed kept full access to
+// the dealership's leads/customers/bookkeeping until their 7-day token
+// expired, and a role change (manager demoted to sales) did nothing
+// until they happened to log in again. These edit the `users`
+// collection directly — there's no owner-facing "remove staff" or
+// "change role" route yet — and assert the very next request on the
+// SAME old token sees the change.
+describe("requireAuth checks the stored account on every request, not the token's baked-in claims", () => {
+  let ownerToken: string;
+  let joinCounter = 0;
+
+  beforeAll(async () => {
+    const owner = await signup("stored-owner");
+    ownerToken = owner.token;
+  });
+
+  // A fresh invite + fresh email every call, for the same reason as
+  // joinAsSales in the RBAC block above.
+  async function joinStaff(staffRole: "sales" | "finance" | "manager" | "general") {
+    joinCounter += 1;
+    const inviteRes = await request(app)
+      .post("/dealership/invite")
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .send({ inviteeName: "Stored Tester", staffRole });
+    const email = `integration-test-${runId}-stored-${joinCounter}@test.local`;
+    const joinRes = await request(app).post("/auth/join").send({
+      token: inviteRes.body.token,
+      name: "Stored Tester",
+      email,
+      password: "storedtestpass123",
+    });
+    trackUser(email);
+    if (!joinRes.body.token) {
+      throw new Error(`joinStaff failed: ${JSON.stringify(joinRes.body)}`);
+    }
+    return { token: joinRes.body.token as string, user: joinRes.body.user };
+  }
+
+  function editStoredUser(id: string, patch: Record<string, unknown>) {
+    const users = readCollection<any>("users");
+    writeCollection("users", users.map(u => (u.id === id ? { ...u, ...patch } : u)));
+  }
+
+  function removeStoredUser(id: string) {
+    const users = readCollection<any>("users");
+    writeCollection("users", users.filter(u => u.id !== id));
+  }
+
+  it("the normal signup → request flow is unaffected, and /auth/me returns exactly the public account (no password hash, no token-only claims like iat/exp)", async () => {
+    const { token, user } = await signup("stored-normal");
+
+    const inventoryRes = await request(app).get("/inventory").set("Authorization", `Bearer ${token}`);
+    expect(inventoryRes.status).toBe(200);
+
+    const meRes = await request(app).get("/auth/me").set("Authorization", `Bearer ${token}`);
+    expect(meRes.status).toBe(200);
+    expect(meRes.body.user).toEqual(user);
+    expect(meRes.body.user.passwordHash).toBeUndefined();
+  });
+
+  it("a staff account joined from an invite works, then a user deleted from `users` gets 401 everywhere with their old, still-valid token", async () => {
+    const staff = await joinStaff("general");
+    const urls = ["/auth/me", "/dealership/me", "/inventory", "/team"];
+
+    // The token is genuinely good before removal, so the 401s below can
+    // only be down to the removal itself.
+    for (const url of urls) {
+      const res = await request(app).get(url).set("Authorization", `Bearer ${staff.token}`);
+      expect(res.status, `before removal: GET ${url}`).toBe(200);
+    }
+
+    removeStoredUser(staff.user.id);
+
+    for (const url of urls) {
+      const res = await request(app).get(url).set("Authorization", `Bearer ${staff.token}`);
+      expect(res.status, `after removal: GET ${url}`).toBe(401);
+      expect(res.body).toEqual({ ok: false, error: "Invalid or expired session" });
+    }
+
+    // Writes are blocked too, not just reads.
+    const writeRes = await request(app)
+      .put("/leads")
+      .set("Authorization", `Bearer ${staff.token}`)
+      .send({ items: [] });
+    expect(writeRes.status).toBe(401);
+
+    // Removing one person leaves everyone else in the dealership alone.
+    const ownerRes = await request(app).get("/auth/me").set("Authorization", `Bearer ${ownerToken}`);
+    expect(ownerRes.status).toBe(200);
+  });
+
+  it("demoting a manager to sales takes effect on their very next request, without re-login", async () => {
+    const staff = await joinStaff("manager");
+    const manageStaff = () =>
+      request(app).put("/staff").set("Authorization", `Bearer ${staff.token}`).send({ items: [] });
+
+    expect((await manageStaff()).status).toBe(200); // manager-only route, fine as a manager
+
+    editStoredUser(staff.user.id, { staffRole: "sales" });
+
+    expect((await manageStaff()).status).toBe(403); // same token, now blocked
+
+    // /auth/me is what the web client reads to decide what to show, so
+    // it has to report the current role too, not the one in the token.
+    const meRes = await request(app).get("/auth/me").set("Authorization", `Bearer ${staff.token}`);
+    expect(meRes.body.user.staffRole).toBe("sales");
+  });
+
+  it("promoting a general account to manager takes effect immediately too", async () => {
+    const staff = await joinStaff("general");
+    const manageStaff = () =>
+      request(app).put("/staff").set("Authorization", `Bearer ${staff.token}`).send({ items: [] });
+
+    expect((await manageStaff()).status).toBe(403);
+
+    editStoredUser(staff.user.id, { staffRole: "manager" });
+
+    expect((await manageStaff()).status).toBe(200);
+  });
+
+  it("demoting an owner to staff closes owner-only routes on their next request", async () => {
+    const owner = await signup("stored-demote-owner");
+    const invite = () =>
+      request(app)
+        .post("/dealership/invite")
+        .set("Authorization", `Bearer ${owner.token}`)
+        .send({ staffRole: "sales" });
+
+    expect((await invite()).status).toBe(200);
+
+    editStoredUser(owner.user.id, { role: "staff", staffRole: "general" });
+
+    expect((await invite()).status).toBe(403);
+  });
+
+  // The one place the app removes users today: the platform admin
+  // deleting a whole dealership. Before this, an owner whose dealership
+  // was deleted could still call /auth/me (and any route outside the
+  // subscription gate) with a 200 for the rest of the token's life.
+  it("when a platform admin deletes a whole dealership, its sessions die with it", async () => {
+    const doomed = await signup("stored-del-owner");
+    const admin = await signup("stored-del-admin");
+
+    const beforeRes = await request(app).get("/auth/me").set("Authorization", `Bearer ${doomed.token}`);
+    expect(beforeRes.status).toBe(200);
+
+    const prevAdminEmail = process.env.ADMIN_EMAIL;
+    process.env.ADMIN_EMAIL = admin.email;
+    try {
+      const deleteRes = await request(app)
+        .delete(`/admin/dealerships/${doomed.user.dealershipId}`)
+        .set("Authorization", `Bearer ${admin.token}`);
+      expect(deleteRes.status).toBe(200);
+    } finally {
+      if (prevAdminEmail === undefined) delete process.env.ADMIN_EMAIL;
+      else process.env.ADMIN_EMAIL = prevAdminEmail;
+    }
+
+    const afterRes = await request(app).get("/auth/me").set("Authorization", `Bearer ${doomed.token}`);
+    expect(afterRes.status).toBe(401);
+
+    // The admin's own session is untouched.
+    const adminRes = await request(app).get("/auth/me").set("Authorization", `Bearer ${admin.token}`);
+    expect(adminRes.status).toBe(200);
+  });
+});

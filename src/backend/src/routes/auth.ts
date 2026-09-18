@@ -9,6 +9,7 @@ import {
   verifyInviteToken,
   signPasswordResetToken,
   verifyPasswordResetToken,
+  toPublicUser,
   type StoredUser,
   type AuthUser,
   type Dealership,
@@ -16,11 +17,6 @@ import {
 import { sendEmail } from "../email";
 
 const TRIAL_DAYS = 14;
-
-function toPublicUser(user: StoredUser): AuthUser {
-  const { passwordHash, ...publicUser } = user;
-  return publicUser;
-}
 
 export default function registerAuthRoute(app: Express) {
   app.post("/auth/signup", async (req, res) => {
