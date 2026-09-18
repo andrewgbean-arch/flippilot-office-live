@@ -1,6 +1,7 @@
 import { Express } from "express";
 import rateLimit from "express-rate-limit";
 import { readTenantCollection } from "../db";
+import { isSampleVehicleId } from "../sampleVehicles";
 
 // Same unauthenticated-by-design reasoning as the URL itself (see
 // below) — but with no limiter at all, a known feed URL could be
@@ -126,7 +127,8 @@ export default function registerSyndicationRoute(app: Express) {
     if (!dealershipId) return res.status(400).json({ ok: false, error: "Missing dealership id" });
 
     const vehicles = readTenantCollection<VehicleLike>(dealershipId, "vehicles")
-      .filter(v => String(v.status ?? "").toLowerCase() !== "sold");
+      .filter(v => String(v.status ?? "").toLowerCase() !== "sold")
+      .filter(v => !isSampleVehicleId(v.id));
     const csv = vehiclesToCsv(vehicles);
 
     res.setHeader("Content-Type", "text/csv; charset=utf-8");

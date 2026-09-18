@@ -1589,3 +1589,58 @@ describe("owner-managed team — change a role, remove a member", () => {
     expect(time.body.items[0].userName).toBe(staff.user.name);
   });
 });
+
+// The web app used to seed 8 "In Stock" demo cars (ids ULTRA-001..005,
+// DM-001..003) into every new dealership's real stock, which the two
+// anonymous public routes below then published as the dealer's own
+// cars. New accounts no longer get them, but existing ones still hold
+// them, so these routes must never publish them.
+describe("public store page and stock feed never publish the old seeded demo cars", () => {
+  const car = (id: string, make: string, model: string) => ({
+    id,
+    make,
+    model,
+    year: 2018,
+    mileage: 40000,
+    priceRetail: 5000,
+    condition: "Good",
+    status: "In Stock",
+  });
+
+  it("publishes a dealer's real stock but nothing carrying a demo id — on both the storefront route and the feed", async () => {
+    const dealer = await signup("sample-vehicles");
+    await request(app)
+      .put("/inventory")
+      .set("Authorization", `Bearer ${dealer.token}`)
+      .send({
+        items: [
+          car("ULTRA-001", "BMW", "M2 Competition"),
+          car("ULTRA-005", "Ford", "Focus RS"),
+          car("DM-002", "Peugeot", "208 Active"),
+          car("real-vehicle-1", "Vauxhall", "Astra Real"),
+        ],
+      });
+
+    const storefront = await request(app).get(`/public/${dealer.user.dealershipId}/vehicles`);
+    expect(storefront.status).toBe(200);
+    expect(storefront.body.items.map((v: any) => v.model)).toEqual(["Astra Real"]);
+
+    const feed = await request(app).get(`/syndication/${dealer.user.dealershipId}/feed.csv`);
+    expect(feed.status).toBe(200);
+    expect(feed.text).toContain("Astra Real");
+    for (const demoModel of ["M2 Competition", "Focus RS", "208 Active"]) {
+      expect(feed.text).not.toContain(demoModel);
+    }
+  });
+
+  it("the dealer's own signed-in view of their stock is untouched — the demo ids are only hidden from the public", async () => {
+    const dealer = await signup("sample-vehicles-own-view");
+    await request(app)
+      .put("/inventory")
+      .set("Authorization", `Bearer ${dealer.token}`)
+      .send({ items: [car("ULTRA-002", "Audi", "RS3 Sportback")] });
+
+    const own = await request(app).get("/inventory").set("Authorization", `Bearer ${dealer.token}`);
+    expect(own.body.items.map((v: any) => v.id)).toEqual(["ULTRA-002"]);
+  });
+});

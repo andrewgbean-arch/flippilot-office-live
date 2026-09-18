@@ -3,6 +3,7 @@ import { Express, Request } from "express";
 import rateLimit from "express-rate-limit";
 import { readCollection, readTenantCollection, writeTenantCollection, readTenantDoc } from "../db";
 import type { StoredUser, Dealership } from "../auth";
+import { isSampleVehicleId } from "../sampleVehicles";
 import { DEFAULT_BOOKING_SETTINGS, type BookingSettings, type WeekDay } from "./bookingSettings";
 
 export type AppointmentType = "viewing" | "test_drive" | "mot";
@@ -163,7 +164,8 @@ export default function registerPublicBookingRoute(app: Express) {
     // a car that's already sold is a real, visible mistake there, not
     // a cosmetic one.
     const vehicles = readTenantCollection<any>(dealershipId, "vehicles")
-      .filter(v => String(v.status ?? "").toLowerCase() !== "sold");
+      .filter(v => String(v.status ?? "").toLowerCase() !== "sold")
+      .filter(v => !isSampleVehicleId(v.id));
     const publicVehicles: PublicVehicle[] = vehicles.map(v => ({
       id: v.id,
       ...(v.reg ? { reg: v.reg } : {}),
