@@ -7,6 +7,7 @@ import helmet from "helmet";
 import morgan from "morgan";
 import rateLimit from "express-rate-limit";
 import registerInventoryRoute from "./routes/inventory";
+import registerPhotosRoute from "./routes/photos";
 import registerLeadsRoute from "./routes/leads";
 import registerStaffRoute from "./routes/staff";
 import registerBookkeepingRoute from "./routes/bookkeeping";
@@ -179,6 +180,7 @@ app.use(
   requirePilotBrainAccess
 );
 registerInventoryRoute(app);
+registerPhotosRoute(app);
 registerLeadsRoute(app);
 registerStaffRoute(app);
 registerBookkeepingRoute(app);

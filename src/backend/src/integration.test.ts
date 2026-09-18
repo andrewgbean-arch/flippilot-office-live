@@ -1,7 +1,15 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import request from "supertest";
 import app from "./app.js";
-import { readCollection, writeCollection, writeTenantCollection, deleteTenantData } from "./db.js";
+import {
+  readCollection,
+  writeCollection,
+  writeTenantCollection,
+  deleteTenantData,
+  insertPhoto,
+  countPhotos,
+  getPhoto,
+} from "./db.js";
 import { buildBusinessSummary } from "./routes/pilotBrain.js";
 
 // Real HTTP-level integration tests against the actual Express app —
@@ -2007,5 +2015,309 @@ describe("pay summary — access control and wiring", () => {
     const summary = await request(app).get(`/pay/summary?${PERIOD}`).set("Authorization", `Bearer ${res.body.token}`);
     expect(summary.status).toBe(403);
     expect(summary.body.approvalStatus).toBe("pending");
+  });
+});
+
+// Vehicle photos: the picture is stored on the server and the vehicle only
+// carries a URL. What matters here is that a photo is public only when it
+// should be, can't be attached to or removed from someone else's stock,
+// can't be a disguised non-image, and — the subtle one — survives a save
+// from a web screen that hadn't seen it yet, without ever resurrecting a
+// deleted one.
+describe("vehicle photos — hosted storage", () => {
+  const JPEG_HEAD = [0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10];
+  const fakeJpeg = (length = 200) => {
+    const buf = Buffer.alloc(length);
+    Buffer.from(JPEG_HEAD).copy(buf);
+    return buf;
+  };
+  const jpegDataUrl = (bytes: Buffer = fakeJpeg()) => `data:image/jpeg;base64,${bytes.toString("base64")}`;
+  const auth = (token: string) => ({ Authorization: `Bearer ${token}` });
+
+  const car = (id: string, extra: Record<string, unknown> = {}) => ({
+    id,
+    make: "Ford",
+    model: "Fiesta",
+    images: null,
+    status: "in stock",
+    priceRetail: 5000,
+    ...extra,
+  });
+
+  let photoSetupCounter = 0;
+  async function setup(vehicleIds: string[] = ["car-1", "car-2"]) {
+    photoSetupCounter += 1;
+    const owner = await signup(`photo-owner-${photoSetupCounter}`);
+    const dealershipId = owner.user.dealershipId as string;
+    const put = await request(app)
+      .put("/inventory")
+      .set(auth(owner.token))
+      .send({ items: vehicleIds.map(id => car(id)) });
+    expect(put.status).toBe(200);
+    return { owner, dealershipId };
+  }
+
+  const upload = (token: string, vehicleId: string, dataUrl: unknown) =>
+    request(app).post(`/inventory/${vehicleId}/photos`).set(auth(token)).send({ dataUrl });
+  const stock = async (token: string) =>
+    (await request(app).get("/inventory").set(auth(token))).body.items as any[];
+  const savePut = (token: string, items: unknown[]) =>
+    request(app).put("/inventory").set(auth(token)).send({ items });
+
+  function seedPhoto(dealershipId: string, refId: string, opts: { createdAt?: string; kind?: "vehicle" | "message" } = {}) {
+    const id = crypto.randomUUID();
+    insertPhoto({
+      id,
+      dealershipId,
+      kind: opts.kind ?? "vehicle",
+      refId,
+      uploadedBy: null,
+      mime: "image/jpeg",
+      size: 3,
+      data: Buffer.from([0xff, 0xd8, 0xff]),
+      createdAt: opts.createdAt ?? new Date().toISOString(),
+    });
+    return id;
+  }
+
+  it("stores an uploaded photo, adds it to the vehicle, and serves it publicly with the right headers", async () => {
+    const { owner } = await setup();
+    const bytes = fakeJpeg(300);
+    const res = await upload(owner.token, "car-1", jpegDataUrl(bytes));
+    expect(res.status).toBe(200);
+
+    const url: string = res.body.photo.url;
+    expect(url).toMatch(/\/photos\/[0-9a-f-]{36}\.jpg$/);
+    expect(res.body.images).toEqual([url]);
+
+    const items = await stock(owner.token);
+    expect(items[0].images).toEqual([url]);
+    expect(items[1].images).toBeNull();
+
+    // No login: a portal or a browser showing the shop window has none.
+    const img = await request(app).get(new URL(url).pathname);
+    expect(img.status).toBe(200);
+    expect(img.headers["content-type"]).toBe("image/jpeg");
+    expect(img.headers["cache-control"]).toContain("immutable");
+    expect(img.headers["cross-origin-resource-policy"]).toBe("cross-origin");
+    expect(Buffer.compare(img.body as Buffer, bytes)).toBe(0);
+  });
+
+  it("builds the URL from the proxy's forwarded protocol, or from PUBLIC_API_URL when that is set", async () => {
+    const { owner } = await setup();
+    const viaProxy = await request(app)
+      .post("/inventory/car-1/photos")
+      .set(auth(owner.token))
+      .set("X-Forwarded-Proto", "https")
+      .send({ dataUrl: jpegDataUrl() });
+    expect(viaProxy.body.photo.url).toMatch(/^https:\/\//);
+
+    process.env.PUBLIC_API_URL = "https://api.example.test/";
+    try {
+      const pinned = await upload(owner.token, "car-1", jpegDataUrl());
+      expect(pinned.body.photo.url.startsWith("https://api.example.test/photos/")).toBe(true);
+    } finally {
+      delete process.env.PUBLIC_API_URL;
+    }
+  });
+
+  it("refuses anything that isn't a real image, or is too big, and stores nothing", async () => {
+    const { owner, dealershipId } = await setup();
+    const svg = Buffer.from("<svg xmlns='http://www.w3.org/2000/svg'><script>alert(1)</script></svg>");
+    const html = Buffer.from("<!doctype html><script>alert(1)</script>");
+
+    for (const bad of [
+      undefined,
+      "hello",
+      `data:image/jpeg;base64,${svg.toString("base64")}`,
+      `data:image/png;base64,${html.toString("base64")}`,
+      "data:text/html;base64,PGgxPg==",
+    ]) {
+      expect((await upload(owner.token, "car-1", bad)).status).toBe(400);
+    }
+    expect((await upload(owner.token, "car-1", jpegDataUrl(fakeJpeg(1_600_000)))).status).toBe(413);
+
+    expect(countPhotos(dealershipId, "vehicle")).toBe(0);
+    expect((await stock(owner.token))[0].images).toBeNull();
+  });
+
+  it("only accepts photos for a vehicle in your own dealership", async () => {
+    const a = await setup(["car-1", "a-only"]);
+    const b = await setup(["car-1"]);
+
+    expect((await upload(a.owner.token, "does-not-exist", jpegDataUrl())).status).toBe(404);
+
+    // B guessing A's vehicle id learns nothing and changes nothing.
+    expect((await upload(b.owner.token, "a-only", jpegDataUrl())).status).toBe(404);
+    expect(countPhotos(a.dealershipId, "vehicle")).toBe(0);
+    expect(countPhotos(b.dealershipId, "vehicle")).toBe(0);
+  });
+
+  it("needs a login, and is closed to a dealership still awaiting approval", async () => {
+    expect((await request(app).post("/inventory/car-1/photos").send({ dataUrl: jpegDataUrl() })).status).toBe(401);
+    expect((await request(app).delete("/inventory/car-1/photos/x")).status).toBe(401);
+
+    const email = `integration-test-${runId}-photo-pending@test.local`;
+    const signupRes = await request(app).post("/auth/signup").send({
+      email,
+      password: "integrationtestpass123",
+      name: "Pending Photos",
+      dealershipName: "Pending Photos Motors",
+      requireApproval: true,
+    });
+    trackUser(email);
+    trackDealership(signupRes.body.user.dealershipId);
+    const res = await upload(signupRes.body.token, "car-1", jpegDataUrl());
+    expect(res.status).toBe(403);
+    expect(res.body.approvalStatus).toBe("pending");
+  });
+
+  it("caps photos per vehicle and per dealership", async () => {
+    const { owner, dealershipId } = await setup();
+    for (let i = 0; i < 40; i++) seedPhoto(dealershipId, "car-1");
+
+    const full = await upload(owner.token, "car-1", jpegDataUrl());
+    expect(full.status).toBe(409);
+    expect(full.body.error).toContain("40");
+    // ...but another vehicle is unaffected
+    expect((await upload(owner.token, "car-2", jpegDataUrl())).status).toBe(200);
+
+    // A whole-dealership ceiling protects the server's disk.
+    for (let i = 0; i < 2000; i++) seedPhoto(dealershipId, `filler-${i % 100}`);
+    const limit = await upload(owner.token, "car-2", jpegDataUrl());
+    expect(limit.status).toBe(409);
+    expect(limit.body.error).toContain("storage limit");
+  });
+
+  it("any signed-in staff member can add and remove photos, like editing stock", async () => {
+    const { owner } = await setup();
+    const staff = await joinStaff(owner.token, "sales");
+    const up = await upload(staff.token, "car-1", jpegDataUrl());
+    expect(up.status).toBe(200);
+    const del = await request(app)
+      .delete(`/inventory/car-1/photos/${up.body.photo.id}`)
+      .set(auth(staff.token));
+    expect(del.status).toBe(200);
+  });
+
+  it("a save from a web screen that hadn't seen the photo yet does not wipe it out", async () => {
+    const { owner } = await setup();
+    const photoId: string = (await upload(owner.token, "car-1", jpegDataUrl())).body.photo.id;
+
+    // The web's copy predates the phone photo (images: null) and edits the price.
+    const stale = await savePut(owner.token, [car("car-1", { priceRetail: 5750 }), car("car-2")]);
+    expect(stale.status).toBe(200);
+    const items = await stock(owner.token);
+    expect(items[0].priceRetail).toBe(5750);
+    // Compared by photo id: the link is rebuilt from the saving request's
+    // address (supertest uses a new port per request; in real use it's the
+    // same host every time).
+    expect(items[0].images).toHaveLength(1);
+    expect(items[0].images[0]).toContain(`/photos/${photoId}.jpg`);
+  });
+
+  it("keeps legacy inline pictures and the client's own ordering, without duplicating hosted ones", async () => {
+    const { owner } = await setup();
+    const first: string = (await upload(owner.token, "car-1", jpegDataUrl())).body.photo.url;
+    const second: string = (await upload(owner.token, "car-1", jpegDataUrl(fakeJpeg(300)))).body.photo.url;
+    const legacy = "data:image/jpeg;base64,/9j/AAAA";
+
+    // Client reordered (second is now the cover) and holds an old inline picture.
+    await savePut(owner.token, [car("car-1", { images: [second, legacy, first] }), car("car-2")]);
+    expect((await stock(owner.token))[0].images).toEqual([second, legacy, first]);
+
+    // A link to the same photo from a different address still counts as present.
+    const secondId = second.match(/\/photos\/([0-9a-f-]{36})/)![1];
+    const elsewhere = `https://other.example/photos/${secondId}.jpg`;
+    await savePut(owner.token, [car("car-1", { images: [elsewhere, first] }), car("car-2")]);
+    const images = (await stock(owner.token))[0].images as string[];
+    expect(images).toHaveLength(2);
+    expect(images[0]).toBe(elsewhere);
+  });
+
+  it("leaves an ordinary save alone when there are no hosted photos, and tolerates junk entries", async () => {
+    const { owner } = await setup();
+    const items = [car("car-1", { images: ["data:image/jpeg;base64,/9j/AAAA"] }), car("car-2")];
+    const res = await savePut(owner.token, items);
+    expect(res.body.items).toEqual(items);
+
+    await upload(owner.token, "car-1", jpegDataUrl());
+    const messy = await savePut(owner.token, [null, "text", 5, { note: "no id" }, car("car-1"), car("car-2")]);
+    expect(messy.status).toBe(200);
+  });
+
+  it("deleting a photo removes it from the vehicle and from the public address, and a stale save can't bring it back", async () => {
+    const { owner, dealershipId } = await setup();
+    const up = await upload(owner.token, "car-1", jpegDataUrl());
+    const { id, url } = up.body.photo as { id: string; url: string };
+
+    const del = await request(app).delete(`/inventory/car-1/photos/${id}`).set(auth(owner.token));
+    expect(del.status).toBe(200);
+    expect(del.body.images).toBeNull();
+    expect(countPhotos(dealershipId, "vehicle")).toBe(0);
+    expect((await request(app).get(new URL(url).pathname)).status).toBe(404);
+    expect((await stock(owner.token))[0].images).toBeNull();
+
+    // A screen that loaded before the delete still holds the old link and saves it back.
+    await savePut(owner.token, [car("car-1", { images: [url] }), car("car-2")]);
+    expect((await stock(owner.token))[0].images).toBeNull();
+
+    // Deleting something already gone is a clean 404.
+    expect((await request(app).delete(`/inventory/car-1/photos/${id}`).set(auth(owner.token))).status).toBe(404);
+  });
+
+  it("another dealership can't delete your photo, and a wrong vehicle id doesn't match it", async () => {
+    const a = await setup(["car-1", "car-2"]);
+    const b = await setup(["car-1"]);
+    const up = await upload(a.owner.token, "car-1", jpegDataUrl());
+    const { id, url } = up.body.photo as { id: string; url: string };
+
+    expect((await request(app).delete(`/inventory/car-1/photos/${id}`).set(auth(b.owner.token))).status).toBe(404);
+    expect((await request(app).delete(`/inventory/car-2/photos/${id}`).set(auth(a.owner.token))).status).toBe(404);
+    expect((await request(app).get(new URL(url).pathname)).status).toBe(200);
+  });
+
+  it("tidies up pictures whose vehicle is gone, but only old ones, and never on an empty save", async () => {
+    const { owner, dealershipId } = await setup(["car-1"]);
+    const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
+    const oldOrphan = seedPhoto(dealershipId, "gone-1", { createdAt: twoDaysAgo });
+    const freshOrphan = seedPhoto(dealershipId, "gone-2");
+    const oldButLive = seedPhoto(dealershipId, "car-1", { createdAt: twoDaysAgo });
+
+    // A broken/empty save must never turn into a mass delete.
+    await savePut(owner.token, []);
+    expect(getPhoto(oldOrphan)).not.toBeNull();
+
+    await savePut(owner.token, [car("car-1")]);
+    expect(getPhoto(oldOrphan)).toBeNull(); // old, and its vehicle is gone
+    expect(getPhoto(freshOrphan)).not.toBeNull(); // young: might just be a stale screen
+    expect(getPhoto(oldButLive)).not.toBeNull(); // its vehicle still exists
+  });
+
+  it("the public address only serves listing photos, by real id, and reports the true image type", async () => {
+    const { owner, dealershipId } = await setup();
+    const url: string = (await upload(owner.token, "car-1", jpegDataUrl())).body.photo.url;
+    const id = url.match(/\/photos\/([0-9a-f-]{36})/)![1];
+
+    expect((await request(app).get("/photos/not-a-uuid.jpg")).status).toBe(404);
+    expect((await request(app).get(`/photos/${crypto.randomUUID()}.jpg`)).status).toBe(404);
+
+    // Whatever extension is asked for, the response says what it really is.
+    const asPng = await request(app).get(`/photos/${id}.png`);
+    expect(asPng.status).toBe(200);
+    expect(asPng.headers["content-type"]).toBe("image/jpeg");
+
+    // A private (message) photo must never be reachable through the public route.
+    const privateId = seedPhoto(dealershipId, "some-message", { kind: "message" });
+    expect((await request(app).get(`/photos/${privateId}.jpg`)).status).toBe(404);
+  });
+
+  it("closing a dealership removes its photos too", async () => {
+    const { owner, dealershipId } = await setup();
+    const id: string = (await upload(owner.token, "car-1", jpegDataUrl())).body.photo.id;
+    expect(getPhoto(id)).not.toBeNull();
+    deleteTenantData(dealershipId);
+    expect(getPhoto(id)).toBeNull();
+    expect(countPhotos(dealershipId, "vehicle")).toBe(0);
   });
 });

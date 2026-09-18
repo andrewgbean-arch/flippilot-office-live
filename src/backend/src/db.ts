@@ -169,4 +169,122 @@ export function writeTenantDoc<T>(
 // future "delete my dealership" account-closure feature would need.
 export function deleteTenantData(dealershipId: string): void {
   db.prepare("DELETE FROM tenant_data WHERE dealership_id = ?").run(dealershipId);
+  db.prepare("DELETE FROM photos WHERE dealership_id = ?").run(dealershipId);
+}
+
+/* --------------------------------------------------
+   Hosted photos
+
+   The picture files themselves. They used to live as base64 text inside
+   each vehicle record, but the web app rewrites the WHOLE stock list in
+   one request capped at 10mb, so a few dozen photos across a dealership
+   was enough to stop stock saving. Now the bytes live here, one row per
+   photo, and the vehicle only carries a short URL to it.
+
+   `kind` says what a photo belongs to ("vehicle" now; message
+   attachments later) and `ref_id` which one (a vehicle id).
+-------------------------------------------------- */
+db.exec(`
+  CREATE TABLE IF NOT EXISTS photos (
+    id TEXT PRIMARY KEY,
+    dealership_id TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    ref_id TEXT,
+    uploaded_by TEXT,
+    mime TEXT NOT NULL,
+    size INTEGER NOT NULL,
+    data BLOB NOT NULL,
+    created_at TEXT NOT NULL
+  );
+`);
+db.exec("CREATE INDEX IF NOT EXISTS photos_by_ref ON photos (dealership_id, kind, ref_id);");
+
+export type PhotoKind = "vehicle" | "message";
+
+export interface PhotoMeta {
+  id: string;
+  dealershipId: string;
+  kind: PhotoKind;
+  refId: string | null;
+  uploadedBy: string | null;
+  mime: string;
+  size: number;
+  createdAt: string;
+}
+
+export interface PhotoRow extends PhotoMeta {
+  data: Uint8Array;
+}
+
+const PHOTO_META_COLUMNS =
+  "id, dealership_id AS dealershipId, kind, ref_id AS refId, uploaded_by AS uploadedBy, mime, size, created_at AS createdAt";
+
+export function insertPhoto(photo: PhotoRow): void {
+  db.prepare(
+    `INSERT INTO photos (id, dealership_id, kind, ref_id, uploaded_by, mime, size, data, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    photo.id,
+    photo.dealershipId,
+    photo.kind,
+    photo.refId,
+    photo.uploadedBy,
+    photo.mime,
+    photo.size,
+    photo.data,
+    photo.createdAt
+  );
+}
+
+export function getPhoto(id: string): PhotoRow | null {
+  const row = db.prepare(`SELECT ${PHOTO_META_COLUMNS}, data FROM photos WHERE id = ?`).get(id);
+  return row ? (row as unknown as PhotoRow) : null;
+}
+
+// Newest last, so a vehicle's photos come back in the order they were taken.
+export function listPhotoMeta(dealershipId: string, kind: PhotoKind, refId: string): PhotoMeta[] {
+  return db
+    .prepare(
+      `SELECT ${PHOTO_META_COLUMNS} FROM photos
+       WHERE dealership_id = ? AND kind = ? AND ref_id = ?
+       ORDER BY created_at, rowid`
+    )
+    .all(dealershipId, kind, refId) as unknown as PhotoMeta[];
+}
+
+export function countPhotos(dealershipId: string, kind: PhotoKind): number {
+  const row = db
+    .prepare("SELECT COUNT(*) AS n FROM photos WHERE dealership_id = ? AND kind = ?")
+    .get(dealershipId, kind) as unknown as { n: number };
+  return row.n;
+}
+
+// Always scoped to the dealership, so one dealer can never remove another's.
+export function deletePhoto(dealershipId: string, id: string): boolean {
+  const result = db.prepare("DELETE FROM photos WHERE dealership_id = ? AND id = ?").run(dealershipId, id);
+  return Number(result.changes) > 0;
+}
+
+// Vehicle photos whose vehicle no longer exists and which are older than
+// `olderThanIso`. The age floor matters: a save from a stale screen can
+// briefly lack a vehicle that's really still there, and this must never
+// delete a picture on the strength of that.
+export function purgeOrphanVehiclePhotos(
+  dealershipId: string,
+  liveVehicleIds: Set<string>,
+  olderThanIso: string
+): number {
+  const candidates = db
+    .prepare(
+      `SELECT id, ref_id AS refId FROM photos
+       WHERE dealership_id = ? AND kind = 'vehicle' AND created_at < ?`
+    )
+    .all(dealershipId, olderThanIso) as unknown as { id: string; refId: string | null }[];
+
+  let removed = 0;
+  for (const photo of candidates) {
+    if (photo.refId !== null && liveVehicleIds.has(photo.refId)) continue;
+    if (deletePhoto(dealershipId, photo.id)) removed += 1;
+  }
+  return removed;
 }

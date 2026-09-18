@@ -1,6 +1,7 @@
 import { Express, Request } from "express";
 import { readTenantCollection, writeTenantCollection } from "../db";
 import type { AuthUser } from "../auth";
+import { keepHostedPhotos, publicOrigin, purgeOrphanPhotos } from "./photos";
 
 function dealershipId(req: Request): string {
   return (req as Request & { user: AuthUser }).user.dealershipId;
@@ -16,8 +17,13 @@ export default function registerInventoryRoute(app: Express) {
   });
 
   app.put("/inventory", (req, res) => {
-    const items = Array.isArray(req.body?.items) ? req.body.items : [];
-    writeTenantCollection(dealershipId(req), "vehicles", items);
+    const id = dealershipId(req);
+    const incoming = Array.isArray(req.body?.items) ? req.body.items : [];
+    // Photos added from a phone survive a save from a screen that hadn't
+    // seen them yet (see keepHostedPhotos).
+    const items = keepHostedPhotos(id, incoming, publicOrigin(req));
+    writeTenantCollection(id, "vehicles", items);
+    purgeOrphanPhotos(id, items);
     res.json({ ok: true, items });
   });
 }
