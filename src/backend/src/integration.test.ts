@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from "vitest";
 import request from "supertest";
 import app from "./app.js";
 import { getJwtSecret } from "./auth.js";
@@ -17,6 +17,7 @@ import {
   countUnattachedMessagePhotos,
   detachMessagePhotos,
   getPhoto,
+  writeTenantDoc,
 } from "./db.js";
 import { buildBusinessSummary } from "./routes/pilotBrain.js";
 
@@ -2991,5 +2992,250 @@ describe("Pilot Brain — what it is and isn't given", () => {
     expect(prompt).toContain("Customers (a customer database with recorded marketing consent)");
     expect(prompt).toContain("Message a Teammate (private one-to-one messages)");
     expect(prompt).toContain("Team Message Board");
+  });
+});
+
+// Pilot Brain ("Wendy") can look things up on the live web — but only when
+// the owner has switched it on, within a daily allowance, on a fixed list
+// of motoring sites, with the sources shown and every search logged. The
+// Anthropic API itself is stubbed here (no real key or spend); what's
+// tested is exactly what this backend sends and how it handles the reply.
+describe("Pilot Brain web access", () => {
+  const SEARCH_REPLY = {
+    stop_reason: "end_turn",
+    content: [
+      { type: "text", text: "Let me check. " },
+      { type: "server_tool_use", id: "srvtoolu_a", name: "web_search", input: { query: "ford fiesta 2018 asking price" } },
+      {
+        type: "web_search_tool_result",
+        tool_use_id: "srvtoolu_a",
+        content: [
+          { type: "web_search_result", url: "https://www.autotrader.co.uk/cars/ford-fiesta", title: "Used Ford Fiesta for sale", encrypted_content: "e1", page_age: "September 2, 2026" },
+        ],
+      },
+      {
+        type: "text",
+        text: "Asking prices are roughly £6,000–£7,500 — medium confidence.",
+        citations: [
+          { type: "web_search_result_location", url: "https://www.autotrader.co.uk/cars/ford-fiesta", title: "Used Ford Fiesta for sale", encrypted_index: "i1", cited_text: "..." },
+        ],
+      },
+    ],
+  };
+  const PLAIN_REPLY = { stop_reason: "end_turn", content: [{ type: "text", text: "A plain answer from your own data." }] };
+
+  let owner: Awaited<ReturnType<typeof signup>>;
+  const asOwner = () => ({ Authorization: `Bearer ${owner.token}` });
+  const prevKey = process.env.ANTHROPIC_API_KEY;
+
+  beforeAll(async () => {
+    process.env.ANTHROPIC_API_KEY = "test-key-not-real";
+    owner = await signup("pb-web-owner");
+  });
+  afterAll(() => {
+    if (prevKey === undefined) delete process.env.ANTHROPIC_API_KEY;
+    else process.env.ANTHROPIC_API_KEY = prevKey;
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+    delete process.env.OPENAI_API_KEY;
+  });
+
+  // Stands in for api.anthropic.com; records every request body sent.
+  function stubAnthropic(responder: (call: number) => { status?: number; body: unknown }) {
+    const calls: any[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: any, init: any) => {
+        if (!String(url).includes("api.anthropic.com")) throw new Error(`unexpected fetch to ${url}`);
+        calls.push(JSON.parse(init.body));
+        const { status = 200, body } = responder(calls.length);
+        return { ok: status < 300, status, json: async () => body, text: async () => JSON.stringify(body) };
+      })
+    );
+    return calls;
+  }
+
+  const chat = (token: string, message = "What are Fiestas going for?") =>
+    request(app).post("/pilot-brain/chat").set("Authorization", `Bearer ${token}`).send({ message });
+
+  it("is off by default: no search tool is sent, and Pilot Brain is told the owner hasn't switched it on", async () => {
+    const dealer = await signup("pb-web-default");
+    const calls = stubAnthropic(() => ({ body: PLAIN_REPLY }));
+
+    const res = await chat(dealer.token);
+
+    expect(res.status).toBe(200);
+    expect(res.body.message.content).toBe("A plain answer from your own data.");
+    expect(calls).toHaveLength(1);
+    expect(calls[0].tools).toBeUndefined();
+    expect(calls[0].system).toContain("WEB ACCESS: not switched on");
+  });
+
+  it("only the owner can switch it on or off; staff can see whether it's on but not what was searched", async () => {
+    const staff = await joinStaff(owner.token, "manager");
+
+    const staffPut = await request(app)
+      .put("/pilot-brain/web-access")
+      .set("Authorization", `Bearer ${staff.token}`)
+      .send({ enabled: true });
+    expect(staffPut.status).toBe(403);
+
+    const bad = await request(app).put("/pilot-brain/web-access").set(asOwner()).send({ enabled: "yes" });
+    expect(bad.status).toBe(400);
+
+    const on = await request(app).put("/pilot-brain/web-access").set(asOwner()).send({ enabled: true });
+    expect(on.status).toBe(200);
+    expect(on.body.enabled).toBe(true);
+    expect(on.body.dailyCap).toBe(20);
+
+    const staffView = await request(app).get("/pilot-brain/web-access").set("Authorization", `Bearer ${staff.token}`);
+    expect(staffView.body.enabled).toBe(true);
+    expect(staffView.body.recent).toEqual([]);
+  });
+
+  it("once on: sends the search tool limited to motoring sites, shows sources under the reply, and logs and counts the search", async () => {
+    await request(app).put("/pilot-brain/web-access").set(asOwner()).send({ enabled: true });
+    const calls = stubAnthropic(() => ({ body: SEARCH_REPLY }));
+
+    const res = await chat(owner.token);
+
+    expect(res.status).toBe(200);
+    const tool = calls[0].tools[0];
+    expect(tool.type).toBe("web_search_20250305");
+    expect(tool.max_uses).toBe(3);
+    expect(tool.allowed_domains).toContain("autotrader.co.uk");
+    expect(tool.allowed_domains).toContain("gov.uk");
+    expect(tool.user_location.country).toBe("GB");
+    expect(calls[0].system).toContain("WEB ACCESS (live");
+
+    const content: string = res.body.message.content;
+    expect(content).toContain("Asking prices are roughly £6,000–£7,500");
+    expect(content).toContain("Sources (live web, looked up just now)");
+    expect(content).toContain("[Used Ford Fiesta for sale](https://www.autotrader.co.uk/cars/ford-fiesta)");
+    expect(content).toContain("page dated September 2, 2026");
+
+    const view = await request(app).get("/pilot-brain/web-access").set(asOwner());
+    expect(view.body.usedToday).toBe(1);
+    expect(view.body.recent[0].query).toBe("ford fiesta 2018 asking price");
+    expect(view.body.recent[0].askedByName).toBe(owner.user.name);
+    expect(view.body.recent[0].sources[0].url).toBe("https://www.autotrader.co.uk/cars/ford-fiesta");
+
+    // The sources are stored with the reply, so they're still there when the chat is reloaded.
+    const history = await request(app).get("/pilot-brain/messages").set(asOwner());
+    const last = history.body.messages[history.body.messages.length - 1];
+    expect(last.content).toContain("Sources (live web");
+  });
+
+  it("stops offering the search tool once today's allowance is used up, and tells Pilot Brain why", async () => {
+    const dealer = await signup("pb-web-capped");
+    await request(app).put("/pilot-brain/web-access").set("Authorization", `Bearer ${dealer.token}`).send({ enabled: true });
+    writeTenantDoc(dealer.user.dealershipId, "pilotBrainWeb", {
+      enabled: true,
+      usage: { date: new Date().toISOString().slice(0, 10), count: 20 },
+      log: [],
+    });
+    const calls = stubAnthropic(() => ({ body: PLAIN_REPLY }));
+
+    const res = await chat(dealer.token);
+
+    expect(res.status).toBe(200);
+    expect(calls[0].tools).toBeUndefined();
+    expect(calls[0].system).toContain("allowance has been used up");
+  });
+
+  it("carries on answering — without the web, and saying so — if the API rejects the web-enabled request", async () => {
+    const dealer = await signup("pb-web-rejected");
+    await request(app).put("/pilot-brain/web-access").set("Authorization", `Bearer ${dealer.token}`).send({ enabled: true });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const calls = stubAnthropic(call =>
+      call === 1
+        ? { status: 400, body: { type: "error", error: { type: "invalid_request_error", message: "web search is not enabled for this organization" } } }
+        : { body: PLAIN_REPLY }
+    );
+
+    const res = await chat(dealer.token);
+
+    expect(res.status).toBe(200);
+    expect(calls).toHaveLength(2);
+    expect(calls[0].tools).toBeDefined();
+    expect(calls[1].tools).toBeUndefined();
+    expect(calls[1].system).toContain("isn't available right now");
+    expect(res.body.message.content).toContain("A plain answer from your own data.");
+    expect(res.body.message.content).toContain("live web lookup wasn't available just now");
+    expect(res.body.message.content).not.toContain("Sources (live web");
+
+    const view = await request(app).get("/pilot-brain/web-access").set("Authorization", `Bearer ${dealer.token}`);
+    expect(view.body.usedToday).toBe(0); // nothing ran, so nothing is used up
+  });
+
+  it("still pulls out the hidden <remember> note when the reply is web-backed, and keeps it out of what's shown", async () => {
+    const dealer = await signup("pb-web-remember");
+    await request(app).put("/pilot-brain/web-access").set("Authorization", `Bearer ${dealer.token}`).send({ enabled: true });
+    const body = structuredClone(SEARCH_REPLY);
+    (body.content[3] as any).text += "\n<remember>Prefers AutoTrader comparables</remember>";
+    stubAnthropic(() => ({ body }));
+
+    const res = await chat(dealer.token);
+
+    expect(res.body.message.content).not.toContain("<remember>");
+    expect(res.body.message.content).toContain("Sources (live web");
+  });
+
+  it("a search that errors is logged but doesn't use up the allowance", async () => {
+    const dealer = await signup("pb-web-error");
+    await request(app).put("/pilot-brain/web-access").set("Authorization", `Bearer ${dealer.token}`).send({ enabled: true });
+    stubAnthropic(() => ({
+      body: {
+        stop_reason: "end_turn",
+        content: [
+          { type: "server_tool_use", id: "s1", name: "web_search", input: { query: "will fail" } },
+          { type: "web_search_tool_result", tool_use_id: "s1", content: { type: "web_search_tool_result_error", error_code: "unavailable" } },
+          { type: "text", text: "I couldn't look that up just now." },
+        ],
+      },
+    }));
+
+    await chat(dealer.token);
+
+    const view = await request(app).get("/pilot-brain/web-access").set("Authorization", `Bearer ${dealer.token}`);
+    expect(view.body.usedToday).toBe(0);
+    expect(view.body.recent[0].query).toBe("will fail");
+    expect(view.body.recent[0].errorCode).toBe("unavailable");
+  });
+
+  it("one dealership's switch, allowance and log are never visible to another", async () => {
+    const other = await signup("pb-web-isolated");
+    const view = await request(app).get("/pilot-brain/web-access").set("Authorization", `Bearer ${other.token}`);
+    expect(view.body.enabled).toBe(false);
+    expect(view.body.usedToday).toBe(0);
+    expect(view.body.recent).toEqual([]);
+  });
+
+  it("requires a login", async () => {
+    expect((await request(app).get("/pilot-brain/web-access")).status).toBe(401);
+    expect((await request(app).put("/pilot-brain/web-access").send({ enabled: true })).status).toBe(401);
+  });
+
+  it("leaves the sources footer out of the spoken version of a reply", async () => {
+    process.env.OPENAI_API_KEY = "test-openai-key";
+    let spoken = "";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: any, init: any) => {
+        if (!String(url).includes("api.openai.com")) throw new Error(`unexpected fetch to ${url}`);
+        spoken = JSON.parse(init.body).input;
+        return new Response("fake-mp3-bytes", { status: 200 });
+      })
+    );
+
+    const reply =
+      "Asking prices are roughly £6,000–£7,500." +
+      "\n\n---\n**Sources (live web, looked up just now)**\n\n- [Used Ford Fiesta for sale](https://www.autotrader.co.uk/x) — autotrader.co.uk";
+    const res = await request(app).post("/pilot-brain/speak").set(asOwner()).send({ text: reply, voice: "fable" });
+
+    expect(res.status).toBe(200);
+    expect(spoken).toBe("Asking prices are roughly £6,000–£7,500.");
   });
 });

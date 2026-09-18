@@ -3,7 +3,21 @@ import { Readable } from "stream";
 import { Express, Request } from "express";
 import rateLimit from "express-rate-limit";
 import { readCollection, readTenantCollection, writeTenantCollection, readTenantDoc } from "../db";
-import { requireAuth, type AuthUser, type Dealership } from "../auth";
+import { requireAuth, requireOwner, type AuthUser, type Dealership } from "../auth";
+import {
+  anthropicMessagesUrl,
+  buildWebSearchTool,
+  chatWithWebSearch,
+  readWebState,
+  recordWebSearches,
+  setWebEnabled,
+  stripWebSourcesFooter,
+  webAccessMode,
+  webAccessPromptSection,
+  webSearchesRemaining,
+  webUsageToday,
+  WEB_SEARCH_DAILY_CAP,
+} from "../pilotBrainWeb";
 import { runWatcher, type WatcherResult } from "../engines/watcherEngine";
 import { investigate, findOpportunities, type InvestigationReport, type Opportunity } from "../engines/advisorEngine";
 import { summariseAppointmentOutcomes } from "../engines/appointmentOutcomes";
@@ -414,7 +428,7 @@ function notifyDealershipFromWatcher(dealershipId: string, watcher: WatcherResul
 }
 
 export async function callClaude(apiKey: string, systemPrompt: string, messages: { role: string; content: string }[], maxTokens = 500): Promise<string> {
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
+  const response = await fetch(anthropicMessagesUrl(), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -461,6 +475,36 @@ export default function registerPilotBrainRoute(app: Express) {
     const remaining = all.filter(m => m.userId !== user.id);
     writeTenantCollection(user.dealershipId, MESSAGES_COLLECTION, remaining);
     res.json({ ok: true });
+  });
+
+  // Live web lookups for Pilot Brain — see pilotBrainWeb.ts for what it
+  // can and can't do. Anyone can see whether it's on and how much of
+  // today's allowance is used; only the owner can switch it, and only
+  // the owner sees the log of what was searched.
+  function webAccessPayload(user: AuthUser) {
+    const state = readWebState(user.dealershipId);
+    const now = Date.now();
+    return {
+      ok: true,
+      enabled: state.enabled,
+      dailyCap: WEB_SEARCH_DAILY_CAP,
+      usedToday: webUsageToday(state, now),
+      recent: user.role === "owner" ? state.log.slice(-25).reverse() : [],
+    };
+  }
+
+  app.get("/pilot-brain/web-access", requireAuth, (req, res) => {
+    res.json(webAccessPayload(authUser(req)));
+  });
+
+  app.put("/pilot-brain/web-access", requireAuth, requireOwner, (req, res) => {
+    const { enabled } = req.body ?? {};
+    if (typeof enabled !== "boolean") {
+      return res.status(400).json({ ok: false, error: "enabled must be true or false" });
+    }
+    const user = authUser(req);
+    setWebEnabled(user.dealershipId, enabled);
+    res.json(webAccessPayload(user));
   });
 
   app.post("/pilot-brain/chat", requireAuth, chatLimiter, async (req, res) => {
@@ -521,13 +565,41 @@ export default function registerPilotBrainRoute(app: Express) {
       createdAt: new Date().toISOString(),
     };
 
+    // Live web lookup: only when the owner has switched it on AND there's
+    // allowance left today. Anything else gets a plain call, with a
+    // prompt line that tells Pilot Brain (truthfully) why it can't look.
+    const nowMs = Date.now();
+    const webState = readWebState(user.dealershipId);
+    const webMode = webAccessMode(webState, nowMs);
+    const chatMessages = [...recentHistory, userMsg].map(m => ({ role: m.role, content: m.content }));
+
     let rawReply: string;
+    let sourcesFooter = "";
+    let webNote = "";
     try {
-      rawReply = await callClaude(
-        apiKey,
-        systemPrompt,
-        [...recentHistory, userMsg].map(m => ({ role: m.role, content: m.content }))
-      );
+      if (webMode === "on") {
+        const outcome = await chatWithWebSearch({
+          apiKey,
+          systemPromptWithWeb: `${systemPrompt}\n${webAccessPromptSection("on")}`,
+          systemPromptWithoutWeb: `${systemPrompt}\n${webAccessPromptSection("unavailable")}`,
+          messages: chatMessages,
+          tool: buildWebSearchTool(webSearchesRemaining(webState, nowMs)),
+          fallbackCall: (prompt, msgs) => callClaude(apiKey, prompt, msgs),
+        });
+        rawReply = outcome.text;
+        sourcesFooter = outcome.footer;
+        if (outcome.webFailed) {
+          webNote = "\n\n_(The live web lookup wasn't available just now, so this answer uses only your dealership's own data.)_";
+        }
+        // Logging must never cost the dealer their answer.
+        try {
+          recordWebSearches(user.dealershipId, user.name, outcome.searches, nowMs);
+        } catch (logErr) {
+          console.error("pilot-brain/chat: could not record web searches", logErr);
+        }
+      } else {
+        rawReply = await callClaude(apiKey, `${systemPrompt}\n${webAccessPromptSection(webMode)}`, chatMessages);
+      }
     } catch (err) {
       console.error("pilot-brain/chat: Anthropic call failed", err);
       return res.status(502).json({ ok: false, error: "Could not reach Pilot Brain right now — please try again." });
@@ -548,6 +620,9 @@ export default function registerPilotBrainRoute(app: Express) {
         createdAt: new Date().toISOString(),
       };
     }
+    // After the memory tag is pulled out (it has to be the very last
+    // thing in the raw reply) — the sources go under what Boss reads.
+    visibleReply = `${visibleReply}${webNote}${sourcesFooter}`;
 
     const assistantMsg: PilotBrainMessage = {
       id: randomUUID(),
@@ -583,7 +658,9 @@ export default function registerPilotBrainRoute(app: Express) {
     // voice on Wendy's longer, more detailed replies (real replies
     // legitimately run 2000-3000+ characters), which sounds broken even
     // though the fallback itself was working exactly as designed.
-    if (text.length > 4096) {
+    // The "Sources" links under a web-backed reply are for reading, not
+    // for reading aloud.
+    if (stripWebSourcesFooter(text).length > 4096) {
       return res.status(400).json({ ok: false, error: "Text is too long to speak" });
     }
     // Whitelisted rather than passed straight through — this value goes
@@ -609,7 +686,7 @@ export default function registerPilotBrainRoute(app: Express) {
         body: JSON.stringify({
           model: "tts-1",
           voice: selectedVoice,
-          input: text.trim(),
+          input: stripWebSourcesFooter(text).trim(),
         }),
       });
 
