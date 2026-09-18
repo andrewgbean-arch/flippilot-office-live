@@ -13,6 +13,10 @@ export interface StaffNotification {
   type: NotificationType;
   createdAt: string;
   readAt: string | null;
+  // Set only by automated sources (e.g. Pilot Brain's Watcher) that
+  // need to avoid re-notifying about the same ongoing issue every time
+  // they run — absent on every other notification in this app.
+  sourceKey?: string;
 }
 
 function authedUser(req: Request): AuthUser {

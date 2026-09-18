@@ -43,6 +43,47 @@ export async function sendPilotBrainMessage(message: string): Promise<{
   }
 }
 
+export interface WatcherAlert {
+  severity: "info" | "warning" | "critical";
+  category: "lead" | "inventory" | "appointment" | "activity";
+  title: string;
+  message: string;
+  sourceKey: string;
+}
+
+export interface WatcherHealth {
+  overall: number;
+  salesHealth: number;
+  leadHealth: number;
+  inventoryHealth: number;
+  activityHealth: number;
+}
+
+export interface WatcherResult {
+  ok: boolean;
+  health: WatcherHealth;
+  alerts: WatcherAlert[];
+  risks: { title: string; message: string }[];
+  activity: {
+    leadsAddedLast7Days: number;
+    appointmentsBookedLast7Days: number;
+    tasksCompletedLast7Days: number;
+    leadsWonTotal: number;
+  };
+  error?: string;
+}
+
+export async function fetchWatcher(): Promise<WatcherResult | null> {
+  try {
+    const res = await fetch(`${BASE_URL}/pilot-brain/watcher`, { headers: authHeaders() });
+    const data = await res.json();
+    return res.ok ? data : null;
+  } catch (err) {
+    console.error("fetchWatcher: backend unreachable", err);
+    return null;
+  }
+}
+
 export async function fetchMorningBriefing(): Promise<{ ok: boolean; briefing?: string; error?: string }> {
   try {
     const res = await fetch(`${BASE_URL}/pilot-brain/briefing`, { headers: authHeaders() });

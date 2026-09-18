@@ -3,6 +3,8 @@ import { Express, Request } from "express";
 import rateLimit from "express-rate-limit";
 import { readCollection, readTenantCollection, writeTenantCollection } from "../db";
 import { requireAuth, type AuthUser, type Dealership } from "../auth";
+import { runWatcher, type WatcherResult } from "../engines/watcherEngine";
+import type { StaffNotification } from "./notifications";
 
 export interface PilotBrainMessage {
   id: string;
@@ -77,15 +79,46 @@ function buildBusinessSummary(dealershipId: string): string {
   ].join("\n");
 }
 
-function buildSystemPrompt(dealershipName: string, userName: string, summary: string, memories: string[]): string {
+// V2 (Watcher) additions to the summary — real findings from
+// watcherEngine, in the same plain-text style as the V1 business
+// snapshot above, so the model can mention them naturally without a
+// separate prompt path.
+function buildWatcherSummary(watcher: WatcherResult): string {
+  const lines = [
+    `Business Health: ${watcher.health.overall}/100 (Sales ${watcher.health.salesHealth}, Leads ${watcher.health.leadHealth}, Inventory ${watcher.health.inventoryHealth}, Activity ${watcher.health.activityHealth})`,
+  ];
+
+  const critical = watcher.alerts.filter(a => a.severity === "critical");
+  const warning = watcher.alerts.filter(a => a.severity === "warning");
+
+  if (critical.length > 0) {
+    lines.push(`Critical issues (${critical.length}):`);
+    critical.slice(0, 5).forEach(a => lines.push(`- ${a.message}`));
+  }
+  if (warning.length > 0) {
+    lines.push(`Warnings (${warning.length}):`);
+    warning.slice(0, 5).forEach(a => lines.push(`- ${a.message}`));
+  }
+  if (critical.length === 0 && warning.length === 0) {
+    lines.push("No active warnings or critical issues right now.");
+  }
+  watcher.risks.forEach(r => lines.push(`Risk noticed: ${r.title} — ${r.message}`));
+
+  return lines.join("\n");
+}
+
+function buildSystemPrompt(dealershipName: string, userName: string, summary: string, watcherSummary: string, memories: string[]): string {
   return [
     `You are Pilot Brain — the business companion built into ${dealershipName}'s FlipPilot Dealer OS.`,
     `You are NOT a generic chatbot or a help-desk bot. You are a trusted digital business partner — closer to a co-founder, advisor and friend than software.`,
     `Always address the user as "Boss". Tone: professional, friendly, calm, confident, honest, helpful. Never robotic, never cold, never overly formal.`,
-    `This is V1 (Companion) — natural conversation, memory, and business awareness only. You do not yet proactively monitor, forecast, or research the wider market (those are later versions) — if Boss asks for something outside that scope, say so honestly rather than pretending.`,
+    `This is V2 (Watcher). On top of V1's conversation and memory, you now proactively notice problems — uncontacted leads, aging stock, incomplete appointments, slowing sales — and can mention them unprompted when relevant. You do NOT yet deeply investigate or explain WHY something is happening, or forecast the market — that's a later version. If Boss asks for something outside that scope, say so honestly rather than pretending.`,
     ``,
     `Today's real business snapshot for ${dealershipName}:`,
     summary,
+    ``,
+    `What you've been watching for (real, computed just now — not guesses):`,
+    watcherSummary,
     ``,
     memories.length > 0
       ? `What you already know about Boss and this business, from earlier conversations:\n${memories.map(m => `- ${m}`).join("\n")}`
@@ -93,8 +126,66 @@ function buildSystemPrompt(dealershipName: string, userName: string, summary: st
     ``,
     `The user talking to you is ${userName}.`,
     ``,
+    `If a critical issue or a real risk is in the watch list above and this is the start of a conversation, it's natural to mention the most important one early rather than waiting to be asked — that's the whole point of watching. Don't list every single item; lead with what matters most.`,
+    ``,
     `If — and only if — you learn something genuinely worth remembering long-term this turn (a real preference, a durable fact about the business, something that should still matter in future conversations), end your reply with a new final line in exactly this form: <remember>the fact, written plainly in one sentence</remember>. Do this rarely — never for routine chit-chat or anything already listed above. Never mention this mechanism to Boss.`,
   ].join("\n");
+}
+
+// Runs the Watcher against this dealership's real current data. No
+// scheduler exists in this app, so this is triggered on-demand — the
+// Dashboard's Watcher card and every Pilot Brain call are what "keeps
+// watch" in practice, not a background job.
+function runWatcherForDealership(dealershipId: string): WatcherResult {
+  const vehicles = readTenantCollection<any>(dealershipId, "vehicles");
+  const leads = readTenantCollection<any>(dealershipId, "leads");
+  const appointments = readTenantCollection<any>(dealershipId, "appointments");
+  const jobs = readTenantCollection<any>(dealershipId, "jobs");
+  return runWatcher(vehicles, leads, appointments, jobs);
+}
+
+// Turns warning/critical alerts into real per-user notifications,
+// deduped by sourceKey so re-running this (e.g. every dashboard load)
+// doesn't spam the same ongoing issue — only creates a fresh one if the
+// last one for that exact issue is more than a day old, so a still-open
+// problem resurfaces daily rather than never again after the first ping.
+function notifyDealershipFromWatcher(dealershipId: string, watcher: WatcherResult) {
+  const actionable = watcher.alerts.filter(a => a.severity !== "info" || a.category === "activity");
+  if (actionable.length === 0) return;
+
+  const users = readCollection<{ id: string; dealershipId: string }>("users").filter(
+    u => u.dealershipId === dealershipId
+  );
+  if (users.length === 0) return;
+
+  const existing = readTenantCollection<StaffNotification>(dealershipId, "notifications");
+  const now = Date.now();
+  const fresh: StaffNotification[] = [];
+
+  for (const user of users) {
+    for (const alert of actionable) {
+      const recent = existing.find(
+        n => n.userId === user.id && n.sourceKey === alert.sourceKey &&
+          now - new Date(n.createdAt).getTime() < 24 * 60 * 60 * 1000
+      );
+      if (recent) continue;
+
+      fresh.push({
+        id: randomUUID(),
+        userId: user.id,
+        title: alert.title,
+        message: alert.message,
+        type: alert.severity === "critical" ? "error" : alert.severity === "warning" ? "warning" : "info",
+        createdAt: new Date().toISOString(),
+        readAt: null,
+        sourceKey: alert.sourceKey,
+      });
+    }
+  }
+
+  if (fresh.length > 0) {
+    writeTenantCollection(dealershipId, "notifications", [...existing, ...fresh]);
+  }
 }
 
 async function callClaude(apiKey: string, systemPrompt: string, messages: { role: string; content: string }[]): Promise<string> {
@@ -163,10 +254,13 @@ export default function registerPilotBrainRoute(app: Express) {
     const myMemories = allMemories.filter(m => m.userId === user.id);
 
     const summary = buildBusinessSummary(user.dealershipId);
+    const watcher = runWatcherForDealership(user.dealershipId);
+    notifyDealershipFromWatcher(user.dealershipId, watcher);
     const systemPrompt = buildSystemPrompt(
       dealershipName,
       user.name,
       summary,
+      buildWatcherSummary(watcher),
       myMemories.map(m => m.fact)
     );
 
@@ -222,6 +316,18 @@ export default function registerPilotBrainRoute(app: Express) {
     res.json({ ok: true, message: assistantMsg });
   });
 
+  // V2 (Watcher) — real business health score, alerts, risks and
+  // activity, computed fresh from this dealership's real current data.
+  // Also the trigger point for real notifications (deduped, see
+  // notifyDealershipFromWatcher) — this is what "runs the watch" since
+  // there's no background scheduler in this app.
+  app.get("/pilot-brain/watcher", requireAuth, (req, res) => {
+    const user = authUser(req);
+    const watcher = runWatcherForDealership(user.dealershipId);
+    notifyDealershipFromWatcher(user.dealershipId, watcher);
+    res.json({ ok: true, ...watcher });
+  });
+
   app.get("/pilot-brain/memories", requireAuth, (req, res) => {
     const user = authUser(req);
     const memories = readTenantCollection<PilotBrainMemory>(user.dealershipId, MEMORIES_COLLECTION)
@@ -248,17 +354,19 @@ export default function registerPilotBrainRoute(app: Express) {
     const dealership = readCollection<Dealership>("dealerships").find(d => d.id === user.dealershipId);
     const dealershipName = dealership?.name ?? "your dealership";
     const summary = buildBusinessSummary(user.dealershipId);
+    const watcher = runWatcherForDealership(user.dealershipId);
+    notifyDealershipFromWatcher(user.dealershipId, watcher);
 
     const allMemories = readTenantCollection<PilotBrainMemory>(user.dealershipId, MEMORIES_COLLECTION);
     const myMemories = allMemories.filter(m => m.userId === user.id);
-    const systemPrompt = buildSystemPrompt(dealershipName, user.name, summary, myMemories.map(m => m.fact));
+    const systemPrompt = buildSystemPrompt(dealershipName, user.name, summary, buildWatcherSummary(watcher), myMemories.map(m => m.fact));
 
     try {
       const reply = await callClaude(apiKey, systemPrompt, [
         {
           role: "user",
           content:
-            "Give me a short morning briefing — 2-4 sentences, based only on today's real business snapshot above. No greeting-only fluff; tell me something genuinely useful about where things stand.",
+            "Give me a short morning briefing — 2-4 sentences, based on today's real business snapshot and what you've been watching for above. If there's a genuinely important issue (critical alert or real risk), lead with that rather than burying it. No greeting-only fluff.",
         },
       ]);
       res.json({ ok: true, briefing: reply.replace(/<remember>[\s\S]*?<\/remember>\s*$/, "").trim() });
