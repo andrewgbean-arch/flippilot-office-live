@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { SupernovaGlowCard } from "@/components/supernova/SupernovaGlowCard";
@@ -13,6 +13,7 @@ import { useBookkeeping } from "@/bookkeeping/BookkeepingProvider";
 import { authHeaders } from "@/lib/authToken";
 import { useTour } from "@/tour/TourProvider";
 import { toCSV, downloadCSV } from "@/lib/csv";
+import type { TeamMember } from "@/jobs/jobTypes";
 
 import { BASE_URL } from "@/lib/apiBaseUrl";
 
@@ -141,6 +142,173 @@ function InviteTeammateModal({ onClose }: { onClose: () => void }) {
             </div>
           </>
         )}
+      </div>
+    </div>
+  );
+}
+
+// Change a teammate's role or remove them — the owner-facing side of
+// the invite flow above. Both take effect on that person's very next
+// request (the backend re-reads the account every time), so removing
+// someone here really does cut them off immediately, not when their
+// login eventually expires.
+function ManageTeamModal({ onClose }: { onClose: () => void }) {
+  const [members, setMembers] = useState<TeamMember[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${BASE_URL}/team`, { headers: authHeaders() });
+        const data = await res.json();
+        if (cancelled) return;
+        if (!data.ok) {
+          setError(data.error || "Couldn't load your team.");
+          return;
+        }
+        setMembers(data.members);
+      } catch {
+        if (!cancelled) setError("Backend unreachable — try again.");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function changeRole(member: TeamMember, staffRole: string) {
+    setBusyId(member.id);
+    setError(null);
+    try {
+      const res = await fetch(`${BASE_URL}/dealership/team/${member.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ staffRole }),
+      });
+      const data = await res.json();
+      if (!data.ok) {
+        setError(data.error || "Failed to change role.");
+        return;
+      }
+      setMembers((prev) => prev && prev.map((m) => (m.id === member.id ? data.member : m)));
+    } catch {
+      setError("Backend unreachable — try again.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function removeMember(member: TeamMember) {
+    setBusyId(member.id);
+    setError(null);
+    try {
+      const res = await fetch(`${BASE_URL}/dealership/team/${member.id}`, {
+        method: "DELETE",
+        headers: authHeaders(),
+      });
+      const data = await res.json();
+      // A 404 means they're already gone (removed from another tab or
+      // device) — exactly the state the owner asked for, so just drop
+      // the row rather than showing an error about it.
+      if (!data.ok && res.status !== 404) {
+        setError(data.error || "Failed to remove teammate.");
+        return;
+      }
+      setMembers((prev) => prev && prev.filter((m) => m.id !== member.id));
+      setConfirmingId(null);
+    } catch {
+      setError("Backend unreachable — try again.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+      <div className="bg-black/90 border border-yellow-400/30 p-6 rounded-xl w-full max-w-lg max-h-[85vh] overflow-y-auto">
+        <h2 className="text-yellow-300 text-xl font-bold mb-1">Manage Team</h2>
+        <p className="text-white/50 text-xs mb-4">
+          Role changes and removals take effect on their very next click — no waiting for them to log in again.
+        </p>
+
+        {members === null && !error && <p className="text-white/60 text-sm mb-4">Loading team…</p>}
+
+        {members && (
+          <ul className="space-y-3 mb-4">
+            {members.map((m) => (
+              <li key={m.id} className="p-3 rounded bg-black/40 border border-white/10">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-white/90 font-semibold truncate">{m.name}</p>
+                    <p className="text-white/40 text-xs truncate">{m.email}</p>
+                  </div>
+
+                  {m.role === "owner" ? (
+                    <span className="text-yellow-300 text-xs font-semibold px-2 py-1 rounded bg-yellow-400/10 whitespace-nowrap">
+                      Owner
+                    </span>
+                  ) : (
+                    <select
+                      aria-label={`Role for ${m.name}`}
+                      value={m.staffRole ?? "general"}
+                      disabled={busyId === m.id}
+                      onChange={(e) => changeRole(m, e.target.value)}
+                      className="p-1 rounded bg-black/40 border border-white/10 text-white/80 text-sm disabled:opacity-60"
+                    >
+                      {STAFF_ROLE_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+
+                {m.role !== "owner" &&
+                  (confirmingId === m.id ? (
+                    <div className="mt-3 flex items-center justify-between gap-3">
+                      <p className="text-red-300 text-xs">Remove {m.name}? They'll lose access straight away.</p>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setConfirmingId(null)}
+                          disabled={busyId === m.id}
+                          className="px-3 py-1 rounded text-xs bg-white/10 text-white/70 hover:bg-white/20 disabled:opacity-60"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={() => removeMember(m)}
+                          disabled={busyId === m.id}
+                          className="px-3 py-1 rounded text-xs font-semibold bg-red-500 text-white hover:bg-red-400 disabled:opacity-60"
+                        >
+                          {busyId === m.id ? "Removing…" : "Remove"}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setConfirmingId(m.id)}
+                      className="mt-2 text-xs text-red-400 hover:text-red-300"
+                    >
+                      Remove from team
+                    </button>
+                  ))}
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
+
+        <div className="flex justify-end">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 rounded bg-white/10 text-white/70 hover:bg-white/20"
+          >
+            Close
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -360,6 +528,7 @@ export default function Settings() {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
+  const [showManageTeamModal, setShowManageTeamModal] = useState(false);
 
   function exportVehicles() {
     const headers = ["Make", "Model", "Registration", "Year", "Mileage", "Colour", "Buy Price", "Sell Price", "MOT Expiry"];
@@ -425,17 +594,22 @@ export default function Settings() {
           <SupernovaGlowButton label="Change Password" onClick={() => setShowPasswordModal(true)} />
         </SupernovaGlowCard>
 
-        {/* Team — owner only, since inviting someone into your
-            dealership's data is an ownership-level decision */}
+        {/* Team — owner only, since inviting, re-roling or removing
+            someone with access to your dealership's data is an
+            ownership-level decision */}
         {user?.role === "owner" && (
           <SupernovaGlowCard>
             <h2 className="text-yellow-300 font-bold text-xl mb-3">Team</h2>
             <p className="text-white/70 mb-4">
               Invite a teammate into this dealership — they'll get their
-              own login inside your workspace, not a separate one.
+              own login inside your workspace, not a separate one. Change
+              what they can access, or remove them when they leave.
             </p>
 
-            <SupernovaGlowButton label="Invite Teammate" onClick={() => setShowInviteModal(true)} />
+            <div className="flex flex-wrap gap-2">
+              <SupernovaGlowButton label="Invite Teammate" onClick={() => setShowInviteModal(true)} />
+              <SupernovaGlowButton label="Manage Team" onClick={() => setShowManageTeamModal(true)} />
+            </div>
           </SupernovaGlowCard>
         )}
 
@@ -515,6 +689,7 @@ export default function Settings() {
       {showProfileModal && <EditDealerProfileModal onClose={() => setShowProfileModal(false)} />}
       {showPasswordModal && <ChangePasswordModal onClose={() => setShowPasswordModal(false)} />}
       {showInviteModal && <InviteTeammateModal onClose={() => setShowInviteModal(false)} />}
+      {showManageTeamModal && <ManageTeamModal onClose={() => setShowManageTeamModal(false)} />}
 
     </div>
   );
