@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 
 import { BASE_URL } from "@/lib/apiBaseUrl";
+import { inviteErrorHeadline } from "./joinInviteError";
 
 export default function JoinScreen() {
   const { joinDealership } = useAuth();
@@ -75,7 +76,7 @@ export default function JoinScreen() {
           <p className="text-white/60 text-center">Checking invite link…</p>
         ) : inviteError ? (
           <>
-            <h1 className="text-xl font-bold text-red-300 text-center mb-3">Invite Link Invalid</h1>
+            <h1 className="text-xl font-bold text-red-300 text-center mb-3">{inviteErrorHeadline(inviteError)}</h1>
             <p className="text-white/60 text-sm text-center mb-4">{inviteError}</p>
             <p className="text-center text-white/50 text-sm">
               <Link to="/login" className="text-yellow-300 hover:underline">Back to sign in</Link>
