@@ -106,21 +106,129 @@ const HISTORY_WINDOW = 20;
 // back into every later prompt, so it is kept short.
 const MAX_MEMORY_CHARS = 200;
 
+// Markdown a model sometimes wraps around a note: bold, italics, strikethrough, code.
+const WRAPPER_MARKS = "*_~`";
+const isMark = (c: string | undefined): c is string => c !== undefined && c !== "" && WRAPPER_MARKS.includes(c);
+const isBlank = (c: string | undefined) => c === " " || c === "\t";
+
+// Widens [start, end) over Markdown marks that sit on BOTH sides of it, so a
+// bold or code span around a note leaves no empty "****" or "``" behind. Marks
+// on one side only belong to other text ("**bold** <note>") and are left alone.
+function widenOverWrappers(text: string, start: number, end: number): [number, number] {
+  for (;;) {
+    let s = start;
+    while (s > 0 && isBlank(text[s - 1])) s--;
+    let e = end;
+    while (e < text.length && isBlank(text[e])) e++;
+    const mark = text[s - 1];
+    if (!isMark(mark)) return [start, end];
+    let a = s;
+    while (a > 0 && text[a - 1] === mark) a--;
+    let b = e;
+    while (b < text.length && text[b] === mark) b++;
+    const k = Math.min(s - a, b - e);
+    if (k === 0) return [start, end];
+    start = s - k;
+    end = e + k;
+  }
+}
+
+// A note cut off by the length limit has no closing tag. It only counts as one,
+// and so is hidden, when it is the last thing in the reply: it starts a line of
+// its own (where the prompt asks for it), or it is one short fragment with no
+// further sentence after it. Anything else is a stray mention of the tag inside
+// ordinary prose ("I don't use <remember> tags with you, Boss. Anything else?"),
+// and the reply is left alone.
+const MAX_CUT_OFF_NOTE_CHARS = 600;
+const MAX_CUT_OFF_FRAGMENT_CHARS = 300;
+function isCutOffNote(text: string, openStart: number, openEnd: number): boolean {
+  const before = text.slice(0, openStart);
+  const after = text.slice(openEnd).trim();
+  if (/(^|\n)[ \t]*[*_~`>-]*[ \t]*$/.test(before)) return after.length <= MAX_CUT_OFF_NOTE_CHARS;
+  if (after.length > MAX_CUT_OFF_FRAGMENT_CHARS) return false;
+  if (/[\r\n]/.test(after)) return false;
+  return !/[.!?]["')\]]?\s+\S/.test(after);
+}
+
 // Takes the hidden <remember>...</remember> note out of a model reply.
-//  - It is never left in what Boss reads, wherever in the reply it sits (or if
-//    the reply was cut off part-way through it).
+//  - A note with its closing tag is never left in what Boss reads, wherever in
+//    the reply it sits. Nested tags and stray closing tags leave no fragments,
+//    and Markdown wrapped around a note (**bold**, `code`) goes with it.
+//  - A note cut off by the length limit (an opening tag nothing ever closes) is
+//    hidden too, but only when it is the last thing in the reply: a stray
+//    mention of the tag in the middle of a reply does not take the rest of the
+//    reply with it.
 //  - Only a note that is the very last thing in the reply counts as something
 //    to remember, and it comes back cleaned: one line, plain words, capped.
 export function extractRememberTag(rawReply: string): { visible: string; fact: string | null } {
-  const tags = [...rawReply.matchAll(/<remember>([\s\S]*?)<\/remember>/gi)];
-  const last = tags[tags.length - 1];
-  const isFinal = last !== undefined && rawReply.slice((last.index ?? 0) + last[0].length).trim() === "";
-  const fact = last !== undefined && isFinal ? toMemoryLine(last[1], MAX_MEMORY_CHARS) : "";
-  const visible = rawReply
-    .replace(/<remember>[\s\S]*?<\/remember>/gi, "")
-    .replace(/<remember>[\s\S]*$/i, "")
-    .trim();
-  return { visible, fact: fact || null };
+  const markers = [...rawReply.matchAll(/<(\/?)remember>/gi)].map(m => ({
+    start: m.index ?? 0,
+    end: (m.index ?? 0) + m[0].length,
+    closing: m[1] === "/",
+  }));
+  type Marker = (typeof markers)[number];
+
+  // A closing tag pairs with the nearest opening tag before it that is still waiting.
+  const waiting: Marker[] = [];
+  const pairs: { open: Marker; close: Marker }[] = [];
+  const strayClosers: Marker[] = [];
+  for (const marker of markers) {
+    if (!marker.closing) {
+      waiting.push(marker);
+      continue;
+    }
+    const open = waiting.pop();
+    if (open) pairs.push({ open, close: marker });
+    else strayClosers.push(marker);
+  }
+  // A pair inside another (nested tags) is covered by the outer one.
+  const outer = pairs
+    .filter(p => !pairs.some(q => q !== p && q.open.start < p.open.start && p.close.end < q.close.end))
+    .sort((a, b) => a.open.start - b.open.start);
+  const last = outer[outer.length - 1];
+
+  // An opening tag that never closes: hidden only if it is the last thing in the reply.
+  const lastPairEnd = last ? last.close.end : 0;
+  const cutOff = waiting.find(w => w.start >= lastPairEnd && isCutOffNote(rawReply, w.start, w.end));
+
+  // Only a note that is the very last thing (bar blanks, marks and stray closing tags) is one to remember.
+  const isFinal =
+    last !== undefined && cutOff === undefined && /^[\s*_~`]*$/.test(rawReply.slice(last.close.end).replace(/<\/remember>/gi, ""));
+
+  const cuts: [number, number][] = [];
+  for (const pair of outer) {
+    let [start, end] = widenOverWrappers(rawReply, pair.open.start, pair.close.end);
+    if (isFinal && pair === last) {
+      end = rawReply.length; // nothing but blanks, marks and stray closers follow it
+      const leadingMarks = /(^|\n)[ \t]*[*_~`]+[ \t]*$/.exec(rawReply.slice(0, start));
+      if (leadingMarks) start = leadingMarks.index + (leadingMarks[1] ?? "").length;
+    }
+    cuts.push([start, end]);
+  }
+  for (const stray of strayClosers) {
+    if (!outer.some(p => stray.start >= p.open.start && stray.start < p.close.end)) cuts.push([stray.start, stray.end]);
+  }
+  if (cutOff) {
+    let start = cutOff.start;
+    while (start > 0 && (isBlank(rawReply[start - 1]) || isMark(rawReply[start - 1]))) start--;
+    cuts.push([start, rawReply.length]);
+  }
+
+  cuts.sort((a, b) => a[0] - b[0]);
+  let visible = "";
+  let position = 0;
+  for (const [start, end] of cuts) {
+    if (end <= position) continue;
+    visible += rawReply.slice(position, Math.max(start, position));
+    position = end;
+  }
+  visible += rawReply.slice(position);
+
+  const fact =
+    isFinal && last
+      ? toMemoryLine(rawReply.slice(last.open.end, last.close.start).replace(/<\/?remember>/gi, " "), MAX_MEMORY_CHARS)
+      : "";
+  return { visible: visible.trim(), fact: fact || null };
 }
 
 // V1 Business Summary / Context Awareness Engine — real inventory and

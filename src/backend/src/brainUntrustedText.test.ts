@@ -816,6 +816,16 @@ describe("Pilot Brain treats outside text as data", () => {
       expect(calls[0].system).not.toContain("evil.example");
     });
 
+    it("shows Boss the whole reply when the model only mentions the tag, and remembers nothing", async () => {
+      const dealer = await signup("brain-mem-stray");
+      const reply = "I don't use <remember> tags with you, Boss. Anything else?";
+      stubAnthropic(() => ({ body: { stop_reason: "end_turn", content: [{ type: "text", text: reply }] } }));
+      const res = await chat(dealer.token);
+      expect(res.status).toBe(200);
+      expect(res.body.message.content).toBe(reply);
+      expect(await memoriesOf(dealer.token)).toEqual([]);
+    });
+
     it("also keeps a remember tag out of the morning briefing and the review", async () => {
       const dealer = await signup("brain-mem-briefing");
       stubAnthropic(() => ({ body: { stop_reason: "end_turn", content: [{ type: "text", text: "All quiet <remember>secret</remember> today.\n<remember>another</remember>" }] } }));
@@ -881,6 +891,88 @@ describe("Pilot Brain treats outside text as data", () => {
       expect(extractRememberTag("A <remember>one</remember> B")).toEqual({ visible: "A  B", fact: null });
       expect(extractRememberTag("A <remember>one</remember> B\n<remember>two</remember>\n")).toEqual({ visible: "A  B", fact: "two" });
       expect(extractRememberTag("A\n<remember>unfinished")).toEqual({ visible: "A", fact: null });
+    });
+
+    it("leaves a stray mention of the tag in ordinary prose alone, and does not delete the rest of the reply", () => {
+      const strayMention = "I don't use <remember> tags with you, Boss. Anything else?";
+      expect(extractRememberTag(strayMention)).toEqual({ visible: strayMention, fact: null });
+      const overTwoLines = "I don't use <remember> tags with you, Boss\nand that is fine.";
+      expect(extractRememberTag(overTwoLines)).toEqual({ visible: overTwoLines, fact: null });
+      const paragraphs = "I never use <remember> tags.\n\nHere is your answer, Boss: stock is healthy and margins are steady.";
+      expect(extractRememberTag(paragraphs)).toEqual({ visible: paragraphs, fact: null });
+      // a mention that opens a line, followed by a long answer, is not a note cut off either
+      const longAnswer = "<remember> is a tag I never use.\n\n" + "Here is a long and careful answer. ".repeat(30);
+      expect(extractRememberTag(longAnswer)).toEqual({ visible: longAnswer.trim(), fact: null });
+    });
+
+    it("still hides a note that was cut off by the length limit, wherever it starts", () => {
+      const cases: [string, string][] = [
+        ["Here is my answer.\n<remember>half a not", "Here is my answer."],
+        ["Here is my answer. <remember>Boss likes te", "Here is my answer."],
+        ["Here is my answer.\n**<remember>Boss likes te", "Here is my answer."],
+        ["Done.\n<remember>Boss likes tea. Also short answers", "Done."], // more than one sentence, but on the line where the note goes
+        ["<remember>only a note, cut off", ""],
+      ];
+      for (const [reply, shown] of cases) {
+        expect(extractRememberTag(reply), reply).toEqual({ visible: shown, fact: null });
+      }
+    });
+
+    it("keeps a stray mention, and still finds the real note after it", () => {
+      expect(extractRememberTag("I don't use <remember> tags. Anything else?\n<remember>Boss likes tea</remember>")).toEqual({
+        visible: "I don't use <remember> tags. Anything else?",
+        fact: "Boss likes tea",
+      });
+      // ...or the note that was cut off after it
+      expect(extractRememberTag("I mentioned <remember> earlier.\n<remember>half a not")).toEqual({
+        visible: "I mentioned <remember> earlier.",
+        fact: null,
+      });
+    });
+
+    it("leaves no fragments behind for nested tags or stray closing tags", () => {
+      expect(extractRememberTag("Here.\n<remember>a <remember>b</remember></remember>")).toEqual({ visible: "Here.", fact: "a b" });
+      expect(extractRememberTag("Here.\n<remember>a <remember>half")).toEqual({ visible: "Here.", fact: null });
+      expect(extractRememberTag("Here.</remember>\nMore.")).toEqual({ visible: "Here.\nMore.", fact: null });
+      expect(extractRememberTag("Here.\n<remember>x</remember>\n</remember>")).toEqual({ visible: "Here.", fact: "x" });
+      expect(extractRememberTag("</remember>")).toEqual({ visible: "", fact: null });
+    });
+
+    it("takes Markdown wrapped around the note away with it, so no empty **** or `` is left", () => {
+      for (const [wrapped, label] of [
+        ["**<remember>Boss likes tea</remember>**", "bold"],
+        ["`<remember>Boss likes tea</remember>`", "code"],
+        ["_<remember>Boss likes tea</remember>_", "italics"],
+        ["***<remember>Boss likes tea</remember>***", "bold italics"],
+        ["**`<remember>Boss likes tea</remember>`**", "bold code"],
+      ] as const) {
+        expect(extractRememberTag(`Sure.\n${wrapped}`), label).toEqual({ visible: "Sure.", fact: "Boss likes tea" });
+        expect(extractRememberTag(`Sure. ${wrapped}`), `${label}, on the same line`).toEqual({ visible: "Sure.", fact: "Boss likes tea" });
+      }
+      // marks on one side only belong to other text: the bold before the note is left whole
+      expect(extractRememberTag("**bold** <remember>x</remember>")).toEqual({ visible: "**bold**", fact: "x" });
+      // ...but a mark left right beside the very last note goes with it
+      expect(extractRememberTag("Sure.\n<remember>x</remember>**")).toEqual({ visible: "Sure.", fact: "x" });
+      expect(extractRememberTag("Sure.\n**<remember>x</remember>")).toEqual({ visible: "Sure.", fact: "x" });
+    });
+
+    it("never shows what is inside a remember tag, whatever shape the tag comes in", () => {
+      const SECRET = "SECRET-FACT";
+      const mention = "I don't use <remember> tags. Anything else?";
+      for (const reply of [
+        `<remember>${SECRET}</remember>`,
+        `a <remember>${SECRET}</remember>`,
+        `a\n<remember>${SECRET}`,
+        `a <remember>${SECRET}`,
+        `**<remember>${SECRET}</remember>**`,
+        `a <remember>b <remember>${SECRET}</remember></remember>`,
+        `x <remember>${SECRET}</remember> y <remember>${SECRET}</remember>`,
+        `${mention}\n<remember>${SECRET}</remember>`,
+      ]) {
+        const { visible } = extractRememberTag(reply);
+        expect(visible, reply).not.toContain(SECRET);
+        expect(visible.replace(mention, ""), reply).not.toMatch(/<\/?remember>/i);
+      }
     });
   });
 });
