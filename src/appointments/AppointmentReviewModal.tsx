@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useAppointments } from "@/context/AppointmentsContext";
 import type { Appointment, AppointmentStatus } from "./appointmentTypes";
+import { appointmentEmailHref } from "./appointmentEmail";
 
 interface AppointmentReviewModalProps {
   appointment: Appointment;
@@ -41,23 +42,9 @@ export default function AppointmentReviewModal({ appointment, onClose }: Appoint
   }
 
   if (savedStatus) {
-    const mailto = appointment.customerEmail
-      ? `mailto:${appointment.customerEmail}?subject=${encodeURIComponent(
-          `Your ${typeLabel} — ${appointment.vehicleLabel}`
-        )}&body=${encodeURIComponent(
-          [
-            `Hi ${appointment.customerName},`,
-            ``,
-            savedStatus === "confirmed"
-              ? timeChanged
-                ? `We'd like to confirm your ${typeLabel} for ${date} at ${time} (your original request was ${appointment.requestedDate} at ${appointment.requestedTime}). Let us know if that works.`
-                : `Your ${typeLabel} is confirmed for ${date} at ${time}.`
-              : `Unfortunately we're unable to confirm your requested slot — please get in touch and we'll find a time that works.`,
-            ``,
-            `Thanks,`,
-          ].join("\n")
-        )}`
-      : null;
+    // The address came from a stranger's booking form, so the link is built by
+    // appointmentEmailHref, which encodes it (see lib/mailto.ts).
+    const mailto = appointmentEmailHref({ appointment, typeLabel, savedStatus, date, time, timeChanged });
 
     return (
       <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">

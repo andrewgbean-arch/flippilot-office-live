@@ -88,6 +88,14 @@ const MAX_NOTES_CHARS = 500;
 const MAX_EMAIL_CHARS = 254; // the longest an email address can legitimately be
 const MAX_PHONE_CHARS = 30;
 
+// One address: something, one "@", something. Neither side may hold a space or
+// a character that means something in a mailto: link or a web address (? & = %
+// # /), so a stored address can never add a cc, a bcc or a subject to the email
+// staff send from the "Email Customer" button, or carry a %-escape. Apostrophes
+// (O'Brien@example.co.uk is a real address), plus-addressing, dots, hyphens and
+// letters of any alphabet are all fine.
+const EMAIL_PATTERN = /^[^\s@<>()[\]\\,;:"?&=%#\/]+@[^\s@<>()[\]\\,;:"?&=%#\/]+$/;
+
 // undefined: not given. null: given, but not usable. Otherwise the cleaned value.
 function cleanEmail(raw: unknown): string | null | undefined {
   if (raw === undefined || raw === null) return undefined;
@@ -95,7 +103,7 @@ function cleanEmail(raw: unknown): string | null | undefined {
   const value = toSingleLine(raw, MAX_EMAIL_CHARS + 1);
   if (!value) return undefined;
   if (value.length > MAX_EMAIL_CHARS) return null;
-  return /^[^\s@<>()[\]\\,;:"]+@[^\s@<>()[\]\\,;:"]+$/.test(value) ? value : null;
+  return EMAIL_PATTERN.test(value) ? value : null;
 }
 
 function cleanPhone(raw: unknown): string | null | undefined {

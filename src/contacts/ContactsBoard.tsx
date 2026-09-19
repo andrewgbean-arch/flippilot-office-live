@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useContacts } from "@/context/ContactsContext";
+import { mailtoHref } from "@/lib/mailto";
 import AddContactModal from "./AddContactModal";
 import type { Contact, ContactCategory } from "./contactTypes";
 import { CONTACT_CATEGORY_LABELS } from "./contactTypes";
@@ -91,7 +92,7 @@ export default function ContactsBoard() {
                         </div>
                         <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
                           {c.email && (
-                            <a href={`mailto:${c.email}`} className="sn-btn sn-btn--ghost" style={{ padding: "6px 12px", fontSize: 12 }}>
+                            <a href={mailtoHref(c.email)} className="sn-btn sn-btn--ghost" style={{ padding: "6px 12px", fontSize: 12 }}>
                               Email
                             </a>
                           )}
