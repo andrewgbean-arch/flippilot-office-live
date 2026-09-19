@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { useInventory } from "@/context/InventoryProvider";
+import { useBookkeeping } from "@/bookkeeping/BookkeepingProvider";
+import { bookkeepingDeleteWarning, countBookkeepingRecords } from "./deleteWarning";
 
 import { SupernovaGlowCard } from "@/components/supernova/SupernovaGlowCard";
 import { SupernovaHeroHeader } from "@/components/supernova/SupernovaHeroHeader";
@@ -23,6 +25,12 @@ interface EditVehicleProps {
 export default function EditVehicle({ vehicleId }: EditVehicleProps) {
   const navigate = useNavigate();
   const { vehicles, updateVehicle, deleteVehicle } = useInventory();
+  const { sales, purchases, costs } = useBookkeeping();
+  // Deleting a car leaves its Bookkeeping entries behind with no car to belong
+  // to, so the confirmation says so first (nothing is blocked).
+  const bookkeepingWarning = bookkeepingDeleteWarning(
+    countBookkeepingRecords({ sales, purchases, costs }, vehicleId)
+  );
 
   const vehicle = vehicles.find((v) => v.id === vehicleId);
 
@@ -455,6 +463,14 @@ export default function EditVehicle({ vehicleId }: EditVehicleProps) {
             <p className="text-white/70 mb-6">
               Are you sure you want to delete this vehicle? This action cannot be undone.
             </p>
+            {bookkeepingWarning && (
+              <p
+                role="alert"
+                className="text-yellow-200 bg-yellow-400/10 border border-yellow-400/40 rounded-lg px-4 py-3 text-sm -mt-2 mb-6"
+              >
+                {bookkeepingWarning}
+              </p>
+            )}
 
             <div className="flex gap-4">
               <button
