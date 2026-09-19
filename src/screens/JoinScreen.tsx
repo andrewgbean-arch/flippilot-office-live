@@ -4,6 +4,8 @@ import { useAuth } from "@/context/AuthContext";
 
 import { BASE_URL } from "@/lib/apiBaseUrl";
 import { inviteErrorHeadline } from "./joinInviteError";
+import JoinSuccessStep from "./JoinSuccessStep";
+import { useInstallHint } from "@/pwa/InstallHint";
 
 export default function JoinScreen() {
   const { joinDealership } = useAuth();
@@ -22,6 +24,9 @@ export default function JoinScreen() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // The login has been made and the person is looking at the "you're in" step.
+  const [joined, setJoined] = useState(false);
+  const installHint = useInstallHint();
 
   useEffect(() => {
     if (!token) {
@@ -65,6 +70,19 @@ export default function JoinScreen() {
       setError(result.error);
       return;
     }
+    // On a phone or tablet that could still have FlipPilot put on its home
+    // screen, say so first. Anywhere else there is nothing to offer: straight in.
+    if (installHint.kind === "none") {
+      navigate("/", { replace: true });
+      return;
+    }
+    setJoined(true);
+  }
+
+  // Having been shown the home-screen card once, moving on counts as an answer,
+  // so the dashboard does not show the same card again a moment later.
+  function continueToApp() {
+    if (installHint.kind !== "none") installHint.dismiss();
     navigate("/", { replace: true });
   }
 
@@ -82,6 +100,14 @@ export default function JoinScreen() {
               <Link to="/login" className="text-yellow-300 hover:underline">Back to sign in</Link>
             </p>
           </>
+        ) : joined ? (
+          <JoinSuccessStep
+            dealershipName={dealershipName ?? ""}
+            hint={installHint.kind}
+            onInstall={installHint.install}
+            onDismissHint={installHint.dismiss}
+            onContinue={continueToApp}
+          />
         ) : (
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="text-center mb-2">

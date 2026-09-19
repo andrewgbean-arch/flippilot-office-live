@@ -17,6 +17,7 @@ import SupernovaMarketTicker from "@/components/supernova/SupernovaMarketTicker"
 import DealerModeToggle from "@/components/supernova/DealerModeToggle";
 import PilotBrainWatcherCard from "@/pilotbrain/PilotBrainWatcherCard";
 import PilotBrainMarketCard from "@/pilotbrain/PilotBrainMarketCard";
+import InstallHint from "@/pwa/InstallHint";
 
 import {
   FiTool,
@@ -202,6 +203,12 @@ export default function DealerDashboard({ brain }: Props) {
 
   return (
     <div className="p-10 space-y-16">
+
+      {/* HOME-SCREEN CARD — only on a phone or tablet that has not installed
+          the app or dismissed this, and gone for good once dismissed. The
+          negative margin pulls the greeting back up under it, since this
+          container spaces its children a long way apart. */}
+      <InstallHint className="-mb-10" />
 
       {/* GREETING */}
       <div data-tour="tour-welcome">

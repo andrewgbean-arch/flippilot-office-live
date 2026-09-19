@@ -7,6 +7,7 @@ import "./index.css";
 import App from "./App";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { AuthProvider } from "./context/AuthContext";
+import { startInstallPromptCapture } from "./pwa/installPromptStore";
 
 // Providers
 import { VehicleHistoryProvider } from "./features/vehicles/context/VehicleHistoryContext";
@@ -37,6 +38,11 @@ if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("/sw.js").catch(() => {});
   });
 }
+
+// Chrome and Edge on Android announce "this app can be installed" once, soon
+// after the page loads. Listening from here (before anything renders) keeps that
+// signal for the Install app button to use later; see pwa/installPromptStore.ts.
+startInstallPromptCapture();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
