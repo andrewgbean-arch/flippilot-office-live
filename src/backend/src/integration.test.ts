@@ -2859,3 +2859,137 @@ describe("message photos — lifecycle, limits and hardening", () => {
     expect(log).toContain("[redacted]");
   });
 });
+
+// Pilot Brain talks to EVERY signed-in member of a dealership (its gate is
+// per dealership, not per role). So what it is given must be limited to what
+// everyone on the team may already see: it must never be handed wages,
+// private one-to-one messages, customer details or the pictures themselves.
+// These tests capture the exact system prompt sent to the model (the real
+// vendor call is stubbed, so nothing is spent) and check it against private
+// data planted in the same dealership.
+describe("Pilot Brain — what it is and isn't given", () => {
+  const auth = (token: string) => ({ Authorization: `Bearer ${token}` });
+
+  // Returns the system prompt that would have been sent to the model.
+  async function askBrain(token: string): Promise<string> {
+    const captured: string[] = [];
+    const realKey = process.env.ANTHROPIC_API_KEY;
+    process.env.ANTHROPIC_API_KEY = "test-key-not-real";
+    vi.stubGlobal("fetch", async (url: unknown, init: { body: string }) => {
+      if (String(url).includes("api.anthropic.com")) {
+        captured.push(JSON.parse(init.body).system);
+        return new Response(JSON.stringify({ content: [{ text: "Understood, Boss." }] }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      throw new Error(`unexpected outbound request in test: ${String(url)}`);
+    });
+    try {
+      const res = await request(app).post("/pilot-brain/chat").set(auth(token)).send({ message: "What can you see?" });
+      expect(res.status).toBe(200);
+    } finally {
+      vi.unstubAllGlobals();
+      if (realKey === undefined) delete process.env.ANTHROPIC_API_KEY;
+      else process.env.ANTHROPIC_API_KEY = realKey;
+    }
+    expect(captured).toHaveLength(1);
+    return captured[0]!;
+  }
+
+  const car = (id: string, extra: Record<string, unknown> = {}) => ({
+    id,
+    make: "Ford",
+    model: "Fiesta",
+    year: 2018,
+    status: "in stock",
+    priceRetail: 5000,
+    priceTrade: 4000,
+    createdAt: new Date().toISOString(),
+    condition: "Unknown",
+    costs: [],
+    depreciationCurve: [],
+    mot: { expiry: "", advisories: [], history: [] },
+    images: null,
+    ...extra,
+  });
+
+  let counter = 0;
+  async function setup() {
+    counter += 1;
+    const owner = await signup(`brain-owner-${counter}`);
+    const staff = await joinStaff(owner.token, "sales");
+    return { owner, staff, dealershipId: owner.user.dealershipId as string };
+  }
+
+  it("is never sent wages, private messages, board posts, customer details or the pictures — even when a plain staff member is the one asking", async () => {
+    const { owner, staff, dealershipId } = await setup();
+
+    // Private things planted in the same dealership.
+    await request(app).put(`/pay/rates/${staff.user.id}`).set(auth(owner.token)).send({ hourlyRate: 73.19 });
+    writeTenantCollection(dealershipId, "timekeeping", [
+      { id: "t1", userId: staff.user.id, userName: staff.user.name, clockIn: "2026-09-14T08:00:00Z", clockOut: "2026-09-14T16:30:00Z" },
+    ]);
+    await request(app).post("/staff-messages").set(auth(staff.token)).send({ toUserId: owner.user.id, message: "SECRET-ONE-TO-ONE-TEXT" });
+    await request(app).post("/feedback").set(auth(staff.token)).send({ message: "SECRET-BOARD-TEXT", anonymous: true });
+    await request(app).post("/customers").set(auth(owner.token)).send({ name: "Secret Customer Person", email: "secret.customer@example.test" });
+    writeTenantCollection(dealershipId, "vehicles", [
+      car("b1", { images: ["https://api.example.test/photos/3f2b8c1e-9a4d-4e7b-8c55-0d1f6a7b9e21.jpg"] }),
+      car("b2", { images: ["data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD"] }),
+    ]);
+
+    const prompt = await askBrain(staff.token);
+
+    for (const secret of [
+      "73.19",
+      "SECRET-ONE-TO-ONE-TEXT",
+      "SECRET-BOARD-TEXT",
+      "secret.customer@example.test",
+      "Secret Customer Person",
+      "data:image",
+      "/photos/3f2b8c1e",
+    ]) {
+      expect(prompt, `the prompt must not contain: ${secret}`).not.toContain(secret);
+    }
+    // ...and it says plainly, in its own instructions, what it can't see and why
+    expect(prompt).toContain("WHAT YOU DELIBERATELY DO NOT HAVE ACCESS TO");
+    expect(prompt).toContain("anyone's pay or wage information");
+    expect(prompt).toContain("private one-to-one messages");
+  });
+
+  it("knows how many in-stock cars have no photos, counting web-uploaded (inline) and phone (hosted) photos, and ignoring sold cars", async () => {
+    const { owner, dealershipId } = await setup();
+    writeTenantCollection(dealershipId, "vehicles", [
+      car("p1", { images: ["https://api.example.test/photos/3f2b8c1e-9a4d-4e7b-8c55-0d1f6a7b9e21.jpg"] }), // phone photo
+      car("p2", { images: ["data:image/jpeg;base64,/9j/AAAA"] }), // uploaded on the web
+      car("p3", { images: null }),
+      car("p4", { images: [] }),
+      car("p5", { status: "sold", images: null }), // sold: not counted
+    ]);
+    const summary = buildBusinessSummary(dealershipId);
+    expect(summary).toContain("Vehicles in stock: 4");
+    expect(summary).toContain("Vehicles in stock with no photos: 2 of 4");
+
+    // and it reaches the model
+    const prompt = await askBrain(owner.token);
+    expect(prompt).toContain("Vehicles in stock with no photos: 2 of 4");
+  });
+
+  it("says nothing about photos when there is no stock, and 0 when every car has one", async () => {
+    const { dealershipId } = await setup();
+    writeTenantCollection(dealershipId, "vehicles", []);
+    expect(buildBusinessSummary(dealershipId)).not.toContain("with no photos");
+
+    writeTenantCollection(dealershipId, "vehicles", [car("q1", { images: ["data:image/png;base64,AAAA"] }), car("q2", { images: ["data:image/png;base64,BBBB"] })]);
+    expect(buildBusinessSummary(dealershipId)).toContain("Vehicles in stock with no photos: 0 of 2");
+  });
+
+  it("is told about the real areas of the product it used to deny — timekeeping, customers, private messages", async () => {
+    const { owner } = await setup();
+    const prompt = await askBrain(owner.token);
+    expect(prompt).toContain("Clock In/Out (Timekeeping)");
+    expect(prompt).toContain("Customers (a customer database with recorded marketing consent)");
+    expect(prompt).toContain("Message a Teammate (private one-to-one messages)");
+    expect(prompt).toContain("Team Message Board");
+  });
+});
