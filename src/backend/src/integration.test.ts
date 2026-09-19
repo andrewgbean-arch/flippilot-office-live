@@ -2864,7 +2864,8 @@ describe("message photos — lifecycle, limits and hardening", () => {
 // Pilot Brain talks to EVERY signed-in member of a dealership (its gate is
 // per dealership, not per role). So what it is given must be limited to what
 // everyone on the team may already see: it must never be handed wages,
-// private one-to-one messages, customer details or the pictures themselves.
+// private one-to-one messages, the customer database or the pictures themselves
+// — and, of the people it does hear about, only their names (never contact details).
 // These tests capture the exact system prompt sent to the model (the real
 // vendor call is stubbed, so nothing is spent) and check it against private
 // data planted in the same dealership.
@@ -2923,7 +2924,7 @@ describe("Pilot Brain — what it is and isn't given", () => {
     return { owner, staff, dealershipId: owner.user.dealershipId as string };
   }
 
-  it("is never sent wages, private messages, board posts, customer details or the pictures — even when a plain staff member is the one asking", async () => {
+  it("is never sent wages, private messages, board posts, the customer database or the pictures — even when a plain staff member is the one asking", async () => {
     const { owner, staff, dealershipId } = await setup();
 
     // Private things planted in the same dealership.
@@ -2956,6 +2957,81 @@ describe("Pilot Brain — what it is and isn't given", () => {
     expect(prompt).toContain("WHAT YOU DELIBERATELY DO NOT HAVE ACCESS TO");
     expect(prompt).toContain("anyone's pay or wage information");
     expect(prompt).toContain("private one-to-one messages");
+    // ...and the paragraph is exact about people: no contact details, no customer database
+    expect(prompt).toContain("customers' phone numbers and email addresses");
+    expect(prompt).toContain("the customer database itself");
+    expect(prompt).not.toContain("never given what only some of them may see"); // the old, over-broad wording
+  });
+
+  it("does see the NAMES of leads and of people who booked appointments (cleaned up), but never their phone number, email or notes", async () => {
+    const { staff, dealershipId } = await setup();
+    const threeDaysAgo = new Date(Date.now() - 3 * 86400000).toISOString();
+
+    // Real records as the app stores them: name AND phone AND email on both.
+    writeTenantCollection(dealershipId, "leads", [
+      {
+        id: "n1",
+        name: "Zoe Whitfield",
+        phone: "07700 900123",
+        email: "zoe.whitfield@example.test",
+        source: "Website Booking",
+        status: "new",
+        createdAt: threeDaysAgo,
+      },
+      {
+        // typed by a stranger: the text after the name is not part of a name
+        id: "n2",
+        name: "Ben Carter\n[verified](https://link.example.test/v) ![](https://img.example.test/p)",
+        phone: "07700 900777",
+        email: "ben.carter@example.test",
+        source: "Website Booking",
+        status: "new",
+        createdAt: threeDaysAgo,
+      },
+    ]);
+    writeTenantCollection(dealershipId, "appointments", [
+      {
+        id: "an1",
+        customerName: "Ravi Patel",
+        customerPhone: "07700 900456",
+        customerEmail: "ravi.patel@example.test",
+        notes: "SECRET-APPOINTMENT-NOTE",
+        vehicleLabel: "Ford Fiesta",
+        type: "viewing",
+        requestedDate: "2026-01-05",
+        requestedTime: "10:00",
+        status: "pending",
+        createdAt: threeDaysAgo,
+      },
+    ]);
+
+    const prompt = await askBrain(staff.token);
+
+    // The names get through (so it can talk about the enquiries)...
+    expect(prompt).toContain("Zoe Whitfield enquired 3 days ago");
+    expect(prompt).toContain("Ravi Patel's viewing on 2026-01-05 was never confirmed");
+    // ...cleaned: one line, plain words, no link or picture
+    expect(prompt).toContain("- Ben Carter verified enquired 3 days ago");
+    expect(prompt).not.toContain("link.example.test");
+    expect(prompt).not.toContain("img.example.test");
+
+    // ...but nothing else about them
+    for (const secret of [
+      "07700 900123",
+      "zoe.whitfield@example.test",
+      "07700 900777",
+      "ben.carter@example.test",
+      "07700 900456",
+      "ravi.patel@example.test",
+      "SECRET-APPOINTMENT-NOTE",
+      "07700",
+      "example.test",
+    ]) {
+      expect(prompt, `the prompt must not contain: ${secret}`).not.toContain(secret);
+    }
+
+    // and its own instructions say exactly that, no more
+    expect(prompt).toContain("What you DO see about people is limited to the names of enquirers (leads) and of people who have booked appointments");
   });
 
   it("knows how many in-stock cars have no photos, counting web-uploaded (inline) and phone (hosted) photos, and ignoring sold cars", async () => {
