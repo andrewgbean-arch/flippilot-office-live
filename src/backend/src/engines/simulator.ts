@@ -125,7 +125,7 @@ function round(n: number, places: number): number {
 
 const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
 const carsText = (n: number) => `${n} ${plural(n, "car", "cars")}`;
-const oneDp = (n: number) => String(round(n, 1));
+const tidy = (n: number) => String(round(n, 2)); // 0.75 stays 0.75, 6 stays 6
 
 function pounds(n: number): string {
   const whole = Number.isInteger(n);
@@ -134,13 +134,13 @@ function pounds(n: number): string {
 }
 
 // The one place a Figure is made, so its rules hold everywhere: a figure with no
-// value is UNKNOWN (and the other way round), money is kept to the penny and
-// everything else to one decimal place.
+// value is UNKNOWN (and the other way round), and every value is kept to two
+// decimal places (pence for money) so 0.75 of a car is not shown as 0.8.
 function figure(label: string, value: number | null, unit: FigureUnit, kind: FigureKind, basis: string): Figure {
   if (kind === "unknown" || value === null || !Number.isFinite(value)) {
     return { label, value: null, unit, kind: "unknown", basis };
   }
-  return { label, value: round(value, unit === "gbp" ? 2 : 1), unit, kind, basis };
+  return { label, value: round(value, 2), unit, kind, basis };
 }
 
 function assumption(
@@ -154,7 +154,7 @@ function assumption(
   if (kind === "unknown" || value === null || (typeof value === "number" && !Number.isFinite(value))) {
     return { key, label, value: null, unit, source, kind: "unknown" };
   }
-  return { key, label, value: typeof value === "number" ? round(value, unit === "gbp" ? 2 : 1) : value, unit, source, kind };
+  return { key, label, value: typeof value === "number" ? round(value, 2) : value, unit, source, kind };
 }
 
 /* ------------------------------------------------------------------ */
@@ -385,7 +385,7 @@ function describeFacts(m: Measures): SimFacts {
     ),
     soldPerMonth: fact(
       "sold_per_month",
-      figure("Cars sold per month", m.soldPerMonth, "cars", "inferred", `${m.sold} sold in ${win}, divided by ${oneDp(WINDOW_MONTHS)} months of ${MONTH_DAYS} days.`)
+      figure("Cars sold per month", m.soldPerMonth, "cars", "inferred", `${m.sold} sold in ${win}, divided by ${tidy(WINDOW_MONTHS)} months of ${MONTH_DAYS} days.`)
     ),
     avgSalePrice: fact(
       "avg_sale_price",
@@ -493,7 +493,7 @@ function describeFacts(m: Measures): SimFacts {
     ),
     leadsPerMonth: fact(
       "leads_per_month",
-      figure("Enquiries per month", m.leadsPerMonth, "count", "inferred", `${m.leads} enquiries in ${LEAD_WINDOW_DAYS} days, divided by ${oneDp(LEAD_WINDOW_MONTHS)} months of ${MONTH_DAYS} days.`)
+      figure("Enquiries per month", m.leadsPerMonth, "count", "inferred", `${m.leads} enquiries in ${LEAD_WINDOW_DAYS} days, divided by ${tidy(LEAD_WINDOW_MONTHS)} months of ${MONTH_DAYS} days.`)
     ),
     stockAges: m.stockAges.map(a => ({ ...a })),
   };
@@ -610,7 +610,7 @@ function stockInvestment(m: Measures, params: StockInvestmentParams): Simulation
         : "The average price paid for a car works out at £0 or less, so the number of extra cars cannot be worked out.";
   const salesBasis =
     extraSales !== null
-      ? `Sales rise in step with stock: ${oneDp(extraCars ?? 0)} extra cars at today's pace of ${oneDp(m.soldPerMonth)} sales a month across ${carsText(m.inStock)} in stock. A prediction, not a record.`
+      ? `Sales rise in step with stock: ${tidy(extraCars ?? 0)} extra cars at today's pace of ${tidy(m.soldPerMonth)} sales a month across ${carsText(m.inStock)} in stock. A prediction, not a record.`
       : extraCars === null
         ? "Needs the number of extra cars, which is unknown."
         : "You have no cars in stock now, so there is no sales-per-car pace to scale from.";
@@ -646,7 +646,7 @@ function stockInvestment(m: Measures, params: StockInvestmentParams): Simulation
     key: "keep",
     label: "Keep things as they are",
     figures: [
-      figure("Cars sold per month now", m.soldPerMonth, "cars", "inferred", `${m.sold} sold in the last ${WINDOW_DAYS} days, divided by ${oneDp(WINDOW_MONTHS)} months of ${MONTH_DAYS} days.`),
+      figure("Cars sold per month now", m.soldPerMonth, "cars", "inferred", `${m.sold} sold in the last ${WINDOW_DAYS} days, divided by ${tidy(WINDOW_MONTHS)} months of ${MONTH_DAYS} days.`),
       figure(
         "Profit per month now",
         keepProfit,
@@ -707,7 +707,7 @@ function stockInvestment(m: Measures, params: StockInvestmentParams): Simulation
         slowDays === null ? "unknown" : "predicted",
         slowDays === null
           ? `No car sold in ${LAST_WINDOW} has both a purchase date and a sale date that can be used.`
-          : `Today's average (${oneDp(m.avgDaysToSell ?? 0)} days) made ${SLOWER_SELL_PERCENT}% longer. A prediction, not a record.`
+          : `Today's average (${tidy(m.avgDaysToSell ?? 0)} days) made ${SLOWER_SELL_PERCENT}% longer. A prediction, not a record.`
       ),
       ...notModelled(),
     ],
@@ -822,7 +822,7 @@ function priceCut(m: Measures, params: PriceCutParams): SimulationPreview {
         extraProfit,
         "gbp",
         extraProfit === null ? "unknown" : "predicted",
-        extraProfit === null ? NO_PROFIT : `Your guess (${oneDp(guess)} cars) times the profit left on each after the cut (${pounds(after ?? 0)}). A prediction, not a record.`
+        extraProfit === null ? NO_PROFIT : `Your guess (${tidy(guess)} cars) times the profit left on each after the cut (${pounds(after ?? 0)}). A prediction, not a record.`
       ),
       figure(
         "Net result of the cut",
