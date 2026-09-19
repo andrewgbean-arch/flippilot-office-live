@@ -10,7 +10,9 @@ import {
   requireOwner,
   toPublicUser,
   VALID_STAFF_ROLES,
+  isStaffRoleDemotion,
   type AuthUser,
+  type Dealership,
   type StoredUser,
 } from "../auth";
 import { toDateKeyLocal, type Shift, type WorkPattern } from "./planner";
@@ -58,6 +60,22 @@ export function releaseMemberFromTeamData(dealershipId: string, userId: string):
   if (jobsChanged) {
     writeTenantCollection(dealershipId, "jobs", updatedJobs);
   }
+}
+
+// Adds 1 to the dealership's inviteEpoch, which cancels every invite link
+// shared up to this moment (see Dealership.inviteEpoch) and leaves any made
+// afterwards alone. Run when someone is removed, or moved to a lower role:
+// a link isn't tied to an email address, so without this the person could
+// walk straight back in — or make a second account with the role they just
+// lost — using a link they already hold. Synchronous read-then-write, like
+// the rest of this file, so nothing can slip in between. A dealership that
+// no longer exists has nothing to cancel.
+function cancelSharedInviteLinks(dealershipId: string): void {
+  const dealerships = readCollection<Dealership>("dealerships");
+  const dealership = dealerships.find(d => d.id === dealershipId);
+  if (!dealership) return;
+  dealership.inviteEpoch = (dealership.inviteEpoch ?? 0) + 1;
+  writeCollection("dealerships", dealerships);
 }
 
 // Shared by the owner-only routes below: finds the account being
@@ -125,6 +143,12 @@ export default function registerTeamRoute(app: Express) {
       });
     }
 
+    // Links are cancelled BEFORE the role is written, so a failure part-way
+    // can only leave the links cancelled and the role unchanged (the owner
+    // tries again), never a lower role with the old links still working.
+    if (isStaffRoleDemotion(found.target.staffRole, staffRole)) {
+      cancelSharedInviteLinks(found.target.dealershipId);
+    }
     found.target.staffRole = staffRole;
     writeCollection("users", found.users);
     res.json({ ok: true, member: toPublicUser(found.target) });
@@ -134,9 +158,13 @@ export default function registerTeamRoute(app: Express) {
     const found = findManageableMember(req, res);
     if (!found) return;
 
-    // Access is revoked first, and only then is their rota/job data
+    // Order matters. The invite links are cancelled first, so a failure
+    // part-way can leave the person still on the team (the owner tries
+    // again) but never removed while links they hold still work. Access is
+    // revoked second, and only then is their rota/job data
     // tidied — cutting them off must never depend on the cleanup
     // succeeding.
+    cancelSharedInviteLinks(found.target.dealershipId);
     writeCollection("users", found.users.filter(u => u.id !== found.target.id));
     releaseMemberFromTeamData(found.target.dealershipId, found.target.id);
 

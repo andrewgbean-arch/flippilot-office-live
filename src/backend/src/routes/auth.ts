@@ -7,16 +7,43 @@ import {
   signToken,
   requireAuth,
   verifyInviteToken,
+  isInviteRevoked,
   signPasswordResetToken,
   verifyPasswordResetToken,
   toPublicUser,
   type StoredUser,
   type AuthUser,
   type Dealership,
+  type InviteTokenPayload,
 } from "../auth";
 import { sendEmail } from "../email";
 
 const TRIAL_DAYS = 14;
+
+const INVITE_INVALID_MESSAGE = "This invite link is invalid or has expired";
+// Sent when the owner has cancelled the link — they removed someone, or
+// moved someone to a lower role, after making it (see Dealership.inviteEpoch
+// and team.ts). Says what to do next, since the person can't fix this
+// themselves.
+const INVITE_CANCELLED_MESSAGE =
+  "This invite link has been cancelled. Ask the dealership owner for a new link.";
+
+// Decides, from the dealership's CURRENT record, whether an invite that has
+// already passed its signature check can still be used: null means yes,
+// otherwise the message to send back with a 400. A dealership that no longer
+// exists can't take anyone new; a cancelled link says so.
+function inviteProblem(
+  invite: InviteTokenPayload,
+  dealership: Dealership | undefined
+): string | null {
+  if (!dealership) return INVITE_INVALID_MESSAGE;
+  if (isInviteRevoked(invite, dealership)) return INVITE_CANCELLED_MESSAGE;
+  return null;
+}
+
+function findDealership(id: string): Dealership | undefined {
+  return readCollection<Dealership>("dealerships").find(d => d.id === id);
+}
 
 function emailInUse(normalizedEmail: string): boolean {
   return readCollection<StoredUser>("users").some(u => u.email === normalizedEmail);
@@ -131,7 +158,13 @@ export default function registerAuthRoute(app: Express) {
   app.get("/auth/invite/:token", (req, res) => {
     const payload = verifyInviteToken(req.params.token);
     if (!payload) {
-      return res.status(400).json({ ok: false, error: "This invite link is invalid or has expired" });
+      return res.status(400).json({ ok: false, error: INVITE_INVALID_MESSAGE });
+    }
+    // A link the owner has cancelled since making it fails here, before the
+    // person fills in the form, not just at submit.
+    const problem = inviteProblem(payload, findDealership(payload.dealershipId));
+    if (problem) {
+      return res.status(400).json({ ok: false, error: problem });
     }
     res.json({
       ok: true,
@@ -162,7 +195,17 @@ export default function registerAuthRoute(app: Express) {
 
     const payload = verifyInviteToken(token);
     if (!payload) {
-      return res.status(400).json({ ok: false, error: "This invite link is invalid or has expired" });
+      return res.status(400).json({ ok: false, error: INVITE_INVALID_MESSAGE });
+    }
+
+    // A signed link is not enough: the owner may have cancelled it since
+    // (removing someone cancels every link shared before it). Checked here,
+    // before the bcrypt hash, so a cancelled link fails fast — and checked
+    // AGAIN below, after the hash, because the owner can cancel it while the
+    // hash is running.
+    const earlyProblem = inviteProblem(payload, findDealership(payload.dealershipId));
+    if (earlyProblem) {
+      return res.status(400).json({ ok: false, error: earlyProblem });
     }
 
     const normalizedEmail = String(email).trim().toLowerCase();
@@ -179,6 +222,12 @@ export default function registerAuthRoute(app: Express) {
 
     // From here to the response nothing awaits, so no other request can run
     // in between (see the note at the top of this file).
+    const joinedDealership = findDealership(payload.dealershipId);
+    const problem = inviteProblem(payload, joinedDealership);
+    if (problem) {
+      return res.status(400).json({ ok: false, error: problem });
+    }
+
     const users = readCollection<StoredUser>("users");
     if (users.some(u => u.email === normalizedEmail)) {
       return res
@@ -199,7 +248,6 @@ export default function registerAuthRoute(app: Express) {
     writeCollection("users", [...users, newUser]);
 
     const authToken = signToken(toPublicUser(newUser));
-    const joinedDealership = readCollection<Dealership>("dealerships").find(d => d.id === payload.dealershipId);
     res.json({
       ok: true,
       token: authToken,

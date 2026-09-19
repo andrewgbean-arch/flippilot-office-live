@@ -68,7 +68,10 @@ export default function registerDealershipRoute(app: Express) {
   // Generates a shareable invite link (owner-only). There's no email
   // service configured for this app yet, so this hands back a raw link
   // for the owner to send themselves however they like, rather than
-  // pretending to email it.
+  // pretending to email it. Anyone holding the link can use it, more than
+  // once, for its 7-day life, with the role chosen here — it is not tied to
+  // an email address. Removing a teammate (or moving one to a lower role)
+  // cancels every link shared before that moment; see team.ts.
   app.post("/dealership/invite", requireAuth, requireOwner, (req, res) => {
     const user = (req as Request & { user: AuthUser }).user;
     const { inviteeName, staffRole } = req.body ?? {};
@@ -89,6 +92,10 @@ export default function registerDealershipRoute(app: Express) {
       dealershipName: dealership.name,
       role: "staff",
       staffRole: resolvedStaffRole,
+      // Stamped with the dealership's current generation of links, so
+      // that a later removal (or demotion) can cancel this one along with
+      // every other link already out there — see Dealership.inviteEpoch.
+      inviteEpoch: dealership.inviteEpoch ?? 0,
       ...(trimmedName ? { inviteeName: trimmedName } : {}),
     });
 
