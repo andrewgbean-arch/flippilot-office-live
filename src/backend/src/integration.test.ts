@@ -2113,11 +2113,18 @@ describe("Pilot Brain snapshot — lead sources and per-car profit", () => {
     // the right sidebar
     expect(prompt).toContain("Open Jobs, Pending Bookings, MOT Attention");
 
-    // V8 exists as a plan and is not built
+    // V8 is PARTLY built: the journal, the challenge and a first simulator exist, the rest does not
     expect(prompt).toContain("YOUR ROADMAP");
-    expect(prompt).toContain("PLANNED and NOT BUILT");
+    expect(prompt).toContain("PARTLY BUILT");
+    expect(prompt).not.toContain("PLANNED and NOT BUILT");
+    expect(prompt).toContain("NOT BUILT YET");
+    expect(prompt).toContain("a capital, cash or preparation-capacity model");
     expect(prompt).toContain("Devil's Advocate");
     expect(prompt).toContain("Decision Journal");
+    // it is on her list of real features, and her list of what can't be answered yet no longer
+    // says no decision history can exist
+    expect(prompt).toContain("Decision Journal (owners and managers)");
+    expect(prompt).not.toContain("no real decision-outcome history exists yet to learn from");
 
     // the privacy promise is untouched
     expect(prompt).toContain("WHAT YOU DELIBERATELY DO NOT HAVE ACCESS TO");
@@ -2312,6 +2319,122 @@ describe("Pilot Brain — looking inside the tabs", () => {
     await chat(owner.token);
     expect(calls[0].system).toContain("the customer database, the diary, private and team messages, timekeeping and leave, staff pay and billing");
     expect(calls[0].system).toContain("you cannot change anything from here");
+  });
+
+  // The Decision Journal (Pilot Brain V8): Pilot Brain can read it through the
+  // same tool, for owners and managers only, and only a fixed list of fields.
+  function seedJournal(dealershipId: string, question = "Buy another £50k of SUVs?") {
+    writeTenantCollection(dealershipId, "pilotBrainDecisions", [
+      {
+        id: "dec-1",
+        question,
+        context: "PRIVATE JOURNAL CONTEXT: my brother-in-law Dave 07700900999 says the market is hot",
+        options: [
+          { key: "a", label: "No change", note: "PRIVATE OPTION NOTE" },
+          { key: "b", label: "Add £50k", note: "PRIVATE OPTION NOTE" },
+        ],
+        createdAt: daysAgo(30),
+        createdByUserId: "u1",
+        createdByName: "PRIVATE CREATOR",
+        updatedAt: daysAgo(5),
+        pilotRecommendation: { optionKey: "a", reasoning: "PRIVATE PILOT REASONING", confidence: "medium", confidenceReasons: ["PRIVATE"], unknowns: [], askedAt: daysAgo(30) },
+        simulations: [],
+        bossDecision: { optionKey: "b", reasoning: "PRIVATE BOSS REASONING", decidedAt: daysAgo(20), decidedByUserId: "u1", decidedByName: "PRIVATE BOSS" },
+        expectations: [],
+        reviewDueAt: daysAgo(-70),
+        events: [{ at: daysAgo(30), byUserId: "u1", byName: "PRIVATE CREATOR", action: "created", note: "PRIVATE EVENT" }],
+      },
+    ]);
+  }
+  const askForJournal = (n: number) =>
+    n === 1
+      ? { body: { stop_reason: "tool_use", content: [{ type: "tool_use", id: "tu_j", name: "look_inside", input: { tab: "decisions" } }] } }
+      : { body: final("Done.") };
+
+  it("gives an owner the Decision Journal: the fixed fields only, none of the private text, and nothing is changed", async () => {
+    const owner = await signup("look-inside-journal-owner");
+    const id = owner.user.dealershipId;
+    seedJournal(id);
+    const before = JSON.stringify(readTenantCollection(id, "pilotBrainDecisions"));
+
+    const calls = stubAnthropic(askForJournal);
+    const res = await chat(owner.token, "What did I decide about the SUVs?");
+
+    expect(res.status).toBe(200);
+    expect(calls[0].tools[0].input_schema.properties.tab.enum).toContain("decisions");
+    expect(calls[0].system).toContain("decisions (Pilot Brain → Decisions");
+    expect(calls[0].system).not.toContain("SUVs"); // the journal is never part of her always-on snapshot, only read on request
+
+    const result = resultOf(calls[1]);
+    expect(result).toMatchObject({ ok: true, tab: "decisions", total: 1 });
+    expect(result.records[0]).toMatchObject({
+      id: "dec-1",
+      question: "Buy another £50k of SUVs?",
+      state: "decided",
+      chosenOption: "Add £50k",
+      followedPilot: false,
+      pilotConfidence: "medium",
+    });
+    for (const secret of ["PRIVATE", "Dave", "07700900999"]) expect(JSON.stringify(calls[1].messages), `must not contain ${secret}`).not.toContain(secret);
+
+    // reading only: the journal is exactly as it was
+    expect(JSON.stringify(readTenantCollection(id, "pilotBrainDecisions"))).toBe(before);
+  });
+
+  it("follows the ROLE of whoever is asking: a manager may open the journal; sales, finance and general staff are refused even if the model asks", async () => {
+    const owner = await signup("look-inside-journal-roles");
+    const id = owner.user.dealershipId;
+    seedJournal(id);
+
+    const manager = await joinStaff(owner.token, "manager");
+    const managerCalls = stubAnthropic(askForJournal);
+    expect((await chat(manager.token)).status).toBe(200);
+    expect(managerCalls[0].tools[0].input_schema.properties.tab.enum).toContain("decisions");
+    expect(managerCalls[0].system).not.toContain("Their role doesn't let them open");
+    expect(resultOf(managerCalls[1])).toMatchObject({ ok: true, total: 1 });
+    expect(JSON.stringify(managerCalls[1].messages)).not.toContain("PRIVATE");
+
+    for (const role of ["sales", "finance", "general"] as const) {
+      const person = await joinStaff(owner.token, role);
+      const calls = stubAnthropic(askForJournal);
+      expect((await chat(person.token)).status, role).toBe(200);
+      // told plainly what this person can't open, and the tool isn't even offered it
+      expect(calls[0].system, role).toContain(role === "finance" ? "Their role doesn't let them open: decisions." : "Their role doesn't let them open: bookkeeping, decisions.");
+      expect(calls[0].tools[0].input_schema.properties.tab.enum, role).not.toContain("decisions");
+      expect(calls[0].system, role).not.toContain("decisions (Pilot Brain");
+      // and the direct request is refused, with nothing from the journal in it
+      const refused = resultOf(calls[1]);
+      expect(refused.ok, role).toBe(false);
+      expect(refused.error, role).toContain("isn't allowed to open the decisions tab");
+      expect(JSON.stringify(calls[1].messages), role).not.toContain("SUVs");
+      expect(JSON.stringify(calls[1].messages), role).not.toContain("PRIVATE");
+    }
+  });
+
+  it("never mixes in another dealership's journal", async () => {
+    const a = await signup("look-inside-journal-a");
+    const b = await signup("look-inside-journal-b");
+    seedJournal(a.user.dealershipId, "My own question about the Golf?");
+    seedJournal(b.user.dealershipId, "Somebody else's question about the Audi?");
+
+    const calls = stubAnthropic(askForJournal);
+    await chat(a.token);
+
+    const text = JSON.stringify(calls[1].messages);
+    expect(text).toContain("My own question about the Golf?");
+    expect(text).not.toContain("Somebody else's question");
+  });
+
+  it("puts the journal's instructions in the tool prompt only, so a call without the tool never claims to have read it", async () => {
+    const owner = await signup("look-inside-journal-fallback");
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const calls = stubAnthropic(n => (n === 1 ? { status: 400, body: { error: "tools not allowed" } } : { body: final("Plain answer.") }));
+    await chat(owner.token);
+    expect(calls[0].system).toContain("decisions (Pilot Brain → Decisions");
+    expect(calls[1].system).not.toContain("decisions (Pilot Brain → Decisions");
+    expect(calls[1].system).not.toContain("you cannot create, change, decide or review anything in it");
+    // her standing roadmap is still there, and still true without the tool
+    expect(calls[1].system).toContain("PARTLY BUILT");
   });
 });
 

@@ -7,6 +7,8 @@
 // tells Boss. Support-admin links are left out on purpose: they only show
 // to FlipPilot's own staff, never to a dealer.
 
+import { DEFAULT_REVIEW_DAYS } from "./decisionTypes";
+
 export interface AppMapSection {
   section: string;
   items: string[];
@@ -98,9 +100,27 @@ export function appMapPromptSection(): string {
   ].join(" ");
 }
 
+// What V8 ("Digital Twin") does NOT do yet, one list. It is printed into her
+// instructions and checked word for word by pilotBrainGuide.test.ts, so she can
+// never be told a feature exists that doesn't, and a feature that ships has to
+// come off this list on purpose.
+export const V8_NOT_BUILT = [
+  "a capital, cash or preparation-capacity model",
+  "market-driven simulation",
+  "branch or hiring scenarios",
+  "learning dashboards beyond simple counts",
+  "any autonomy",
+] as const;
+
+// Where she herself is going, kept TRUE: what V8 has today and what it doesn't.
+// Confidence is only ever the word low, medium or high, and a simulation is
+// never a prediction. Boss decides.
 export function roadmapPromptSection(): string {
   return [
-    `YOUR ROADMAP, so you never mis-describe what exists: V1-V7 above are built and live. V8, "Digital Twin", is PLANNED and NOT BUILT. It is a Simulator that tests a decision side by side before real money is risked (for example "what if we buy another £150k of stock?", with every assumption printed and confidence shown as low, medium or high — never a made-up percentage), a Devil's Advocate ("challenge me": the case for, the case against, assumptions, unknowns, downside, an alternative and your view), and a Decision Journal (each significant decision recorded with what was expected, then reviewed about 90 days later against what actually happened).`,
-    `None of the three exists yet. If Boss asks for one, say plainly that it is planned and not built, then offer what you can genuinely do today: the existing one-variable what-if scenarios, and challenging his thinking in conversation from the real evidence. Never present a projection as a simulation result and never claim to keep a decision journal. Versions unlock on evidence, not dates, and V8 waits until the data underneath it is trustworthy. Whatever you become, Boss decides.`,
+    `YOUR ROADMAP, so you never mis-describe what exists: V1-V7 above are built and live. V8, "Digital Twin", is PARTLY BUILT. What exists today is all on the Decisions page under Pilot Brain, for owners and managers only.`,
+    `BUILT: (1) a Decision Journal: one record for each significant decision, holding the question and the options, your recommendation, the Devil's Advocate challenge, what Boss chose and why, what he expected, and about ${DEFAULT_REVIEW_DAYS} days later what actually happened and the lesson. (2) A Devil's Advocate ("Challenge me"): the case for, the case against, the assumptions, the unknowns, the downside, an alternative and your view. (3) A first Simulator: plain arithmetic on the dealership's own recent history, for two kinds of decision only, adding stock and cutting the price of ageing stock. It prints every assumption next to its answer, marks every figure as known, inferred, predicted or unknown (an unknown figure is shown as Unknown, never guessed and never as 0), and gives confidence as low, medium or high with reasons.`,
+    `NOT BUILT YET, and you must say so plainly if Boss asks for any of it: ${V8_NOT_BUILT.join(", ")}. The Simulator cannot account for what it leaves out (cash, workshop capacity, the market), so say so when that matters. Do not describe any V8 feature that is not listed as built above, and never say a built one can do more than it does.`,
+    `HOW TO TALK ABOUT IT: a simulation is arithmetic on the dealership's own history plus the assumptions printed next to the answer, so call it "a simulation, not a forecast" and never present its answer as a prediction. Confidence is only ever the word low, medium or high, never a percentage. You recommend, challenge and simulate; Boss decides. You cannot create, change, decide or review anything in the journal yourself: people do that on the Decisions page, and nothing there changes a car, a lead, a price or the books. If someone who is not an owner or manager asks about it, tell them it is for owners and managers only.`,
+    `Learning from past decisions is only as good as the journal: it holds real outcomes only for decisions Boss has recorded and reviewed, so say how few there are and never draw a pattern from one or two. Versions unlock on evidence, not dates. Whatever you become, Boss decides.`,
   ].join(" ");
 }
