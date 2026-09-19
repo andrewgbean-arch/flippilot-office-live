@@ -18,6 +18,20 @@ import { sendEmail } from "../email";
 
 const TRIAL_DAYS = 14;
 
+function emailInUse(normalizedEmail: string): boolean {
+  return readCollection<StoredUser>("users").some(u => u.email === normalizedEmail);
+}
+
+// Four routes below write to the global `users` collection after a bcrypt
+// hash (signup, join, change password, reset password), and a hash takes a
+// good fraction of a second — long enough for other requests to run in the
+// middle. The rule for all of them: do the slow awaited work FIRST, and only
+// then read `users` fresh, change it and write it back, with no `await` in
+// between. node:sqlite is synchronous, so that block cannot be interleaved
+// with another request. Reading `users` BEFORE the hash and writing that old
+// array back afterwards silently undoes whatever happened in the meantime:
+// a removal, a role change, another signup.
+
 export default function registerAuthRoute(app: Express) {
   app.post("/auth/signup", async (req, res) => {
     const { email, password, name, dealershipName } = req.body ?? {};
@@ -34,9 +48,24 @@ export default function registerAuthRoute(app: Express) {
         .json({ ok: false, error: "Password must be at least 8 characters" });
     }
 
-    const users = readCollection<StoredUser>("users");
     const normalizedEmail = String(email).trim().toLowerCase();
 
+    // A cheap early check, so an email that is plainly taken doesn't cost a
+    // bcrypt hash. It is NOT the real guard — two signups for the same email
+    // can both pass it — so the check is repeated on a fresh read below,
+    // right before the write.
+    if (emailInUse(normalizedEmail)) {
+      return res
+        .status(409)
+        .json({ ok: false, error: "An account with that email already exists" });
+    }
+
+    // The slow, awaited part, done before `users` is read for writing.
+    const passwordHash = await hashPassword(password);
+
+    // From here to the response nothing awaits, so no other request can run
+    // in between (see the note at the top of this file).
+    const users = readCollection<StoredUser>("users");
     if (users.some(u => u.email === normalizedEmail)) {
       return res
         .status(409)
@@ -77,7 +106,7 @@ export default function registerAuthRoute(app: Express) {
       name: String(name).trim(),
       role: "owner",
       dealershipId: dealership.id,
-      passwordHash: await hashPassword(password),
+      passwordHash,
     };
 
     dealership.ownerId = newUser.id;
@@ -136,9 +165,21 @@ export default function registerAuthRoute(app: Express) {
       return res.status(400).json({ ok: false, error: "This invite link is invalid or has expired" });
     }
 
-    const users = readCollection<StoredUser>("users");
     const normalizedEmail = String(email).trim().toLowerCase();
 
+    // Cheap early check only — the real one is repeated below on a fresh read.
+    if (emailInUse(normalizedEmail)) {
+      return res
+        .status(409)
+        .json({ ok: false, error: "An account with that email already exists" });
+    }
+
+    // The slow, awaited part, done before `users` is read for writing.
+    const passwordHash = await hashPassword(password);
+
+    // From here to the response nothing awaits, so no other request can run
+    // in between (see the note at the top of this file).
+    const users = readCollection<StoredUser>("users");
     if (users.some(u => u.email === normalizedEmail)) {
       return res
         .status(409)
@@ -152,7 +193,7 @@ export default function registerAuthRoute(app: Express) {
       role: payload.role,
       staffRole: payload.staffRole,
       dealershipId: payload.dealershipId,
-      passwordHash: await hashPassword(password),
+      passwordHash,
     };
 
     writeCollection("users", [...users, newUser]);
@@ -227,14 +268,27 @@ export default function registerAuthRoute(app: Express) {
         .json({ ok: false, error: "New password must be at least 8 characters" });
     }
 
-    const users = readCollection<StoredUser>("users");
-    const user = users.find(u => u.id === authUser.id);
+    const stored = readCollection<StoredUser>("users").find(u => u.id === authUser.id);
 
-    if (!user || !(await verifyPassword(currentPassword, user.passwordHash))) {
+    if (!stored || !(await verifyPassword(currentPassword, stored.passwordHash))) {
       return res.status(401).json({ ok: false, error: "Current password is incorrect" });
     }
 
-    user.passwordHash = await hashPassword(newPassword);
+    // Both slow, awaited steps are finished before `users` is read for
+    // writing (see the note at the top of this file).
+    const newPasswordHash = await hashPassword(newPassword);
+
+    // From here to the response nothing awaits. The account is looked up
+    // again on this fresh read, and only ITS password changes: if the owner
+    // removed this person while the hashing ran they must stay removed
+    // (401, like requireAuth gives), and a role change made in the meantime
+    // must not be undone.
+    const users = readCollection<StoredUser>("users");
+    const user = users.find(u => u.id === authUser.id);
+    if (!user) {
+      return res.status(401).json({ ok: false, error: "Invalid or expired session" });
+    }
+    user.passwordHash = newPasswordHash;
     writeCollection("users", users);
 
     res.json({ ok: true });
@@ -297,13 +351,24 @@ export default function registerAuthRoute(app: Express) {
       return res.status(400).json({ ok: false, error: "This reset link is invalid or has expired" });
     }
 
+    // Fail fast, before the bcrypt hash, if the account is already gone.
+    if (!readCollection<StoredUser>("users").some(u => u.id === userId)) {
+      return res.status(404).json({ ok: false, error: "Account no longer exists" });
+    }
+
+    // The slow, awaited part, done before `users` is read for writing (see
+    // the note at the top of this file).
+    const newPasswordHash = await hashPassword(newPassword);
+
+    // From here to the response nothing awaits. The account is looked up
+    // again on this fresh read: if it was removed while the hash ran it
+    // must stay removed (404, as above), not be written back.
     const users = readCollection<StoredUser>("users");
     const user = users.find(u => u.id === userId);
     if (!user) {
       return res.status(404).json({ ok: false, error: "Account no longer exists" });
     }
-
-    user.passwordHash = await hashPassword(newPassword);
+    user.passwordHash = newPasswordHash;
     writeCollection("users", users);
 
     res.json({ ok: true });
