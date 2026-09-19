@@ -18,6 +18,7 @@ const KIND_LABELS: [string, string, string][] = [
   ["appointment_followup", "appointment follow-up draft", "appointment follow-up drafts"],
   ["bookkeeping_categorize", "bookkeeping categorisation", "bookkeeping categorisations"],
   ["rota_shift", "rota shift suggestion", "rota shift suggestions"],
+  ["record_update", "record change", "record changes"],
 ];
 
 export function summarisePreparedActions(actions: QueuedAction[]): string[] {

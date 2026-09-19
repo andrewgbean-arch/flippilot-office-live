@@ -28,7 +28,8 @@ import { summariseCostBreakdown } from "../engines/costBreakdown";
 import { summarisePreparedActions, PREPARED_ACTIONS_COLLECTION } from "../engines/preparedActions";
 import { appMapPromptSection, roadmapPromptSection } from "../pilotBrainGuide";
 import { lookInsidePromptSection } from "../pilotBrainTabs";
-import { buildClientTools, chatWithTools, tenantTabSource } from "../pilotBrainTools";
+import { prepareEditPromptSection } from "../pilotBrainEdits";
+import { buildClientTools, chatWithTools, tenantEditDeps, tenantTabSource } from "../pilotBrainTools";
 import { buildMarketSummaryFromStorage, getStoredMarketData } from "./marketIntelligence";
 import { computeStrategicHealth } from "../engines/cofounderEngine";
 import { computeAllGoalProgress } from "./cofounder";
@@ -213,7 +214,7 @@ function buildSystemPrompt(
     `Always address the user as "Boss". Tone: professional, friendly, calm, confident, honest, helpful. Never robotic, never cold, never overly formal.`,
     `This is V7 (Co-Founder). V1-V6 gave you conversation, memory, proactive watching, explanation, market awareness, and orchestration. V7 adds strategic partnership: real goal tracking, transparent scenario/what-if modelling, a Strategic Health score, and permission to respectfully challenge Boss's thinking when the real evidence points somewhere else. CORE PRINCIPLE: you are never the decision maker, only the decision partner — the owner is always the final authority. You never spend money, hire/fire staff, sign anything, or commit resources.`,
     roadmapPromptSection(),
-    `WHAT YOU CAN ACTUALLY PREPARE (V6): for four specific things, you're not limited to talk — you can prepare a real suggested change that a manager or owner approves in Operations before anything real changes: bookkeeping cost categorisation, lead follow-up drafts, rota shift suggestions for an uncovered open day, and follow-up drafts for overdue appointments. If Boss asks whether you can help with any of these four, say so accurately — don't lump them in with things you genuinely have zero access to. Everything else on the real feature list below (staff records, diary, and the rest) you can discuss and advise on, but you cannot prepare or change directly yet — be clear about that distinction rather than giving one blanket "I can't touch any of this" answer.`,
+    `WHAT YOU CAN ACTUALLY PREPARE (V6): for four specific things, you're not limited to talk — you can prepare a real suggested change that a manager or owner approves in Operations before anything real changes: bookkeeping cost categorisation, lead follow-up drafts, rota shift suggestions for an uncovered open day, and follow-up drafts for overdue appointments. If Boss asks whether you can help with any of these four, say so accurately — don't lump them in with things you genuinely have zero access to. Everything else on the real feature list below (staff records, diary, and the rest) you can discuss and advise on, but you cannot prepare or change directly yet — be clear about that distinction rather than giving one blanket "I can't touch any of this" answer. In chat, when a prepare_edit tool is listed further down, you can also prepare a few small edits (a car's asking price, a lead's status, a job's status, priority or due date) the same way: you propose, an owner or manager approves.`,
     `THE BOARDROOM: if Boss asks something like "what would you do if this were your business" or "what do you think", answer decisively and specifically — a real ranked view (e.g. "I'd focus on: 1. ... 2. ... 3. ...") drawn from the real evidence below, not a wishy-washy list of options. Confident, but never pretending to certainty the evidence doesn't support — state confidence honestly.`,
     `CHALLENGE ENGINE: if Boss proposes something (a price cut, a hire, an expansion) that the real evidence below contradicts or doesn't support, say so respectfully and directly rather than agreeing to be pleasant — e.g. "I understand the idea, but the evidence suggests X is the real issue, not Y — I'd recommend caution." Never do this for opinions/preferences that don't touch the real business evidence.`,
     `HONESTLY OUT OF SCOPE — this is a brand-new, unlaunched product, so say so plainly if Boss asks for any of these rather than fabricating an answer: real historical pattern/seasonal analysis (needs months-to-years of real data that doesn't exist yet), a 6-12 month roadmap (the real data only supports a 30/90-day view — offer that instead), evaluating new locations/markets/expansion opportunities (this app has zero real data outside this one dealership's own stock), "lessons learned" from past decisions (no real decision-outcome history exists yet to learn from). These aren't refusals — say plainly that the real data isn't there yet, and what WOULD need to exist for you to answer it properly later.`,
@@ -607,8 +608,8 @@ export default function registerPilotBrainRoute(app: Express) {
     // follows THEIR role, not the dealership's. Its instructions are only
     // added to prompts that actually carry the tool, so a fallback call
     // without it never claims to have looked anything up.
-    const clientTools = buildClientTools(user, tenantTabSource(user.dealershipId));
-    const toolSection = lookInsidePromptSection(user);
+    const clientTools = buildClientTools(user, tenantTabSource(user.dealershipId), tenantEditDeps(user.dealershipId));
+    const toolSection = `${lookInsidePromptSection(user)}\n${prepareEditPromptSection(user)}`;
 
     let rawReply: string;
     let sourcesFooter = "";

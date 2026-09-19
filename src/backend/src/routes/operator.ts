@@ -11,6 +11,8 @@ import {
   type Lead,
 } from "../engines/operatorEngine";
 import { PREPARED_ACTIONS_COLLECTION } from "../engines/preparedActions";
+import { changeRecord, type RecordUpdatePayload } from "../pilotBrainEdits";
+import { tenantRecordStore } from "../pilotBrainTools";
 import { callClaude } from "./pilotBrain";
 import { DEFAULT_ROTA_SETTINGS, type Shift, type WorkPattern, type LeaveRequest, type RotaSettings } from "./planner";
 import type { Appointment } from "./publicBooking";
@@ -28,7 +30,7 @@ import type { Appointment } from "./publicBooking";
 
 const ACTIONS_COLLECTION = PREPARED_ACTIONS_COLLECTION;
 
-type ActionType = "bookkeeping_categorize" | "lead_followup" | "rota_shift" | "appointment_followup";
+type ActionType = "bookkeeping_categorize" | "lead_followup" | "rota_shift" | "appointment_followup" | "record_update";
 type ActionStatus = "prepared" | "approved" | "rejected" | "completed" | "rolled_back";
 
 interface BookkeepingCategorizePayload {
@@ -61,7 +63,7 @@ interface AppointmentFollowupPayload {
   taskId?: string; // same rollback pattern as LeadFollowupPayload
 }
 
-type ActionPayload = BookkeepingCategorizePayload | LeadFollowupPayload | RotaShiftPayload | AppointmentFollowupPayload;
+type ActionPayload = BookkeepingCategorizePayload | LeadFollowupPayload | RotaShiftPayload | AppointmentFollowupPayload | RecordUpdatePayload;
 
 interface PreparedAction {
   id: string;
@@ -88,6 +90,10 @@ function actionKey(a: PreparedAction): string {
     case "lead_followup": return `lead:${(a.payload as LeadFollowupPayload).leadId}`;
     case "rota_shift": return `shift-gap:${(a.payload as RotaShiftPayload).date}`;
     case "appointment_followup": return `appointment:${(a.payload as AppointmentFollowupPayload).appointmentId}`;
+    case "record_update": {
+      const p = a.payload as RecordUpdatePayload;
+      return `edit:${p.kind}:${p.recordId}:${p.field}`;
+    }
   }
 }
 
@@ -338,6 +344,13 @@ export default function registerOperatorRoute(app: Express) {
         payload.taskId = newJob.id;
         break;
       }
+      case "record_update": {
+        // Refuses (and leaves the change waiting) if someone has edited the
+        // record since it was prepared, rather than overwriting their work.
+        const result = changeRecord(tenantRecordStore(user.dealershipId), action.payload as RecordUpdatePayload, "apply", now);
+        if (!result.ok) return res.status(result.conflict ? 409 : 400).json({ ok: false, error: result.error });
+        break;
+      }
     }
 
     const updated = actions.map(a => a.id === action.id
@@ -402,6 +415,12 @@ export default function registerOperatorRoute(app: Express) {
           const shifts = readTenantCollection<Shift>(user.dealershipId, "shifts");
           writeTenantCollection(user.dealershipId, "shifts", shifts.filter(s => s.id !== payload.shiftId));
         }
+        break;
+      }
+      case "record_update": {
+        // Puts the old value back, but only if nobody has changed it again.
+        const result = changeRecord(tenantRecordStore(user.dealershipId), action.payload as RecordUpdatePayload, "revert", new Date().toISOString());
+        if (!result.ok) return res.status(result.conflict ? 409 : 400).json({ ok: false, error: result.error });
         break;
       }
     }

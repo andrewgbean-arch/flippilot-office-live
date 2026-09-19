@@ -2197,7 +2197,7 @@ describe("Pilot Brain — looking inside the tabs", () => {
     expect(res.status).toBe(200);
     expect(res.body.message.content).toBe("AutoTrader converted your lead."); // the "Let me look" chatter isn't shown
     expect(calls).toHaveLength(2);
-    expect(calls[0].tools.map((t: any) => t.name)).toEqual(["look_inside"]);
+    expect(calls[0].tools.map((t: any) => t.name)).toEqual(["look_inside", "prepare_edit"]);
     expect(calls[0].system).toContain("LOOKING INSIDE THE APP");
 
     const result = resultOf(calls[1]);
@@ -2283,7 +2283,7 @@ describe("Pilot Brain — looking inside the tabs", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.message.content).toContain("Your BMW is 70 days old.");
-    expect(calls[0].tools.map((t: any) => t.name)).toEqual(["web_search", "look_inside"]);
+    expect(calls[0].tools.map((t: any) => t.name)).toEqual(["web_search", "look_inside", "prepare_edit"]);
     expect(calls[0].system).toContain("WEB ACCESS (live");
     expect(calls[0].system).toContain("LOOKING INSIDE THE APP");
     expect(resultOf(calls[1]).records[0]).toMatchObject({ reg: "AB12CDE" });
@@ -2311,6 +2311,238 @@ describe("Pilot Brain — looking inside the tabs", () => {
     await chat(owner.token);
     expect(calls[0].system).toContain("the customer database, the diary, private and team messages, timekeeping and leave, staff pay and billing");
     expect(calls[0].system).toContain("you cannot change anything from here");
+  });
+});
+
+// Pilot Brain can PREPARE a small change; it can never make one. These run the
+// whole path over real HTTP with real stored data: the chat proposes, the
+// Operations screen's routes approve, reject or undo, and the records are
+// checked at every step. Only Anthropic itself is stubbed.
+describe("Pilot Brain — preparing changes for approval", () => {
+  const prevKey = process.env.ANTHROPIC_API_KEY;
+  beforeAll(() => {
+    process.env.ANTHROPIC_API_KEY = "test-key-not-real";
+  });
+  afterAll(() => {
+    if (prevKey === undefined) delete process.env.ANTHROPIC_API_KEY;
+    else process.env.ANTHROPIC_API_KEY = prevKey;
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  const auth = (token: string) => ({ Authorization: `Bearer ${token}` });
+
+  function stubAnthropic(responder: (call: number) => unknown) {
+    const calls: any[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: any, init: any) => {
+        if (!String(url).includes("api.anthropic.com")) throw new Error(`unexpected fetch to ${url}`);
+        calls.push(JSON.parse(init.body));
+        const body = responder(calls.length);
+        return { ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body) };
+      })
+    );
+    return calls;
+  }
+  const say = (text: string) => ({ stop_reason: "end_turn", content: [{ type: "text", text }] });
+  const prepareCall = (id: string, input: object) => ({ stop_reason: "tool_use", content: [{ type: "tool_use", id, name: "prepare_edit", input }] });
+  const reason = "70 days in stock and cheaper listings are out there.";
+  const resultOf = (call: any) => JSON.parse(call.messages.at(-1).content[0].content);
+
+  // A dealership with one car, one lead and one job, and a chat that makes
+  // the model propose `input` on its first turn.
+  async function setup(label: string) {
+    const owner = await signup(label);
+    const id = owner.user.dealershipId;
+    writeTenantCollection(id, "vehicles", [{ id: "v1", reg: "AB12CDE", year: 2019, make: "BMW", model: "3 Series", priceRetail: 12995, buyPrice: 9000, status: "in stock", createdAt: new Date().toISOString() }]);
+    writeTenantCollection(id, "leads", [{ id: "lead-1234567890", name: "Secret Lead Name", phone: "07700900123", source: "AutoTrader", status: "new", createdAt: new Date().toISOString() }]);
+    writeTenantCollection(id, "jobs", [{ id: "job-1", title: "MOT for AB12CDE", status: "todo", priority: "low", createdAt: new Date().toISOString(), createdByName: "T", completedAt: null }]);
+    return { owner, id };
+  }
+  const propose = async (token: string, input: object) => {
+    const calls = stubAnthropic(n => (n === 1 ? prepareCall("tu_1", input) : say("I've prepared that for approval.")));
+    const res = await request(app).post("/pilot-brain/chat").set(auth(token)).send({ message: "Please sort that out." });
+    vi.unstubAllGlobals();
+    return { res, calls };
+  };
+  const actionsOf = async (token: string) => (await request(app).get("/pilot-brain/actions").set(auth(token))).body.actions as any[];
+  const vehicle = (id: string) => (readTenantCollection<any>(id, "vehicles") as any[]).find(v => v.id === "v1");
+  const price = { kind: "vehicle", id: "v1", field: "priceRetail", value: 12695, reason };
+
+  it("prepares a change WITHOUT making it, and tells the model it isn't done", async () => {
+    const { owner, id } = await setup("edit-prepare");
+    const { res, calls } = await propose(owner.token, price);
+
+    expect(res.status).toBe(200);
+    expect(calls[0].tools.map((t: any) => t.name)).toEqual(["look_inside", "prepare_edit"]);
+    expect(calls[0].system).toContain("PREPARING CHANGES: you also have a prepare_edit tool");
+    expect(resultOf(calls[1]).summary).toContain("Prepared (NOT done)");
+
+    expect(vehicle(id).priceRetail).toBe(12995); // untouched
+    const actions = await actionsOf(owner.token);
+    expect(actions).toHaveLength(1);
+    expect(actions[0]).toMatchObject({
+      type: "record_update",
+      status: "prepared",
+      title: "Change 2019 BMW 3 Series (AB12CDE)'s asking price from £12,995 to £12,695",
+      reason,
+      payload: { kind: "vehicle", recordId: "v1", field: "priceRetail", previousValue: 12995, newValue: 12695 },
+    });
+    // and it shows up in her own view of what's waiting
+    expect(buildBusinessSummary(id)).toContain("waiting for an owner or manager to approve in Operations: 1 (1 record change).");
+  });
+
+  it("only changes the record when an owner approves, and undoing puts the old value back", async () => {
+    const { owner, id } = await setup("edit-approve");
+    await propose(owner.token, price);
+    const actionId = (await actionsOf(owner.token))[0].id;
+
+    const approved = await request(app).post(`/pilot-brain/actions/${actionId}/approve`).set(auth(owner.token));
+    expect(approved.status).toBe(200);
+    expect(approved.body.action.status).toBe("completed");
+    expect(vehicle(id)).toMatchObject({ priceRetail: 12695, buyPrice: 9000, make: "BMW", reg: "AB12CDE" }); // just that one field
+
+    const again = await request(app).post(`/pilot-brain/actions/${actionId}/approve`).set(auth(owner.token));
+    expect(again.status).toBe(400); // can't be approved twice
+
+    const undone = await request(app).post(`/pilot-brain/actions/${actionId}/rollback`).set(auth(owner.token));
+    expect(undone.status).toBe(200);
+    expect(undone.body.action.status).toBe("rolled_back");
+    expect(vehicle(id).priceRetail).toBe(12995);
+  });
+
+  it("lets a MANAGER approve it, but never a sales member", async () => {
+    const { owner, id } = await setup("edit-roles");
+    const manager = await joinStaff(owner.token, "manager");
+    const sales = await joinStaff(owner.token, "sales");
+    await propose(manager.token, price); // a manager can propose too
+    const actionId = (await actionsOf(owner.token))[0].id;
+
+    expect((await request(app).post(`/pilot-brain/actions/${actionId}/approve`).set(auth(sales.token))).status).toBe(403);
+    expect(vehicle(id).priceRetail).toBe(12995);
+    expect((await request(app).post(`/pilot-brain/actions/${actionId}/approve`).set(auth(manager.token))).status).toBe(200);
+    expect(vehicle(id).priceRetail).toBe(12695);
+  });
+
+  it("doesn't offer prepare_edit to a sales member, tells the model why, and refuses it if called anyway", async () => {
+    const { owner, id } = await setup("edit-sales");
+    const sales = await joinStaff(owner.token, "sales");
+
+    const { calls } = await propose(sales.token, price);
+
+    expect(calls[0].tools.map((t: any) => t.name)).toEqual(["look_inside"]);
+    expect(calls[0].system).toContain("you cannot prepare changes for the person you're talking to");
+    expect(calls[0].system).not.toContain("you also have a prepare_edit tool");
+    expect(resultOf(calls[1]).ok).toBe(false);
+    expect(await actionsOf(owner.token)).toHaveLength(0);
+    expect(vehicle(id).priceRetail).toBe(12995);
+  });
+
+  it("refuses to overwrite a value someone changed after it was prepared, and leaves it waiting", async () => {
+    const { owner, id } = await setup("edit-conflict");
+    await propose(owner.token, price);
+    const actionId = (await actionsOf(owner.token))[0].id;
+
+    writeTenantCollection(id, "vehicles", [{ ...vehicle(id), priceRetail: 12500 }]); // a colleague repriced it meanwhile
+
+    const res = await request(app).post(`/pilot-brain/actions/${actionId}/approve`).set(auth(owner.token));
+    expect(res.status).toBe(409);
+    expect(res.body.error).toContain("has been changed by someone since this was prepared");
+    expect(vehicle(id).priceRetail).toBe(12500);
+    expect((await actionsOf(owner.token))[0].status).toBe("prepared"); // still there to reject
+  });
+
+  it("refuses to undo over a later change too, leaving the action as completed", async () => {
+    const { owner, id } = await setup("edit-conflict-undo");
+    await propose(owner.token, price);
+    const actionId = (await actionsOf(owner.token))[0].id;
+    await request(app).post(`/pilot-brain/actions/${actionId}/approve`).set(auth(owner.token));
+    writeTenantCollection(id, "vehicles", [{ ...vehicle(id), priceRetail: 11000 }]);
+
+    const res = await request(app).post(`/pilot-brain/actions/${actionId}/rollback`).set(auth(owner.token));
+    expect(res.status).toBe(409);
+    expect(vehicle(id).priceRetail).toBe(11000);
+    expect((await actionsOf(owner.token))[0].status).toBe("completed");
+  });
+
+  it("rejecting changes nothing", async () => {
+    const { owner, id } = await setup("edit-reject");
+    await propose(owner.token, price);
+    const actionId = (await actionsOf(owner.token))[0].id;
+    const res = await request(app).post(`/pilot-brain/actions/${actionId}/reject`).set(auth(owner.token));
+    expect(res.status).toBe(200);
+    expect(vehicle(id).priceRetail).toBe(12995);
+    expect((await actionsOf(owner.token))[0].status).toBe("rejected");
+  });
+
+  it("marking a job done stamps when it was finished, and undoing clears it", async () => {
+    const { owner, id } = await setup("edit-job");
+    await propose(owner.token, { kind: "job", id: "job-1", field: "status", value: "done", reason: "The MOT was done this morning." });
+    const actionId = (await actionsOf(owner.token))[0].id;
+    const job = () => (readTenantCollection<any>(id, "jobs") as any[])[0];
+
+    await request(app).post(`/pilot-brain/actions/${actionId}/approve`).set(auth(owner.token));
+    expect(job()).toMatchObject({ status: "done", title: "MOT for AB12CDE", priority: "low" });
+    expect(typeof job().completedAt).toBe("string");
+
+    await request(app).post(`/pilot-brain/actions/${actionId}/rollback`).set(auth(owner.token));
+    expect(job()).toMatchObject({ status: "todo", completedAt: null });
+  });
+
+  it("keeps a lead's name away from the model, while the manager's screen shows it", async () => {
+    const { owner, id } = await setup("edit-lead");
+    const { calls } = await propose(owner.token, { kind: "lead", id: "lead-1234567890", field: "status", value: "contacted", reason: "Called them this morning." });
+
+    expect(JSON.stringify(calls[1].messages)).not.toContain("Secret Lead Name");
+    expect(JSON.stringify(calls[1].messages)).not.toContain("07700900123");
+    const [action] = await actionsOf(owner.token);
+    expect(action.title).toContain("Secret Lead Name");
+    expect(buildBusinessSummary(id)).not.toContain("Secret Lead Name");
+
+    await request(app).post(`/pilot-brain/actions/${action.id}/approve`).set(auth(owner.token));
+    expect((readTenantCollection<any>(id, "leads") as any[])[0]).toMatchObject({ status: "contacted", name: "Secret Lead Name", phone: "07700900123" });
+  });
+
+  it("can't touch another dealership's records, or approve another dealership's actions", async () => {
+    const a = await setup("edit-tenant-a");
+    const b = await setup("edit-tenant-b");
+    const { calls } = await propose(a.owner.token, { ...price, id: "v1" });
+    // both dealerships have a car called v1: A's proposal is about A's car only
+    expect(vehicle(b.id).priceRetail).toBe(12995);
+    expect(resultOf(calls[1]).ok).toBe(true);
+
+    const actionId = (await actionsOf(a.owner.token))[0].id;
+    expect((await request(app).post(`/pilot-brain/actions/${actionId}/approve`).set(auth(b.owner.token))).status).toBe(404);
+    expect(await actionsOf(b.owner.token)).toHaveLength(0);
+    expect(vehicle(b.id).priceRetail).toBe(12995);
+  });
+
+  it("refuses anything outside the small set it may prepare, and nothing is queued", async () => {
+    const { owner, id } = await setup("edit-refuse");
+    for (const bad of [
+      { kind: "vehicle", id: "v1", field: "buyPrice", value: 1, reason },
+      { kind: "vehicle", id: "v1", field: "status", value: "sold", reason },
+      { kind: "lead", id: "lead-1234567890", field: "phone", value: "07700900999", reason },
+      { kind: "customer", id: "x", field: "name", value: "y", reason },
+      { kind: "vehicle", id: "v1", field: "priceRetail", value: -5, reason },
+      { kind: "vehicle", id: "does-not-exist", field: "priceRetail", value: 5000, reason },
+    ]) {
+      const { calls } = await propose(owner.token, bad);
+      expect(resultOf(calls[1]).ok, JSON.stringify(bad)).toBe(false);
+    }
+    expect(await actionsOf(owner.token)).toHaveLength(0);
+    expect(vehicle(id)).toMatchObject({ priceRetail: 12995, buyPrice: 9000, status: "in stock" });
+  });
+
+  it("won't queue the same change twice", async () => {
+    const { owner } = await setup("edit-dup");
+    await propose(owner.token, price);
+    const { calls } = await propose(owner.token, { ...price, value: 11000 });
+    expect(resultOf(calls[1]).ok).toBe(false);
+    expect(await actionsOf(owner.token)).toHaveLength(1);
   });
 });
 
@@ -3553,7 +3785,7 @@ describe("Pilot Brain web access", () => {
     expect(calls).toHaveLength(1);
     // no web search tool; the look_inside tool (own records) is still offered
     expect((calls[0].tools ?? []).some((t: any) => String(t.type ?? "").startsWith("web_search"))).toBe(false);
-    expect((calls[0].tools ?? []).map((t: any) => t.name)).toEqual(["look_inside"]);
+    expect((calls[0].tools ?? []).map((t: any) => t.name)).toEqual(["look_inside", "prepare_edit"]);
     expect(calls[0].system).toContain("WEB ACCESS: not switched on");
   });
 

@@ -29,6 +29,14 @@ const STATUS_LABEL: Record<string, string> = {
 // every real write happens only after a real click on Approve, by a
 // real manager or owner account (enforced server-side regardless of
 // what this UI shows or hides).
+// A prepared edit's before and after, as the person approving it reads them:
+// a price in pounds, anything else as written, and "not set" for empty.
+function formatEditValue(fieldLabel: unknown, value: unknown): string {
+  if (value === null || value === undefined || value === "") return "not set";
+  if (fieldLabel === "asking price" && typeof value === "number") return `£${value.toLocaleString("en-GB")}`;
+  return String(value);
+}
+
 export default function PilotBrainOperations() {
   const { user } = useAuth();
   const canApprove = user?.role === "owner" || user?.staffRole === "manager";
@@ -131,6 +139,16 @@ export default function PilotBrainOperations() {
                         {(a.type === "lead_followup" || a.type === "appointment_followup") && typeof a.payload.draftMessage === "string" && (
                           <div style={{ marginTop: 8, padding: 10, background: "rgba(255,255,255,0.04)", borderRadius: 8, fontSize: 13, color: "#f5f7ffcc", whiteSpace: "pre-wrap" }}>
                             {a.payload.draftMessage}
+                          </div>
+                        )}
+                        {a.type === "record_update" && typeof a.payload.fieldLabel === "string" && (
+                          <div style={{ marginTop: 8, padding: 10, background: "rgba(255,255,255,0.04)", borderRadius: 8, fontSize: 13, color: "#f5f7ffcc" }}>
+                            <div style={{ color: "#f5f7ff99", marginBottom: 4 }}>
+                              {String(a.payload.recordLabel)} — {a.payload.fieldLabel}
+                            </div>
+                            <span style={{ textDecoration: "line-through", opacity: 0.7 }}>{formatEditValue(a.payload.fieldLabel, a.payload.previousValue)}</span>
+                            <span style={{ margin: "0 8px" }}>→</span>
+                            <strong>{formatEditValue(a.payload.fieldLabel, a.payload.newValue)}</strong>
                           </div>
                         )}
                         {a.type === "rota_shift" && typeof a.payload.date === "string" && (

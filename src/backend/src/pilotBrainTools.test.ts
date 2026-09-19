@@ -57,6 +57,83 @@ describe("buildClientTools", () => {
   });
 });
 
+describe("buildClientTools with prepare_edit", () => {
+  const added: unknown[] = [];
+  const records: Record<string, Record<string, unknown>> = {
+    "vehicle:v1": { id: "v1", make: "BMW", model: "3 Series", priceRetail: 12995 },
+    "lead:l1": { id: "l1", name: "Secret Lead", status: "new" },
+    "job:j1": { id: "j1", title: "MOT", status: "todo", priority: "low" },
+  };
+  const edits = {
+    find: (kind: string, id: string) => records[`${kind}:${id}`],
+    actions: () => added as never,
+    addAction: (a: unknown) => void added.push(a),
+    now: () => Date.parse("2030-03-15T12:00:00Z"),
+    newId: () => `act-${added.length + 1}`,
+  };
+  const names = (u: AuthUser) => buildClientTools(u, source, edits as never).definitions.map((d: any) => d.name);
+  const prepare = (tools: ReturnType<typeof buildClientTools>, input: object) => JSON.parse(tools.execute("prepare_edit", input));
+  const reason = "A specific reason from the records.";
+  const good = { kind: "vehicle", id: "v1", field: "priceRetail", value: 12695, reason };
+
+  beforeEach(() => void (added.length = 0));
+
+  it("offers prepare_edit to an owner and a manager, and to no one else", () => {
+    expect(names(asUser("owner"))).toEqual(["look_inside", "prepare_edit"]);
+    expect(names(asUser("staff", "manager"))).toEqual(["look_inside", "prepare_edit"]);
+    for (const r of ["sales", "finance", "general"] as const) expect(names(asUser("staff", r))).toEqual(["look_inside"]);
+  });
+
+  it("offers it to no one when no edit store is supplied", () => {
+    expect(buildClientTools(asUser("owner"), source).definitions.map((d: any) => d.name)).toEqual(["look_inside"]);
+  });
+
+  it("refuses to run it for someone who isn't an owner or manager, even if the model calls it anyway", () => {
+    const out = prepare(buildClientTools(asUser("staff", "sales"), source, edits as never), good);
+    expect(out.ok).toBe(false);
+    expect(out.error).toContain('no tool called "prepare_edit"');
+    expect(added).toHaveLength(0);
+  });
+
+  it("prepares a change for an owner and reports it as waiting, not done", () => {
+    const out = prepare(buildClientTools(asUser("owner"), source, edits as never), good);
+    expect(out.ok).toBe(true);
+    expect(out.summary).toContain("Prepared (NOT done)");
+    expect(added).toHaveLength(1);
+  });
+
+  it("never hands a customer's name back to the model", () => {
+    const out = prepare(buildClientTools(asUser("owner"), source, edits as never), { kind: "lead", id: "l1", field: "status", value: "contacted", reason });
+    expect(out.ok).toBe(true);
+    expect(JSON.stringify(out)).not.toContain("Secret Lead");
+  });
+
+  it("stops after three prepared changes in one message, but a fresh message starts again", () => {
+    const tools = buildClientTools(asUser("owner"), source, edits as never);
+    expect(prepare(tools, good).ok).toBe(true);
+    expect(prepare(tools, { kind: "lead", id: "l1", field: "status", value: "contacted", reason }).ok).toBe(true);
+    expect(prepare(tools, { kind: "job", id: "j1", field: "status", value: "done", reason }).ok).toBe(true);
+    const fourth = prepare(tools, { kind: "job", id: "j1", field: "priority", value: "high", reason });
+    expect(fourth.ok).toBe(false);
+    expect(fourth.error).toContain("Already prepared 3");
+    expect(added).toHaveLength(3);
+
+    const nextMessage = buildClientTools(asUser("owner"), source, edits as never);
+    expect(prepare(nextMessage, { kind: "job", id: "j1", field: "priority", value: "high", reason }).ok).toBe(true);
+  });
+
+  it("does not count a refused attempt towards the limit", () => {
+    const tools = buildClientTools(asUser("owner"), source, edits as never);
+    for (let i = 0; i < 5; i++) expect(prepare(tools, { ...good, value: -1 }).ok).toBe(false);
+    expect(prepare(tools, good).ok).toBe(true);
+  });
+
+  it("answers a malformed call with an error, not a crash", () => {
+    const tools = buildClientTools(asUser("owner"), source, edits as never);
+    for (const input of [null, "x", 5, [], {}]) expect(JSON.parse(tools.execute("prepare_edit", input)).ok).toBe(false);
+  });
+});
+
 describe("runToolCalls", () => {
   it("answers every call, but only runs the first few in one message", () => {
     const tools = { definitions: [], execute: vi.fn(() => "RESULT") };

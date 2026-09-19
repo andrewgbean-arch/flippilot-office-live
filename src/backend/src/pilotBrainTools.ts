@@ -8,8 +8,18 @@
 // reply always ends in words. If the tool-enabled request fails for any
 // reason the reply is written without tools rather than failing the chat.
 
+import { randomUUID } from "crypto";
 import type { AuthUser } from "./auth";
-import { readTenantCollection, readTenantDoc } from "./db";
+import { readTenantCollection, readTenantDoc, writeTenantCollection } from "./db";
+import { PREPARED_ACTIONS_COLLECTION } from "./engines/preparedActions";
+import {
+  EDITABLE,
+  canPrepareEdits,
+  prepareEdit,
+  prepareEditToolDefinition,
+  type EditDeps,
+  type RecordStore,
+} from "./pilotBrainEdits";
 import { anthropicMessagesUrl } from "./pilotBrainWeb";
 import { lookInside, lookInsideToolDefinition, type LookInput, type TabSource } from "./pilotBrainTabs";
 import { MAX_TOOL_ROUNDS, isToolUse, runToolCalls, type ClientTools } from "./pilotBrainToolCore";
@@ -39,20 +49,58 @@ export function tenantTabSource(dealershipId: string): TabSource {
   };
 }
 
-// Everything the model may call on behalf of this person.
-export function buildClientTools(user: AuthUser, source: TabSource): ClientTools {
+// The records a prepared change may touch, for one dealership. Used both to
+// prepare a change and, from the Operations screen, to approve or undo it.
+export function tenantRecordStore(dealershipId: string): RecordStore {
   return {
-    definitions: [lookInsideToolDefinition(user)],
+    read: kind => readTenantCollection<Record<string, unknown>>(dealershipId, EDITABLE[kind].collection),
+    write: (kind, records) => writeTenantCollection(dealershipId, EDITABLE[kind].collection, records),
+  };
+}
+
+export function tenantEditDeps(dealershipId: string): EditDeps {
+  const store = tenantRecordStore(dealershipId);
+  return {
+    find: (kind, id) => store.read(kind).find(r => typeof r === "object" && r !== null && r.id === id),
+    actions: () => readTenantCollection<{ type?: unknown; status?: unknown; payload?: unknown }>(dealershipId, PREPARED_ACTIONS_COLLECTION),
+    addAction: action =>
+      writeTenantCollection(dealershipId, PREPARED_ACTIONS_COLLECTION, [
+        ...readTenantCollection<unknown>(dealershipId, PREPARED_ACTIONS_COLLECTION),
+        action,
+      ]),
+    now: () => Date.now(),
+    newId: () => randomUUID(),
+  };
+}
+
+const asInput = (input: unknown): Record<string, unknown> =>
+  typeof input === "object" && input !== null && !Array.isArray(input) ? (input as Record<string, unknown>) : {};
+
+// Everything the model may call on behalf of this person. prepare_edit is
+// only offered to (and only runs for) someone who could approve the change.
+export function buildClientTools(user: AuthUser, source: TabSource, edits?: EditDeps): ClientTools {
+  const canEdit = edits !== undefined && canPrepareEdits(user);
+  let preparedThisMessage = 0;
+
+  return {
+    definitions: [lookInsideToolDefinition(user), ...(canEdit ? [prepareEditToolDefinition()] : [])],
     execute(name, input) {
-      if (name !== "look_inside") {
-        return JSON.stringify({ ok: false, error: `There is no tool called "${String(name).slice(0, 40)}".` });
-      }
       try {
-        const args: LookInput = typeof input === "object" && input !== null ? (input as LookInput) : {};
-        return JSON.stringify(lookInside(user, source, args));
+        if (name === "look_inside") {
+          return JSON.stringify(lookInside(user, source, asInput(input) as LookInput));
+        }
+        if (name === "prepare_edit" && canEdit) {
+          const result = prepareEdit(user, edits!, asInput(input), preparedThisMessage);
+          if (result.ok) {
+            preparedThisMessage += 1;
+            return JSON.stringify({ ok: true, summary: result.summary });
+          }
+          return JSON.stringify(result);
+        }
+        return JSON.stringify({ ok: false, error: `There is no tool called "${String(name).slice(0, 40)}".` });
       } catch (err) {
-        console.error("pilot-brain tools: look_inside failed", err);
-        return JSON.stringify({ ok: false, error: "That lookup failed. Say so plainly and answer without it." });
+        console.error(`pilot-brain tools: ${String(name).slice(0, 40)} failed`, err);
+        return JSON.stringify({ ok: false, error: "That failed. Say so plainly and answer without it." });
       }
     },
   };
