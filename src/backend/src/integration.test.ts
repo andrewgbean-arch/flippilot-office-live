@@ -2007,6 +2007,120 @@ describe("Pilot Brain snapshot — lead sources and per-car profit", () => {
     expect(other).toContain("Lead sources: no leads recorded yet.");
     expect(other).not.toContain("£999");
   });
+
+  // The system prompt the model would receive (the vendor call is stubbed,
+  // so nothing is spent).
+  async function capturePrompt(token: string): Promise<string> {
+    const captured: string[] = [];
+    const realKey = process.env.ANTHROPIC_API_KEY;
+    process.env.ANTHROPIC_API_KEY = "test-key-not-real";
+    vi.stubGlobal("fetch", async (url: unknown, init: { body: string }) => {
+      if (String(url).includes("api.anthropic.com")) {
+        captured.push(JSON.parse(init.body).system);
+        return new Response(JSON.stringify({ content: [{ text: "Understood, Boss." }] }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      throw new Error(`unexpected outbound request in test: ${String(url)}`);
+    });
+    try {
+      const res = await request(app).post("/pilot-brain/chat").set("Authorization", `Bearer ${token}`).send({ message: "What can you see?" });
+      expect(res.status).toBe(200);
+    } finally {
+      vi.unstubAllGlobals();
+      if (realKey === undefined) delete process.env.ANTHROPIC_API_KEY;
+      else process.env.ANTHROPIC_API_KEY = realKey;
+    }
+    expect(captured).toHaveLength(1);
+    return captured[0]!;
+  }
+
+  it("gives the model the stock list, cost totals, the sidebar's at-a-glance numbers and the approval queue — and none of the people behind them", async () => {
+    const dealer = await signup("snapshot-more-lines");
+    const id = dealer.user.dealershipId;
+
+    writeTenantCollection(id, "vehicles", [
+      { id: "s1", make: "Ford", model: "Focus", year: 2018, mileage: 61000, priceRetail: 8995, condition: "Good", status: "in stock", createdAt: daysAgo(70), buyPrice: 5555, reg: "PRIVATEREG1" },
+      { id: "s2", make: "Kia", model: "Ceed", year: 2020, mileage: 22000, priceRetail: 13500, status: "sold", createdAt: daysAgo(10) },
+    ]);
+    writeTenantCollection(id, "jobs", [
+      { id: "j1", status: "todo", title: "SECRET JOB TITLE" },
+      { id: "j2", status: "done" },
+      { id: "j3", status: "in_progress" },
+    ]);
+    writeTenantCollection(id, "appointments", [
+      { id: "a1", status: "pending", type: "viewing", customerName: "Secret Appt Person", requestedDate: day(-3), requestedTime: "10:00", createdAt: daysAgo(1) },
+      { id: "a2", status: "confirmed", type: "viewing", customerName: "Someone Else", requestedDate: day(-4), requestedTime: "11:00", createdAt: daysAgo(1) },
+      { id: "a3", status: "declined", type: "viewing", customerName: "Someone Else", requestedDate: day(-5), requestedTime: "12:00", createdAt: daysAgo(1) },
+    ]);
+    writeTenantDoc(id, "bookkeeping", {
+      costs: [
+        { id: "c1", vehicleId: "s1", type: "parts", amount: 300, category: "Parts", date: day(20) },
+        { id: "c2", vehicleId: "s1", type: "labour", amount: 100, date: day(15) },
+      ],
+      purchases: [],
+      sales: [],
+      transactions: [{ type: "expense", category: "Wages", amount: 999999, date: day(3) }],
+    });
+    writeTenantCollection(id, "pilotBrainActions", [
+      { id: "x1", type: "lead_followup", status: "prepared", title: "Follow up with Secret Lead", payload: { leadName: "Secret Lead", draftMessage: "Hi Secret Lead, SECRET DRAFT" } },
+      { id: "x2", type: "rota_shift", status: "prepared", title: "Cover a day", payload: {} },
+      { id: "x3", type: "lead_followup", status: "approved", title: "Old one", payload: {} },
+    ]);
+
+    const summary = buildBusinessSummary(id);
+
+    // what the right-hand sidebar's "at a glance" panel shows, counted the same way
+    expect(summary).toContain("Open jobs (not yet done): 2");
+    expect(summary).toContain("Pending booking requests (still awaiting a reply): 1");
+
+    expect(summary).toContain("Stock list (1 in stock, longest-waiting first):");
+    expect(summary).toContain("- 2018 Ford Focus, 61,000 miles, asking £8,995, 70 days in stock, condition: Good");
+    expect(summary).not.toContain("Kia Ceed"); // sold
+
+    expect(summary).toContain("£400 across 2 entries");
+    expect(summary).toContain("- parts: £300 (1 entry, 75%)");
+    expect(summary).toContain("1 of those 2 cost entries has no category set");
+
+    expect(summary).toContain("waiting for an owner or manager to approve in Operations: 2 (1 lead follow-up draft, 1 rota shift suggestion).");
+
+    for (const secret of ["SECRET JOB TITLE", "Secret Appt Person", "Someone Else", "PRIVATEREG1", "5555", "Wages", "999999", "Secret Lead", "SECRET DRAFT"]) {
+      expect(summary, `the snapshot must not contain: ${secret}`).not.toContain(secret);
+    }
+  });
+
+  it("says plainly that there is nothing yet on a brand-new dealership", async () => {
+    const dealer = await signup("snapshot-more-lines-empty");
+    const summary = buildBusinessSummary(dealer.user.dealershipId);
+    expect(summary).toContain("Open jobs (not yet done): 0");
+    expect(summary).toContain("Pending booking requests (still awaiting a reply): 0");
+    expect(summary).not.toContain("Stock list");
+    expect(summary).toContain("Vehicle costs (recorded in the last 90 days, from the Bookkeeping ledger): none recorded.");
+    expect(summary).toContain("Prepared actions waiting for approval in Operations: none.");
+  });
+
+  it("the prompt itself carries both sidebars and the V8 roadmap, and still promises what she can't see", async () => {
+    const dealer = await signup("snapshot-prompt-guide");
+    const prompt = await capturePrompt(dealer.token);
+
+    // the left sidebar, as Boss sees it
+    expect(prompt).toContain("WHERE THINGS LIVE IN FLIPPILOT");
+    expect(prompt).toContain("Pilot Brain: Talk to Pilot Brain, Operations (Approvals), Strategy (Goals & Briefing)");
+    expect(prompt).toContain("Sales: Sales Hub, Add Lead, Leads Dashboard, Sales Pipeline, Viewing & Test Drive Requests");
+    // the right sidebar
+    expect(prompt).toContain("Open Jobs, Pending Bookings, MOT Attention");
+
+    // V8 exists as a plan and is not built
+    expect(prompt).toContain("YOUR ROADMAP");
+    expect(prompt).toContain("PLANNED and NOT BUILT");
+    expect(prompt).toContain("Devil's Advocate");
+    expect(prompt).toContain("Decision Journal");
+
+    // the privacy promise is untouched
+    expect(prompt).toContain("WHAT YOU DELIBERATELY DO NOT HAVE ACCESS TO");
+    expect(prompt).toContain("anyone's pay or wage information");
+  });
 });
 
 // Pay summary — gross pay for clocked hours at an owner-set rate. This is

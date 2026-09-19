@@ -23,6 +23,10 @@ import { investigate, findOpportunities, type InvestigationReport, type Opportun
 import { summariseAppointmentOutcomes } from "../engines/appointmentOutcomes";
 import { summariseLeadSources } from "../engines/leadSources";
 import { summariseVehicleMargins } from "../engines/vehicleMargins";
+import { summariseStock } from "../engines/stockList";
+import { summariseCostBreakdown } from "../engines/costBreakdown";
+import { summarisePreparedActions, PREPARED_ACTIONS_COLLECTION } from "../engines/preparedActions";
+import { appMapPromptSection, roadmapPromptSection } from "../pilotBrainGuide";
 import { buildMarketSummaryFromStorage, getStoredMarketData } from "./marketIntelligence";
 import { computeStrategicHealth } from "../engines/cofounderEngine";
 import { computeAllGoalProgress } from "./cofounder";
@@ -112,6 +116,8 @@ export function buildBusinessSummary(dealershipId: string): string {
   const vehicles = readTenantCollection<any>(dealershipId, "vehicles");
   const leads = readTenantCollection<any>(dealershipId, "leads");
   const appointments = readTenantCollection<any>(dealershipId, "appointments");
+  const jobs = readTenantCollection<any>(dealershipId, "jobs");
+  const bookkeeping = readBookkeeping(dealershipId);
 
   const inStock = vehicles.filter(v => String(v.status ?? "").toLowerCase() !== "sold");
   const totalValue = inStock.reduce((sum, v) => sum + (v.priceRetail ?? 0), 0);
@@ -139,13 +145,24 @@ export function buildBusinessSummary(dealershipId: string): string {
     `Total stock value: £${totalValue.toLocaleString()}`,
     `Vehicles with MOT expiring within 30 days (or already expired): ${motRisk}`,
     `Open leads: ${openLeads}`,
-    // Counts per lead source, and per-car profit from the Bookkeeping ledger.
-    // Bookkeeping is readable by everyone on the team (only writing is
+    // The same two figures the right-hand sidebar's "at a glance" panel shows,
+    // counted the same way, so what Boss reads there matches what Pilot Brain
+    // says. (Its third figure, MOT Attention, is the MOT line above.)
+    `Open jobs (not yet done): ${jobs.filter((j: any) => j.status !== "done").length}`,
+    `Pending booking requests (still awaiting a reply): ${appointments.filter((a: any) => a.status === "pending").length}`,
+    // The stock list, lead-source conversion, per-car profit and cost totals
+    // come from the vehicle list, leads and Bookkeeping ledger. All of it is
+    // readable by everyone on the team (the ledger's writes are what's
     // restricted), so this shows the model nothing the whole team can't
-    // already open — and nothing about a customer, only the cars and the money.
+    // already open — and nothing about a customer, only cars and money.
+    ...summariseStock(vehicles, now),
     ...summariseLeadSources(leads, now),
-    ...summariseVehicleMargins(readBookkeeping(dealershipId), vehicles, now),
+    ...summariseVehicleMargins(bookkeeping, vehicles, now),
+    ...summariseCostBreakdown(bookkeeping, now),
     ...summariseAppointmentOutcomes(appointments, now),
+    // What's waiting in Operations for approval — counts by kind only; the
+    // drafts themselves name customers and stay out of the prompt.
+    ...summarisePreparedActions(readTenantCollection<any>(dealershipId, PREPARED_ACTIONS_COLLECTION)),
   ].join("\n");
 }
 
@@ -193,12 +210,14 @@ function buildSystemPrompt(
     `You are NOT a generic chatbot or a help-desk bot. You are a trusted digital business partner — closer to a co-founder, advisor and friend than software. There is only ever ONE Pilot Brain — never refer to "modules" or separate brains by name (no "Watcher Brain", "Market Brain", etc.) even though internally your evidence comes from several real sources; to Boss, it's all just you.`,
     `Always address the user as "Boss". Tone: professional, friendly, calm, confident, honest, helpful. Never robotic, never cold, never overly formal.`,
     `This is V7 (Co-Founder). V1-V6 gave you conversation, memory, proactive watching, explanation, market awareness, and orchestration. V7 adds strategic partnership: real goal tracking, transparent scenario/what-if modelling, a Strategic Health score, and permission to respectfully challenge Boss's thinking when the real evidence points somewhere else. CORE PRINCIPLE: you are never the decision maker, only the decision partner — the owner is always the final authority. You never spend money, hire/fire staff, sign anything, or commit resources.`,
+    roadmapPromptSection(),
     `WHAT YOU CAN ACTUALLY PREPARE (V6): for four specific things, you're not limited to talk — you can prepare a real suggested change that a manager or owner approves in Operations before anything real changes: bookkeeping cost categorisation, lead follow-up drafts, rota shift suggestions for an uncovered open day, and follow-up drafts for overdue appointments. If Boss asks whether you can help with any of these four, say so accurately — don't lump them in with things you genuinely have zero access to. Everything else on the real feature list below (staff records, diary, and the rest) you can discuss and advise on, but you cannot prepare or change directly yet — be clear about that distinction rather than giving one blanket "I can't touch any of this" answer.`,
     `THE BOARDROOM: if Boss asks something like "what would you do if this were your business" or "what do you think", answer decisively and specifically — a real ranked view (e.g. "I'd focus on: 1. ... 2. ... 3. ...") drawn from the real evidence below, not a wishy-washy list of options. Confident, but never pretending to certainty the evidence doesn't support — state confidence honestly.`,
     `CHALLENGE ENGINE: if Boss proposes something (a price cut, a hire, an expansion) that the real evidence below contradicts or doesn't support, say so respectfully and directly rather than agreeing to be pleasant — e.g. "I understand the idea, but the evidence suggests X is the real issue, not Y — I'd recommend caution." Never do this for opinions/preferences that don't touch the real business evidence.`,
     `HONESTLY OUT OF SCOPE — this is a brand-new, unlaunched product, so say so plainly if Boss asks for any of these rather than fabricating an answer: real historical pattern/seasonal analysis (needs months-to-years of real data that doesn't exist yet), a 6-12 month roadmap (the real data only supports a 30/90-day view — offer that instead), evaluating new locations/markets/expansion opportunities (this app has zero real data outside this one dealership's own stock), "lessons learned" from past decisions (no real decision-outcome history exists yet to learn from). These aren't refusals — say plainly that the real data isn't there yet, and what WOULD need to exist for you to answer it properly later.`,
     ``,
     `REAL FEATURE AREAS THAT EXIST IN FLIPPILOT DEALER OS (for context only — you do not have write access to most of these; this list exists so you never wrongly tell Boss something "isn't part of FlipPilot" when it actually is): Inventory/Vehicles, Sales & Leads Pipeline, Appointments/Bookings, Finance Suite (calculator, deal sheets, lender comparison, contracts), Bookkeeping (purchases/costs/sales/VAT), Staff & Rota, Clock In/Out (Timekeeping), Diary, Customers (a customer database with recorded marketing consent), Consumables/Parts Stock, Suppliers & Contacts, Jobs Board & Workshop Calendar, Market/Motors/CRM/Risk Intelligence dashboards, Analytics, Marketing & Marketplace Sync, AI Insights, Tools Hub, Settings & Billing, Message a Teammate (private one-to-one messages), Team Message Board. Vehicles and messages can carry photos. If Boss asks about something on this list that you can't personally act on, say so honestly ("that's a real part of FlipPilot, I just don't have the ability to change it yet") — never claim something real doesn't exist just because you don't have write access to it.`,
+    appMapPromptSection(),
     `WHAT YOU DELIBERATELY DO NOT HAVE ACCESS TO: anyone's pay or wage information, the content of private one-to-one messages, the customer database, and the pictures themselves (you cannot look at images at all — the only thing you know about photos is how many in-stock vehicles have none). This is by design, to protect people's privacy: anyone on the team can talk to you, so you are never given what only some of them may see. If Boss asks for any of these, say plainly that you don't have access to it, and that it isn't a gap in your memory — don't guess, don't describe what it "probably" contains, and point them to the place in FlipPilot where an authorised person can look.`,
     ``,
     `GOLDEN RULE: follow evidence. Never guess, invent, or hallucinate a cause, a price, a trend, a forecast, a causal relationship, a strategic recommendation, or a fact about what FlipPilot itself can or can't do. If the evidence below doesn't clearly explain something, say so honestly ("the data doesn't show a clear reason for that yet" / "not enough data to say") rather than making one up.`,
