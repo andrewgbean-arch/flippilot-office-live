@@ -101,6 +101,13 @@ describe("extractJson: tolerant about wrapping, strict that it is ONE object", (
     expect(extractJson('```json\n{"a": 1}\n```\n```json\n{"b": 2}\n```')).toBeNull();
   });
 
+  it("refuses an object with an array on either side of it (one check for each side)", () => {
+    expect(extractJson('[1, 2] {"a": 1}')).toBeNull();
+    expect(extractJson('{"a": 1} [1, 2]')).toBeNull();
+    expect(extractJson('{"a": 1} }')).toBeNull();
+    expect(extractJson('{ {"a": 1}')).toBeNull();
+  });
+
   it("refuses an object that is inside an array", () => {
     expect(extractJson('[{"a": 1}]')).toBeNull();
     expect(extractJson('Here: [{"a": 1}]')).toBeNull();
@@ -247,6 +254,10 @@ describe("parseRecommendation accepts only the documented shape", () => {
       for (const unknowns of [undefined, null, "none", 0, [1], [{}]]) {
         expect(parseRecommendation({ ...goodRecommendation, unknowns }, decision).ok, JSON.stringify(unknowns)).toBe(false);
       }
+    });
+
+    it("refuses a list that is absurdly long, even when nearly all of it is blank", () => {
+      expect(refusal(parseRecommendation({ ...goodRecommendation, unknowns: Array.from({ length: 60 }, () => "") }, decision))).toContain("far too long");
     });
 
     it("may be empty here, and is at most eight long", () => {
