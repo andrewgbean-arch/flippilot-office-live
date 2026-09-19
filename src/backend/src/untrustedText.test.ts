@@ -156,6 +156,7 @@ describe("toMemoryLine: a remembered fact keeps its meaning", () => {
     );
     expect(line("margin<10% and price>£5000")).toBe("margin under 10% and price over £5000");
     expect(line("margin <= 10% and price >= £5,000")).toBe("margin at most 10% and price at least £5,000");
+    expect(line("cars <£8,000 and <= £9,000")).toBe("cars under £8,000 and at most £9,000");
     // "<3" is a number after a "<", so a heart reads as one (known: there is no telling them apart)
     expect(line("Boss <3 diesels")).toBe("Boss under 3 diesels");
   });
