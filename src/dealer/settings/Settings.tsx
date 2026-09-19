@@ -25,6 +25,8 @@ import {
   roleLoweredNotice,
 } from "./teamCopy";
 import { roleChangeStep } from "./roleLadder";
+import InviteShareOptions from "./InviteShareOptions";
+import { buildInviteShare, canShareNatively, inviteShareMode, shareInvite } from "./inviteShare";
 import PilotBrainSecurityCard from "./PilotBrainSecurityCard";
 
 import { BASE_URL } from "@/lib/apiBaseUrl";
@@ -48,6 +50,9 @@ function InviteTeammateModal({ onClose }: { onClose: () => void }) {
   const [link, setLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [sharing, setSharing] = useState(false);
+  const [nativeShareFailed, setNativeShareFailed] = useState(false);
+  const { dealer } = useDealer();
   const [error, setError] = useState<string | null>(null);
 
   async function generateLink() {
@@ -70,6 +75,24 @@ function InviteTeammateModal({ onClose }: { onClose: () => void }) {
     } finally {
       setGenerating(false);
     }
+  }
+
+  // What the owner can send once the link exists (see inviteShare.ts).
+  const share = link ? buildInviteShare({ inviteeName, dealershipName: dealer?.name ?? "", link }) : null;
+  const shareMode = inviteShareMode({
+    canShareNatively:
+      share !== null && canShareNatively(typeof navigator === "undefined" ? null : navigator, share.native),
+    nativeShareFailed,
+  });
+
+  async function sendInvite() {
+    if (!share || sharing) return;
+    setSharing(true);
+    const outcome = await shareInvite(navigator, share.native);
+    setSharing(false);
+    // The owner closing the share sheet without sending is their choice, not a
+    // fault: only a real failure is reported (and swaps in the plain buttons).
+    if (outcome === "failed") setNativeShareFailed(true);
   }
 
   function copyLink() {
@@ -134,6 +157,15 @@ function InviteTeammateModal({ onClose }: { onClose: () => void }) {
             <p className="text-yellow-200/90 text-sm mb-3">
               {inviteLinkWarning(STAFF_ROLE_OPTIONS.find((opt) => opt.value === staffRole)?.label ?? staffRole)}
             </p>
+            {share && (
+              <InviteShareOptions
+                share={share}
+                mode={shareMode}
+                sharing={sharing}
+                shareFailed={nativeShareFailed}
+                onNativeShare={sendInvite}
+              />
+            )}
             <div className="flex gap-2 mb-2">
               <input
                 readOnly
@@ -144,7 +176,7 @@ function InviteTeammateModal({ onClose }: { onClose: () => void }) {
                 onClick={copyLink}
                 className="px-4 py-2 rounded font-semibold bg-yellow-400 text-black hover:bg-yellow-300 whitespace-nowrap"
               >
-                {copied ? "Copied!" : "Copy"}
+                {copied ? "Copied!" : "Copy link"}
               </button>
             </div>
             <p className="text-white/40 text-xs mb-4">{INVITE_LINK_CANCEL_NOTE}</p>

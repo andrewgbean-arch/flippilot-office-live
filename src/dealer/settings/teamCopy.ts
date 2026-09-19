@@ -58,3 +58,56 @@ export function inviteLinkWarning(roleLabel: string): string {
 
 export const INVITE_LINK_CANCEL_NOTE =
   "If you remove someone from your team, or move them to a lower role, links you've already shared stop working.";
+
+// ---------------------------------------------------------------------------
+// The message the owner sends WITH the link (by the phone's share sheet, text
+// message, WhatsApp or email). It is what the person receives, so it uses only
+// what they need to recognise it and trust it: their own name (if the owner
+// typed one), the dealership's name, the link, how long the link works, and
+// what to do if they were not expecting it. Nothing else goes in: not the role,
+// not the owner's name or email, nothing about the dealership's business.
+// ---------------------------------------------------------------------------
+
+export interface InviteShareDetails {
+  // The invitee's name as the owner typed it. May be empty.
+  inviteeName: string;
+  dealershipName: string;
+  link: string;
+  // How long the link works. Defaults to the same figure the dialog quotes.
+  days?: number;
+}
+
+// Names are typed by the owner: a stray line break or run of spaces must not
+// reshape the message, so each becomes one tidy line of text.
+function oneLine(text: string): string {
+  return text.replace(/\s+/g, " ").trim();
+}
+
+// The message WITHOUT the link. The phone's share sheet takes the link
+// separately and adds it after this text itself, so putting the link here as
+// well would send it twice.
+export function inviteShareLead({
+  inviteeName,
+  dealershipName,
+  days = INVITE_LINK_LIFETIME_DAYS,
+}: Omit<InviteShareDetails, "link">): string {
+  const name = oneLine(inviteeName);
+  const greeting = name ? `Hi ${name},` : "Hi,";
+  const where = oneLine(dealershipName) || "the team";
+  return (
+    `${greeting} you've been invited to join ${where} on FlipPilot. Tap the link to set up your login. ` +
+    `It works for ${days} ${days === 1 ? "day" : "days"}, so only use it if you were expecting it.`
+  );
+}
+
+// The whole message, link included, for the ways of sending that have no
+// separate place for a link (text message, WhatsApp, email).
+export function inviteShareMessage(details: InviteShareDetails): string {
+  return `${inviteShareLead(details)} ${details.link}`;
+}
+
+// The share sheet's title, and the subject line when it is sent by email.
+export function inviteShareTitle(dealershipName: string): string {
+  const where = oneLine(dealershipName);
+  return where ? `Invitation to join ${where} on FlipPilot` : "Invitation to join FlipPilot";
+}
