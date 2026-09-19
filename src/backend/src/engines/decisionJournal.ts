@@ -50,7 +50,7 @@ export interface ExpectationResult {
 
 const round = (n: number, places: number): number => {
   const f = 10 ** places;
-  return Math.round(n * f) / f;
+  return Math.round(n * f) / f + 0; // + 0 turns a negative zero into a plain zero
 };
 
 const isKnownNumber = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
