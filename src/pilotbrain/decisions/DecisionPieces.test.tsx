@@ -241,6 +241,20 @@ describe("Boss's decision form", () => {
     expect(html).not.toMatch(/\d\s*%/);
   });
 
+  it("gives Pilot's reasons for its confidence beside it", () => {
+    expect(render(decision({ pilotRecommendation: recommendation("b") }))).toContain("Why: Six months of sales");
+  });
+
+  it("never shows a confidence that is not low, medium or high: a percentage is not shown as it came", () => {
+    for (const bad of ["82%", "0.9", "certain", 82]) {
+      const html = render(decision({ pilotRecommendation: { ...recommendation("b"), confidence: bad as never } }));
+      expect(html, String(bad)).toContain("confidence: not stated");
+      expect(html, String(bad)).not.toContain("82");
+      expect(html, String(bad)).not.toContain("0.9");
+      expect(html, String(bad)).not.toContain("certain");
+    }
+  });
+
   it("says so when Pilot has given no recommendation, and still lets Boss decide", () => {
     const html = render(decision());
     expect(html).toContain("Pilot has not given a recommendation on this one");

@@ -18,6 +18,7 @@ import {
   buildOutcomeBody,
   canUseDecisions,
   chosenOptionText,
+  confidenceText,
   differenceText,
   followText,
   followedPilot,
@@ -355,6 +356,17 @@ describe("followedPilot and chosenOptionText: the same rules as the server", () 
     expect(followText(true)).toBe(FOLLOW_TEXT.followed);
     expect(followText(false)).toBe(FOLLOW_TEXT.overrode);
     expect(followText(null)).toBe("");
+  });
+});
+
+describe("confidenceText: low, medium or high, never a percentage", () => {
+  it("shows the three words, whatever their case", () => {
+    expect(confidenceText("low")).toBe("confidence: low");
+    expect(confidenceText(" Medium ")).toBe("confidence: medium");
+    expect(confidenceText("HIGH")).toBe("confidence: high");
+  });
+  it("shows anything else as not stated, rather than as it came", () => {
+    for (const bad of ["82%", "0.9", 82, "very high", "", null, undefined, {}]) expect(confidenceText(bad), String(bad)).toBe("confidence: not stated");
   });
 });
 

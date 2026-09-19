@@ -9,6 +9,7 @@ import {
   OPTION_NOTE_MAX,
   QUESTION_MAX,
   REASONING_MAX,
+  parseConfidence,
   type Decision,
   type DecisionAction,
   type DecisionState,
@@ -79,6 +80,12 @@ export const EVENT_LABEL: Record<DecisionAction, string> = {
   decided: "Boss decided",
   outcome: "What happened was recorded",
 };
+
+// Pilot's confidence is one of three words, with reasons: never a percentage
+// (roadmap rule 04). Anything else that reaches the screen is not shown as it came.
+export function confidenceText(confidence: unknown): string {
+  return `confidence: ${parseConfidence(confidence) ?? "not stated"}`;
+}
 
 export const FOLLOW_TEXT = { followed: "You followed Pilot", overrode: "You went against Pilot" } as const;
 export function followText(followedPilot: boolean | null | undefined): string {

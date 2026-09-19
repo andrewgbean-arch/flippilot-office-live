@@ -9,6 +9,7 @@ import {
   REVIEW_CHOICES,
   UNIT_OPTIONS,
   buildDecideBody,
+  confidenceText,
   type DecideFormValues,
   type ExpectationRowForm,
 } from "./decisionFormat";
@@ -63,7 +64,12 @@ export default function BossDecisionForm({
       {rec ? (
         <p className="dj-muted">
           Pilot recommended option {rec.optionKey.toUpperCase()}
-          {recOption ? `, "${recOption.label}"` : ""} (confidence: {rec.confidence}).
+          {recOption ? `, "${recOption.label}"` : ""} ({confidenceText(rec.confidence)}).
+          {Array.isArray(rec.confidenceReasons) && rec.confidenceReasons.length > 0 ? (
+            <span className="dj-small" style={{ display: "block" }}>
+              Why: {rec.confidenceReasons.join("; ")}
+            </span>
+          ) : null}
         </p>
       ) : (
         <p className="dj-small">Pilot has not given a recommendation on this one. You can still decide.</p>
