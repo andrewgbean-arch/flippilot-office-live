@@ -10,7 +10,7 @@ const TOKEN_TTL = "7d";
 // transitively) before dotenv.config() runs, regardless of what's
 // actually in .env. Bit this exact bug earlier in this session with the
 // eBay integration in the sibling flippilotlatest project.
-function getJwtSecret(): string {
+export function getJwtSecret(): string {
   const secret = process.env.JWT_SECRET;
   if (!secret) {
     throw new Error("JWT_SECRET is not set in backend/.env");

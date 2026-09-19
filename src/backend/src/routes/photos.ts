@@ -1,23 +1,36 @@
 import { randomUUID } from "crypto";
 import { Express, Request } from "express";
 import {
+  attachMessagePhotos,
   countPhotos,
+  countUnattachedMessagePhotos,
   deletePhoto,
+  deleteUnattachedMessagePhoto,
   getPhoto,
   insertPhoto,
   listPhotoMeta,
+  photoBytes,
+  purgeAbandonedUnsentPhotos,
   purgeOrphanVehiclePhotos,
+  purgeStaleUnattachedMessagePhotos,
   readTenantCollection,
   writeTenantCollection,
 } from "../db";
-import type { AuthUser } from "../auth";
+import { getJwtSecret, type AuthUser } from "../auth";
 import {
   decodeImageDataUrl,
   hostedPhotoUrl,
+  isValidPhotoSignature,
+  MAX_MESSAGE_PHOTO_BYTES_PER_DEALERSHIP,
   MAX_PHOTOS_PER_DEALERSHIP,
   MAX_PHOTOS_PER_VEHICLE,
+  MAX_UNATTACHED_PER_USER,
+  MAX_VEHICLE_PHOTO_BYTES_PER_DEALERSHIP,
   ORPHAN_GRACE_MS,
   photoIdFromUrl,
+  signedMessagePhotoUrl,
+  UNATTACHED_GRACE_MS,
+  UNSENT_ABANDONED_AFTER_MS,
 } from "../photoStore";
 
 // Vehicle photos taken on a phone (or added anywhere else). The picture
@@ -96,7 +109,111 @@ export function purgeOrphanPhotos(dealershipId: string, items: unknown[]): void 
   purgeOrphanVehiclePhotos(dealershipId, live, new Date(Date.now() - ORPHAN_GRACE_MS).toISOString());
 }
 
+export interface MessagePhoto {
+  id: string;
+  url: string;
+}
+
+// A message (1:1 or team board) as sent to a client: its stored photoIds
+// turned into signed, expiring links. Only ever called on messages the
+// requester is allowed to read, so a link is proof of entitlement at the
+// moment it was issued.
+export function withPhotoUrls<T extends { photoIds?: string[] }>(
+  entry: T,
+  origin: string
+): T & { photos: MessagePhoto[] } {
+  const ids = entry.photoIds ?? [];
+  if (ids.length === 0) return { ...entry, photos: [] };
+  const secret = getJwtSecret();
+  return { ...entry, photos: ids.map(id => ({ id, url: signedMessagePhotoUrl(origin, id, secret) })) };
+}
+
+// Attach photos that were uploaded earlier to a message that has just been
+// validated. Refuses (and changes nothing) unless every one is an unsent
+// photo THIS user uploaded.
+export function attachPhotosToMessage(
+  dealershipId: string,
+  userId: string,
+  photoIds: string[],
+  messageId: string,
+  anonymous: boolean
+): { ok: true } | { ok: false; status: number; error: string } {
+  const oldestAttachable = new Date(Date.now() - UNATTACHED_GRACE_MS).toISOString();
+  if (attachMessagePhotos(dealershipId, userId, photoIds, messageId, anonymous, oldestAttachable)) {
+    return { ok: true };
+  }
+  return {
+    ok: false,
+    status: 400,
+    error: "One of those photos couldn't be attached — add it again and retry",
+  };
+}
+
 export default function registerPhotosRoute(app: Express) {
+  // Step one of sharing a photo in a message: upload it, get an id back,
+  // then send the message with that id in `photoIds`. No link comes back
+  // here — links are only issued inside a message payload.
+  app.post("/message-photos", (req, res) => {
+    const user = authedUser(req);
+
+    const decoded = decodeImageDataUrl(req.body?.dataUrl);
+    if (!decoded.ok) {
+      return res.status(decoded.status).json({ ok: false, error: decoded.error });
+    }
+
+    // Forget photos that were uploaded but never sent.
+    purgeStaleUnattachedMessagePhotos(
+      user.dealershipId,
+      new Date(Date.now() - UNATTACHED_GRACE_MS).toISOString()
+    );
+
+    // At their limit? Drafts they walked away from a couple of hours ago
+    // are cleared to make room before anything is refused.
+    if (countUnattachedMessagePhotos(user.dealershipId, user.id) >= MAX_UNATTACHED_PER_USER) {
+      purgeAbandonedUnsentPhotos(
+        user.dealershipId,
+        user.id,
+        new Date(Date.now() - UNSENT_ABANDONED_AFTER_MS).toISOString()
+      );
+    }
+    if (countUnattachedMessagePhotos(user.dealershipId, user.id) >= MAX_UNATTACHED_PER_USER) {
+      return res.status(409).json({
+        ok: false,
+        error:
+          "You have a lot of photos waiting to be sent from the last couple of hours. Send them in a message, or wait a little and try again.",
+      });
+    }
+    if (photoBytes(user.dealershipId, "message") + decoded.bytes.length > MAX_MESSAGE_PHOTO_BYTES_PER_DEALERSHIP) {
+      return res.status(409).json({
+        ok: false,
+        error: "Your dealership has used all its message-photo storage — contact support",
+      });
+    }
+
+    const id = randomUUID();
+    insertPhoto({
+      id,
+      dealershipId: user.dealershipId,
+      kind: "message",
+      refId: null,
+      uploadedBy: user.id,
+      mime: decoded.mime,
+      size: decoded.bytes.length,
+      data: decoded.bytes,
+      createdAt: new Date().toISOString(),
+    });
+    res.json({ ok: true, photo: { id } });
+  });
+
+  // Changed their mind before sending.
+  app.delete("/message-photos/:id", (req, res) => {
+    const user = authedUser(req);
+    if (!deleteUnattachedMessagePhoto(user.dealershipId, user.id, String(req.params.id).toLowerCase())) {
+      return res.status(404).json({ ok: false, error: "That photo wasn't found" });
+    }
+    res.json({ ok: true });
+  });
+
   // Any signed-in staff member may add a photo — same as editing stock.
   // (Behind the /inventory login + approval + subscription gate in app.ts.)
   app.post("/inventory/:vehicleId/photos", (req, res) => {
@@ -122,7 +239,10 @@ export default function registerPhotosRoute(app: Express) {
         error: `This vehicle already has the maximum of ${MAX_PHOTOS_PER_VEHICLE} photos`,
       });
     }
-    if (countPhotos(user.dealershipId, "vehicle") >= MAX_PHOTOS_PER_DEALERSHIP) {
+    if (
+      countPhotos(user.dealershipId, "vehicle") >= MAX_PHOTOS_PER_DEALERSHIP ||
+      photoBytes(user.dealershipId, "vehicle") + decoded.bytes.length > MAX_VEHICLE_PHOTO_BYTES_PER_DEALERSHIP
+    ) {
       return res.status(409).json({
         ok: false,
         error: "Your dealership's photo storage limit has been reached — contact support",
@@ -190,19 +310,32 @@ export default function registerPhotosRoute(app: Express) {
     res.json({ ok: true, images });
   });
 
-  // PUBLIC, on purpose: these are listing photos, and a portal or a
-  // browser showing the shop window can't send a login. Each address is a
-  // random 128-bit id, so it can't be guessed, and the content behind it
-  // never changes — hence the year-long cache.
+  // Listing photos are PUBLIC, on purpose: a portal or a browser showing
+  // the shop window can't send a login. Each address is a random 128-bit
+  // id, so it can't be guessed, and the content behind it never changes —
+  // hence the year-long cache.
+  // Message photos are PRIVATE: they're only served with a valid,
+  // unexpired signature (issued inside a message the requester can read),
+  // and every other case looks exactly like a photo that doesn't exist.
   app.get("/photos/:file", (req, res) => {
     const id = photoIdFromUrl(`/photos/${req.params.file}`);
     if (!id) return res.status(404).end();
 
     const photo = getPhoto(id);
-    if (!photo || photo.kind !== "vehicle") return res.status(404).end();
+    if (!photo) return res.status(404).end();
+
+    if (photo.kind === "message") {
+      if (!isValidPhotoSignature(getJwtSecret(), id, req.query.exp, req.query.sig)) {
+        return res.status(404).end();
+      }
+      res.setHeader("Cache-Control", "private, max-age=3600");
+    } else if (photo.kind === "vehicle") {
+      res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+    } else {
+      return res.status(404).end();
+    }
 
     res.setHeader("Content-Type", photo.mime);
-    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
     res.setHeader("Content-Disposition", "inline");
     // helmet's default is same-origin, which would stop the web app (a
     // different address from this API) from showing them.

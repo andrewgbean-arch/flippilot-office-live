@@ -1,6 +1,12 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import request from "supertest";
 import app from "./app.js";
+import { getJwtSecret } from "./auth.js";
+import {
+  signedMessagePhotoUrl,
+  MAX_MESSAGE_PHOTO_BYTES_PER_DEALERSHIP,
+  MAX_VEHICLE_PHOTO_BYTES_PER_DEALERSHIP,
+} from "./photoStore.js";
 import {
   readCollection,
   writeCollection,
@@ -8,6 +14,8 @@ import {
   deleteTenantData,
   insertPhoto,
   countPhotos,
+  countUnattachedMessagePhotos,
+  detachMessagePhotos,
   getPhoto,
 } from "./db.js";
 import { buildBusinessSummary } from "./routes/pilotBrain.js";
@@ -2319,5 +2327,535 @@ describe("vehicle photos — hosted storage", () => {
     deleteTenantData(dealershipId);
     expect(getPhoto(id)).toBeNull();
     expect(countPhotos(dealershipId, "vehicle")).toBe(0);
+  });
+});
+
+// Photos in messages. Unlike listing photos these are private: the tests
+// are mostly about who can and can't get at one — the people in a 1:1
+// message, the whole team on the board, nobody else, and never without an
+// unexpired, untampered link. Plus the anonymous-post promise: a photo on
+// an anonymous board post must not record who uploaded it.
+describe("message photos — private sharing in 1:1 and team messages", () => {
+  const auth = (token: string) => ({ Authorization: `Bearer ${token}` });
+  const fakeJpeg = (length = 300) => {
+    const buf = Buffer.alloc(length);
+    Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]).copy(buf);
+    return buf;
+  };
+  const jpegDataUrl = (bytes: Buffer = fakeJpeg()) => `data:image/jpeg;base64,${bytes.toString("base64")}`;
+
+  const upload = (token: string, dataUrl: unknown) =>
+    request(app).post("/message-photos").set(auth(token)).send({ dataUrl });
+  const uploadOk = async (token: string, bytes?: Buffer): Promise<string> => {
+    const res = await upload(token, jpegDataUrl(bytes));
+    expect(res.status).toBe(200);
+    return res.body.photo.id as string;
+  };
+  const sendDirect = (token: string, toUserId: string, body: Record<string, unknown>) =>
+    request(app).post("/staff-messages").set(auth(token)).send({ toUserId, ...body });
+  const inbox = async (token: string) =>
+    (await request(app).get("/staff-messages").set(auth(token))).body.messages as any[];
+  const postBoard = (token: string, body: Record<string, unknown>) =>
+    request(app).post("/feedback").set(auth(token)).send(body);
+  const board = async (token: string) =>
+    (await request(app).get("/feedback").set(auth(token))).body.items as any[];
+  const pathOf = (url: string) => {
+    const u = new URL(url);
+    return u.pathname + u.search;
+  };
+
+  let counter = 0;
+  async function setup() {
+    counter += 1;
+    const owner = await signup(`msgphoto-owner-${counter}`);
+    const alice = await joinStaff(owner.token, "sales");
+    const bob = await joinStaff(owner.token, "general");
+    const carol = await joinStaff(owner.token, "finance");
+    return { owner, alice, bob, carol, dealershipId: owner.user.dealershipId as string };
+  }
+
+  it("a photo in a 1:1 message reaches the recipient through a private link, and nobody else sees the message", async () => {
+    const { alice, bob, carol } = await setup();
+    const bytes = fakeJpeg(500);
+    const photoId = await uploadOk(alice.token, bytes);
+
+    const sent = await sendDirect(alice.token, bob.user.id, { message: "Look at the damage", photoIds: [photoId] });
+    expect(sent.status).toBe(200);
+    expect(sent.body.message.photos).toHaveLength(1);
+    expect(sent.body.message.photos[0].id).toBe(photoId);
+
+    // The recipient gets the same photo, with their own fresh link.
+    const received = (await inbox(bob.token))[0];
+    expect(received.message).toBe("Look at the damage");
+    expect(received.photos).toHaveLength(1);
+    const img = await request(app).get(pathOf(received.photos[0].url)); // no login: the signed link is the credential
+    expect(img.status).toBe(200);
+    expect(img.headers["content-type"]).toBe("image/jpeg");
+    expect(img.headers["cache-control"]).toContain("private");
+    expect(img.headers["cross-origin-resource-policy"]).toBe("cross-origin");
+    expect(Buffer.compare(img.body as Buffer, bytes)).toBe(0);
+
+    // A bystander in the same dealership isn't part of it.
+    expect(await inbox(carol.token)).toEqual([]);
+  });
+
+  it("a message can be only photos, but not nothing at all; the recipient's notification says so", async () => {
+    const { alice, bob } = await setup();
+    const one = await uploadOk(alice.token);
+    const two = await uploadOk(alice.token);
+
+    const photoOnly = await sendDirect(alice.token, bob.user.id, { message: "", photoIds: [one, two] });
+    expect(photoOnly.status).toBe(200);
+    expect(photoOnly.body.message.message).toBe("");
+    expect(photoOnly.body.message.photos).toHaveLength(2);
+
+    const notes = await request(app).get("/notifications").set(auth(bob.token));
+    expect(JSON.stringify(notes.body)).toContain("Sent you 2 photos");
+
+    expect((await sendDirect(alice.token, bob.user.id, { message: "  ", photoIds: [] })).status).toBe(400);
+    expect((await sendDirect(alice.token, bob.user.id, {})).status).toBe(400);
+  });
+
+  it("a photo link only works while it is valid and untouched", async () => {
+    const { alice, bob } = await setup();
+    const first = await uploadOk(alice.token);
+    const second = await uploadOk(alice.token, fakeJpeg(400));
+    await sendDirect(alice.token, bob.user.id, { message: "two", photoIds: [first, second] });
+
+    const [p1, p2] = (await inbox(bob.token))[0].photos as { id: string; url: string }[];
+    const u1 = new URL(p1!.url);
+    const exp = u1.searchParams.get("exp")!;
+    const sig = u1.searchParams.get("sig")!;
+
+    expect((await request(app).get(pathOf(p1!.url))).status).toBe(200);
+    // no credentials at all
+    expect((await request(app).get(`/photos/${p1!.id}.jpg`)).status).toBe(404);
+    // a damaged signature
+    const flipped = sig.slice(0, -1) + (sig.endsWith("0") ? "1" : "0");
+    expect((await request(app).get(`/photos/${p1!.id}.jpg?exp=${exp}&sig=${flipped}`)).status).toBe(404);
+    // an extended expiry
+    expect((await request(app).get(`/photos/${p1!.id}.jpg?exp=${Number(exp) + 86400}&sig=${sig}`)).status).toBe(404);
+    // photo 1's credentials used on photo 2
+    expect((await request(app).get(`/photos/${p2!.id}.jpg?exp=${exp}&sig=${sig}`)).status).toBe(404);
+    // a link that expired yesterday
+    const expired = signedMessagePhotoUrl("http://x", p1!.id, getJwtSecret(), Date.now() - 2 * 24 * 60 * 60 * 1000);
+    expect((await request(app).get(pathOf(expired))).status).toBe(404);
+  });
+
+  it("only a photo you uploaded and haven't sent can be attached, and a refusal changes nothing", async () => {
+    const { alice, bob, dealershipId } = await setup();
+    const mine = await uploadOk(alice.token);
+    const bobsPhoto = await uploadOk(bob.token);
+
+    // Someone else's photo
+    const stolen = await sendDirect(alice.token, bob.user.id, { message: "x", photoIds: [bobsPhoto] });
+    expect(stolen.status).toBe(400);
+    // One good photo and one bad one: neither goes, and the good one isn't used up
+    const mixed = await sendDirect(alice.token, bob.user.id, { message: "x", photoIds: [mine, bobsPhoto] });
+    expect(mixed.status).toBe(400);
+    expect(await inbox(bob.token)).toEqual([]);
+
+    // Not a photo at all, or malformed
+    for (const bad of [[crypto.randomUUID()], ["nope"], "not-a-list", [1]]) {
+      expect((await sendDirect(alice.token, bob.user.id, { message: "x", photoIds: bad })).status).toBe(400);
+    }
+
+    // A listing photo isn't a message photo
+    const listing = crypto.randomUUID();
+    insertPhoto({
+      id: listing, dealershipId, kind: "vehicle", refId: "some-car", uploadedBy: alice.user.id,
+      mime: "image/jpeg", size: 3, data: Buffer.from([0xff, 0xd8, 0xff]), createdAt: new Date().toISOString(),
+    });
+    expect((await sendDirect(alice.token, bob.user.id, { message: "x", photoIds: [listing] })).status).toBe(400);
+
+    // Even a listing photo with no vehicle recorded (which the API never
+    // produces) isn't a message photo: the kind check must hold on its own.
+    const looseListing = crypto.randomUUID();
+    insertPhoto({
+      id: looseListing, dealershipId, kind: "vehicle", refId: null, uploadedBy: alice.user.id,
+      mime: "image/jpeg", size: 3, data: Buffer.from([0xff, 0xd8, 0xff]), createdAt: new Date().toISOString(),
+    });
+    expect((await sendDirect(alice.token, bob.user.id, { message: "x", photoIds: [looseListing] })).status).toBe(400);
+
+    // Now the real one still works, once...
+    expect((await sendDirect(alice.token, bob.user.id, { message: "ok", photoIds: [mine] })).status).toBe(200);
+    // ...and can't be attached to a second message
+    expect((await sendDirect(alice.token, bob.user.id, { message: "again", photoIds: [mine] })).status).toBe(400);
+  });
+
+  it("an unknown recipient doesn't use up the photos, and seven photos is too many", async () => {
+    const { alice, bob } = await setup();
+    const photo = await uploadOk(alice.token);
+    expect((await sendDirect(alice.token, "no-such-user", { message: "x", photoIds: [photo] })).status).toBe(404);
+    expect((await sendDirect(alice.token, bob.user.id, { message: "x", photoIds: [photo] })).status).toBe(200);
+
+    const seven = await Promise.all(Array.from({ length: 7 }, () => uploadOk(alice.token)));
+    const tooMany = await sendDirect(alice.token, bob.user.id, { message: "x", photoIds: seven });
+    expect(tooMany.status).toBe(400);
+    expect(tooMany.body.error).toContain("6");
+    expect((await sendDirect(alice.token, bob.user.id, { message: "x", photoIds: seven.slice(0, 6) })).status).toBe(200);
+  });
+
+  it("the team board shows a photo to everyone at the dealership, keeps it through a status change, and no one else", async () => {
+    const { owner, alice, bob } = await setup();
+    const outsider = await signup(`msgphoto-outsider-${counter}`);
+    const photoId = await uploadOk(alice.token);
+    const posted = await postBoard(alice.token, { message: "Workshop floor", photoIds: [photoId] });
+    expect(posted.status).toBe(200);
+    expect(posted.body.entry.photos).toHaveLength(1);
+    expect(posted.body.entry.userName).toBe(alice.user.name);
+
+    // Everyone on the team can see it, with their own working link
+    for (const person of [bob, owner]) {
+      const entry = (await board(person.token))[0];
+      expect(entry.photos).toHaveLength(1);
+      expect((await request(app).get(pathOf(entry.photos[0].url))).status).toBe(200);
+    }
+
+    // The owner marks it reviewed — the list that comes back must still carry the photo
+    const entryId = posted.body.entry.id as string;
+    const reviewed = await request(app).put(`/feedback/${entryId}/status`).set(auth(owner.token)).send({ status: "reviewed" });
+    expect(reviewed.status).toBe(200);
+    expect(reviewed.body.items[0].photos).toHaveLength(1);
+    expect(reviewed.body.items[0].status).toBe("reviewed");
+
+    // Another dealership never sees this board
+    expect(await board(outsider.token)).toEqual([]);
+  });
+
+  it("a photo on an anonymous board post records nobody; on a named post it does", async () => {
+    const { alice, dealershipId } = await setup();
+    const anonPhoto = await uploadOk(alice.token);
+    const named = await uploadOk(alice.token);
+
+    const anon = await postBoard(alice.token, { message: "Concern", anonymous: true, photoIds: [anonPhoto] });
+    expect(anon.status).toBe(200);
+    expect(anon.body.entry.userId).toBeNull();
+    expect(anon.body.entry.userName).toBeNull();
+    expect(getPhoto(anonPhoto)!.uploadedBy).toBeNull();
+    expect(getPhoto(anonPhoto)!.dealershipId).toBe(dealershipId);
+
+    await postBoard(alice.token, { message: "Named", photoIds: [named] });
+    expect(getPhoto(named)!.uploadedBy).toBe(alice.user.id);
+  });
+
+  it("the board needs words or a photo, and refuses someone else's photo", async () => {
+    const { alice, bob } = await setup();
+    expect((await postBoard(alice.token, { message: "" })).status).toBe(400);
+    expect((await postBoard(alice.token, { photoIds: [] })).status).toBe(400);
+    const bobs = await uploadOk(bob.token);
+    expect((await postBoard(alice.token, { message: "x", photoIds: [bobs] })).status).toBe(400);
+    expect((await postBoard(alice.token, { photoIds: [await uploadOk(alice.token)] })).status).toBe(200);
+  });
+
+  it("someone who picks a photo then changes their mind can throw it away — only they, only before it's sent", async () => {
+    const { alice, bob } = await setup();
+    const photo = await uploadOk(alice.token);
+
+    expect((await request(app).delete(`/message-photos/${photo}`).set(auth(bob.token))).status).toBe(404); // not theirs
+    expect((await request(app).delete(`/message-photos/${photo}`)).status).toBe(401);
+    expect((await request(app).delete(`/message-photos/${photo}`).set(auth(alice.token))).status).toBe(200);
+    expect(getPhoto(photo)).toBeNull();
+    expect((await sendDirect(alice.token, bob.user.id, { message: "x", photoIds: [photo] })).status).toBe(400);
+
+    // once it's part of a message it can no longer be discarded
+    const sentPhoto = await uploadOk(alice.token);
+    await sendDirect(alice.token, bob.user.id, { message: "x", photoIds: [sentPhoto] });
+    expect((await request(app).delete(`/message-photos/${sentPhoto}`).set(auth(alice.token))).status).toBe(404);
+    expect(getPhoto(sentPhoto)).not.toBeNull();
+  });
+
+  it("refuses non-images and oversize photos, needs a login, and is closed to a pending dealership", async () => {
+    const { alice } = await setup();
+    const svg = Buffer.from("<svg xmlns='http://www.w3.org/2000/svg'><script>alert(1)</script></svg>");
+    for (const bad of [undefined, "hello", `data:image/jpeg;base64,${svg.toString("base64")}`]) {
+      expect((await upload(alice.token, bad)).status).toBe(400);
+    }
+    expect((await upload(alice.token, jpegDataUrl(fakeJpeg(1_600_000)))).status).toBe(413);
+    expect((await request(app).post("/message-photos").send({ dataUrl: jpegDataUrl() })).status).toBe(401);
+
+    const email = `integration-test-${runId}-msgphoto-pending@test.local`;
+    const pending = await request(app).post("/auth/signup").send({
+      email, password: "integrationtestpass123", name: "Pending", dealershipName: "Pending Motors", requireApproval: true,
+    });
+    trackUser(email);
+    trackDealership(pending.body.user.dealershipId);
+    const res = await upload(pending.body.token, jpegDataUrl());
+    expect(res.status).toBe(403);
+    expect(res.body.approvalStatus).toBe("pending");
+  });
+
+  it("limits photos waiting to be sent, and sweeps up ones that were never sent", async () => {
+    const { alice, dealershipId } = await setup();
+    const seed = (createdAt: string) => {
+      const id = crypto.randomUUID();
+      insertPhoto({
+        id, dealershipId, kind: "message", refId: null, uploadedBy: alice.user.id,
+        mime: "image/jpeg", size: 3, data: Buffer.from([0xff, 0xd8, 0xff]), createdAt,
+      });
+      return id;
+    };
+    for (let i = 0; i < 20; i++) seed(new Date().toISOString());
+    const full = await upload(alice.token, jpegDataUrl());
+    expect(full.status).toBe(409);
+
+    // Old, never-sent ones don't count: they're swept away on the next upload.
+    const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
+    const { alice: bobLike, dealershipId: d2 } = await setup();
+    const old = Array.from({ length: 20 }, () => {
+      const id = crypto.randomUUID();
+      insertPhoto({
+        id, dealershipId: d2, kind: "message", refId: null, uploadedBy: bobLike.user.id,
+        mime: "image/jpeg", size: 3, data: Buffer.from([0xff, 0xd8, 0xff]), createdAt: twoDaysAgo,
+      });
+      return id;
+    });
+    expect((await upload(bobLike.token, jpegDataUrl())).status).toBe(200);
+    expect(old.every(id => getPhoto(id) === null)).toBe(true);
+  });
+
+  it("closing a dealership removes its message photos too", async () => {
+    const { alice, bob, dealershipId } = await setup();
+    const photo = await uploadOk(alice.token);
+    await sendDirect(alice.token, bob.user.id, { message: "x", photoIds: [photo] });
+    expect(getPhoto(photo)).not.toBeNull();
+    deleteTenantData(dealershipId);
+    expect(getPhoto(photo)).toBeNull();
+    expect(countPhotos(dealershipId, "message")).toBe(0);
+  });
+});
+
+// Follow-up to the adversarial review of message photos: the lifecycle and
+// hardening behaviour it found missing or untested — what the sweep may and
+// may not touch, how long an unsent photo can be attached (it records its
+// uploader while unsent), disk limits, abandoned drafts, old clients that
+// send no photoIds, the strength of the anonymity guarantee, board ordering,
+// and the access log.
+describe("message photos — lifecycle, limits and hardening", () => {
+  const auth = (token: string) => ({ Authorization: `Bearer ${token}` });
+  const fakeJpeg = (length = 300) => {
+    const buf = Buffer.alloc(length);
+    Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]).copy(buf);
+    return buf;
+  };
+  const jpegDataUrl = (bytes: Buffer = fakeJpeg()) => `data:image/jpeg;base64,${bytes.toString("base64")}`;
+  const hoursAgo = (h: number) => new Date(Date.now() - h * 3_600_000).toISOString();
+
+  const upload = (token: string, bytes?: Buffer) =>
+    request(app).post("/message-photos").set(auth(token)).send({ dataUrl: jpegDataUrl(bytes) });
+  const sendDirect = (token: string, toUserId: string, body: Record<string, unknown>) =>
+    request(app).post("/staff-messages").set(auth(token)).send({ toUserId, ...body });
+  const postBoard = (token: string, body: Record<string, unknown>) =>
+    request(app).post("/feedback").set(auth(token)).send(body);
+  const pathOf = (url: string) => {
+    const u = new URL(url);
+    return u.pathname + u.search;
+  };
+
+  let counter = 0;
+  async function setup() {
+    counter += 1;
+    const owner = await signup(`msglife-owner-${counter}`);
+    const alice = await joinStaff(owner.token, "sales");
+    const bob = await joinStaff(owner.token, "general");
+    return { owner, alice, bob, dealershipId: owner.user.dealershipId as string };
+  }
+
+  function seed(
+    dealershipId: string,
+    opts: { kind?: "vehicle" | "message"; refId: string | null; uploadedBy: string | null; createdAt?: string; size?: number }
+  ) {
+    const id = crypto.randomUUID();
+    insertPhoto({
+      id,
+      dealershipId,
+      kind: opts.kind ?? "message",
+      refId: opts.refId,
+      uploadedBy: opts.uploadedBy,
+      mime: "image/jpeg",
+      size: opts.size ?? 3,
+      data: Buffer.from([0xff, 0xd8, 0xff]),
+      createdAt: opts.createdAt ?? new Date().toISOString(),
+    });
+    return id;
+  }
+
+  it("the sweep of never-sent photos never touches a photo that was sent — 1:1, named post or anonymous post", async () => {
+    const { alice, bob, dealershipId } = await setup();
+    const twoDaysAgo = hoursAgo(48);
+    const inOneToOne = seed(dealershipId, { refId: "msg-1", uploadedBy: alice.user.id, createdAt: twoDaysAgo });
+    const inNamedPost = seed(dealershipId, { refId: "post-1", uploadedBy: alice.user.id, createdAt: twoDaysAgo });
+    const inAnonymousPost = seed(dealershipId, { refId: "post-2", uploadedBy: null, createdAt: twoDaysAgo });
+    const neverSent = seed(dealershipId, { refId: null, uploadedBy: alice.user.id, createdAt: twoDaysAgo });
+
+    // Anyone uploading in the dealership triggers the sweep.
+    expect((await upload(bob.token)).status).toBe(200);
+
+    expect(getPhoto(inOneToOne)).not.toBeNull();
+    expect(getPhoto(inNamedPost)).not.toBeNull();
+    expect(getPhoto(inAnonymousPost)).not.toBeNull();
+    expect(getPhoto(neverSent)).toBeNull();
+  });
+
+  it("an unsent photo can only be attached for a day, however long since anyone last uploaded", async () => {
+    const { alice, bob, dealershipId } = await setup();
+    const stale = seed(dealershipId, { refId: null, uploadedBy: alice.user.id, createdAt: hoursAgo(30) });
+    const fresh = seed(dealershipId, { refId: null, uploadedBy: alice.user.id, createdAt: hoursAgo(23) });
+
+    // No sweep has run, so the row is still there — but it can no longer be sent.
+    expect(getPhoto(stale)).not.toBeNull();
+    expect((await sendDirect(alice.token, bob.user.id, { message: "x", photoIds: [stale] })).status).toBe(400);
+    expect((await postBoard(alice.token, { message: "x", anonymous: true, photoIds: [stale] })).status).toBe(400);
+    // 23 hours is still inside the window
+    expect((await sendDirect(alice.token, bob.user.id, { message: "x", photoIds: [fresh] })).status).toBe(200);
+  });
+
+  it("at the unsent-photo limit, drafts abandoned hours ago are cleared to make room; fresh ones are not, and other people are unaffected", async () => {
+    const { alice, bob, dealershipId } = await setup();
+    const fresh = Array.from({ length: 20 }, () => seed(dealershipId, { refId: null, uploadedBy: alice.user.id }));
+
+    const blocked = await upload(alice.token);
+    expect(blocked.status).toBe(409);
+    expect(blocked.body.error).toContain("waiting to be sent");
+    // ...but Bob is not held up by Alice's pile
+    expect((await upload(bob.token)).status).toBe(200);
+    expect(fresh.every(id => getPhoto(id) !== null)).toBe(true);
+
+    // A different person at the limit with 15 recent drafts and 5 abandoned from three hours ago:
+    const other = await setup();
+    const recent = Array.from({ length: 15 }, () => seed(other.dealershipId, { refId: null, uploadedBy: other.alice.user.id }));
+    const abandoned = Array.from({ length: 5 }, () =>
+      seed(other.dealershipId, { refId: null, uploadedBy: other.alice.user.id, createdAt: hoursAgo(3) })
+    );
+    expect(countUnattachedMessagePhotos(other.dealershipId, other.alice.user.id)).toBe(20);
+    // A colleague has a three-hour-old draft of their own. It is theirs to keep.
+    const colleagueDraft = seed(other.dealershipId, { refId: null, uploadedBy: other.bob.user.id, createdAt: hoursAgo(3) });
+
+    const ok = await upload(other.alice.token);
+    expect(ok.status).toBe(200); // the abandoned drafts made room
+    expect(abandoned.every(id => getPhoto(id) === null)).toBe(true);
+    expect(recent.every(id => getPhoto(id) !== null)).toBe(true); // nothing recent was touched
+    expect(getPhoto(colleagueDraft)).not.toBeNull(); // clearing room for Alice never touches anyone else's drafts
+  });
+
+  it("stops a dealership using more disk than its share, for message photos and for listing photos", async () => {
+    const { owner, alice, dealershipId } = await setup();
+
+    // 100 bytes of room left in the message-photo allowance
+    seed(dealershipId, { refId: "msg-big", uploadedBy: alice.user.id, size: MAX_MESSAGE_PHOTO_BYTES_PER_DEALERSHIP - 100 });
+    const tooBig = await upload(alice.token, fakeJpeg(200));
+    expect(tooBig.status).toBe(409);
+    expect(tooBig.body.error).toContain("message-photo storage");
+    expect((await upload(alice.token, fakeJpeg(50))).status).toBe(200); // still fits
+
+    // the same for listing photos
+    await request(app).put("/inventory").set(auth(owner.token)).send({ items: [{ id: "car-9", make: "Ford", model: "Ka", images: null, status: "in stock" }] });
+    seed(dealershipId, { kind: "vehicle", refId: "car-9", uploadedBy: alice.user.id, size: MAX_VEHICLE_PHOTO_BYTES_PER_DEALERSHIP - 100 });
+    const vehicleFull = await request(app).post("/inventory/car-9/photos").set(auth(owner.token)).send({ dataUrl: jpegDataUrl(fakeJpeg(200)) });
+    expect(vehicleFull.status).toBe(409);
+    expect(vehicleFull.body.error).toContain("storage limit");
+  });
+
+  it("an older client that sends no photoIds still works: 1:1 and board, with an empty photos list", async () => {
+    const { owner, alice, bob } = await setup();
+
+    for (const extra of [{}, { photoIds: null }, { photoIds: [] }]) {
+      const res = await sendDirect(alice.token, bob.user.id, { message: "just words", ...extra });
+      expect(res.status).toBe(200);
+      expect(res.body.message.photos).toEqual([]);
+      expect("photoIds" in res.body.message).toBe(false);
+    }
+    const inbox = (await request(app).get("/staff-messages").set(auth(bob.token))).body.messages as any[];
+    expect(inbox).toHaveLength(3);
+    expect(inbox.every(m => Array.isArray(m.photos) && m.photos.length === 0 && m.message === "just words")).toBe(true);
+    const notes = await request(app).get("/notifications").set(auth(bob.token));
+    expect(JSON.stringify(notes.body)).toContain("just words");
+
+    const board = await postBoard(alice.token, { message: "no photos here", anonymous: true });
+    expect(board.status).toBe(200);
+    expect(board.body.entry.photos).toEqual([]);
+    expect(board.body.entry.userName).toBeNull();
+    const seen = (await request(app).get("/feedback").set(auth(owner.token))).body.items as any[];
+    expect(seen[0].photos).toEqual([]);
+  });
+
+  it("an anonymous post with several photos leaves nothing anywhere that names the poster; a named post keeps its uploader", async () => {
+    const { owner, alice, dealershipId } = await setup();
+    const ids: string[] = [];
+    for (let i = 0; i < 3; i++) ids.push((await upload(alice.token, fakeJpeg(200 + i))).body.photo.id);
+    // before posting, the uploader is recorded (that's what lets only they attach it)
+    expect(ids.every(id => getPhoto(id)!.uploadedBy === alice.user.id)).toBe(true);
+
+    const anon = await postBoard(alice.token, { message: "Concern", anonymous: true, photoIds: ids });
+    expect(anon.status).toBe(200);
+    for (const id of ids) {
+      const row = getPhoto(id)!;
+      expect(row.uploadedBy).toBeNull();
+      expect(row.refId).toBe(anon.body.entry.id);
+      expect(row.dealershipId).toBe(dealershipId);
+    }
+    const everything = JSON.stringify((await request(app).get("/feedback").set(auth(owner.token))).body);
+    expect(everything).not.toContain(alice.user.id);
+    expect(everything).not.toContain(alice.email);
+
+    const named = (await upload(alice.token)).body.photo.id as string;
+    const namedPost = await postBoard(alice.token, { message: "Named", photoIds: [named] });
+    expect(namedPost.status).toBe(200);
+    expect(getPhoto(named)!.uploadedBy).toBe(alice.user.id);
+    expect(getPhoto(named)!.refId).toBe(namedPost.body.entry.id);
+  });
+
+  it("the board comes back newest-first from a status change, exactly as from a plain fetch", async () => {
+    const { owner, dealershipId } = await setup();
+    const entry = (id: string, createdAt: string) => ({ id, userId: null, userName: null, message: id, status: "new", createdAt });
+    // stored oldest-first, as the server appends them
+    writeTenantCollection(dealershipId, "feedback", [
+      entry("a-oldest", "2026-09-01T10:00:00.000Z"),
+      entry("b-middle", "2026-09-02T10:00:00.000Z"),
+      entry("c-newest", "2026-09-03T10:00:00.000Z"),
+    ]);
+    const plain = ((await request(app).get("/feedback").set(auth(owner.token))).body.items as any[]).map(i => i.id);
+    const afterChange = await request(app).put("/feedback/a-oldest/status").set(auth(owner.token)).send({ status: "reviewed" });
+    expect(afterChange.status).toBe(200);
+    const changed = (afterChange.body.items as any[]).map(i => i.id);
+    expect(plain).toEqual(["c-newest", "b-middle", "a-oldest"]);
+    expect(changed).toEqual(plain);
+  });
+
+  it("if a message cannot be saved after its photos were attached, they can be released (detach), and only those", async () => {
+    const { alice, dealershipId } = await setup();
+    const inLost = seed(dealershipId, { refId: "m-lost", uploadedBy: alice.user.id });
+    const inKept = seed(dealershipId, { refId: "m-kept", uploadedBy: alice.user.id });
+    const listing = seed(dealershipId, { kind: "vehicle", refId: "m-lost", uploadedBy: alice.user.id });
+
+    detachMessagePhotos(dealershipId, "m-lost");
+    expect(getPhoto(inLost)!.refId).toBeNull();
+    expect(getPhoto(inKept)!.refId).toBe("m-kept");
+    expect(getPhoto(listing)!.refId).toBe("m-lost"); // a listing photo is never a message photo
+  });
+
+  it("the access log never contains a photo link's signature", async () => {
+    const { alice, bob } = await setup();
+    const photo = (await upload(alice.token)).body.photo.id as string;
+    await sendDirect(alice.token, bob.user.id, { message: "x", photoIds: [photo] });
+    const link = ((await request(app).get("/staff-messages").set(auth(bob.token))).body.messages[0].photos[0].url) as string;
+    const sig = new URL(link).searchParams.get("sig")!;
+
+    const written: string[] = [];
+    const spy = vi.spyOn(process.stdout, "write").mockImplementation(((chunk: unknown) => {
+      written.push(String(chunk));
+      return true;
+    }) as typeof process.stdout.write);
+    try {
+      const res = await request(app).get(pathOf(link));
+      expect(res.status).toBe(200);
+      await new Promise(resolve => setTimeout(resolve, 100)); // let the logger write its line
+    } finally {
+      spy.mockRestore();
+    }
+    const log = written.join("");
+    expect(log).toContain(`/photos/${photo}.jpg`); // the request WAS logged...
+    expect(log).not.toContain(sig); // ...without its credential
+    expect(log).toContain("[redacted]");
   });
 });

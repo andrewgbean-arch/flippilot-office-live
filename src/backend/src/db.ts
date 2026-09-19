@@ -181,8 +181,10 @@ export function deleteTenantData(dealershipId: string): void {
    was enough to stop stock saving. Now the bytes live here, one row per
    photo, and the vehicle only carries a short URL to it.
 
-   `kind` says what a photo belongs to ("vehicle" now; message
-   attachments later) and `ref_id` which one (a vehicle id).
+   `kind` says what a photo belongs to: "vehicle" (a public listing
+   photo, ref_id = the vehicle id) or "message" (private, attached to a 1:1
+   message or a team-board post; ref_id = that message's id, or NULL
+   while it is uploaded but not yet sent).
 -------------------------------------------------- */
 db.exec(`
   CREATE TABLE IF NOT EXISTS photos (
@@ -287,4 +289,110 @@ export function purgeOrphanVehiclePhotos(
     if (deletePhoto(dealershipId, photo.id)) removed += 1;
   }
   return removed;
+}
+
+// ---- message photos (kind "message") ----
+// A message photo is uploaded first (unattached: ref_id NULL, uploaded_by =
+// the sender) and attached to a message when that message is sent.
+
+// All or nothing: every id must be an unattached message photo in this
+// dealership uploaded by THIS user, otherwise nothing is attached. For an
+// anonymous post the uploader is cleared as it's attached, so nothing in
+// the database links an anonymous post back to a person.
+// A photo older than `notOlderThanIso` can no longer be attached: an unsent
+// photo records its uploader, so that window is deliberately bounded rather
+// than depending on when the next sweep happens to run.
+export function attachMessagePhotos(
+  dealershipId: string,
+  userId: string,
+  photoIds: string[],
+  refId: string,
+  anonymous: boolean,
+  notOlderThanIso: string
+): boolean {
+  if (photoIds.length === 0) return true;
+
+  const check = db.prepare(
+    `SELECT id FROM photos
+     WHERE id = ? AND dealership_id = ? AND kind = 'message' AND ref_id IS NULL AND uploaded_by = ?
+       AND created_at >= ?`
+  );
+  for (const id of photoIds) {
+    if (!check.get(id, dealershipId, userId, notOlderThanIso)) return false;
+  }
+
+  const attach = db.prepare("UPDATE photos SET ref_id = ?, uploaded_by = ? WHERE id = ?");
+  db.exec("BEGIN");
+  try {
+    for (const id of photoIds) attach.run(refId, anonymous ? null : userId, id);
+    db.exec("COMMIT");
+  } catch (err) {
+    db.exec("ROLLBACK");
+    throw err;
+  }
+  return true;
+}
+
+// If the message that was about to carry these photos could not be saved,
+// let them go back to being unsent (and so sweepable) instead of leaving
+// them attached to a message that does not exist.
+export function detachMessagePhotos(dealershipId: string, refId: string): void {
+  db.prepare("UPDATE photos SET ref_id = NULL WHERE dealership_id = ? AND kind = 'message' AND ref_id = ?").run(
+    dealershipId,
+    refId
+  );
+}
+
+// Total stored size of one kind of photo for a dealership.
+export function photoBytes(dealershipId: string, kind: PhotoKind): number {
+  const row = db
+    .prepare("SELECT COALESCE(SUM(size), 0) AS n FROM photos WHERE dealership_id = ? AND kind = ?")
+    .get(dealershipId, kind) as unknown as { n: number };
+  return row.n;
+}
+
+// One person's own unsent photos older than the cutoff: drafts they walked
+// away from. Cleared when they are at their limit and need the room.
+export function purgeAbandonedUnsentPhotos(dealershipId: string, userId: string, olderThanIso: string): number {
+  const result = db
+    .prepare(
+      `DELETE FROM photos
+       WHERE dealership_id = ? AND kind = 'message' AND ref_id IS NULL AND uploaded_by = ? AND created_at < ?`
+    )
+    .run(dealershipId, userId, olderThanIso);
+  return Number(result.changes);
+}
+
+export function countUnattachedMessagePhotos(dealershipId: string, userId: string): number {
+  const row = db
+    .prepare(
+      `SELECT COUNT(*) AS n FROM photos
+       WHERE dealership_id = ? AND kind = 'message' AND ref_id IS NULL AND uploaded_by = ?`
+    )
+    .get(dealershipId, userId) as unknown as { n: number };
+  return row.n;
+}
+
+// Someone picked a photo, then changed their mind before sending: only the
+// uploader can throw it away, and only while it's unattached.
+export function deleteUnattachedMessagePhoto(dealershipId: string, userId: string, id: string): boolean {
+  const result = db
+    .prepare(
+      `DELETE FROM photos
+       WHERE id = ? AND dealership_id = ? AND kind = 'message' AND ref_id IS NULL AND uploaded_by = ?`
+    )
+    .run(id, dealershipId, userId);
+  return Number(result.changes) > 0;
+}
+
+// Uploaded but never sent (the app was closed, the send failed and was
+// abandoned). Swept opportunistically on the next upload.
+export function purgeStaleUnattachedMessagePhotos(dealershipId: string, olderThanIso: string): number {
+  const result = db
+    .prepare(
+      `DELETE FROM photos
+       WHERE dealership_id = ? AND kind = 'message' AND ref_id IS NULL AND created_at < ?`
+    )
+    .run(dealershipId, olderThanIso);
+  return Number(result.changes);
 }

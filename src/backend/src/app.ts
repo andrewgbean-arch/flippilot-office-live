@@ -41,6 +41,7 @@ import registerDealershipRoute from "./routes/dealership";
 import registerSupportRoute from "./routes/support";
 import registerBillingRoute, { handleStripeWebhook } from "./routes/billing";
 import { requireAuth } from "./auth";
+import { redactSignedLinks } from "./photoStore";
 import { requireApprovedDealership, requireActiveSubscription, requirePilotBrainAccess } from "./subscriptionGate";
 
 // Express app setup, separated from server.ts's app.listen() call so
@@ -62,6 +63,10 @@ app.post(
 
 app.use(express.json({ limit: "10mb" }));
 app.use(helmet());
+// A private photo's link carries its signature in the query string; without
+// this the access log would hold a working link to every photo fetched in
+// the last day. (Redefines the `url` token the "dev" format prints.)
+morgan.token("url", req => redactSignedLinks((req as { originalUrl?: string }).originalUrl ?? req.url ?? ""));
 app.use(morgan("dev"));
 
 const missingStripeEnv = ["STRIPE_SECRET_KEY", "STRIPE_PRICE_ID"].filter(
@@ -147,6 +152,7 @@ app.use(
     "/jobs",
     "/team",
     "/staff-messages",
+    "/message-photos",
     "/timekeeping",
     "/work-patterns",
     "/leave",
