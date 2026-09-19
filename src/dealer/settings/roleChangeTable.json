@@ -1,0 +1,25 @@
+{
+  "note": "Every from -> to staff role change and whether it is a step DOWN (true), which cancels every shared invite link. Read by the web test (src/dealer/settings/roleLadder.test.ts) and the backend test (src/backend/src/inviteRevocation.test.ts) so the two ladders can never disagree without a test failing. Lowest to highest: general, sales, finance, manager. Rows are [from, to, isDemotion].",
+  "roles": ["general", "sales", "finance", "manager"],
+  "rows": [
+    ["general", "general", false],
+    ["general", "sales", false],
+    ["general", "finance", false],
+    ["general", "manager", false],
+
+    ["sales", "general", true],
+    ["sales", "sales", false],
+    ["sales", "finance", false],
+    ["sales", "manager", false],
+
+    ["finance", "general", true],
+    ["finance", "sales", true],
+    ["finance", "finance", false],
+    ["finance", "manager", false],
+
+    ["manager", "general", true],
+    ["manager", "sales", true],
+    ["manager", "finance", true],
+    ["manager", "manager", false]
+  ]
+}

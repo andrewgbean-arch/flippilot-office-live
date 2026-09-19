@@ -6,7 +6,9 @@ import {
   MANAGE_TEAM_INTRO,
   inviteLinkWarning,
   inviteShareIntro,
+  lowerRolePrompt,
   removeTeammatePrompt,
+  roleLoweredNotice,
 } from "./teamCopy";
 
 // Invite links and removals used to be described untruthfully: the removal
@@ -63,6 +65,34 @@ describe("the invite dialog's link-ready wording", () => {
   });
 });
 
+describe("the question before moving someone to a lower role", () => {
+  const text = lowerRolePrompt("Sarah Bell", "Manager", "Sales");
+
+  it("names the person and both roles", () => {
+    expect(text).toContain("Move Sarah Bell from Manager to Sales?");
+  });
+
+  it("says it also cancels every invite link already shared, and that moving back won't restore them", () => {
+    expect(text).toMatch(/also cancels every invite link you've already shared/i);
+    expect(text).toMatch(/moving them back up won't bring those links back/i);
+    expect(text).toMatch(/create a new link/i);
+  });
+});
+
+describe("the notice after someone has been moved to a lower role", () => {
+  const text = roleLoweredNotice("Sarah Bell", "Sales");
+
+  it("says who is now what, and that the shared links no longer work", () => {
+    expect(text).toContain("Sarah Bell is now Sales");
+    expect(text).toMatch(/invite links you'd already shared no longer work/i);
+    expect(text).toMatch(/create a new link/i);
+  });
+
+  it("is one line", () => {
+    expect(text).not.toContain("\n");
+  });
+});
+
 describe("the Manage Team heading", () => {
   it("still says changes take effect on the person's next click", () => {
     expect(MANAGE_TEAM_INTRO).toMatch(/very next click/i);
@@ -83,6 +113,8 @@ describe("Settings.tsx", () => {
   it("takes the team wording from teamCopy", () => {
     expect(source).toContain('from "./teamCopy"');
     expect(source).toContain("removeTeammatePrompt(");
+    expect(source).toContain("lowerRolePrompt(");
+    expect(source).toContain("roleLoweredNotice(");
     expect(source).toContain("inviteLinkWarning(");
     expect(source).toContain("inviteShareIntro(");
     expect(source).toContain("{MANAGE_TEAM_INTRO}");
