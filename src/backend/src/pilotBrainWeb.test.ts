@@ -444,3 +444,121 @@ describe("chatWithWebSearch", () => {
     expect(fetchMock.mock.calls[0]![0]).toBe("http://127.0.0.1:9999/v1/messages");
   });
 });
+
+// The web-search call can also carry the look_inside tool. A tool call ends
+// the assistant's message and needs its result sent back; a paused search
+// resumes the SAME message. These check the two never get mixed up.
+describe("chatWithWebSearch alongside the look_inside tool", () => {
+  const tool = buildWebSearchTool(WEB_SEARCH_DAILY_CAP);
+  const messages = [{ role: "user", content: "Which cars are ageing, and what are they going for online?" }];
+  const fallbackCall = vi.fn();
+  const execute = vi.fn((_name: string, _input: unknown) => JSON.stringify({ ok: true, records: [{ id: "v1" }] }));
+  const clientTools = { definitions: [{ name: "look_inside" }], execute };
+
+  const reply = (body: unknown, status = 200) => ({ ok: status < 300, status, json: async () => body, text: async () => JSON.stringify(body) });
+  const run = () =>
+    chatWithWebSearch({ apiKey: "k", systemPromptWithWeb: "WITH WEB", systemPromptWithoutWeb: "WITHOUT WEB", messages, tool, clientTools, fallbackCall });
+  const stub = (...bodies: unknown[]) => {
+    const fetchMock = vi.fn();
+    bodies.forEach(b => fetchMock.mockResolvedValueOnce(reply(b)));
+    vi.stubGlobal("fetch", fetchMock);
+    return fetchMock;
+  };
+  const bodyOf = (m: ReturnType<typeof vi.fn>, i: number) => JSON.parse(m.mock.calls[i]![1].body);
+  const useTool = (id: string) => ({ type: "tool_use", id, name: "look_inside", input: { tab: "inventory" } });
+
+  beforeEach(() => {
+    fallbackCall.mockReset().mockResolvedValue("plain fallback answer");
+    execute.mockClear();
+    vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("sends the web search tool AND look_inside together", async () => {
+    const m = stub({ stop_reason: "end_turn", content: [{ type: "text", text: "Answer." }] });
+    const out = await run();
+    expect(bodyOf(m, 0).tools).toEqual([tool, { name: "look_inside" }]);
+    expect(out.text).toBe("Answer.");
+    expect(execute).not.toHaveBeenCalled();
+  });
+
+  it("runs a look_inside call, sends the result back, and carries on to the answer", async () => {
+    const asked = [{ type: "text", text: "Checking stock. " }, useTool("tu_1")];
+    const m = stub({ stop_reason: "tool_use", content: asked }, { stop_reason: "end_turn", content: [{ type: "text", text: "Two cars are ageing." }] });
+
+    const out = await run();
+
+    expect(execute).toHaveBeenCalledWith("look_inside", { tab: "inventory" });
+    const second = bodyOf(m, 1);
+    expect(second.messages).toHaveLength(3);
+    expect(second.messages[1]).toEqual({ role: "assistant", content: asked });
+    expect(second.messages[2]).toEqual({
+      role: "user",
+      content: [{ type: "tool_result", tool_use_id: "tu_1", content: JSON.stringify({ ok: true, records: [{ id: "v1" }] }) }],
+    });
+    expect(second.tools).toEqual([tool, { name: "look_inside" }]);
+    expect(out.webFailed).toBe(false);
+    expect(out.text).toContain("Two cars are ageing.");
+  });
+
+  it("a paused search resumes the SAME assistant message, and a tool call after it starts a new one", async () => {
+    const paused = [{ type: "text", text: "Looking up prices. " }, { type: "server_tool_use", id: "srv_1", name: "web_search", input: { query: "q" } }];
+    const afterPause = [
+      { type: "web_search_tool_result", tool_use_id: "srv_1", content: [{ type: "web_search_result", url: "https://www.gov.uk/x", title: "GOV.UK", encrypted_content: "e" }] },
+      useTool("tu_2"),
+    ];
+    const m = stub(
+      { stop_reason: "pause_turn", content: paused },
+      { stop_reason: "tool_use", content: afterPause },
+      { stop_reason: "end_turn", content: [{ type: "text", text: "Both done." }] }
+    );
+
+    const out = await run();
+
+    // resuming the pause: the paused content alone, unchanged
+    expect(bodyOf(m, 1).messages).toEqual([...messages, { role: "assistant", content: paused }]);
+    // after the tool call: ONE assistant message holding the pause AND the tool call, then the result
+    const third = bodyOf(m, 2).messages;
+    expect(third).toHaveLength(3);
+    expect(third[1]).toEqual({ role: "assistant", content: [...paused, ...afterPause] });
+    expect(third[2].content[0]).toMatchObject({ type: "tool_result", tool_use_id: "tu_2" });
+    expect(out.searches.map(s => s.query)).toEqual(["q"]);
+    expect(out.text).toContain("Both done.");
+  });
+
+  it("holds the limit on lookups in one message, but still answers every call", async () => {
+    const many = Array.from({ length: 9 }, (_, i) => useTool(`t${i}`));
+    const m = stub({ stop_reason: "tool_use", content: many }, { stop_reason: "end_turn", content: [{ type: "text", text: "Done." }] });
+    await run();
+    expect(bodyOf(m, 1).messages[2].content).toHaveLength(9);
+    expect(execute).toHaveBeenCalledTimes(6);
+  });
+
+  it("allows several rounds of lookups in a row before the answer, more than a search alone would", async () => {
+    const m = stub(...Array.from({ length: 5 }, () => ({ stop_reason: "tool_use", content: [useTool("t")] })), { stop_reason: "end_turn", content: [{ type: "text", text: "Finally." }] });
+    const out = await run();
+    expect(out.webFailed).toBe(false);
+    expect(out.text).toContain("Finally.");
+    expect(m).toHaveBeenCalledTimes(6);
+    expect(fallbackCall).not.toHaveBeenCalled();
+  });
+
+  it("never loops forever on tool calls: it gives up and answers without the web or tools", async () => {
+    const m = stub(...Array.from({ length: 20 }, () => ({ stop_reason: "tool_use", content: [useTool("t")] })));
+    const out = await run();
+    expect(out.webFailed).toBe(true);
+    expect(out.text).toBe("plain fallback answer");
+    expect(fallbackCall).toHaveBeenCalledWith("WITHOUT WEB", messages);
+    expect(m.mock.calls.length).toBeLessThanOrEqual(3 + 4 + 1);
+  });
+
+  it("without look_inside configured, a tool_use stop is not acted on (behaviour unchanged)", async () => {
+    const m = stub({ stop_reason: "tool_use", content: [{ type: "text", text: "Text only." }, useTool("t")] });
+    const out = await chatWithWebSearch({ apiKey: "k", systemPromptWithWeb: "W", systemPromptWithoutWeb: "WO", messages, tool, fallbackCall });
+    expect(m).toHaveBeenCalledTimes(1);
+    expect(out.text).toContain("Text only.");
+  });
+});

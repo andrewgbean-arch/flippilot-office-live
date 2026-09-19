@@ -10,6 +10,7 @@ import {
 import {
   readCollection,
   writeCollection,
+  readTenantCollection,
   writeTenantCollection,
   deleteTenantData,
   insertPhoto,
@@ -2123,6 +2124,196 @@ describe("Pilot Brain snapshot — lead sources and per-car profit", () => {
   });
 });
 
+// Pilot Brain can "look inside" the tabs of the app on demand. These run the
+// real chat route against real stored data, with only Anthropic itself
+// stubbed: the model "asks" for a lookup, the backend runs it as the person
+// asking, and what goes back to the model is checked for what it must never
+// contain.
+describe("Pilot Brain — looking inside the tabs", () => {
+  const prevKey = process.env.ANTHROPIC_API_KEY;
+  beforeAll(() => {
+    process.env.ANTHROPIC_API_KEY = "test-key-not-real";
+  });
+  afterAll(() => {
+    if (prevKey === undefined) delete process.env.ANTHROPIC_API_KEY;
+    else process.env.ANTHROPIC_API_KEY = prevKey;
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  const daysAgo = (n: number) => new Date(Date.now() - n * 86400000).toISOString();
+  const day = (n: number) => daysAgo(n).slice(0, 10);
+
+  // Stands in for api.anthropic.com; records every request body sent.
+  function stubAnthropic(responder: (call: number) => { status?: number; body: unknown }) {
+    const calls: any[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: any, init: any) => {
+        if (!String(url).includes("api.anthropic.com")) throw new Error(`unexpected fetch to ${url}`);
+        calls.push(JSON.parse(init.body));
+        const { status = 200, body } = responder(calls.length);
+        return { ok: status < 300, status, json: async () => body, text: async () => JSON.stringify(body) };
+      })
+    );
+    return calls;
+  }
+  const chat = (token: string, message = "How are we doing?") =>
+    request(app).post("/pilot-brain/chat").set("Authorization", `Bearer ${token}`).send({ message });
+  const lookup = (id: string, input: object) => ({
+    stop_reason: "tool_use",
+    content: [{ type: "text", text: "Let me look. " }, { type: "tool_use", id, name: "look_inside", input }],
+  });
+  const final = (text: string) => ({ stop_reason: "end_turn", content: [{ type: "text", text }] });
+  const resultOf = (call: any, i = 0) => JSON.parse(call.messages.at(-1).content[i].content);
+
+  function seed(dealershipId: string) {
+    writeTenantCollection(dealershipId, "vehicles", [
+      { id: "v1", reg: "AB12CDE", year: 2019, make: "BMW", model: "3 Series", mileage: 42000, status: "in stock", priceRetail: 12995, buyPrice: 9000, createdAt: daysAgo(70), notes: "PRIVATE VEHICLE NOTE", images: ["data:image/png;base64,PRIVATEPIC"] },
+    ]);
+    writeTenantCollection(dealershipId, "leads", [
+      { id: "l1", name: "Private Person", phone: "07700900777", email: "private.person@example.test", notes: "PRIVATE LEAD NOTE", source: "AutoTrader", status: "won", vehicleInterest: "BMW 3 Series", createdAt: daysAgo(5), income: 88888 },
+    ]);
+    writeTenantDoc(dealershipId, "bookkeeping", {
+      purchases: [{ id: "p1", vehicleId: "v1", purchasePrice: 9000, date: day(60) }],
+      sales: [{ id: "s1", vehicleId: "v1", salePrice: 12500, date: day(10), buyer: "Private Buyer", buyerEmail: "private.buyer@example.test", buyerPhone: "07700900888", invoiceNumber: "INV-PRIVATE" }],
+      costs: [{ id: "c1", vehicleId: "v1", type: "parts", amount: 240, date: day(20) }],
+      transactions: [{ type: "expense", category: "Wages", amount: 777777, date: day(3) }],
+    });
+  }
+  const PRIVATE = ["PRIVATE", "Private Person", "07700900", "example.test", "88888", "INV-", "777777", "Wages"];
+
+  it("runs the lookup as the person asking, on real stored data, and hands the model none of the people in it", async () => {
+    const owner = await signup("look-inside-owner");
+    const id = owner.user.dealershipId;
+    seed(id);
+    const before = JSON.stringify([readTenantCollection(id, "vehicles"), readTenantCollection(id, "leads")]);
+
+    const calls = stubAnthropic(n => ({ body: n === 1 ? lookup("tu_1", { tab: "leads" }) : final("AutoTrader converted your lead.") }));
+    const res = await chat(owner.token, "Which lead sources are working?");
+
+    expect(res.status).toBe(200);
+    expect(res.body.message.content).toBe("AutoTrader converted your lead."); // the "Let me look" chatter isn't shown
+    expect(calls).toHaveLength(2);
+    expect(calls[0].tools.map((t: any) => t.name)).toEqual(["look_inside"]);
+    expect(calls[0].system).toContain("LOOKING INSIDE THE APP");
+
+    const result = resultOf(calls[1]);
+    expect(result).toMatchObject({ ok: true, tab: "leads", total: 1 });
+    expect(result.records[0]).toMatchObject({ source: "AutoTrader", status: "won", vehicleInterest: "BMW 3 Series" });
+    for (const secret of PRIVATE) expect(JSON.stringify(calls[1].messages), `must not contain ${secret}`).not.toContain(secret);
+
+    // reading only: nothing was changed
+    expect(JSON.stringify([readTenantCollection(id, "vehicles"), readTenantCollection(id, "leads")])).toBe(before);
+  });
+
+  it("gives an owner the ledger, joined to the car, with no buyer details and no wages", async () => {
+    const owner = await signup("look-inside-ledger");
+    seed(owner.user.dealershipId);
+    const calls = stubAnthropic(n =>
+      n === 1
+        ? { body: { stop_reason: "tool_use", content: [
+            { type: "tool_use", id: "a", name: "look_inside", input: { tab: "bookkeeping", section: "sales" } },
+            { type: "tool_use", id: "b", name: "look_inside", input: { tab: "bookkeeping", section: "costs" } },
+            { type: "tool_use", id: "c", name: "look_inside", input: { tab: "inventory" } },
+          ] } }
+        : { body: final("Done.") }
+    );
+    await chat(owner.token);
+
+    expect(resultOf(calls[1], 0).records[0]).toEqual({ vehicleId: "v1", vehicle: "2019 BMW 3 Series", salePrice: 12500, date: day(10) });
+    expect(resultOf(calls[1], 1).records[0]).toMatchObject({ vehicle: "2019 BMW 3 Series", type: "parts", amount: 240 });
+    expect(resultOf(calls[1], 2).records[0]).toMatchObject({ reg: "AB12CDE", askingPrice: 12995, buyPrice: 9000 }); // owner sees the buy price
+    for (const secret of PRIVATE) expect(JSON.stringify(calls[1].messages), `must not contain ${secret}`).not.toContain(secret);
+  });
+
+  it("follows the ROLE of whoever is asking: a sales member is refused the ledger even if the model asks", async () => {
+    const owner = await signup("look-inside-roles");
+    seed(owner.user.dealershipId);
+    const sales = await joinStaff(owner.token, "sales");
+
+    const calls = stubAnthropic(n =>
+      n === 1
+        ? { body: { stop_reason: "tool_use", content: [
+            { type: "tool_use", id: "a", name: "look_inside", input: { tab: "bookkeeping", section: "sales" } },
+            { type: "tool_use", id: "b", name: "look_inside", input: { tab: "inventory" } },
+          ] } }
+        : { body: final("I can't open the ledger for you.") }
+    );
+    const res = await chat(sales.token);
+
+    expect(res.status).toBe(200);
+    // told, plainly, what this person can't open — and the tool isn't even offered it
+    expect(calls[0].system).toContain("Their role doesn't let them open: bookkeeping");
+    expect(calls[0].tools[0].input_schema.properties.tab.enum).not.toContain("bookkeeping");
+    // and the direct request is refused
+    const refused = resultOf(calls[1], 0);
+    expect(refused.ok).toBe(false);
+    expect(refused.error).toContain("isn't allowed to open the bookkeeping tab");
+    expect(JSON.stringify(refused)).not.toContain("12500");
+    // what they CAN open, they get, without the buy price
+    const car = resultOf(calls[1], 1).records[0];
+    expect(car).toMatchObject({ reg: "AB12CDE", askingPrice: 12995 });
+    expect(car).not.toHaveProperty("buyPrice");
+  });
+
+  it("never mixes in another dealership's records", async () => {
+    const a = await signup("look-inside-a");
+    const b = await signup("look-inside-b");
+    writeTenantCollection(b.user.dealershipId, "vehicles", [{ id: "b1", reg: "OTHERDEALER1", make: "Audi", model: "A4", status: "in stock", createdAt: daysAgo(1) }]);
+    writeTenantCollection(a.user.dealershipId, "vehicles", [{ id: "a1", reg: "MYOWNCAR1", make: "Kia", model: "Ceed", status: "in stock", createdAt: daysAgo(1) }]);
+
+    const calls = stubAnthropic(n => ({ body: n === 1 ? lookup("t", { tab: "inventory" }) : final("Ok.") }));
+    await chat(a.token);
+
+    const text = JSON.stringify(calls[1].messages);
+    expect(text).toContain("MYOWNCAR1");
+    expect(text).not.toContain("OTHERDEALER1");
+  });
+
+  it("works with web access switched on too: both tools are sent, and a lookup mid-answer is handled", async () => {
+    const owner = await signup("look-inside-web");
+    seed(owner.user.dealershipId);
+    await request(app).put("/pilot-brain/web-access").set("Authorization", `Bearer ${owner.token}`).send({ enabled: true });
+
+    const calls = stubAnthropic(n => ({ body: n === 1 ? lookup("tu_w", { tab: "inventory" }) : final("Your BMW is 70 days old.") }));
+    const res = await chat(owner.token, "Is my BMW ageing?");
+
+    expect(res.status).toBe(200);
+    expect(res.body.message.content).toContain("Your BMW is 70 days old.");
+    expect(calls[0].tools.map((t: any) => t.name)).toEqual(["web_search", "look_inside"]);
+    expect(calls[0].system).toContain("WEB ACCESS (live");
+    expect(calls[0].system).toContain("LOOKING INSIDE THE APP");
+    expect(resultOf(calls[1]).records[0]).toMatchObject({ reg: "AB12CDE" });
+  });
+
+  it("still answers if the API rejects the tool request, and the fallback prompt doesn't mention a tool it can't use", async () => {
+    const owner = await signup("look-inside-fallback");
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const calls = stubAnthropic(n => (n === 1 ? { status: 400, body: { error: "tools not allowed" } } : { body: final("Plain answer.") }));
+
+    const res = await chat(owner.token);
+
+    expect(res.status).toBe(200);
+    expect(res.body.message.content).toBe("Plain answer.");
+    expect(calls).toHaveLength(2);
+    expect(calls[0].tools).toBeDefined();
+    expect(calls[1].tools).toBeUndefined();
+    expect(calls[0].system).toContain("LOOKING INSIDE THE APP");
+    expect(calls[1].system).not.toContain("LOOKING INSIDE THE APP");
+  });
+
+  it("says plainly which tabs are never opened, whoever asks", async () => {
+    const owner = await signup("look-inside-never");
+    const calls = stubAnthropic(() => ({ body: final("Ok.") }));
+    await chat(owner.token);
+    expect(calls[0].system).toContain("the customer database, the diary, private and team messages, timekeeping and leave, staff pay and billing");
+    expect(calls[0].system).toContain("you cannot change anything from here");
+  });
+});
+
 // Pay summary — gross pay for clocked hours at an owner-set rate. This is
 // other people's wages, so the tests are mostly about who can see what:
 // rates are owner-only (and deliberately NOT on the work pattern, which
@@ -3360,7 +3551,9 @@ describe("Pilot Brain web access", () => {
     expect(res.status).toBe(200);
     expect(res.body.message.content).toBe("A plain answer from your own data.");
     expect(calls).toHaveLength(1);
-    expect(calls[0].tools).toBeUndefined();
+    // no web search tool; the look_inside tool (own records) is still offered
+    expect((calls[0].tools ?? []).some((t: any) => String(t.type ?? "").startsWith("web_search"))).toBe(false);
+    expect((calls[0].tools ?? []).map((t: any) => t.name)).toEqual(["look_inside"]);
     expect(calls[0].system).toContain("WEB ACCESS: not switched on");
   });
 
@@ -3432,7 +3625,7 @@ describe("Pilot Brain web access", () => {
     const res = await chat(dealer.token);
 
     expect(res.status).toBe(200);
-    expect(calls[0].tools).toBeUndefined();
+    expect((calls[0].tools ?? []).some((t: any) => String(t.type ?? "").startsWith("web_search"))).toBe(false);
     expect(calls[0].system).toContain("allowance has been used up");
   });
 

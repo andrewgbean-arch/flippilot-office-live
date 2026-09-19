@@ -27,6 +27,8 @@ import { summariseStock } from "../engines/stockList";
 import { summariseCostBreakdown } from "../engines/costBreakdown";
 import { summarisePreparedActions, PREPARED_ACTIONS_COLLECTION } from "../engines/preparedActions";
 import { appMapPromptSection, roadmapPromptSection } from "../pilotBrainGuide";
+import { lookInsidePromptSection } from "../pilotBrainTabs";
+import { buildClientTools, chatWithTools, tenantTabSource } from "../pilotBrainTools";
 import { buildMarketSummaryFromStorage, getStoredMarketData } from "./marketIntelligence";
 import { computeStrategicHealth } from "../engines/cofounderEngine";
 import { computeAllGoalProgress } from "./cofounder";
@@ -601,6 +603,13 @@ export default function registerPilotBrainRoute(app: Express) {
     const webMode = webAccessMode(webState, nowMs);
     const chatMessages = [...recentHistory, userMsg].map(m => ({ role: m.role, content: m.content }));
 
+    // The look_inside tool runs as the person asking, so what it may open
+    // follows THEIR role, not the dealership's. Its instructions are only
+    // added to prompts that actually carry the tool, so a fallback call
+    // without it never claims to have looked anything up.
+    const clientTools = buildClientTools(user, tenantTabSource(user.dealershipId));
+    const toolSection = lookInsidePromptSection(user);
+
     let rawReply: string;
     let sourcesFooter = "";
     let webNote = "";
@@ -608,10 +617,11 @@ export default function registerPilotBrainRoute(app: Express) {
       if (webMode === "on") {
         const outcome = await chatWithWebSearch({
           apiKey,
-          systemPromptWithWeb: `${systemPrompt}\n${webAccessPromptSection("on")}`,
+          systemPromptWithWeb: `${systemPrompt}\n${webAccessPromptSection("on")}\n${toolSection}`,
           systemPromptWithoutWeb: `${systemPrompt}\n${webAccessPromptSection("unavailable")}`,
           messages: chatMessages,
           tool: buildWebSearchTool(webSearchesRemaining(webState, nowMs)),
+          clientTools,
           fallbackCall: (prompt, msgs) => callClaude(apiKey, prompt, msgs),
         });
         rawReply = outcome.text;
@@ -626,7 +636,14 @@ export default function registerPilotBrainRoute(app: Express) {
           console.error("pilot-brain/chat: could not record web searches", logErr);
         }
       } else {
-        rawReply = await callClaude(apiKey, `${systemPrompt}\n${webAccessPromptSection(webMode)}`, chatMessages);
+        rawReply = await chatWithTools({
+          apiKey,
+          systemWithTools: `${systemPrompt}\n${webAccessPromptSection(webMode)}\n${toolSection}`,
+          systemWithoutTools: `${systemPrompt}\n${webAccessPromptSection(webMode)}`,
+          messages: chatMessages,
+          tools: clientTools,
+          fallbackCall: (prompt, msgs) => callClaude(apiKey, prompt, msgs),
+        });
       }
     } catch (err) {
       console.error("pilot-brain/chat: Anthropic call failed", err);
