@@ -340,6 +340,27 @@ describe("a different login", () => {
     void h.saver.change([car("x", { priceRetail: 1 })]);
     expect(h.calls[1]!.deletedIds).toEqual([]); // the old login's deletion isn't sent for this one
   });
+
+  it("a save from the previous login finishing late doesn't upset the new login's save that is still on its way", async () => {
+    const h = harness();
+    h.saver.loaded([car("a")]);
+    void h.saver.change([car("a", { priceRetail: 1 })]); // the old login's save (call 0)
+
+    h.saver.reset();
+    h.saver.loaded([car("x")]);
+    void h.saver.change([car("x", { priceRetail: 2 })]); // the new login's save (call 1)
+    expect(h.calls).toHaveLength(2);
+
+    await h.calls[0]!.respond(ok([car("a", { priceRetail: 1 })])); // the old one lands late
+    expect(h.lastStatus().saving).toBe(true); // the new login's save is still on its way
+
+    // Still one at a time: this waits for call 1 rather than starting a third request.
+    void h.saver.change([car("x", { priceRetail: 3 })]);
+    expect(h.calls).toHaveLength(2);
+    await h.calls[1]!.respond(ok([car("x", { priceRetail: 2 })]));
+    expect(h.calls).toHaveLength(3);
+    expect(h.calls[2]!.list[0]).toMatchObject({ id: "x", priceRetail: 3 });
+  });
 });
 
 describe("refreshing (reading the stock again)", () => {
@@ -381,5 +402,24 @@ describe("refreshing (reading the stock again)", () => {
     h.saver.loaded([car("x")]);
     expect(h.saver.adoptRefresh(stamp, [car("a")])).toBe(false);
     expect(ids(h.screen())).toEqual(["x"]);
+  });
+
+  it("is dropped if the dealer edited after the read began, even once that edit has been saved", async () => {
+    const h = harness();
+    h.saver.loaded([car("a", { priceRetail: 100 })]);
+    const stamp = h.saver.stamp(); // the read begins here...
+    void h.saver.change([car("a", { priceRetail: 200 })]); // ...the dealer edits...
+    await h.calls[0]!.respond(ok([car("a", { priceRetail: 200 })])); // ...and that is saved before the read comes back
+    expect(h.saver.hasUnsaved()).toBe(false);
+
+    // The read went out before the edit, so it still holds the old price.
+    expect(h.saver.adoptRefresh(stamp, [car("a", { priceRetail: 100 })])).toBe(false);
+    expect(h.screen()[0]).toMatchObject({ priceRetail: 200 });
+  });
+
+  it("is dropped if this login's stock hasn't loaded yet", () => {
+    const h = harness();
+    expect(h.saver.adoptRefresh(h.saver.stamp(), [car("a")])).toBe(false);
+    expect(h.screen()).toEqual([]);
   });
 });
