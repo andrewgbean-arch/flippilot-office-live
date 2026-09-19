@@ -11,6 +11,16 @@
 // bookkeeping was believed to be localStorage-only — that was wrong,
 // see project memory correction; it now reads real sales data below.)
 
+import { toPromptLine } from "../untrustedText";
+
+// A lead's name and an appointment's customer name can be typed by anyone on
+// the internet (the public booking form), and these alert messages travel into
+// Pilot Brain's prompt, its priorities and staff notifications. So the name is
+// shortened to one plain line first — see untrustedText.ts.
+function safeName(name: unknown, fallback: string): string {
+  return toPromptLine(name) || fallback;
+}
+
 export type Severity = "info" | "warning" | "critical";
 
 export interface WatcherAlert {
@@ -93,7 +103,7 @@ export function runWatcher(
         severity: highValue && age >= 3 ? "critical" : "warning",
         category: "lead",
         title: highValue ? "High-value enquiry not followed up" : "Lead not contacted",
-        message: `${lead.name} enquired ${Math.floor(age)} day${Math.floor(age) === 1 ? "" : "s"} ago and hasn't been contacted yet.`,
+        message: `${safeName(lead.name, "An enquirer")} enquired ${Math.floor(age)} day${Math.floor(age) === 1 ? "" : "s"} ago and hasn't been contacted yet.`,
         sourceKey: `lead:uncontacted:${lead.id}`,
       });
     } else if (age >= 14) {
@@ -101,7 +111,7 @@ export function runWatcher(
         severity: "critical",
         category: "lead",
         title: "Lead at high risk of going cold",
-        message: `${lead.name} has been open ${Math.floor(age)} days without reaching a decision.`,
+        message: `${safeName(lead.name, "An enquirer")} has been open ${Math.floor(age)} days without reaching a decision.`,
         sourceKey: `lead:stale:${lead.id}`,
       });
     } else if (age >= 7) {
@@ -109,7 +119,7 @@ export function runWatcher(
         severity: "warning",
         category: "lead",
         title: "Lead needs a follow-up",
-        message: `${lead.name} has been open ${Math.floor(age)} days without reaching a decision.`,
+        message: `${safeName(lead.name, "An enquirer")} has been open ${Math.floor(age)} days without reaching a decision.`,
         sourceKey: `lead:stale:${lead.id}`,
       });
     }
@@ -140,7 +150,7 @@ export function runWatcher(
       severity: "warning",
       category: "appointment",
       title: "Appointment never reviewed",
-      message: `${a.customerName}'s ${String(a.type).replace("_", " ")} on ${a.requestedDate} was never confirmed, declined, or marked complete.`,
+      message: `${safeName(a.customerName, "A customer")}'s ${String(a.type).replace("_", " ")} on ${a.requestedDate} was never confirmed, declined, or marked complete.`,
       sourceKey: `appointment:incomplete:${a.id}`,
     });
   }

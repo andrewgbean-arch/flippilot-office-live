@@ -8,12 +8,9 @@ import {
   type WebAccessState,
   type WebSearchLogEntry,
 } from "@/lib/pilotBrainWebApi";
-
-// The URL comes from a web search result, so only a genuine web link
-// is ever made clickable.
-function isWebLink(url: string): boolean {
-  return /^https?:\/\//i.test(url);
-}
+// The URL comes from a web search result, so only a genuine web link is ever
+// made clickable — the same rule as links in Pilot Brain's own replies.
+import { safeUrl } from "@/pilotbrain/safeUrl";
 
 function hostOf(url: string): string {
   try {
@@ -29,7 +26,7 @@ function when(iso: string): string {
   return d.toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
-function SearchRow({ entry }: { entry: WebSearchLogEntry }) {
+export function SearchRow({ entry }: { entry: WebSearchLogEntry }) {
   return (
     <li className="p-3 rounded bg-black/40 border border-white/10">
       <p className="text-white/90 text-sm break-words">“{entry.query || "(no query recorded)"}”</p>
@@ -43,18 +40,21 @@ function SearchRow({ entry }: { entry: WebSearchLogEntry }) {
       </p>
       {entry.sources.length > 0 && (
         <p className="text-xs mt-1 break-words">
-          {entry.sources.slice(0, 4).map((s, i) => (
-            <span key={s.url}>
-              {i > 0 && <span className="text-white/30"> · </span>}
-              {isWebLink(s.url) ? (
-                <a href={s.url} target="_blank" rel="noopener noreferrer" className="text-yellow-300/90 underline">
-                  {hostOf(s.url)}
-                </a>
-              ) : (
-                <span className="text-white/50">{hostOf(s.url)}</span>
-              )}
-            </span>
-          ))}
+          {entry.sources.slice(0, 4).map((s, i) => {
+            const href = safeUrl(s.url);
+            return (
+              <span key={s.url}>
+                {i > 0 && <span className="text-white/30"> · </span>}
+                {href ? (
+                  <a href={href} target="_blank" rel="noopener noreferrer" className="text-yellow-300/90 underline">
+                    {hostOf(s.url)}
+                  </a>
+                ) : (
+                  <span className="text-white/50">{hostOf(s.url)}</span>
+                )}
+              </span>
+            );
+          })}
         </p>
       )}
     </li>

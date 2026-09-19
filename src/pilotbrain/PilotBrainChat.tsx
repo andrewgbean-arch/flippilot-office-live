@@ -1,34 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { FiMic, FiMicOff, FiVolume2, FiVolumeX } from "react-icons/fi";
-import ReactMarkdown from "react-markdown";
+import AssistantMarkdown from "./AssistantMarkdown";
 import { fetchPilotBrainMessages, sendPilotBrainMessage, fetchSpeech, fetchMorningBriefing, fetchPerformanceReview, fetchTodaysPriorities, clearPilotBrainConversation, OPENAI_VOICES, type OpenAiVoice, type PilotBrainMessage, type ReviewPeriod } from "@/lib/pilotBrainApi";
 import { authHeaders } from "@/lib/authToken";
 import { BASE_URL } from "@/lib/apiBaseUrl";
 import "@/staff/StaffDashboard.css";
 
-// Wendy's replies come back as real markdown (headers, bold, lists,
-// dividers) — rendering it raw showed the literal #/**/--- characters
-// instead of actual formatting. Compact overrides here keep it sized
-// for a chat bubble rather than a full page (default h1/h2 are huge).
-function AssistantMessage({ content }: { content: string }) {
-  return (
-    <ReactMarkdown
-      components={{
-        p: ({ children }) => <p style={{ margin: "0 0 8px" }}>{children}</p>,
-        h1: ({ children }) => <h3 style={{ margin: "4px 0 8px", fontSize: 16, color: "#ffd700" }}>{children}</h3>,
-        h2: ({ children }) => <h4 style={{ margin: "4px 0 6px", fontSize: 15, color: "#ffd700" }}>{children}</h4>,
-        h3: ({ children }) => <h5 style={{ margin: "4px 0 6px", fontSize: 14, color: "#ffd700" }}>{children}</h5>,
-        strong: ({ children }) => <strong style={{ color: "#fff" }}>{children}</strong>,
-        ul: ({ children }) => <ul style={{ margin: "0 0 8px", paddingLeft: 18 }}>{children}</ul>,
-        ol: ({ children }) => <ol style={{ margin: "0 0 8px", paddingLeft: 18 }}>{children}</ol>,
-        li: ({ children }) => <li style={{ marginBottom: 2 }}>{children}</li>,
-        hr: () => <hr style={{ margin: "10px 0", border: "none", borderTop: "1px solid rgba(255,255,255,0.12)" }} />,
-      }}
-    >
-      {content}
-    </ReactMarkdown>
-  );
-}
+// Wendy's replies come back as markdown; AssistantMarkdown.tsx renders it
+// (and is where the rules on images and links live — see the comment there).
 
 // MediaSource lets audio start playing as soon as enough of the stream
 // has arrived, instead of waiting for the whole file — real fix for
@@ -585,7 +564,7 @@ export default function PilotBrainChat() {
                   color: "#f5f7ff",
                 }}
               >
-                {m.role === "assistant" ? <AssistantMessage content={m.content} /> : m.content}
+                {m.role === "assistant" ? <AssistantMarkdown content={m.content} /> : m.content}
               </div>
             ))}
             {sending && (

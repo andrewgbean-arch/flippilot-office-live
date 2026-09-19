@@ -5,6 +5,7 @@ import { readCollection, readTenantCollection, writeTenantCollection, readTenant
 import type { StoredUser, Dealership } from "../auth";
 import { isSampleVehicleId } from "../sampleVehicles";
 import { DEFAULT_BOOKING_SETTINGS, type BookingSettings, type WeekDay } from "./bookingSettings";
+import { toSingleLine, toMultiLine } from "../untrustedText";
 
 export type AppointmentType = "viewing" | "test_drive" | "mot";
 export type AppointmentStatus = "pending" | "confirmed" | "declined" | "completed";
@@ -79,6 +80,46 @@ const publicReadLimiter = rateLimit({
   message: { ok: false, error: "Too many requests — please try again shortly." },
 });
 
+// What a stranger may type into the booking form is stored, shown to staff and
+// (the name) read by Pilot Brain, so every free-text field has a limit and is
+// cleaned before it is kept — see untrustedText.ts.
+const MAX_NAME_CHARS = 80;
+const MAX_NOTES_CHARS = 500;
+const MAX_EMAIL_CHARS = 254; // the longest an email address can legitimately be
+const MAX_PHONE_CHARS = 30;
+
+// undefined: not given. null: given, but not usable. Otherwise the cleaned value.
+function cleanEmail(raw: unknown): string | null | undefined {
+  if (raw === undefined || raw === null) return undefined;
+  if (typeof raw !== "string") return null;
+  const value = toSingleLine(raw, MAX_EMAIL_CHARS + 1);
+  if (!value) return undefined;
+  if (value.length > MAX_EMAIL_CHARS) return null;
+  return /^[^\s@<>()[\]\\,;:"]+@[^\s@<>()[\]\\,;:"]+$/.test(value) ? value : null;
+}
+
+function cleanPhone(raw: unknown): string | null | undefined {
+  if (raw === undefined || raw === null) return undefined;
+  if (typeof raw !== "string") return null;
+  const value = toSingleLine(raw, MAX_PHONE_CHARS + 1);
+  if (!value) return undefined;
+  if (value.length > MAX_PHONE_CHARS) return null;
+  return (value.match(/\d/g) ?? []).length >= 5 ? value : null;
+}
+
+// Today's date (yyyy-mm-dd) on a clock in the UK, where these dealers trade —
+// a booking is "in the past" by UK dates, not by the server's own time zone.
+export function londonToday(now: number = Date.now()): string {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/London",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date(now));
+  const part = (type: string) => parts.find(p => p.type === type)?.value ?? "";
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
 function findDealership(dealershipId: string): Dealership | undefined {
   return readCollection<Dealership>("dealerships").find(d => d.id === dealershipId);
 }
@@ -92,7 +133,10 @@ const WEEKDAY_BY_GETDAY: WeekDay[] = ["sun", "mon", "tue", "wed", "thu", "fri", 
 function weekdayFor(dateStr: string): WeekDay | null {
   const [y, m, d] = dateStr.split("-").map(Number);
   if (!y || !m || !d) return null;
-  return WEEKDAY_BY_GETDAY[new Date(y, m - 1, d).getDay()] ?? null;
+  const day = new Date(y, m - 1, d);
+  // 2026-02-30 or 2026-13-01 would quietly roll over into some other date.
+  if (day.getFullYear() !== y || day.getMonth() !== m - 1 || day.getDate() !== d) return null;
+  return WEEKDAY_BY_GETDAY[day.getDay()] ?? null;
 }
 
 function toMinutes(hhmm: string): number {
@@ -122,6 +166,7 @@ function allSlotsFor(settings: BookingSettings, weekday: WeekDay): string[] {
 function availableSlotsFor(dealershipId: string, date: string): string[] {
   const weekday = weekdayFor(date);
   if (!weekday) return [];
+  if (date < londonToday()) return []; // a day that has already gone has no times left to offer
   const settings = readTenantDoc<BookingSettings>(dealershipId, "bookingSettings", DEFAULT_BOOKING_SETTINGS);
   if (settings.closedDates?.includes(date)) return [];
   const all = allSlotsFor(settings, weekday);
@@ -224,12 +269,19 @@ export default function registerPublicBookingRoute(app: Express) {
       return res.status(404).json({ ok: false, error: "Dealership not found" });
     }
 
-    const { vehicleId, customerVehicleReg, customerName, customerPhone, customerEmail, type, requestedDate, requestedTime, notes } =
+    const { vehicleId, customerVehicleReg, customerName: rawName, customerPhone: rawPhone, customerEmail: rawEmail, type, requestedDate, requestedTime, notes: rawNotes } =
       req.body ?? {};
 
+    // Every free-text field is cleaned and capped before it is used or kept:
+    // this route is open to the whole internet and what is typed here is later
+    // shown to staff and read by Pilot Brain.
+    const customerName = toSingleLine(rawName, MAX_NAME_CHARS);
+    const customerPhone = cleanPhone(rawPhone);
+    const customerEmail = cleanEmail(rawEmail);
+    const notes = toMultiLine(rawNotes, MAX_NOTES_CHARS);
+
     if (
-      typeof customerName !== "string" ||
-      !customerName.trim() ||
+      !customerName ||
       (type !== "viewing" && type !== "test_drive" && type !== "mot") ||
       typeof requestedDate !== "string" ||
       !/^\d{4}-\d{2}-\d{2}$/.test(requestedDate) ||
@@ -238,8 +290,20 @@ export default function registerPublicBookingRoute(app: Express) {
     ) {
       return res.status(400).json({ ok: false, error: "Missing or invalid booking details" });
     }
+    if (customerPhone === null) {
+      return res.status(400).json({ ok: false, error: "That phone number doesn't look right" });
+    }
+    if (customerEmail === null) {
+      return res.status(400).json({ ok: false, error: "That email address doesn't look right" });
+    }
     if (!customerPhone && !customerEmail) {
       return res.status(400).json({ ok: false, error: "A phone number or email is required so we can confirm the booking" });
+    }
+    if (weekdayFor(requestedDate) === null) {
+      return res.status(400).json({ ok: false, error: "That doesn't look like a real date" });
+    }
+    if (requestedDate < londonToday()) {
+      return res.status(400).json({ ok: false, error: "That date has already passed — please choose today or a later date." });
     }
 
     // An MOT booking is the customer's OWN car, not a vehicle from this
@@ -296,7 +360,7 @@ export default function registerPublicBookingRoute(app: Express) {
     } else {
       lead = {
         id: randomUUID(),
-        name: customerName.trim(),
+        name: customerName,
         ...(customerPhone ? { phone: customerPhone } : {}),
         ...(customerEmail ? { email: customerEmail } : {}),
         source: "Website Booking",
@@ -314,14 +378,14 @@ export default function registerPublicBookingRoute(app: Express) {
       ...(vehicleId_ ? { vehicleId: vehicleId_ } : {}),
       ...(normalisedCustomerReg ? { customerVehicleReg: normalisedCustomerReg } : {}),
       vehicleLabel,
-      customerName: customerName.trim(),
+      customerName,
       ...(customerPhone ? { customerPhone } : {}),
       ...(customerEmail ? { customerEmail } : {}),
       type,
       requestedDate,
       requestedTime,
       status: "pending",
-      ...(typeof notes === "string" && notes.trim() ? { notes: notes.trim() } : {}),
+      ...(notes ? { notes } : {}),
       leadId: lead.id,
       createdAt: new Date().toISOString(),
     };
@@ -340,7 +404,7 @@ export default function registerPublicBookingRoute(app: Express) {
       id: randomUUID(),
       userId: staff.id,
       title: `New ${typeLabel} request`,
-      message: `${customerName.trim()} — ${vehicleLabel} — ${requestedDate} ${requestedTime}`,
+      message: `${customerName} — ${vehicleLabel} — ${requestedDate} ${requestedTime}`,
       type: "info" as const,
       createdAt: new Date().toISOString(),
       readAt: null,
