@@ -11,6 +11,9 @@
 import { randomUUID } from "crypto";
 import type { AuthUser } from "./auth";
 import { readTenantCollection, readTenantDoc, writeTenantCollection } from "./db";
+// Only the reader. Pilot Brain never writes a decision: the journal is written by
+// people through the Decisions screens (a test keeps this import to listDecisions).
+import { listDecisions } from "./decisionStore";
 import { PREPARED_ACTIONS_COLLECTION } from "./engines/preparedActions";
 import { FILTERED, looksInjected } from "./engines/promptText";
 import {
@@ -38,7 +41,9 @@ export interface ToolChatMessage {
 // The real data behind the tabs, for one dealership.
 export function tenantTabSource(dealershipId: string): TabSource {
   return {
-    list: name => readTenantCollection<unknown>(dealershipId, name),
+    // The Decision Journal has its own collection and reader (newest first,
+    // malformed rows dropped); every other tab is a plain collection.
+    list: name => (name === "decisions" ? listDecisions(dealershipId) : readTenantCollection<unknown>(dealershipId, name)),
     bookkeeping: () => {
       const doc = readTenantDoc<Record<string, unknown>>(dealershipId, "bookkeeping", {});
       return {
