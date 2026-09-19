@@ -1,8 +1,16 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { loadTeam } from "@/jobs/jobStorage.web";
 import type { TeamMember } from "@/jobs/jobTypes";
 import { submitStaffMessage, fetchStaffMessages, type StaffMessage } from "@/lib/staffMessagesApi";
+import {
+  anyUploading,
+  canSendMessage,
+  readyPhotoIds,
+  type PendingMessagePhoto,
+} from "@/lib/messagePhotoAttachments";
+import MessagePhotoAttachments from "@/components/MessagePhotoAttachments";
+import MessagePhotoStrip from "@/components/MessagePhotoStrip";
 import "@/staff/StaffDashboard.css";
 
 // Distinct from "Team Message Board" (FeedbackBoard, visible to
@@ -20,30 +28,59 @@ export default function StaffMessages() {
   const [error, setError] = useState<string | null>(null);
   const [messages, setMessages] = useState<StaffMessage[]>([]);
   const [loading, setLoading] = useState(true);
+  const [photos, setPhotos] = useState<PendingMessagePhoto[]>([]);
+  // The team list, the message list and a send can all land after the person
+  // has left this screen; they're ignored then instead of touching state.
+  const mountedRef = useRef(true);
+  // Two quick clicks can both arrive before React shows `submitting`.
+  const sendingRef = useRef(false);
 
   useEffect(() => {
-    loadTeam().then(members => setTeam(members.filter(m => m.id !== user?.id)));
+    mountedRef.current = true;
+    loadTeam().then(members => {
+      if (mountedRef.current) setTeam(members.filter(m => m.id !== user?.id));
+    });
     load();
+    return () => {
+      mountedRef.current = false;
+    };
   }, []);
 
   async function load() {
     setLoading(true);
     const result = await fetchStaffMessages();
+    if (!mountedRef.current) return;
     setLoading(false);
     if (result.ok) setMessages(result.messages);
   }
 
+  const readyIds = readyPhotoIds(photos);
+  const uploading = anyUploading(photos);
+  // Words or a finished photo, a teammate, nothing still uploading, not already sending.
+  const canSend = canSendMessage({ text: message, photos, hasRecipient: !!toUserId, sending: submitting });
+
   async function handleSend() {
-    if (!toUserId || !message.trim()) return;
+    if (sendingRef.current || !canSend) return;
+    sendingRef.current = true;
     setSubmitting(true);
     setError(null);
-    const result = await submitStaffMessage(toUserId, message.trim());
-    setSubmitting(false);
+    let result: { ok: boolean; error?: string };
+    try {
+      result = await submitStaffMessage(toUserId, message.trim(), readyIds);
+    } finally {
+      sendingRef.current = false;
+      if (mountedRef.current) setSubmitting(false);
+    }
+    if (!mountedRef.current) return;
     if (!result.ok) {
+      // Keep the words and the photos so it can be sent again as it was.
       setError(result.error ?? "Could not send that message — please try again.");
       return;
     }
+    // The photos are part of the message now, so they're just let go of here
+    // (not discarded on the server).
     setMessage("");
+    setPhotos([]);
     load();
   }
 
@@ -84,16 +121,13 @@ export default function StaffMessages() {
                   value={message}
                   onChange={e => setMessage(e.target.value)}
                   rows={4}
-                  placeholder="What's the message?"
+                  placeholder={photos.length > 0 ? "Add a note to go with the photos (optional)" : "What's the message?"}
                 />
+                <MessagePhotoAttachments value={photos} onChange={setPhotos} disabled={submitting} />
                 {error && <p style={{ color: "#ff8080", fontSize: 13 }}>{error}</p>}
                 <div style={{ marginTop: 12 }}>
-                  <button
-                    className="sn-btn sn-btn--gold"
-                    onClick={handleSend}
-                    disabled={submitting || !toUserId || !message.trim()}
-                  >
-                    {submitting ? "Sending…" : "Send Message"}
+                  <button className="sn-btn sn-btn--gold" onClick={handleSend} disabled={!canSend}>
+                    {submitting ? "Sending…" : uploading ? "Uploading photos…" : "Send Message"}
                   </button>
                 </div>
               </>
@@ -117,9 +151,12 @@ export default function StaffMessages() {
                       <div className="sn-recent-lead__name">
                         {sentByMe ? `You → ${m.toUserName}` : `${m.fromUserName} → You`}
                       </div>
-                      <p style={{ color: "#f5f7ff", fontSize: 13, margin: "4px 0", whiteSpace: "pre-wrap" }}>
-                        {m.message}
-                      </p>
+                      {m.message?.trim() ? (
+                        <p style={{ color: "#f5f7ff", fontSize: 13, margin: "4px 0", whiteSpace: "pre-wrap" }}>
+                          {m.message}
+                        </p>
+                      ) : null}
+                      <MessagePhotoStrip photos={m.photos} />
                       <div className="sn-recent-lead__status">{new Date(m.createdAt).toLocaleString()}</div>
                     </div>
                     {sentByMe && (

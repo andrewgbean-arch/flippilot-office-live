@@ -14,15 +14,37 @@ export async function loadFeedback(): Promise<FeedbackEntry[]> {
   }
 }
 
+// Like loadFeedback, but a failure comes back as null instead of an empty
+// board, so a refresh can tell "nothing posted" from "couldn't reach the
+// server" and never blanks a board that is already on screen.
+export async function fetchFeedback(): Promise<FeedbackEntry[] | null> {
+  try {
+    const res = await fetch(`${BASE_URL}/feedback`, { headers: authHeaders() });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return Array.isArray(data.items) ? data.items : null;
+  } catch (err) {
+    console.error("fetchFeedback: backend unreachable", err);
+    return null;
+  }
+}
+
+// `photoIds` are photos already uploaded with uploadMessagePhoto(); with at
+// least one, `message` may be empty.
 export async function submitFeedback(input: {
   message: string;
   anonymous: boolean;
+  photoIds?: string[] | undefined;
 }): Promise<{ ok: boolean; error?: string; entry?: FeedbackEntry }> {
   try {
     const res = await fetch(`${BASE_URL}/feedback`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...authHeaders() },
-      body: JSON.stringify(input),
+      body: JSON.stringify({
+        message: input.message,
+        anonymous: input.anonymous,
+        ...(input.photoIds && input.photoIds.length > 0 ? { photoIds: input.photoIds } : {}),
+      }),
     });
     const data = await res.json();
     return { ok: res.ok, error: data.error, entry: data.entry };
