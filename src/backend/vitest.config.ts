@@ -9,6 +9,9 @@ export default defineConfig({
     // signup reads the whole users list, waits ~0.5s for bcrypt, then writes
     // the list back (routes/auth.ts), so two files signing up at once lose
     // each other's accounts and the loser's requests start answering 401.
+    // (The signup race described above is fixed in routes/auth.ts now. This is
+    // still needed: SQLite is opened with no busy timeout, so two files writing
+    // at the same moment fail at random with "database is locked".)
     fileParallelism: false,
     env: {
       ...Object.fromEntries(BLANKED_VARIABLES.map(name => [name, ""])),
