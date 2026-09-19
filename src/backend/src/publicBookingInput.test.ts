@@ -195,7 +195,7 @@ describe("booking phone: one length rule for every value, room for a real number
 describe("booking contact boxes left with a placeholder: 'n/a' is blank, not a mistake", () => {
   const PLACEHOLDERS = [
     "n/a", "N/A", "na", "NA", "none", "None", "no", "No", "-", "--", "?", "x", "X",
-    "no email", "No Email", "no phone", "No Phone", "not applicable", "Not Applicable", "N/A.", "nil",
+    "no email", "No Email", "no phone", "No Phone", "not applicable", "Not Applicable", "N/A.", "n.a", "N.A.", "nil",
   ];
   let n = 0;
 
