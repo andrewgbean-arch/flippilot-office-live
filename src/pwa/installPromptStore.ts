@@ -9,6 +9,11 @@
 //
 // A browser lets one event be used once, so prompt() spends it. "appinstalled"
 // fires when the app has been installed, and there is nothing left to offer.
+//
+// The sign-in and sign-up pages' "Install to your desktop" banner
+// (lib/useInstallPrompt.ts) listens for the same event on its own, but only while
+// one of those pages is showing, so it would miss the signal for anyone who
+// arrives on another page. This store listens from the start of the app.
 
 export type PromptOutcome = "accepted" | "dismissed" | "unavailable";
 

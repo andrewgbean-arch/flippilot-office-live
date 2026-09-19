@@ -264,7 +264,10 @@ describe("the share buttons in the invite dialog", () => {
   });
 
   it("says nothing about a failure unless the share sheet really failed", () => {
-    expect(render({ shareFailed: false })).not.toContain("Couldn't open sharing");
+    // (React writes the apostrophe as &#x27;, so these look for words either side of it)
+    expect(render({ shareFailed: false })).not.toContain('role="alert"');
+    expect(render({ shareFailed: false })).not.toContain("open sharing");
+    expect(render({ mode: "native", shareFailed: true })).toContain('role="alert"');
     expect(render({ mode: "links", shareFailed: true })).toContain("Couldn&#x27;t open sharing");
   });
 });
