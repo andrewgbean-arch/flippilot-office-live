@@ -2397,23 +2397,6 @@ describe("vehicle photos — hosted storage", () => {
     expect((await request(app).get(new URL(url).pathname)).status).toBe(200);
   });
 
-  it("tidies up pictures whose vehicle is gone, but only old ones, and never on an empty save", async () => {
-    const { owner, dealershipId } = await setup(["car-1"]);
-    const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
-    const oldOrphan = seedPhoto(dealershipId, "gone-1", { createdAt: twoDaysAgo });
-    const freshOrphan = seedPhoto(dealershipId, "gone-2");
-    const oldButLive = seedPhoto(dealershipId, "car-1", { createdAt: twoDaysAgo });
-
-    // A broken/empty save must never turn into a mass delete.
-    await savePut(owner.token, []);
-    expect(getPhoto(oldOrphan)).not.toBeNull();
-
-    await savePut(owner.token, [car("car-1")]);
-    expect(getPhoto(oldOrphan)).toBeNull(); // old, and its vehicle is gone
-    expect(getPhoto(freshOrphan)).not.toBeNull(); // young: might just be a stale screen
-    expect(getPhoto(oldButLive)).not.toBeNull(); // its vehicle still exists
-  });
-
   it("the public address only serves listing photos, by real id, and reports the true image type", async () => {
     const { owner, dealershipId } = await setup();
     const url: string = (await upload(owner.token, "car-1", jpegDataUrl())).body.photo.url;

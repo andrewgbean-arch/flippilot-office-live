@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from "react";
 
 import { loadInventoryFromServer, saveInventoryToServer } from "./inventoryStorage.web";
+import { createInventorySaver, sameStatus, type InventorySaver, type SaverStatus } from "./inventorySaver";
 
 import type { Vehicle } from "../types/Vehicle";
 
@@ -19,6 +20,12 @@ interface InventoryContextType {
   // empty in that state and nothing is saved until a retry succeeds.
   loadError: boolean;
   refreshInventory: () => void;
+  // Why the latest changes to stock couldn't be saved (null when all is
+  // well). The changes stay on screen: every later edit, and retrySave,
+  // tries again.
+  saveError: string | null;
+  isSaving: boolean;
+  retrySave: () => void;
 
   updateVehicleMOT: (vehicleId: string, motData: Vehicle["mot"]) => void;
   updateVehicleSale: (vehicleId: string, sellPrice: number) => void;
@@ -61,28 +68,44 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<SaverStatus>({ saving: false, error: null, unsaved: false });
   const { addNotification } = useDealerNotifications();
   const { user } = useAuth();
   const motWarnedIds = useRef<Set<string>>(new Set());
 
-  // True only while `vehicles` is known to be THIS login's real stock,
-  // i.e. a load has succeeded for it. Every save replaces the server's
-  // whole stock list with what's in memory, so saving from any other
-  // state — before the first load lands, after a failed one, or while
-  // holding the previous login's cars — would overwrite the wrong thing.
-  const canSave = useRef(false);
+  // Everything about saving lives in the saver (see inventorySaver.ts). It
+  // holds the list and knows whether it is THIS login's real stock, i.e. a
+  // load has succeeded for it — saving from any other state (before the
+  // first load lands, after a failed one, or while holding the previous
+  // login's cars) would write the wrong thing. It remembers which cars the
+  // user has deleted that the server hasn't confirmed yet, saves one request
+  // at a time, keeps everything if a save fails, and takes in the server's
+  // answer without discarding edits made while the save was in flight.
+  // Created once; it only ever calls React's stable setters.
+  const saverRef = useRef<InventorySaver | null>(null);
+  if (saverRef.current === null) {
+    saverRef.current = createInventorySaver({
+      send: saveInventoryToServer,
+      prepare: (list) => list.map((v) => enrichVehicleWithAI(v)),
+      onVehicles: setVehicles,
+      onStatus: (next) => setSaveStatus((prev) => (sameStatus(prev, next) ? prev : next)),
+    });
+  }
+  const saver = saverRef.current;
   // Bumped on every load and on every login change, so a slow response
   // that arrives after the login has changed can't land in the new one.
   const loadSeq = useRef(0);
 
-  function persist(vehiclesToSave: Vehicle[]) {
-    if (!canSave.current) {
+  // Every change to the stock goes through here. `deletedId` is only ever
+  // passed for a car the user deliberately deleted: a saved list that merely
+  // lacks a car never removes it (the list may just be out of date).
+  function commit(next: Vehicle[], deletedId?: string) {
+    if (!saver.isReady()) {
       console.warn(
         "Inventory not saved: the stock hasn't loaded successfully, and saving now would overwrite it."
       );
-      return;
     }
-    saveInventoryToServer(vehiclesToSave);
+    void saver.change(next, deletedId);
   }
 
   // ⭐ MOT EXPIRY WARNINGS
@@ -138,12 +161,26 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
   // A refresh (the header's "Sync AI") is different: memory already
   // holds this login's real stock, so a failed refresh just means it
   // didn't get any fresher — it must not blank the screen or block
-  // saving over a blip. canSave is only ever false when memory ISN'T
+  // saving over a blip. The saver is only ever not ready when memory ISN'T
   // known-real (never loaded, failed first load, or a login change), so
-  // reading it here tells a refresh from a first load.
+  // asking it here tells a refresh from a first load.
+  //
+  // Two more rules, both about not throwing away what the dealer has done:
+  //  - If there are changes the server hasn't confirmed (a save failed, or
+  //    is still on its way), a refresh means "save them again": a save
+  //    answers with the server's whole current list, so it syncs too, while
+  //    reading the list instead couldn't be adopted without discarding them.
+  //  - A refresh that comes back after the dealer has edited something is
+  //    dropped rather than laid over their newer work (see adoptRefresh).
   const loadInventory = async () => {
+    if (saver.isReady() && saver.hasUnsaved()) {
+      await saver.retry();
+      return;
+    }
+
     const seq = ++loadSeq.current;
-    const isRefresh = canSave.current;
+    const isRefresh = saver.isReady();
+    const stamp = saver.stamp();
     setLoading(true);
 
     const fromServer = await loadInventoryFromServer();
@@ -151,7 +188,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
 
     if (fromServer === null) {
       if (!isRefresh) {
-        setVehicles([]);
+        saver.reset();
         setLoadError(true);
       }
       setLoading(false);
@@ -159,8 +196,8 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      setVehicles(fromServer.map(v => enrichVehicleWithAI(v)));
-      canSave.current = true;
+      if (isRefresh) saver.adoptRefresh(stamp, fromServer);
+      else saver.loaded(fromServer);
       setLoadError(false);
     } catch (err) {
       // Real data the AI layer couldn't process: on a first load, fail
@@ -168,7 +205,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
       // invented cars; on a refresh, keep the last good stock.
       console.error("Inventory load failed while preparing vehicles:", err);
       if (!isRefresh) {
-        setVehicles([]);
+        saver.reset();
         setLoadError(true);
       }
     }
@@ -186,12 +223,13 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
   // load.
   useEffect(() => {
     // Whatever is in memory now belongs to whoever was logged in before
-    // (or to nobody) — never to be saved into this account.
-    canSave.current = false;
+    // (or to nobody) — never to be saved into this account. Resetting also
+    // forgets any deletions still waiting to be confirmed and drops a save
+    // still on its way, so neither can land in this login.
+    saver.reset();
 
     if (!user?.dealershipId) {
       loadSeq.current += 1; // drop any load still in flight for the last login
-      setVehicles([]);
       setLoadError(false);
       setLoading(false);
       return;
@@ -202,15 +240,13 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
 
   // ⭐ UPDATE VEHICLE MOT
   function updateVehicleMOT(vehicleId: string, motData: Vehicle["mot"]) {
-    setVehicles(prev => {
-      const updated = prev.map(v =>
+    commit(
+      saver.getList().map(v =>
         v.id === vehicleId
           ? { ...v, mot: motData }
           : v
-      );
-      persist(updated);
-      return updated;
-    });
+      )
+    );
   }
 
   // ⭐ RECORD SALE PRICE
@@ -221,15 +257,13 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
   // sync, so anything reading it from here (Supplier Analytics/Detail)
   // showed £0 profit even after a real sale was recorded.
   function updateVehicleSale(vehicleId: string, sellPrice: number) {
-    setVehicles(prev => {
-      const updated = prev.map(v =>
+    commit(
+      saver.getList().map(v =>
         v.id === vehicleId
           ? { ...v, sellPrice, status: "sold" as Vehicle["status"] }
           : v
-      );
-      persist(updated);
-      return updated;
-    });
+      )
+    );
   }
 
   // ⭐ GENERIC EDIT
@@ -238,21 +272,22 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
   // — a global hook nothing in the codebase ever assigned, so Save/Delete
   // there silently did nothing at all before navigating to a dead route.
   function updateVehicle(vehicleId: string, patch: Partial<Vehicle>) {
-    setVehicles(prev => {
-      const updated = prev.map(v =>
+    commit(
+      saver.getList().map(v =>
         v.id === vehicleId ? { ...v, ...patch } : v
-      );
-      persist(updated);
-      return updated;
-    });
+      )
+    );
   }
 
+  // The ONE way a car is removed. Its id goes to the server as an explicit
+  // deletion (which also removes its hosted photos) and is remembered until
+  // the server confirms it, so a failed save doesn't quietly lose the
+  // deletion. Merely leaving a car out of a saved list deletes nothing.
   function deleteVehicle(vehicleId: string) {
-    setVehicles(prev => {
-      const updated = prev.filter(v => v.id !== vehicleId);
-      persist(updated);
-      return updated;
-    });
+    commit(
+      saver.getList().filter(v => v.id !== vehicleId),
+      vehicleId
+    );
   }
 
   // ⭐ AUTO‑CREATE VEHICLE FROM MOT LOOKUP
@@ -318,11 +353,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
     };
 
     const enriched = enrichVehicleWithAI(newVehicle);
-    setVehicles(prev => {
-      const updated = [...prev, enriched];
-      persist(updated);
-      return updated;
-    });
+    commit([...saver.getList(), enriched]);
 
     return enriched;
   }
@@ -417,11 +448,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
 
   function addManualVehicle(data: Parameters<typeof buildVehicle>[0]): Vehicle {
     const enriched = buildVehicle(data);
-    setVehicles(prev => {
-      const updated = [...prev, enriched];
-      persist(updated);
-      return updated;
-    });
+    commit([...saver.getList(), enriched]);
 
     return enriched;
   }
@@ -430,11 +457,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
   // saves once, instead of one save-to-server call per row.
   function importVehicles(rows: Parameters<typeof buildVehicle>[0][]): Vehicle[] {
     const built = rows.map(buildVehicle);
-    setVehicles(prev => {
-      const updated = [...prev, ...built];
-      persist(updated);
-      return updated;
-    });
+    commit([...saver.getList(), ...built]);
     return built;
   }
 
@@ -445,6 +468,11 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
         loading,
         loadError,
         refreshInventory: loadInventory,
+        saveError: saveStatus.error,
+        isSaving: saveStatus.saving,
+        retrySave: () => {
+          void saver.retry();
+        },
         updateVehicleMOT,
         updateVehicleSale,
         updateVehicle,
