@@ -86,7 +86,7 @@ const publicReadLimiter = rateLimit({
 const MAX_NAME_CHARS = 80;
 const MAX_NOTES_CHARS = 500;
 const MAX_EMAIL_CHARS = 254; // the longest an email address can legitimately be
-const MAX_PHONE_CHARS = 30;
+const MAX_PHONE_CHARS = 40; // room for a mobile and a landline, or a number with an extension
 
 // One address: something, one "@", something. Neither side may hold a space or
 // a character that means something in a mailto: link or a web address (? & = %
@@ -96,23 +96,42 @@ const MAX_PHONE_CHARS = 30;
 // letters of any alphabet are all fine.
 const EMAIL_PATTERN = /^[^\s@<>()[\]\\,;:"?&=%#\/]+@[^\s@<>()[\]\\,;:"?&=%#\/]+$/;
 
-// undefined: not given. null: given, but not usable. Otherwise the cleaned value.
-function cleanEmail(raw: unknown): string | null | undefined {
+// What people type into a contact box they would rather leave empty. It counts
+// as nothing at all, so one placeholder cannot lose a booking that has a good
+// phone number or email (a booking still needs at least one of the two).
+const PLACEHOLDER_CONTACT = /^(?:(?:n\/?a|n\.a|not applicable|none|nil|no|no e-?mail|no phone|x+)\.?|[-?.]+)$/i;
+
+// What the customer is told, on the booking page, when a contact detail is refused.
+const PHONE_ADVICE = `Please give one phone number (at least 5 digits, up to ${MAX_PHONE_CHARS} characters), or leave it blank and give an email instead.`;
+const EMAIL_ADVICE = "Please give one email address in the form name@example.com, or leave it blank and give a phone number instead.";
+
+// What a contact box came to: a cleaned value, nothing at all (not given, or
+// only a placeholder), or something refused, with the advice to show the customer.
+type Contact = { value: string | undefined } | { refused: string };
+
+// undefined: nothing usable given. null: not text, or too long. Otherwise the tidied text.
+function readContact(raw: unknown, max: number): string | null | undefined {
   if (raw === undefined || raw === null) return undefined;
   if (typeof raw !== "string") return null;
-  const value = toSingleLine(raw, MAX_EMAIL_CHARS + 1);
-  if (!value) return undefined;
-  if (value.length > MAX_EMAIL_CHARS) return null;
-  return EMAIL_PATTERN.test(value) ? value : null;
+  // Tidied with a limit far above `max`, so that nothing is cut off here: the
+  // length is judged on all of what was typed. (Cutting first and measuring
+  // after let a value slip through, or lose its second half, depending on
+  // where a space fell.)
+  const value = toSingleLine(raw, max * 4);
+  if (!value || PLACEHOLDER_CONTACT.test(value)) return undefined;
+  return Array.from(value).length > max ? null : value;
 }
 
-function cleanPhone(raw: unknown): string | null | undefined {
-  if (raw === undefined || raw === null) return undefined;
-  if (typeof raw !== "string") return null;
-  const value = toSingleLine(raw, MAX_PHONE_CHARS + 1);
-  if (!value) return undefined;
-  if (value.length > MAX_PHONE_CHARS) return null;
-  return (value.match(/\d/g) ?? []).length >= 5 ? value : null;
+function cleanEmail(raw: unknown): Contact {
+  const value = readContact(raw, MAX_EMAIL_CHARS);
+  if (value === undefined) return { value: undefined };
+  return value !== null && EMAIL_PATTERN.test(value) ? { value } : { refused: EMAIL_ADVICE };
+}
+
+function cleanPhone(raw: unknown): Contact {
+  const value = readContact(raw, MAX_PHONE_CHARS);
+  if (value === undefined) return { value: undefined };
+  return value !== null && (value.match(/\d/g) ?? []).length >= 5 ? { value } : { refused: PHONE_ADVICE };
 }
 
 // Today's date (yyyy-mm-dd) on a clock in the UK, where these dealers trade —
@@ -284,8 +303,8 @@ export default function registerPublicBookingRoute(app: Express) {
     // this route is open to the whole internet and what is typed here is later
     // shown to staff and read by Pilot Brain.
     const customerName = toSingleLine(rawName, MAX_NAME_CHARS);
-    const customerPhone = cleanPhone(rawPhone);
-    const customerEmail = cleanEmail(rawEmail);
+    const phone = cleanPhone(rawPhone);
+    const email = cleanEmail(rawEmail);
     const notes = toMultiLine(rawNotes, MAX_NOTES_CHARS);
 
     if (
@@ -298,14 +317,16 @@ export default function registerPublicBookingRoute(app: Express) {
     ) {
       return res.status(400).json({ ok: false, error: "Missing or invalid booking details" });
     }
-    if (customerPhone === null) {
-      return res.status(400).json({ ok: false, error: "That phone number doesn't look right" });
+    if ("refused" in phone) {
+      return res.status(400).json({ ok: false, error: phone.refused });
     }
-    if (customerEmail === null) {
-      return res.status(400).json({ ok: false, error: "That email address doesn't look right" });
+    if ("refused" in email) {
+      return res.status(400).json({ ok: false, error: email.refused });
     }
+    const customerPhone = phone.value;
+    const customerEmail = email.value;
     if (!customerPhone && !customerEmail) {
-      return res.status(400).json({ ok: false, error: "A phone number or email is required so we can confirm the booking" });
+      return res.status(400).json({ ok: false, error: "Please give a phone number or email so we can confirm the booking." });
     }
     if (weekdayFor(requestedDate) === null) {
       return res.status(400).json({ ok: false, error: "That doesn't look like a real date" });

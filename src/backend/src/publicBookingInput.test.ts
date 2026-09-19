@@ -139,3 +139,128 @@ describe("booking email: nothing that means something in a mailto link or web ad
     expect(res.body.appointment.customerEmail).toBe("padded@example.com");
   });
 });
+
+describe("booking phone: one length rule for every value, room for a real number, and a message that says what to do", () => {
+  // A good email alongside, so it is always the phone number being judged.
+  const withEmail = (customerPhone: unknown, n: number) => ({ customerPhone, customerEmail: `phone-test-${runId}-${n}@example.com` });
+  let n = 0;
+
+  // Real numbers as real customers type them. The first, third, fourth and
+  // fifth were refused or silently cut short when the limit was 30 characters.
+  const REAL_PHONES = [
+    "+44 (0) 1234 567 890 ext. 12345", // 31 characters
+    "Home 01234 567890, Mobile 07700 900123", // 38: two numbers
+    "+44 7700 900123 (mobile, after 6pm)", // 35: used to be stored as "+44 7700 900123 (mobile, after"
+    "Mobile 07700 900123 Home 01234 567890", // 37: used to lose the second number
+    "07700 900123 (mobile) 01234 567890", // 34: used to be refused
+    "0".repeat(40), // exactly the limit
+    "0123456789".repeat(3) + "012345" + "\u{1f4de}".repeat(4), // 36 digits and 4 telephone emoji: 40 characters, though 44 UTF-16 units
+  ];
+
+  it.each(REAL_PHONES)("takes %s and keeps all of it", async phone => {
+    const res = await book(withEmail(phone, n++));
+    expect(res.status, phone).toBe(200);
+    expect(res.body.appointment.customerPhone).toBe(phone);
+    const lead = readTenantCollection<any>(dealershipId, "leads").find(l => l.id === res.body.appointment.leadId);
+    expect(lead.phone).toBe(phone);
+  });
+
+  const TOO_LONG = [
+    "0".repeat(41),
+    "0".repeat(80),
+    // 42 characters, and the 41st is a space: cut to 41 and trimmed it looks like 40, so it used to slip through cut short
+    "0".repeat(40) + " 1",
+    "Home 01234 567890, Mobile 07700 900123, Work 020 7946 0958", // three numbers
+    "0".repeat(39) + "\u{1f4de}\u{1f4de}", // 39 digits and two emoji: 41 characters
+  ];
+
+  it.each(TOO_LONG)("turns down %s (over 40 characters) with a 400 that says what to do, and books nothing", async phone => {
+    const before = appointmentCount();
+    const res = await book(withEmail(phone, n++));
+    expect(res.status, phone).toBe(400);
+    expect(res.body.error).toContain("one phone number");
+    expect(res.body.error).toContain("40 characters");
+    expect(appointmentCount()).toBe(before);
+  });
+
+  it("still turns down a phone number with too few digits, or that is not text, with the same advice", async () => {
+    for (const phone of ["abc", "12", "0770", { $ne: "" }, ["07700900123"], 7700900123]) {
+      const res = await book(withEmail(phone, n++));
+      expect(res.status, JSON.stringify(phone)).toBe(400);
+      expect(res.body.error).toContain("one phone number");
+    }
+  });
+});
+
+describe("booking contact boxes left with a placeholder: 'n/a' is blank, not a mistake", () => {
+  const PLACEHOLDERS = [
+    "n/a", "N/A", "na", "NA", "none", "None", "no", "No", "-", "--", "?", "x", "X",
+    "no email", "No Email", "no phone", "No Phone", "not applicable", "Not Applicable", "N/A.", "nil",
+  ];
+  let n = 0;
+
+  it.each(PLACEHOLDERS)("%s in the email box is treated as blank when there is a good phone number", async placeholder => {
+    const phone = uniquePhone();
+    const res = await book({ customerPhone: phone, customerEmail: placeholder });
+    expect(res.status, placeholder).toBe(200);
+    expect(res.body.appointment.customerPhone).toBe(phone);
+    expect(res.body.appointment).not.toHaveProperty("customerEmail");
+    const lead = readTenantCollection<any>(dealershipId, "leads").find(l => l.id === res.body.appointment.leadId);
+    expect(lead).not.toHaveProperty("email");
+  });
+
+  it.each(PLACEHOLDERS)("%s in the phone box is treated as blank when there is a good email address", async placeholder => {
+    const email = `placeholder-${runId}-${n++}@example.com`;
+    const res = await book({ customerPhone: placeholder, customerEmail: email });
+    expect(res.status, placeholder).toBe(200);
+    expect(res.body.appointment.customerEmail).toBe(email);
+    expect(res.body.appointment).not.toHaveProperty("customerPhone");
+  });
+
+  it("still needs one real way to reach the customer, and says so", async () => {
+    const before = appointmentCount();
+    for (const extra of [
+      { customerPhone: "n/a", customerEmail: "none" },
+      { customerPhone: "-", customerEmail: "-" },
+      { customerPhone: "n/a" },
+      { customerEmail: "n/a" },
+      { customerPhone: "  ", customerEmail: "" },
+      {},
+    ]) {
+      const res = await book(extra);
+      expect(res.status, JSON.stringify(extra)).toBe(400);
+      expect(res.body.error).toContain("phone number or email");
+    }
+    expect(appointmentCount()).toBe(before);
+  });
+
+  it("does not excuse a real mistake in the other box", async () => {
+    const badEmail = await book({ customerPhone: "n/a", customerEmail: "not an email" });
+    expect(badEmail.status).toBe(400);
+    expect(badEmail.body.error).toContain("name@example.com");
+    const badPhone = await book({ customerPhone: "abc", customerEmail: "n/a" });
+    expect(badPhone.status).toBe(400);
+    expect(badPhone.body.error).toContain("one phone number");
+  });
+
+  it("does not mistake a real phone number or email for a placeholder", async () => {
+    // (none of these is one of the words above, but each starts or ends like one)
+    const res = await book({ customerPhone: "07700 900123 no answer after 6", customerEmail: "no.reply.sam@example.com" });
+    expect(res.status).toBe(200);
+    expect(res.body.appointment.customerPhone).toBe("07700 900123 no answer after 6");
+    expect(res.body.appointment.customerEmail).toBe("no.reply.sam@example.com");
+  });
+});
+
+describe("booking email: length, judged before anything is cut", () => {
+  it("takes an address of exactly 254 characters and turns down one of 255", async () => {
+    const domain = "@example.com";
+    const at254 = "a".repeat(254 - domain.length) + domain;
+    const ok = await book({ customerEmail: at254 });
+    expect(ok.status).toBe(200);
+    expect(ok.body.appointment.customerEmail).toBe(at254);
+    const tooLong = await book({ customerEmail: "a" + at254 });
+    expect(tooLong.status).toBe(400);
+    expect(tooLong.body.error).toContain("name@example.com");
+  });
+});
