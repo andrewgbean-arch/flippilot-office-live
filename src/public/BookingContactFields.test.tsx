@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import BookingContactFields, { PHONE_MAX_CHARS, NOTES_MAX_CHARS } from "./BookingContactFields";
 
 // The open booking form used to let a customer type a phone number or a note of
@@ -42,5 +44,12 @@ describe("the phone and note boxes of the booking form", () => {
     expect(html).toContain('type="email"');
     // only the phone box and the note box carry a limit
     expect((html.match(/maxlength=/gi) ?? []).length).toBe(2);
+  });
+
+  it("are the ones the booking page really shows (the page has no phone or note box of its own)", () => {
+    const page = readFileSync(join(__dirname, "PublicBookingPage.tsx"), "utf8");
+    expect(page).toContain("<BookingContactFields");
+    expect(page).not.toContain("<textarea");
+    expect(page).not.toMatch(/value=\{phone\}/);
   });
 });
