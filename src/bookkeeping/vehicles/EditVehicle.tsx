@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { useInventory } from "@/context/InventoryProvider";
@@ -14,6 +14,7 @@ import { compressImageFile } from "@/lib/imageCompress";
 import { generateVehicleDescription } from "@/lib/aiDescription";
 import PhotoEditorModal from "@/lib/PhotoEditorModal";
 import { deleteVehiclePhoto, hostedPhotoId } from "@/lib/vehiclePhotosApi";
+import { createUndoableAction, type UndoableAction } from "@/lib/undoableAction";
 
 interface EditVehicleProps {
   vehicleId: string;
@@ -76,7 +77,32 @@ export default function EditVehicle({ vehicleId }: EditVehicleProps) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showUndoToast, setShowUndoToast] = useState(false);
   const [undoTimer, setUndoTimer] = useState<number>(0);
-  const [pendingDelete, setPendingDelete] = useState(false);
+
+  // The countdown behind "Delete Forever" is its own object (see
+  // undoableAction.ts). It used to be a setInterval in softDeleteVehicle that
+  // read a `pendingDelete` state variable — the value from the render where
+  // the button was clicked, which never changes — so the delete never ran.
+  // The object needs the latest deleteVehicle/navigate when it fires, and
+  // these hooks stay above the "not found" return below, like the rest.
+  const latest = useRef({ deleteVehicle, navigate });
+  useEffect(() => {
+    latest.current = { deleteVehicle, navigate };
+  });
+  const deleteAction = useRef<UndoableAction<string> | null>(null);
+  if (deleteAction.current === null) {
+    deleteAction.current = createUndoableAction<string>({
+      seconds: 10,
+      onTick: setUndoTimer,
+      onCommit: (id, reason) => {
+        latest.current.deleteVehicle(id);
+        // If they have already left this screen, don't pull them back to the list.
+        if (reason === "expired") latest.current.navigate("/dealer/inventory/list");
+      },
+    });
+  }
+  // Leaving the screen with a delete still counting down finishes it: they
+  // confirmed it, and it must not quietly not happen.
+  useEffect(() => () => deleteAction.current?.flush(), [vehicleId]);
 
   /* ============================================================
      ⭐ Profit Calculation
@@ -228,28 +254,13 @@ export default function EditVehicle({ vehicleId }: EditVehicleProps) {
   /* ============================================================
      ⭐ Delete Vehicle (soft delete + undo)
   ============================================================ */
-  const hardDeleteVehicle = () => {
-    deleteVehicle(vehicleId);
-    navigate("/dealer/inventory/list");
-  };
-
+  // "Delete Forever" starts a 10-second countdown; unless they press Undo, the
+  // vehicle is then really deleted (an explicit deletion is sent to the
+  // server, which also removes its photos).
   const softDeleteVehicle = () => {
-    setPendingDelete(true);
     setShowDeleteConfirm(false);
     setShowUndoToast(true);
-    setUndoTimer(10);
-
-    const countdown = setInterval(() => {
-      setUndoTimer((t) => {
-        if (t <= 1) {
-          clearInterval(countdown);
-          if (pendingDelete) {
-            hardDeleteVehicle();
-          }
-        }
-        return t - 1;
-      });
-    }, 1000);
+    deleteAction.current?.start(vehicleId);
   };
 
   return (
@@ -474,7 +485,7 @@ export default function EditVehicle({ vehicleId }: EditVehicleProps) {
 
           <button
             onClick={() => {
-              setPendingDelete(false);
+              deleteAction.current?.undo();
               setShowUndoToast(false);
             }}
             className="bg-yellow-400 text-black font-bold px-4 py-2 rounded-xl hover:bg-yellow-300 transition"
