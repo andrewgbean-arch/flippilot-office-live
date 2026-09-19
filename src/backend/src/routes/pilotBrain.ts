@@ -37,7 +37,7 @@ import {
   type RevenueForecast,
 } from "../engines/superBrainEngine";
 import type { StaffNotification } from "./notifications";
-import { toPromptLine } from "../untrustedText";
+import { toMemoryLine } from "../untrustedText";
 
 interface BookkeepingDoc {
   purchases: { vehicleId: string; purchasePrice: number; date: string }[];
@@ -115,7 +115,7 @@ export function extractRememberTag(rawReply: string): { visible: string; fact: s
   const tags = [...rawReply.matchAll(/<remember>([\s\S]*?)<\/remember>/gi)];
   const last = tags[tags.length - 1];
   const isFinal = last !== undefined && rawReply.slice((last.index ?? 0) + last[0].length).trim() === "";
-  const fact = last !== undefined && isFinal ? toPromptLine(last[1], MAX_MEMORY_CHARS) : "";
+  const fact = last !== undefined && isFinal ? toMemoryLine(last[1], MAX_MEMORY_CHARS) : "";
   const visible = rawReply
     .replace(/<remember>[\s\S]*?<\/remember>/gi, "")
     .replace(/<remember>[\s\S]*$/i, "")
@@ -215,7 +215,7 @@ function buildSystemPrompt(
 ): string {
   // Read back into every prompt, so each remembered fact is kept to one short
   // plain line however it was stored.
-  const knownFacts = memories.map(m => toPromptLine(m, MAX_MEMORY_CHARS)).filter(f => f.length > 0);
+  const knownFacts = memories.map(m => toMemoryLine(m, MAX_MEMORY_CHARS)).filter(f => f.length > 0);
   return [
     `You are Pilot Brain — the business companion built into ${dealershipName}'s FlipPilot Dealer OS.`,
     `You are NOT a generic chatbot or a help-desk bot. You are a trusted digital business partner — closer to a co-founder, advisor and friend than software. There is only ever ONE Pilot Brain — never refer to "modules" or separate brains by name (no "Watcher Brain", "Market Brain", etc.) even though internally your evidence comes from several real sources; to Boss, it's all just you.`,

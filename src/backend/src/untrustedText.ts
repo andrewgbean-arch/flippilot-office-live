@@ -13,6 +13,9 @@
 //    sentence Pilot Brain reads: it also removes link, image, Markdown and
 //    HTML syntax and web addresses, and keeps only letters, marks, numbers,
 //    punctuation, symbols and spaces, so the text is left as plain words.
+//  - toMemoryLine sits between the two, for a fact Pilot Brain is to remember:
+//    the same hidden-character and link/tag clean-up, but it keeps parentheses
+//    and turns "<" and ">" into words, so what was meant survives.
 //
 // Nothing here can make hostile text "safe to obey" — the model is separately
 // told that this kind of text is data, never instructions. What it does is
@@ -152,17 +155,66 @@ function plainCharacters(input: unknown, max: number): string {
     .replace(NOT_PLAIN_TEXT, "");
 }
 
+// Link and image syntax (of which only the visible label is kept), and the web
+// addresses and script-style schemes a link or image would point at.
+const LINK_OR_IMAGE = /!?\[([^\]]*)\]\([^)]*\)/g;
+const SCHEME_URL = /\b(?:https?:\/\/|(?:javascript|vbscript|data|file|mailto):)\S+/gi;
+const WWW_ADDRESS = /\bwww\.\S+/gi;
+
 // For text that is about to be placed inside a sentence Pilot Brain reads: one
 // short line of plain words. Image and link syntax keeps only its visible
 // label, web addresses and script-style schemes are removed, and any leftover
 // Markdown or HTML characters become spaces.
 export function toPromptLine(input: unknown, max: number = PROMPT_NAME_CHARS): string {
   const cleaned = plainCharacters(input, max)
-    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
-    .replace(/\b(?:https?:\/\/|(?:javascript|vbscript|data|file|mailto):)\S+/gi, " ")
-    .replace(/\bwww\.\S+/gi, " ")
+    .replace(LINK_OR_IMAGE, "$1")
+    .replace(SCHEME_URL, " ")
+    .replace(WWW_ADDRESS, " ")
     .replace(MARKUP_CHARS, " ")
     .replace(/\s+/g, " ")
     .trim();
   return truncateChars(cleaned, max);
+}
+
+// A remembered fact (Pilot Brain's long-term memory) goes into the system
+// prompt on every later call and is never drawn on screen, so it gets a lighter
+// clean than a name: what it must lose is anything that could draw a picture or
+// a link or open a tag, not its wording. It is kept as one line of plain
+// characters (the same first stage as toPromptLine); link and image syntax, web
+// addresses and HTML tags are removed and Markdown emphasis marks are dropped.
+// Parentheses stay ("(no waffle)"), and a comparison sign becomes words, so
+// "margin < 10%" is remembered as "margin under 10%" rather than the meaningless
+// "margin 10%". Cut to `max` characters, with an ellipsis to show it was cut.
+const HTML_TAG = /<\/?[a-z!][^>]*>/gi;
+// In a fact, a web address ends before the bracket, quote or full stop that
+// closes the sentence around it, so "(site: https://x.example)" keeps its ")".
+const MEMORY_WEB_ADDRESS = /\b(?:https?:\/\/|www\.)[^\s<>()[\]"']*(?<![.,;:!?])/gi;
+// Emphasis, code and strikethrough marks. (A single "~" is left: it is
+// usually "about", as in "~£5,000".)
+const EMPHASIS_MARKS = /[*_`]|~~/g;
+
+// Cut on whole characters, ending in an ellipsis so it shows the text was cut.
+function cutWithEllipsis(text: string, max: number): string {
+  const chars = Array.from(text);
+  return chars.length <= max ? text : chars.slice(0, max - 1).join("").trimEnd() + "…";
+}
+
+export function toMemoryLine(input: unknown, max: number): string {
+  const cleaned = plainCharacters(input, max)
+    .replace(LINK_OR_IMAGE, "$1") // [label](url) and ![alt](url) keep just the label
+    .replace(MEMORY_WEB_ADDRESS, " ") // https://... and www... go, up to the bracket or full stop that ends them
+    .replace(SCHEME_URL, " ") // javascript:... and the like go whole
+    .replace(HTML_TAG, " ") // <b>, </i>, <script> and the like are dropped
+    .replace(/<=\s*(?=[\d\u{a3}])/gu, " at most ") // "<= 10" reads "at most 10"
+    .replace(/>=\s*(?=[\d\u{a3}])/gu, " at least ") // ">= 10" reads "at least 10"
+    .replace(/<\s*(?=[\d\u{a3}])/gu, " under ") // "< 10" reads "under 10"
+    .replace(/>\s*(?=[\d\u{a3}])/gu, " over ") // "> 10" reads "over 10"
+    .replace(/[<>]/g, " ") // any other stray angle bracket is dropped
+    .replace(/(?<=[\p{L}\p{N}])_(?=[\p{L}\p{N}])/gu, " ") // snake_case reads as two words
+    .replace(EMPHASIS_MARKS, "") // *bold* _italic_ ~~struck~~ `code`
+    .replace(/\s+/g, " ")
+    .replace(/\s+([,.;:!?)])/g, "$1") // no gap left before punctuation where something was removed
+    .replace(/\(\s+/g, "(") // ...or just inside an opening bracket
+    .trim();
+  return cutWithEllipsis(cleaned, max);
 }

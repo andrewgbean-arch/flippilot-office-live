@@ -790,6 +790,32 @@ describe("Pilot Brain treats outside text as data", () => {
       expect(prompt.split("\n").some(l => l.trim() === "-")).toBe(false);
     });
 
+    it("stores a fact with its comparison signs and parentheses in words that still mean the same, and reads it back into the next prompt exactly", async () => {
+      const dealer = await signup("brain-mem-meaning");
+      const reply = "Noted, Boss.\n<remember>Boss wants an alert when stock age > 60 days or margin < 10% (site: https://www.smithmotors.co.uk)</remember>";
+      stubAnthropic(() => ({ body: { stop_reason: "end_turn", content: [{ type: "text", text: reply }] } }));
+      expect((await chat(dealer.token)).status).toBe(200);
+
+      const stored = "Boss wants an alert when stock age over 60 days or margin under 10% (site:)";
+      expect((await memoriesOf(dealer.token)).map(m => m.fact)).toEqual([stored]);
+
+      const calls = stubAnthropic();
+      await chat(dealer.token, "What do you know about me?");
+      expect(linesWith(calls[0].system, "Boss wants an alert")).toEqual([`- ${stored}`]);
+    });
+
+    it("reads an older stored fact back with its signs in words, its parentheses kept and any address removed", async () => {
+      const dealer = await signup("brain-mem-older");
+      writeTenantCollection(dealer.dealershipId, "pilotBrainMemories", [
+        { id: "m1", userId: dealer.user.id, fact: "Boss: margin < 10% and stock age > 60 (see the diary) www.evil.example/x", createdAt: daysAgoIso(1) },
+      ]);
+      const calls = stubAnthropic();
+      await chat(dealer.token);
+      const known = linesWith(calls[0].system, "Boss: margin");
+      expect(known).toEqual(["- Boss: margin under 10% and stock age over 60 (see the diary)"]);
+      expect(calls[0].system).not.toContain("evil.example");
+    });
+
     it("also keeps a remember tag out of the morning briefing and the review", async () => {
       const dealer = await signup("brain-mem-briefing");
       stubAnthropic(() => ({ body: { stop_reason: "end_turn", content: [{ type: "text", text: "All quiet <remember>secret</remember> today.\n<remember>another</remember>" }] } }));
@@ -832,6 +858,16 @@ describe("Pilot Brain treats outside text as data", () => {
       expect(extractRememberTag("Just a reply")).toEqual({ visible: "Just a reply", fact: null });
       expect(extractRememberTag("<remember></remember>")).toEqual({ visible: "", fact: null });
       expect(extractRememberTag("Hi <REMEMBER>Loud</REMEMBER>")).toEqual({ visible: "Hi", fact: "Loud" });
+    });
+
+    it("keeps what a remembered fact means: thresholds, parentheses, the words around a web address (the reviewer's four examples)", () => {
+      const remembered = (fact: string) => extractRememberTag(`Noted, Boss.\n<remember>${fact}</remember>`).fact;
+      expect(remembered("Boss wants an alert when stock age > 60 days or margin < 10%")).toBe(
+        "Boss wants an alert when stock age over 60 days or margin under 10%"
+      );
+      expect(remembered("Boss <3 diesels")).toBe("Boss under 3 diesels");
+      expect(remembered("Boss's website is https://www.smithmotors.co.uk")).toBe("Boss's website is");
+      expect(remembered("Boss prefers short answers (no waffle)")).toBe("Boss prefers short answers (no waffle)");
     });
 
     it("caps the note at 200 characters on one line", () => {
