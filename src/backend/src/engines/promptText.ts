@@ -10,5 +10,8 @@ const LINE_BREAKING = /[\p{Cc}\p{Zl}\p{Zp}]+/gu;
 export function oneLine(value: unknown, max: number): string {
   if (typeof value !== "string") return "";
   const flat = value.replace(LINE_BREAKING, " ").replace(/\s+/g, " ").trim();
-  return flat.length > max ? `${flat.slice(0, max - 1).trimEnd()}…` : flat;
+  // Counted and cut in whole characters, so an emoji is never left in half
+  // (half an emoji is not valid text).
+  const chars = Array.from(flat);
+  return chars.length > max ? `${chars.slice(0, max - 1).join("").trimEnd()}…` : flat;
 }

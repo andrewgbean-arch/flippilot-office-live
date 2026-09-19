@@ -639,13 +639,45 @@ describe("Pilot Brain treats outside text as data", () => {
       expect(linesWith(prompt, "Pat Jones")[0]).toMatch(/^- Pat Jones enquired 3 days ago/);
     });
 
-    it("points its 'regional comparisons are out of scope' note at the web access note, so the two never contradict", async () => {
+    it("says regional comparisons need live web access, which only a chat with the owner's switch on can use, and the chat's own WEB ACCESS line says whether it is on", async () => {
       const owner = await signup("brain-regional");
       const calls = stubAnthropic();
       await chat(owner.token);
       const prompt: string = calls[0].system;
-      expect(prompt).toContain("regional/local market comparisons (these need live web access");
-      expect(prompt).toContain("WEB ACCESS");
+      expect(prompt).toContain(
+        "regional/local market comparisons (these need live web access, which only a live chat with Boss can use, and only when the owner has switched it on)"
+      );
+      expect(prompt).toMatch(/^WEB ACCESS/m);
+    });
+
+    it("never refers to a note that the prompt it is in does not contain (chat, morning briefing and review)", async () => {
+      const owner = await signup("brain-notes");
+      const asOwner = { Authorization: `Bearer ${owner.token}` };
+      const chatCalls = stubAnthropic();
+      await chat(owner.token);
+      const briefingCalls = stubAnthropic();
+      await request(app).get("/pilot-brain/briefing").set(asOwner);
+      const reviewCalls = stubAnthropic();
+      await request(app).get("/pilot-brain/review?period=weekly").set(asOwner);
+      const prompts: Record<string, string> = {
+        chat: chatCalls[0].system,
+        briefing: briefingCalls[0].system,
+        review: reviewCalls[0].system,
+      };
+
+      // "see the WEB ACCESS note at the end": a pointer at a note by its capitals title
+      const POINTS_AT_A_NOTE = /\b(?:see|per|in) the ([A-Z][A-Z ]*[A-Z]) note\b/g;
+      // (the check itself can see the wording that used to be wrong)
+      expect([..."(these need live web access - see the WEB ACCESS note at the end)".matchAll(POINTS_AT_A_NOTE)].map(m => m[1])).toEqual(["WEB ACCESS"]);
+
+      for (const [name, prompt] of Object.entries(prompts)) {
+        expect(prompt, `the ${name} prompt was sent`).toBeTruthy();
+        // the notes a prompt really has: lines that open with a capitals title ("WEB ACCESS (live...", "GOLDEN RULE: ...")
+        const notes = new Set(prompt.split("\n").map(line => /^([A-Z][A-Z ]*[A-Z])\b/.exec(line)?.[1]));
+        for (const pointer of prompt.matchAll(POINTS_AT_A_NOTE)) {
+          expect(notes.has(pointer[1]), `the ${name} prompt points at a "${pointer[1]}" note it does not contain`).toBe(true);
+        }
+      }
     });
 
     it("tells the model, once and briefly, that names and web text are data and never something to obey or to link or draw", async () => {
