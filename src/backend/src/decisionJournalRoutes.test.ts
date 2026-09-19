@@ -4,6 +4,7 @@ import request from "supertest";
 import app from "./app.js";
 import { readTenantCollection, writeTenantCollection, writeTenantDoc, readTenantDoc } from "./db.js";
 import { signToken } from "./auth.js";
+import * as store from "./decisionStore.js";
 import { getDecision, listDecisions, mutateDecision } from "./decisionStore.js";
 import type { Decision } from "./decisionTypes.js";
 
@@ -634,6 +635,67 @@ describe("the learning-loop stats, through the route", () => {
     expect(stats.followedPilot).toBe(2);
     expect(stats.overrodePilot).toBe(1);
     expect(stats.closeWithinPercent).toBe(20);
+  });
+});
+
+// ---- checked again at the moment of writing ----
+
+// A request looks at a decision, decides it may go ahead, and then writes. If
+// another request gets in between, what it looked at is out of date. Each route
+// therefore asks its state question AGAIN, about the very copy it is about to
+// change, and refuses if the answer is now different. These make that happen:
+// the first look at the decision is made to be followed, straight away, by
+// somebody else's change, exactly as a second request arriving in that gap would.
+describe("the state is checked again at the moment of writing", () => {
+  function somebodyElseChangesItAfterTheFirstLook(change: (draft: Decision) => void, action: "decided" | "outcome" | "recommendation") {
+    const real = store.getDecision;
+    return vi.spyOn(store, "getDecision").mockImplementationOnce((dealershipId, id) => {
+      const seen = real(dealershipId, id);
+      const r = mutateDecision(dealershipId, id, { id: "someone-else", name: "Someone Else" }, action, change, "Someone else got there first");
+      if (!r.ok) throw new Error(r.error);
+      return seen;
+    });
+  }
+  const theirDecision = (draft: Decision) => {
+    draft.bossDecision = { optionKey: "a", reasoning: "Theirs", decidedAt: new Date().toISOString(), decidedByUserId: "someone-else", decidedByName: "Someone Else" };
+  };
+
+  it("does not overwrite a decision that somebody else made a moment earlier", async () => {
+    const d = await newDecision(owner);
+    const spy = somebodyElseChangesItAfterTheFirstLook(theirDecision, "decided");
+    const res = await decide(owner.token, d.id, { optionKey: "b", reasoning: "Mine" });
+    spy.mockRestore();
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatch(/already been made and can't be changed/);
+    expect(stored(d.id).bossDecision).toMatchObject({ optionKey: "a", reasoning: "Theirs", decidedByName: "Someone Else" });
+    expect(stored(d.id).events.filter(e => e.action === "decided")).toHaveLength(1);
+  });
+
+  it("does not overwrite what somebody else recorded as having happened a moment earlier", async () => {
+    const d = await newDecision(owner);
+    await decide(owner.token, d.id, { optionKey: "a" });
+    const spy = somebodyElseChangesItAfterTheFirstLook(draft => {
+      draft.outcome = { recordedAt: new Date().toISOString(), recordedByUserId: "someone-else", recordedByName: "Someone Else", actuals: [], notes: "Theirs", lessons: { pilotRight: "", pilotWrong: "", bossRight: "", unexpected: "", lesson: "" } };
+    }, "outcome");
+    const res = await outcome(owner.token, d.id, { notes: "Mine" });
+    spy.mockRestore();
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatch(/already been recorded/);
+    expect(stored(d.id).outcome?.notes).toBe("Theirs");
+    expect(stored(d.id).events.filter(e => e.action === "outcome")).toHaveLength(1);
+  });
+
+  it("does not change the options after Pilot has given a recommendation about them a moment earlier", async () => {
+    const d = await newDecision(owner);
+    const spy = somebodyElseChangesItAfterTheFirstLook(draft => {
+      draft.pilotRecommendation = { optionKey: "b", reasoning: "Pilot's view", confidence: "medium", confidenceReasons: [], unknowns: [], askedAt: new Date().toISOString() };
+    }, "recommendation");
+    const res = await edit(owner.token, d.id, { options: ["Different", "Options"] });
+    spy.mockRestore();
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatch(/Pilot has already given a view/);
+    expect(stored(d.id).options.map(o => o.label)).toEqual(["No change", "Add £50k", "Add £25k"]);
+    expect(stored(d.id).events.filter(e => e.action === "edited")).toHaveLength(0);
   });
 });
 
