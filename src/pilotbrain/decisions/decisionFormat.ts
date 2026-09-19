@@ -193,7 +193,7 @@ export type NumberParse = { ok: true; value: number } | { ok: false; reason: "em
 // Accepts 5000, 5,000, -1500, 12.5 and £5,000 (and -£500). Anything else is
 // invalid rather than being guessed at.
 export function parseNumberInput(text: string): NumberParse {
-  const cleaned = text.trim().replace(/^(-?)£/, "$1").replace(/,/g, "").replace(/\s+/g, "");
+  const cleaned = text.trim().replace(/^(-?)£/, "$1").replace(/,/g, "");
   if (cleaned === "") return { ok: false, reason: "empty" };
   if (!/^-?(\d+\.?\d*|\.\d+)$/.test(cleaned)) return { ok: false, reason: "invalid" };
   const value = Number(cleaned);
