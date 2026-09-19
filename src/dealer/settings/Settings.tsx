@@ -15,6 +15,13 @@ import { useTour } from "@/tour/TourProvider";
 import { toCSV, downloadCSV } from "@/lib/csv";
 import type { TeamMember } from "@/jobs/jobTypes";
 import PilotBrainWebAccessCard from "./PilotBrainWebAccessCard";
+import {
+  INVITE_LINK_CANCEL_NOTE,
+  MANAGE_TEAM_INTRO,
+  inviteLinkWarning,
+  inviteShareIntro,
+  removeTeammatePrompt,
+} from "./teamCopy";
 
 import { BASE_URL } from "@/lib/apiBaseUrl";
 
@@ -113,14 +120,11 @@ function InviteTeammateModal({ onClose }: { onClose: () => void }) {
           </>
         ) : (
           <>
-            <p className="text-white/70 text-sm mb-3">
-              {inviteeName.trim()
-                ? `Share this link with ${inviteeName.trim()} — they'll`
-                : "Share this link with a coworker — they'll"}{" "}
-              create their own login and land inside your dealership, not a
-              separate one. It expires in 7 days.
+            <p className="text-white/70 text-sm mb-3">{inviteShareIntro(inviteeName)}</p>
+            <p className="text-yellow-200/90 text-sm mb-3">
+              {inviteLinkWarning(STAFF_ROLE_OPTIONS.find((opt) => opt.value === staffRole)?.label ?? staffRole)}
             </p>
-            <div className="flex gap-2 mb-4">
+            <div className="flex gap-2 mb-2">
               <input
                 readOnly
                 value={link}
@@ -133,6 +137,7 @@ function InviteTeammateModal({ onClose }: { onClose: () => void }) {
                 {copied ? "Copied!" : "Copy"}
               </button>
             </div>
+            <p className="text-white/40 text-xs mb-4">{INVITE_LINK_CANCEL_NOTE}</p>
             <div className="flex justify-end">
               <button
                 onClick={onClose}
@@ -231,9 +236,7 @@ function ManageTeamModal({ onClose }: { onClose: () => void }) {
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
       <div className="bg-black/90 border border-yellow-400/30 p-6 rounded-xl w-full max-w-lg max-h-[85vh] overflow-y-auto">
         <h2 className="text-yellow-300 text-xl font-bold mb-1">Manage Team</h2>
-        <p className="text-white/50 text-xs mb-4">
-          Role changes and removals take effect on their very next click — no waiting for them to log in again.
-        </p>
+        <p className="text-white/50 text-xs mb-4">{MANAGE_TEAM_INTRO}</p>
 
         {members === null && !error && <p className="text-white/60 text-sm mb-4">Loading team…</p>}
 
@@ -268,8 +271,8 @@ function ManageTeamModal({ onClose }: { onClose: () => void }) {
 
                 {m.role !== "owner" &&
                   (confirmingId === m.id ? (
-                    <div className="mt-3 flex items-center justify-between gap-3">
-                      <p className="text-red-300 text-xs">Remove {m.name}? They'll lose access straight away.</p>
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                      <p className="text-red-300 text-xs flex-1 min-w-[12rem]">{removeTeammatePrompt(m.name)}</p>
                       <div className="flex gap-2">
                         <button
                           onClick={() => setConfirmingId(null)}

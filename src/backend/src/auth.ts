@@ -30,6 +30,30 @@ export type StaffRole = "sales" | "finance" | "manager" | "general";
 
 export const VALID_STAFF_ROLES: StaffRole[] = ["sales", "finance", "manager", "general"];
 
+// Where each staff role sits, lowest to highest. Used for ONE decision only:
+// telling a step down (which must cancel the invite links already shared,
+// see isStaffRoleDemotion) from a step up or no change. manager gates the
+// most on the server and finance opens bookkeeping writes (requireStaffRole
+// call sites); sales sits above general, the view-only tier. Nothing else
+// should rank roles with this.
+const STAFF_ROLE_LEVEL: Record<StaffRole, number> = {
+  general: 0,
+  sales: 1,
+  finance: 2,
+  manager: 3,
+};
+
+// Moving someone to a lower role has to cancel every invite link already
+// shared, because a link isn't tied to an email address: the person just
+// demoted could use any still-live link carrying their old role to create
+// a second account with it. A step up, or no change, gives them nothing they
+// couldn't already get, so it leaves other people's pending links alone.
+// An account with no staffRole at all counts as general, as it does in
+// requireStaffRole.
+export function isStaffRoleDemotion(from: StaffRole | undefined, to: StaffRole): boolean {
+  return STAFF_ROLE_LEVEL[to] < STAFF_ROLE_LEVEL[from ?? "general"];
+}
+
 export interface AuthUser {
   id: string;
   email: string;
@@ -83,6 +107,18 @@ export interface Dealership {
   // keep working exactly as before rather than being locked out by a
   // check that demanded a positive "approved".
   approvalStatus?: "pending" | "approved";
+  // Which generation of invite links is still good for this dealership.
+  // Every link carries the number that was current when the owner made it
+  // (InviteTokenPayload.inviteEpoch), and /auth/join refuses one that
+  // carries a lower number. Removing a teammate, or moving one to a lower
+  // role, adds 1 — which cancels every link shared up to that moment in
+  // one go, without touching links made afterwards. Deliberately a counter
+  // and not a "valid from" time: a token's issue time only has whole-second
+  // resolution, so a link made in the same second as a removal could not be
+  // told apart from one made just before it. Undefined (every dealership
+  // that predates this) means 0, so old dealerships and the links already
+  // out there keep working until the first removal.
+  inviteEpoch?: number;
 }
 
 export async function hashPassword(password: string): Promise<string> {
@@ -143,6 +179,10 @@ export interface InviteTokenPayload {
   role: "staff";
   staffRole: StaffRole;
   inviteeName?: string;
+  // The dealership's Dealership.inviteEpoch at the moment this link was
+  // made. Links made before this field existed don't have it, and count
+  // as 0.
+  inviteEpoch?: number;
 }
 
 // Lets an owner invite a real teammate into their EXISTING dealership —
@@ -168,6 +208,18 @@ export function verifyInviteToken(token: string): InviteTokenPayload | null {
   } catch {
     return null;
   }
+}
+
+// True when the owner has cancelled this link since making it: the
+// dealership's inviteEpoch has moved on past the one the link was made
+// under. Only two counters are compared — no clock is involved, so a link
+// made in the same second as a removal (before or after it) is judged
+// correctly. A link with no epoch, or a dealership with none, counts as 0.
+export function isInviteRevoked(
+  invite: Pick<InviteTokenPayload, "inviteEpoch">,
+  dealership: Pick<Dealership, "inviteEpoch">
+): boolean {
+  return (invite.inviteEpoch ?? 0) < (dealership.inviteEpoch ?? 0);
 }
 
 // A first, real use of the owner/staff role split that already existed
