@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import React, { createContext, useContext, useState, ReactNode } from "react";
 import {
   CostEntry,
   PurchaseEntry,
@@ -12,6 +12,7 @@ import {
 import { calculateVat, calculateMarginVat } from "./vatUtils";
 import { loadBookkeeping, saveBookkeeping, type BookkeepingDoc } from "./bookkeepingStorage.web";
 import { useAuth } from "@/context/AuthContext";
+import { useGuardedLoad } from "@/lib/useGuardedLoad";
 
 interface BookkeepingContextValue {
   costs: CostEntry[];
@@ -73,7 +74,6 @@ export function BookkeepingProvider({ children }: BookkeepingProviderProps) {
   const [transactions, setTransactions] = useState<TransactionEntry[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [loading, setLoading] = useState(true);
   const { user } = useAuth();
 
   // Was pure localStorage — never left the browser it was entered in,
@@ -83,35 +83,42 @@ export function BookkeepingProvider({ children }: BookkeepingProviderProps) {
   // the exact same confirmed bug as InventoryProvider/LeadsContext/
   // StaffContext: a real client-side login (no full page reload) would
   // never re-trigger the fetch, leaving bookkeeping stuck on whatever
-  // the pre-login unauthenticated attempt got (empty). `loading` also
-  // guards every mutator below from persisting before a load completes
-  // — without it, a mutation fired before that resolves would save the
-  // still-empty starting state and silently wipe out whatever was
-  // really saved.
-  useEffect(() => {
-    if (!user?.dealershipId) {
-      setLoading(false);
-      return;
-    }
-
-    (async () => {
-      setLoading(true);
-      const doc = await loadBookkeeping();
+  // the pre-login unauthenticated attempt got (empty).
+  //
+  // Every mutator below saves the WHOLE ledger, so guardSave() refuses
+  // until it has loaded successfully for THIS login. The old `loading`
+  // check only covered a load still in flight: a load that FAILED fell
+  // back to an empty ledger, and the next ordinary "add a cost" then
+  // replaced the dealer's purchases, sales, costs and suppliers with
+  // that one cost. A failed load is now reported to the shared banner.
+  const { loading, guardSave } = useGuardedLoad<BookkeepingDoc>({
+    id: "bookkeeping",
+    label: "bookkeeping records",
+    key: user?.dealershipId,
+    load: loadBookkeeping,
+    apply: doc => {
       setCosts(doc.costs);
       setPurchases(doc.purchases);
       setSales(doc.sales);
       setTransactions(doc.transactions);
       setSuppliers(doc.suppliers);
       setCategories(doc.categories);
-      setLoading(false);
-    })();
-  }, [user?.dealershipId]);
+    },
+    clear: () => {
+      setCosts([]);
+      setPurchases([]);
+      setSales([]);
+      setTransactions([]);
+      setSuppliers([]);
+      setCategories([]);
+    },
+  });
 
   // Saves the full combined document — called by every mutator below
   // with whichever field(s) it just changed; everything else is taken
-  // from current state.
+  // from current state. Each mutator checks guardSave() first, so
+  // nothing reaches here (or changes on screen) before a good load.
   function persist(next: Partial<BookkeepingDoc>) {
-    if (loading) return;
     saveBookkeeping({
       costs: next.costs ?? costs,
       purchases: next.purchases ?? purchases,
@@ -124,6 +131,7 @@ export function BookkeepingProvider({ children }: BookkeepingProviderProps) {
 
   // COSTS
   const addCost = (entry: CostEntry) => {
+    if (!guardSave()) return;
     const vat = calculateVat(entry.amount, {
       vatRate: entry.vatRate,
       vatIncluded: entry.vatIncluded,
@@ -142,12 +150,14 @@ export function BookkeepingProvider({ children }: BookkeepingProviderProps) {
   };
 
   const updateCost = (id: string, patch: Partial<CostEntry>) => {
+    if (!guardSave()) return;
     const updated = costs.map((c) => (c.id === id ? { ...c, ...patch } : c));
     setCosts(updated);
     persist({ costs: updated });
   };
 
   const deleteCost = (id: string) => {
+    if (!guardSave()) return;
     const updated = costs.filter((c) => c.id !== id);
     setCosts(updated);
     persist({ costs: updated });
@@ -155,6 +165,7 @@ export function BookkeepingProvider({ children }: BookkeepingProviderProps) {
 
   // PURCHASES
   const addPurchase = (entry: PurchaseEntry) => {
+    if (!guardSave()) return;
     const vat = calculateVat(entry.purchasePrice, {
       vatRate: entry.vatRate,
       vatIncluded: entry.vatIncluded,
@@ -180,6 +191,7 @@ export function BookkeepingProvider({ children }: BookkeepingProviderProps) {
   // if no purchase record exists yet (margin can't be computed without
   // a purchase price), so a sale never silently loses its VAT figure.
   const addSale = (entry: SaleEntry) => {
+    if (!guardSave()) return;
     let enriched: SaleEntry;
 
     const purchase = getPurchaseForVehicle(entry.vehicleId);
@@ -216,6 +228,7 @@ export function BookkeepingProvider({ children }: BookkeepingProviderProps) {
   // the same way addSale does — if the price or scheme changes, the
   // stored VAT/net figures must never go stale.
   const updateSale = (id: string, patch: Partial<SaleEntry>) => {
+    if (!guardSave()) return;
     const existing = sales.find((s) => s.id === id);
     if (!existing) return;
 
@@ -247,6 +260,7 @@ export function BookkeepingProvider({ children }: BookkeepingProviderProps) {
 
   // TRANSACTIONS
   const addTransaction = (entry: TransactionEntry) => {
+    if (!guardSave()) return;
     const updated = [...transactions, entry];
     setTransactions(updated);
     persist({ transactions: updated });
@@ -254,6 +268,7 @@ export function BookkeepingProvider({ children }: BookkeepingProviderProps) {
 
   // SUPPLIERS
   const addSupplier = (supplier: Supplier) => {
+    if (!guardSave()) return;
     const updated = [...suppliers, supplier];
     setSuppliers(updated);
     persist({ suppliers: updated });
@@ -261,6 +276,7 @@ export function BookkeepingProvider({ children }: BookkeepingProviderProps) {
 
   // CATEGORIES
   const addCategory = (category: Category) => {
+    if (!guardSave()) return;
     const updated = [...categories, category];
     setCategories(updated);
     persist({ categories: updated });

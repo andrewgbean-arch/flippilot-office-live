@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { Express, Request } from "express";
 import { readTenantCollection, writeTenantCollection } from "../db";
+import { itemsFromBody } from "../wholeListGuard";
 import type { AuthUser } from "../auth";
 
 export type ContactCategory =
@@ -42,7 +43,8 @@ export default function registerContactsRoute(app: Express) {
 
   app.put("/contacts", (req, res) => {
     const user = authedUser(req);
-    const items = Array.isArray(req.body?.items) ? req.body.items : [];
+    const items = itemsFromBody(req, res);
+    if (!items) return;
     writeTenantCollection(user.dealershipId, "contacts", items);
     res.json({ ok: true, items });
   });

@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { Express, Request } from "express";
 import { readTenantCollection, writeTenantCollection } from "../db";
+import { itemsFromBody } from "../wholeListGuard";
 import type { AuthUser } from "../auth";
 
 export interface StockMovement {
@@ -48,7 +49,8 @@ export default function registerConsumablesRoute(app: Express) {
 
   app.put("/consumables", (req, res) => {
     const user = authedUser(req);
-    const items = Array.isArray(req.body?.items) ? req.body.items : [];
+    const items = itemsFromBody(req, res);
+    if (!items) return;
     writeTenantCollection(user.dealershipId, "consumables", items);
     res.json({ ok: true, items });
   });

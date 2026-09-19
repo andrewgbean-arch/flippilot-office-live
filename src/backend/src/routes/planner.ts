@@ -7,6 +7,7 @@ import {
   writeTenantDoc,
 } from "../db";
 import { requireStaffRole, type AuthUser } from "../auth";
+import { itemsFromBody } from "../wholeListGuard";
 
 export type EmploymentType = "full_time" | "part_time";
 export type WeekDay = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
@@ -126,7 +127,8 @@ export default function registerPlannerRoutes(app: Express) {
   // tier as managing the staff roster itself.
   app.put("/work-patterns", requireStaffRole("manager"), (req, res) => {
     const user = authedUser(req);
-    const items = Array.isArray(req.body?.items) ? req.body.items : [];
+    const items = itemsFromBody(req, res);
+    if (!items) return;
     writeTenantCollection(user.dealershipId, "workPatterns", items);
     res.json({ ok: true, items });
   });
@@ -249,7 +251,8 @@ export default function registerPlannerRoutes(app: Express) {
 
   app.put("/shifts", requireStaffRole("manager"), (req, res) => {
     const user = authedUser(req);
-    const items = Array.isArray(req.body?.items) ? req.body.items : [];
+    const items = itemsFromBody(req, res);
+    if (!items) return;
     writeTenantCollection(user.dealershipId, "shifts", items);
     res.json({ ok: true, items });
   });

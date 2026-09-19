@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { Express, Request } from "express";
 import { readTenantCollection, writeTenantCollection } from "../db";
+import { itemsFromBody } from "../wholeListGuard";
 import type { AuthUser } from "../auth";
 
 // A real customer database, deliberately separate from both Leads
@@ -78,7 +79,8 @@ export default function registerCustomersRoute(app: Express) {
   // leads/contacts — bulk edits from a table-style UI go through here.
   app.put("/customers", (req, res) => {
     const user = authedUser(req);
-    const items = Array.isArray(req.body?.items) ? req.body.items : [];
+    const items = itemsFromBody<Customer>(req, res);
+    if (!items) return;
     writeCustomers(user.dealershipId, items);
     res.json({ ok: true, items });
   });

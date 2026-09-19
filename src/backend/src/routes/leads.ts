@@ -1,5 +1,6 @@
 import { Express, Request } from "express";
 import { readTenantCollection, writeTenantCollection } from "../db";
+import { itemsFromBody } from "../wholeListGuard";
 import type { AuthUser } from "../auth";
 
 function dealershipId(req: Request): string {
@@ -14,7 +15,8 @@ export default function registerLeadsRoute(app: Express) {
   });
 
   app.put("/leads", (req, res) => {
-    const items = Array.isArray(req.body?.items) ? req.body.items : [];
+    const items = itemsFromBody(req, res);
+    if (!items) return;
     writeTenantCollection(dealershipId(req), "leads", items);
     res.json({ ok: true, items });
   });

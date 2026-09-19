@@ -1,7 +1,8 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useState } from "react";
 import { StaffRecord } from "./staffTypes";
 import { loadStaff, saveStaff } from "@/staff/staffStorage.web";
 import { useAuth } from "@/context/AuthContext";
+import { useGuardedLoad } from "@/lib/useGuardedLoad";
 
 // Each write returns null on success, or an error message on failure —
 // so a caller can tell a real save from one that silently didn't
@@ -15,6 +16,8 @@ type StaffContextValue = {
 };
 
 const SAVE_ERROR = "Could not save — check your connection and permissions, then try again.";
+const NOT_LOADED_ERROR =
+  "Could not save — the current staff list couldn't be loaded, so saving now could overwrite it. Check your connection and try again.";
 
 const StaffContext = createContext<StaffContextValue>({
   staff: [],
@@ -30,13 +33,33 @@ export function StaffProvider({ children }: { children: React.ReactNode }) {
   // Was `}, [])` — see InventoryProvider.tsx for the confirmed bug: a
   // real client-side login never re-triggered this fetch, leaving staff
   // stuck empty. Re-running on the authenticated dealershipId fixes it.
-  useEffect(() => {
-    if (!user?.dealershipId) return;
-    loadStaff().then(setStaff);
-  }, [user?.dealershipId]);
+  // A failed load is reported to the shared banner instead of leaving an
+  // empty list that looks like "no staff".
+  const { guardSave } = useGuardedLoad<StaffRecord[]>({
+    id: "staff",
+    label: "staff records",
+    key: user?.dealershipId,
+    load: loadStaff,
+    apply: setStaff,
+    clear: () => setStaff([]),
+  });
+
+  // Every write below re-reads the server's current roster and saves it
+  // back with the one change. That re-read is a load like any other: if
+  // it fails it must not be taken for "no staff", or the save replaces
+  // the WHOLE roster with just this one record. Null means don't write.
+  async function readCurrentStaff(): Promise<StaffRecord[] | null> {
+    if (!guardSave()) return null;
+    const current = await loadStaff();
+    if (current === null) {
+      console.warn("Staff not saved: couldn't read the current list, and saving now would overwrite it.");
+    }
+    return current;
+  }
 
   async function addStaff(newStaff: StaffRecord) {
-    const current = await loadStaff();
+    const current = await readCurrentStaff();
+    if (current === null) return NOT_LOADED_ERROR;
     const updated = [...current, newStaff];
     const ok = await saveStaff(updated);
     if (!ok) return SAVE_ERROR;
@@ -45,7 +68,8 @@ export function StaffProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function updateStaff(updatedRecord: StaffRecord) {
-    const current = await loadStaff();
+    const current = await readCurrentStaff();
+    if (current === null) return NOT_LOADED_ERROR;
     const updated = current.map(s => (s.id === updatedRecord.id ? updatedRecord : s));
     const ok = await saveStaff(updated);
     if (!ok) return SAVE_ERROR;
@@ -54,7 +78,8 @@ export function StaffProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function removeStaff(id: string) {
-    const current = await loadStaff();
+    const current = await readCurrentStaff();
+    if (current === null) return NOT_LOADED_ERROR;
     const updated = current.filter(s => s.id !== id);
     const ok = await saveStaff(updated);
     if (!ok) return SAVE_ERROR;

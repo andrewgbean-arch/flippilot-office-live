@@ -37,7 +37,11 @@ export default function AddLead() {
       ...(notes.trim() ? { notes: notes.trim() } : {}),
     };
 
-    await addLead(newLead);
+    const ok = await addLead(newLead);
+    if (!ok) {
+      setError("Couldn't save this lead because your leads couldn't be loaded. Nothing was changed — try again shortly.");
+      return;
+    }
 
     setName("");
     setPhone("");

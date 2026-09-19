@@ -1,5 +1,6 @@
 import { Express, Request } from "express";
 import { readTenantCollection, writeTenantCollection } from "../db";
+import { itemsFromBody } from "../wholeListGuard";
 import { requireStaffRole, type AuthUser } from "../auth";
 
 function dealershipId(req: Request): string {
@@ -17,7 +18,8 @@ export default function registerStaffRoute(app: Express) {
   // or "finance" staff account can view the team but not add, remove,
   // or reassign anyone.
   app.put("/staff", requireStaffRole("manager"), (req, res) => {
-    const items = Array.isArray(req.body?.items) ? req.body.items : [];
+    const items = itemsFromBody(req, res);
+    if (!items) return;
     writeTenantCollection(dealershipId(req), "staff", items);
     res.json({ ok: true, items });
   });

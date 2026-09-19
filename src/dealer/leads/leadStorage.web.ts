@@ -1,5 +1,6 @@
 import type { Lead } from "./leadTypes";
 import { authHeaders } from "@/lib/authToken";
+import { loadList } from "@/lib/loadJson";
 
 import { BASE_URL } from "@/lib/apiBaseUrl";
 
@@ -20,13 +21,11 @@ export async function saveLeads(leads: Lead[]) {
   }
 }
 
-export async function loadLeads(): Promise<Lead[]> {
-  try {
-    const res = await fetch(`${BASE_URL}/leads`, { headers: authHeaders() });
-    const data = await res.json();
-    return Array.isArray(data.items) ? data.items : [];
-  } catch (err) {
-    console.error("loadLeads: backend unreachable", err);
-    return [];
-  }
+// null = the leads couldn't be read (dropped connection, 401/402/403/5xx,
+// not a list). [] only ever means the server said there are none. Every
+// add/update/remove re-reads this list and saves it back with the change,
+// so a failed read taken for "no leads" replaced ALL of them with just
+// the one being added (see loadJson.ts).
+export async function loadLeads(): Promise<Lead[] | null> {
+  return loadList<Lead>("/leads");
 }

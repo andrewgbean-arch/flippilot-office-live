@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState } from "react";
 import type { Consumable } from "@/consumables/consumableTypes";
 import {
   loadConsumables,
@@ -8,6 +8,7 @@ import {
   recordStockMovement as recordStockMovementApi,
 } from "@/consumables/consumableStorage.web";
 import { useAuth } from "@/context/AuthContext";
+import { useGuardedLoad } from "@/lib/useGuardedLoad";
 
 interface ConsumablesContextType {
   consumables: Consumable[];
@@ -24,8 +25,9 @@ interface ConsumablesContextType {
     reorderThreshold: number;
     notes?: string;
   }) => Promise<string | null>;
-  updateConsumable: (id: string, patch: Partial<Consumable>) => Promise<void>;
-  updateStock: (id: string, currentStock: number) => Promise<void>;
+  // false = nothing was saved because the consumables haven't loaded.
+  updateConsumable: (id: string, patch: Partial<Consumable>) => Promise<boolean>;
+  updateStock: (id: string, currentStock: number) => Promise<boolean>;
   recordStockMovement: (
     id: string,
     input: { type: "receive" | "adjust"; quantity: number; date?: string; cost?: number; supplier?: string; note?: string }
@@ -49,20 +51,20 @@ const ConsumablesContext = createContext<ConsumablesContextType | undefined>(und
 
 export function ConsumablesProvider({ children }: { children: React.ReactNode }) {
   const [consumables, setConsumables] = useState<Consumable[]>([]);
-  const [loading, setLoading] = useState(true);
   const { user } = useAuth();
 
-  useEffect(() => {
-    if (!user?.dealershipId) {
-      setLoading(false);
-      return;
-    }
-    (async () => {
-      setLoading(true);
-      setConsumables(await loadConsumables());
-      setLoading(false);
-    })();
-  }, [user?.dealershipId]);
+  // Editing a stock level and importing a CSV save the WHOLE list back,
+  // so guardSave() refuses until the consumables have loaded for this
+  // login. Add, stock movements and remove hit per-item endpoints, so
+  // they need no guard.
+  const { loading, guardSave } = useGuardedLoad<Consumable[]>({
+    id: "consumables",
+    label: "consumables",
+    key: user?.dealershipId,
+    load: loadConsumables,
+    apply: setConsumables,
+    clear: () => setConsumables([]),
+  });
 
   async function addConsumable(input: {
     name: string;
@@ -82,13 +84,15 @@ export function ConsumablesProvider({ children }: { children: React.ReactNode })
   }
 
   async function updateConsumable(id: string, patch: Partial<Consumable>) {
+    if (!guardSave()) return false;
     const updated = consumables.map(c => (c.id === id ? { ...c, ...patch, updatedAt: new Date().toISOString() } : c));
     setConsumables(updated);
     await saveConsumables(updated);
+    return true;
   }
 
   async function updateStock(id: string, currentStock: number) {
-    await updateConsumable(id, { currentStock });
+    return updateConsumable(id, { currentStock });
   }
 
   async function recordStockMovement(
@@ -124,6 +128,12 @@ export function ConsumablesProvider({ children }: { children: React.ReactNode })
     reorderThreshold: number;
     notes?: string;
   }[]) {
+    // Throws rather than returning 0: the import screen reports success
+    // unless this throws, and it must not claim rows were imported when
+    // nothing was saved.
+    if (!guardSave()) {
+      throw new Error("Consumables haven't loaded, so this import was not saved.");
+    }
     const now = new Date().toISOString();
     const newItems: Consumable[] = rows.map(r => ({
       id: crypto.randomUUID(),

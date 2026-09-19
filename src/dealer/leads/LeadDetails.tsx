@@ -66,8 +66,8 @@ export default function LeadDetails() {
 
   async function handleSave() {
     if (!form) return;
-    await updateLead(form);
-    setSaved(true);
+    const ok = await updateLead(form);
+    if (ok) setSaved(true);
   }
 
   const interestedVehicle = form.interestedVehicleId

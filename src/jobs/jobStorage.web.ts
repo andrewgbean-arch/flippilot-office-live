@@ -1,17 +1,15 @@
 import { authHeaders } from "@/lib/authToken";
+import { loadList } from "@/lib/loadJson";
 import type { Job, TeamMember } from "./jobTypes";
 
 import { BASE_URL } from "@/lib/apiBaseUrl";
 
-export async function loadJobs(): Promise<Job[]> {
-  try {
-    const res = await fetch(`${BASE_URL}/jobs`, { headers: authHeaders() });
-    const data = await res.json();
-    return Array.isArray(data.items) ? data.items : [];
-  } catch (err) {
-    console.error("loadJobs: backend unreachable", err);
-    return [];
-  }
+// null = the jobs couldn't be read (dropped connection, 401/402/403/5xx,
+// not a list). [] only ever means the server said there are none. Every
+// save replaces the whole list, so treating a failed read as "no jobs"
+// meant the next save wiped the real ones (see loadJson.ts).
+export async function loadJobs(): Promise<Job[] | null> {
+  return loadList<Job>("/jobs");
 }
 
 export async function saveJobs(jobs: Job[]): Promise<void> {
