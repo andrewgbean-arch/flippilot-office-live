@@ -186,6 +186,7 @@ describe("toMemoryLine: a remembered fact keeps its meaning", () => {
   it("stops a web address at the bracket, quote or full stop that ends it, so the sentence around it stays whole", () => {
     expect(line("Acme (site: https://acme.example/x) delivers")).toBe("Acme (site:) delivers");
     expect(line("Site https://x.example, then more")).toBe("Site, then more");
+    expect(line("Acme (https://acme.example/x delivers on Fridays)")).toBe("Acme (delivers on Fridays)");
     expect(line('He said "see www.x.example/a" twice')).toBe('He said "see " twice');
     expect(line("Ends with a full stop: https://x.example/a.")).toBe("Ends with a full stop:.");
   });
