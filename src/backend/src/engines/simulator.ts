@@ -865,7 +865,7 @@ const inRange = (v: unknown, min: number, max: number): number | null =>
 // Strict on purpose: only real, finite numbers inside the limits, in a request
 // the caller sent. Nothing typed anywhere is ever passed through as it came.
 export function parseSimulationRequest(body: unknown): ParsedRequest {
-  if (!isRecord(body)) return refuse("Choose a simulation and give its numbers.");
+  if (!isRecord(body) || body.kind === undefined) return refuse("Choose a simulation and give its numbers.");
   const kind = body.kind;
   if (kind !== "stock_investment" && kind !== "price_cut_aged_stock") {
     return refuse('That simulation is not available. Choose "stock_investment" or "price_cut_aged_stock".');
