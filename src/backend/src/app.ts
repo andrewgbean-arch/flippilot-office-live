@@ -113,6 +113,9 @@ app.get("/", (_req, res) => {
   res.json({
     ok: true,
     message: "FlipPilot Office backend running",
+    // Which deploy is live: Render sets RENDER_GIT_COMMIT on every deploy, so
+    // this lets anyone confirm what is running. A commit id and nothing more.
+    commit: (process.env.RENDER_GIT_COMMIT ?? "").slice(0, 7) || undefined,
     timestamp: new Date().toISOString()
   });
 });
