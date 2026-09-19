@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { FiMic, FiMicOff, FiVolume2, FiVolumeX } from "react-icons/fi";
 import AssistantMarkdown from "./AssistantMarkdown";
 import { fetchPilotBrainMessages, sendPilotBrainMessage, fetchSpeech, fetchMorningBriefing, fetchPerformanceReview, fetchTodaysPriorities, clearPilotBrainConversation, OPENAI_VOICES, type OpenAiVoice, type PilotBrainMessage, type ReviewPeriod } from "@/lib/pilotBrainApi";
@@ -522,6 +523,10 @@ export default function PilotBrainChat() {
           >
             {reportLoading === "priorities" ? "Thinking…" : "Today's Priorities"}
           </button>
+
+          <Link to="/pilot-brain/decisions" className="sn-btn" style={{ fontSize: 12, padding: "4px 10px", marginLeft: 8, textDecoration: "none" }}>
+            Decision Journal
+          </Link>
 
           {messages.length > 0 && (
             <button

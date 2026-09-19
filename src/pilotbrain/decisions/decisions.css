@@ -1,0 +1,336 @@
+/* The Decisions screens (Pilot Brain V8). Loaded by PilotBrainDecisions.tsx.
+   Colours match the rest of Pilot Brain: gold for emphasis, green for known and
+   done, blue for worked-out, orange for needs-attention, grey for unknown. */
+
+.dj-page {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 8px 0 48px;
+}
+
+.dj-card {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 14px;
+  background: rgba(0, 0, 0, 0.22);
+}
+
+.dj-card--gold {
+  border-color: rgba(255, 215, 0, 0.3);
+}
+
+.dj-h2 {
+  color: #ffd700;
+  font-weight: 700;
+  font-size: 16px;
+  margin: 0 0 8px;
+}
+
+.dj-h3 {
+  color: #f5f7ff;
+  font-weight: 600;
+  font-size: 14px;
+  margin: 0 0 8px;
+}
+
+.dj-muted {
+  color: #f5f7ff99;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.dj-small {
+  color: #f5f7ff80;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.dj-error {
+  color: #ff8080;
+  font-size: 13px;
+  margin: 8px 0;
+}
+
+/* form controls: 16px so a phone does not zoom in when one is tapped */
+.dj-input {
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 16px;
+  min-height: 44px;
+}
+
+textarea.dj-input {
+  min-height: 84px;
+  resize: vertical;
+  font-family: inherit;
+  line-height: 1.4;
+}
+
+.dj-label {
+  display: block;
+  color: #c7d0ff;
+  font-size: 12px;
+  margin: 10px 0 4px;
+}
+
+.dj-btn {
+  min-height: 44px;
+  padding: 10px 16px;
+}
+
+.dj-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+/* the four figures at the top */
+.dj-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.dj-stat__value {
+  font-size: 24px;
+  font-weight: 700;
+  color: #f5f7ff;
+}
+
+.dj-stat__label {
+  font-size: 12px;
+  color: #f5f7ff99;
+}
+
+/* a decision in the list */
+.dj-list-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.dj-list-item:hover,
+.dj-list-item:focus-visible {
+  border-color: rgba(255, 215, 0, 0.5);
+  outline: none;
+}
+
+/* chips: the words carry the meaning, the colour only helps */
+.dj-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.dj-chip--open,
+.dj-chip--above,
+.dj-chip--inferred {
+  color: #8ab4ff;
+  background: rgba(138, 180, 255, 0.14);
+  border-color: rgba(138, 180, 255, 0.4);
+}
+
+.dj-chip--decided {
+  color: #ffd700;
+  background: rgba(255, 215, 0, 0.12);
+  border-color: rgba(255, 215, 0, 0.4);
+}
+
+.dj-chip--review_due,
+.dj-chip--below {
+  color: #ffb08a;
+  background: rgba(255, 176, 138, 0.14);
+  border-color: rgba(255, 176, 138, 0.45);
+}
+
+.dj-chip--reviewed,
+.dj-chip--close,
+.dj-chip--known {
+  color: #a3e8b0;
+  background: rgba(163, 232, 176, 0.14);
+  border-color: rgba(163, 232, 176, 0.4);
+}
+
+.dj-chip--unknown {
+  color: #f5f7ffb3;
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.dj-chip--predicted {
+  color: #d6b3ff;
+  background: rgba(214, 179, 255, 0.13);
+  border-color: rgba(214, 179, 255, 0.4);
+}
+
+.dj-chip--plain {
+  color: #c7d0ff;
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.15);
+  font-weight: 500;
+}
+
+.dj-kind {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 6px;
+  border: 1px solid;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
+.dj-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* options */
+.dj-option {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  margin-bottom: 8px;
+  min-height: 44px;
+  box-sizing: border-box;
+  cursor: pointer;
+}
+
+.dj-option--chosen {
+  border-color: rgba(255, 215, 0, 0.55);
+  background: rgba(255, 215, 0, 0.07);
+}
+
+.dj-letter {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.1);
+  color: #f5f7ff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* an expectation row in the decision form */
+.dj-exp-row {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 10px;
+  margin-bottom: 10px;
+}
+
+.dj-exp-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  gap: 8px;
+}
+
+/* the comparison table */
+.dj-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.dj-table th {
+  text-align: left;
+  color: #f5f7ff80;
+  font-weight: 600;
+  font-size: 12px;
+  padding: 6px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.dj-table td {
+  padding: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  vertical-align: top;
+  color: #f5f7ff;
+}
+
+.dj-audit summary {
+  cursor: pointer;
+  color: #ffd700;
+  font-weight: 600;
+  min-height: 32px;
+}
+
+.dj-audit ol {
+  list-style: none;
+  padding: 0;
+  margin: 10px 0 0;
+}
+
+.dj-audit li {
+  padding: 8px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 13px;
+  color: #f5f7ffcc;
+}
+
+/* phones: things stack, and the comparison table becomes one card per row */
+@media (max-width: 640px) {
+  .dj-exp-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dj-table,
+  .dj-table tbody,
+  .dj-table tr,
+  .dj-table td {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .dj-table thead {
+    position: absolute;
+    left: -9999px;
+  }
+
+  .dj-table tr {
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    margin-bottom: 10px;
+    padding: 4px 0;
+  }
+
+  .dj-table td {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    border-bottom: none;
+    text-align: right;
+  }
+
+  .dj-table td::before {
+    content: attr(data-label);
+    color: #f5f7ff80;
+    text-align: left;
+    flex: none;
+  }
+}

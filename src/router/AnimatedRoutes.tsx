@@ -36,6 +36,7 @@ import DealerDashboard from "@/dealer/dashboard/DealerDashboard";
 import PilotBrainChat from "@/pilotbrain/PilotBrainChat";
 import PilotBrainOperations from "@/pilotbrain/PilotBrainOperations";
 import PilotBrainStrategy from "@/pilotbrain/PilotBrainStrategy";
+import PilotBrainDecisions from "@/pilotbrain/PilotBrainDecisions";
 
 /* FEEDBACK & CONSUMABLES */
 import FeedbackBoard from "@/feedback/FeedbackBoard";
@@ -237,6 +238,7 @@ export default function AnimatedRoutes() {
         <Route path="pilot-brain" element={<PilotBrainChat />} />
         <Route path="pilot-brain/operations" element={<PilotBrainOperations />} />
         <Route path="pilot-brain/strategy" element={<PilotBrainStrategy />} />
+        <Route path="pilot-brain/decisions" element={<PilotBrainDecisions />} />
         <Route path="feedback" element={<FeedbackBoard />} />
         <Route path="support" element={<ContactSupport />} />
         <Route path="admin/support" element={<SupportInbox />} />
