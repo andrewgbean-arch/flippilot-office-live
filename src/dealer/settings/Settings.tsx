@@ -15,6 +15,7 @@ import { useTour } from "@/tour/TourProvider";
 import { toCSV, downloadCSV } from "@/lib/csv";
 import type { TeamMember } from "@/jobs/jobTypes";
 import PilotBrainWebAccessCard from "./PilotBrainWebAccessCard";
+import PilotBrainSecurityCard from "./PilotBrainSecurityCard";
 
 import { BASE_URL } from "@/lib/apiBaseUrl";
 
@@ -661,6 +662,7 @@ export default function Settings() {
         {/* Pilot Brain web access — owner only: it decides whether the
             assistant may run live web searches for this dealership. */}
         {user?.role === "owner" && <PilotBrainWebAccessCard />}
+        {user?.role === "owner" && <PilotBrainSecurityCard />}
 
         {/* Product Tour — the same guided walkthrough that runs
             automatically on a new account's first login, re-triggerable

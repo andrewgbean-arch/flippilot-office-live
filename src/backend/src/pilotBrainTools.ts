@@ -12,6 +12,7 @@ import { randomUUID } from "crypto";
 import type { AuthUser } from "./auth";
 import { readTenantCollection, readTenantDoc, writeTenantCollection } from "./db";
 import { PREPARED_ACTIONS_COLLECTION } from "./engines/preparedActions";
+import { FILTERED, looksInjected } from "./engines/promptText";
 import {
   EDITABLE,
   canPrepareEdits,
@@ -81,28 +82,38 @@ const asInput = (input: unknown): Record<string, unknown> =>
 export function buildClientTools(user: AuthUser, source: TabSource, edits?: EditDeps): ClientTools {
   const canEdit = edits !== undefined && canPrepareEdits(user);
   let preparedThisMessage = 0;
+  let tainted = false;
+
+  const run = (name: string, input: unknown): string => {
+    try {
+      if (name === "look_inside") {
+        return JSON.stringify(lookInside(user, source, asInput(input) as LookInput));
+      }
+      if (name === "prepare_edit" && canEdit) {
+        const result = prepareEdit(user, edits!, asInput(input), preparedThisMessage);
+        if (result.ok) {
+          preparedThisMessage += 1;
+          return JSON.stringify({ ok: true, summary: result.summary });
+        }
+        return JSON.stringify(result);
+      }
+      return JSON.stringify({ ok: false, error: `There is no tool called "${String(name).slice(0, 40)}".` });
+    } catch (err) {
+      console.error(`pilot-brain tools: ${String(name).slice(0, 40)} failed`, err);
+      return JSON.stringify({ ok: false, error: "That failed. Say so plainly and answer without it." });
+    }
+  };
 
   return {
     definitions: [lookInsideToolDefinition(user), ...(canEdit ? [prepareEditToolDefinition()] : [])],
     execute(name, input) {
-      try {
-        if (name === "look_inside") {
-          return JSON.stringify(lookInside(user, source, asInput(input) as LookInput));
-        }
-        if (name === "prepare_edit" && canEdit) {
-          const result = prepareEdit(user, edits!, asInput(input), preparedThisMessage);
-          if (result.ok) {
-            preparedThisMessage += 1;
-            return JSON.stringify({ ok: true, summary: result.summary });
-          }
-          return JSON.stringify(result);
-        }
-        return JSON.stringify({ ok: false, error: `There is no tool called "${String(name).slice(0, 40)}".` });
-      } catch (err) {
-        console.error(`pilot-brain tools: ${String(name).slice(0, 40)} failed`, err);
-        return JSON.stringify({ ok: false, error: "That failed. Say so plainly and answer without it." });
-      }
+      const out = run(name, input);
+      // Record text is filtered on the way in; a filter marker means someone
+      // typed instruction-like text into a record this turn read.
+      if (out.includes(FILTERED) || looksInjected(out)) tainted = true;
+      return out;
     },
+    tainted: () => tainted,
   };
 }
 

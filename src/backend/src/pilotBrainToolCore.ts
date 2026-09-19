@@ -10,6 +10,10 @@ export interface ClientTools {
   // Returns the text handed back to the model as the tool's result. Never
   // throws: a problem comes back as an error result the model can explain.
   execute: (name: string, input: unknown) => string;
+  // True once any tool result this message contained instruction-like text
+  // (it was filtered on the way in). The chat then won't learn anything from
+  // this turn, so a poisoned record can't plant a lasting "memory".
+  tainted?: () => boolean;
 }
 
 export interface ToolUseBlock {

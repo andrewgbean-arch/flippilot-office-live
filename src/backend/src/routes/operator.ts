@@ -11,6 +11,7 @@ import {
   type Lead,
 } from "../engines/operatorEngine";
 import { PREPARED_ACTIONS_COLLECTION } from "../engines/preparedActions";
+import { oneLine } from "../engines/promptText";
 import { changeRecord, type RecordUpdatePayload } from "../pilotBrainEdits";
 import { tenantRecordStore } from "../pilotBrainTools";
 import { callClaude } from "./pilotBrain";
@@ -180,7 +181,7 @@ export default function registerOperatorRoute(app: Express) {
         try {
           draftMessage = await callClaude(
             apiKey,
-            `You are drafting a short, genuine follow-up message from a UK used-car dealer to a real lead named ${lead.name}${lead.vehicleInterest ? `, who enquired about a ${lead.vehicleInterest}` : ""}. Friendly, brief, no pressure, no fabricated details about the vehicle or dealership beyond what's given. 2-3 sentences, no subject line, just the message body.`,
+            `You are drafting a short, genuine follow-up message from a UK used-car dealer to a real lead named ${oneLine(lead.name, 60)}${lead.vehicleInterest ? `, who enquired about a ${oneLine(lead.vehicleInterest, 80)}` : ""}. Friendly, brief, no pressure, no fabricated details about the vehicle or dealership beyond what's given. 2-3 sentences, no subject line, just the message body.`,
             [{ role: "user", content: "Draft the follow-up message." }],
             200
           );
@@ -239,7 +240,7 @@ export default function registerOperatorRoute(app: Express) {
         try {
           apptDraftMessage = await callClaude(
             apiKey,
-            `You are drafting a short, genuine follow-up message from a UK used-car dealer to ${appt.customerName}, whose ${kindLabel} request for ${appt.requestedDate} was never confirmed, declined, or marked complete. Friendly, apologetic for the delay, brief, no pressure, no fabricated details beyond what's given. 2-3 sentences, no subject line, just the message body.`,
+            `You are drafting a short, genuine follow-up message from a UK used-car dealer to ${oneLine(appt.customerName, 60)}, whose ${kindLabel} request for ${oneLine(appt.requestedDate, 12)} was never confirmed, declined, or marked complete. Friendly, apologetic for the delay, brief, no pressure, no fabricated details beyond what's given. 2-3 sentences, no subject line, just the message body.`,
             [{ role: "user", content: "Draft the follow-up message." }],
             200
           );

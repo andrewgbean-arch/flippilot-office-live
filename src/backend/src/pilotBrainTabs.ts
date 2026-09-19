@@ -414,7 +414,7 @@ export function lookInsidePromptSection(user: AuthUser): string {
   const tabs = TABS.filter(t => t.allowed(user));
   const hidden = TABS.filter(t => !t.allowed(user)).map(t => t.id);
   return [
-    `LOOKING INSIDE THE APP: you have a look_inside tool that reads records from these tabs on behalf of the person you're talking to (${user.name}). It is read-only. ${tabs.map(t => `${t.id} (${t.where}): ${t.contains}.`).join(" ")}`,
+    `LOOKING INSIDE THE APP: you have a look_inside tool that reads records from these tabs on behalf of the person you're talking to (${oneLine(user.name, 60)}). It is read-only. ${tabs.map(t => `${t.id} (${t.where}): ${t.contains}.`).join(" ")}`,
     hidden.length > 0
       ? `Their role doesn't let them open: ${hidden.join(", ")}. If they ask about those, say so plainly and don't guess.`
       : "",
