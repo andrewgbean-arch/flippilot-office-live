@@ -159,6 +159,16 @@ describe("where the card is used", () => {
     expect(screen.indexOf("if (!result.ok) {")).toBeLessThan(screen.indexOf("setJoined(true);"));
   });
 
+  it("the card's hook follows the install signal, reads and saves the dismissal, and hands the tap to the browser", () => {
+    const hook = source("pwa/InstallHint.tsx");
+    expect(hook).toContain("useSyncExternalStore(");
+    expect(hook).toContain("installHintDismissal.isDismissed()");
+    expect(hook).toContain("installHintDismissal.dismiss();");
+    expect(hook).toContain("installPromptStore.prompt()");
+    // installed, or turned down in the browser's own dialog: the card goes for good
+    expect(hook).toContain('if (outcome !== "unavailable") dismiss();');
+  });
+
   it("the dealer dashboard shows it once, above the greeting", () => {
     const dashboard = source("dealer/dashboard/DealerDashboard.tsx");
     expect(dashboard).toContain('import InstallHint from "@/pwa/InstallHint";');
