@@ -6,7 +6,7 @@ import { createInventorySaver, sameStatus, type InventorySaver, type SaverStatus
 import type { Vehicle } from "../types/Vehicle";
 
 // ⭐ AI enrichment layer
-import { enrichVehicleWithAI } from "../dealer/intelligence/dealerAI";
+import { enrichVehicleWithAI, prepareStock } from "../dealer/intelligence/dealerAI";
 
 import { useDealerNotifications } from "@/features/dealer-notifications/DealerNotificationsContext";
 import { useAuth } from "@/context/AuthContext";
@@ -86,7 +86,10 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
   if (saverRef.current === null) {
     saverRef.current = createInventorySaver({
       send: saveInventoryToServer,
-      prepare: (list) => list.map((v) => enrichVehicleWithAI(v)),
+      // One car at a time, so a record the AI layer can't make sense of (say,
+      // one saved by another client with no `mot` object) is shown as it is
+      // instead of failing the load for the whole stock.
+      prepare: prepareStock,
       onVehicles: setVehicles,
       onStatus: (next) => setSaveStatus((prev) => (sameStatus(prev, next) ? prev : next)),
     });

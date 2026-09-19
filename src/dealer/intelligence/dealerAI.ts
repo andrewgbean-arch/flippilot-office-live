@@ -158,6 +158,7 @@ function predictRepairs(vehicle: Vehicle) {
   const advisories = vehicle.mot.advisories || [];
 
   advisories.forEach((adv) => {
+    if (typeof adv !== "string") return; // not text: nothing to read a repair from
     const lower = adv.toLowerCase();
 
     if (lower.includes("tyre")) {
@@ -196,10 +197,48 @@ function predictRepairs(vehicle: Vehicle) {
   return predictions;
 }
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * A car read back from the server can lack pieces the scoring and the screens
+ * take for granted: the server stores whatever car it is sent, and another
+ * client (or an older version) may not have sent them. A car with no `mot`
+ * object made the enrichment throw, and one throw made the whole stock fail to
+ * load. This fills in the nested objects that are missing (and the two numbers
+ * the scoring does arithmetic on) and touches nothing the car does have, so a
+ * well-formed car comes back equal to how it went in.
+ */
+export function withSafeDefaults(car: Vehicle): Vehicle {
+  const mot: Record<string, unknown> = isPlainObject(car.mot) ? car.mot : {};
+  const finance: Record<string, unknown> = isPlainObject(car.finance) ? car.finance : {};
+  return {
+    ...car,
+    marketHeat: car.marketHeat ?? 0,
+    riskScore: car.riskScore ?? 0,
+    mot: {
+      ...mot,
+      expiry: mot.expiry ?? "",
+      advisories: Array.isArray(mot.advisories) ? mot.advisories : [],
+      historyScore: mot.historyScore ?? 0,
+      history: Array.isArray(mot.history) ? mot.history : [],
+    },
+    finance: {
+      ...finance,
+      apr: finance.apr ?? 0,
+      depositMin: finance.depositMin ?? 0,
+      lenderTier: finance.lenderTier ?? "A",
+    },
+    depreciationCurve: Array.isArray(car.depreciationCurve) ? car.depreciationCurve : [],
+  } as Vehicle;
+}
+
 /**
  * Main entry: enrich a Vehicle with AI intelligence fields.
  */
-export function enrichVehicleWithAI(base: Vehicle): Vehicle {
+export function enrichVehicleWithAI(car: Vehicle): Vehicle {
+  const base = withSafeDefaults(car);
   return {
     ...base,
     supernovaScore: computeSupernovaScore(base),
@@ -211,4 +250,30 @@ export function enrichVehicleWithAI(base: Vehicle): Vehicle {
     sellerPsychology: generateSellerPsychology(base),
     predictedRepairs: predictRepairs(base),
   };
+}
+
+/**
+ * Readies ONE car read from the server for display: fills in what it lacks and
+ * adds the AI scores. If that fails for any reason the car is kept exactly as it
+ * came, only without the scores, rather than costing the dealer their whole
+ * stock over one odd record.
+ */
+export function prepareVehicle(car: Vehicle): Vehicle {
+  try {
+    return enrichVehicleWithAI(car);
+  } catch (err) {
+    console.error(`Could not add AI scores to vehicle ${String(car?.id)}; showing it without them.`, err);
+    return car;
+  }
+}
+
+/**
+ * Readies a whole stock list, one car at a time, so one bad record can never
+ * hide the rest. An entry that isn't a car at all (null, a number, text: the
+ * server keeps whatever it once stored) can't be shown and is left out of what
+ * is displayed. The server's copy is untouched, since saving never removes a car
+ * just because it is missing from what is sent.
+ */
+export function prepareStock(list: readonly Vehicle[]): Vehicle[] {
+  return list.filter((entry): entry is Vehicle => isPlainObject(entry)).map(prepareVehicle);
 }

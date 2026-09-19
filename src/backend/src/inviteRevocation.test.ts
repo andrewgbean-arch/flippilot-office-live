@@ -2,6 +2,8 @@ import "./testPrivateDatabase.js"; // must stay first — see that file
 import { describe, it, expect, beforeAll, afterEach, vi } from "vitest";
 import request from "supertest";
 import jwt from "jsonwebtoken";
+import fs from "node:fs";
+import path from "node:path";
 import app from "./app.js";
 import * as authModule from "./auth.js";
 import { isInviteRevoked, isStaffRoleDemotion, VALID_STAFF_ROLES } from "./auth.js";
@@ -466,6 +468,58 @@ describe("moving someone to a lower role also cancels the links already shared",
 
     expect((await preview(link)).status).toBe(200);
     expect(storedDealership(owner.user.dealershipId)?.inviteEpoch).toBeUndefined();
+  });
+});
+
+// The Manage Team screen (src/dealer/settings) asks the owner BEFORE a step
+// down, because a step down cancels the shared links, so it carries its own copy
+// of the ladder (roleLadder.ts). This is the server's half of keeping the two
+// honest: the web test (roleLadder.test.ts) checks that copy against the SAME
+// table file, and this checks the server's ladder, and what the real route
+// does, against it. Change one ladder without the other and one of them fails.
+describe("the server's ladder matches the one the Manage Team screen asks the owner with", () => {
+  // Vitest is run from src/backend (see vitest.config.ts), so the web code is one folder up.
+  const tableFile = path.resolve(process.cwd(), "..", "dealer", "settings", "roleChangeTable.json");
+  const table = JSON.parse(fs.readFileSync(tableFile, "utf8")) as {
+    roles: StaffRole[];
+    rows: Array<[StaffRole, StaffRole, boolean]>;
+  };
+
+  it("covers exactly the roles the server has", () => {
+    expect([...table.roles].sort()).toEqual([...VALID_STAFF_ROLES].sort());
+  });
+
+  it("has a row for every from -> to pair", () => {
+    const seen = new Set(table.rows.map(([from, to]) => `${from}>${to}`));
+    expect(seen.size).toBe(table.rows.length);
+    for (const from of VALID_STAFF_ROLES) {
+      for (const to of VALID_STAFF_ROLES) expect(seen.has(`${from}>${to}`), `${from} -> ${to}`).toBe(true);
+    }
+  });
+
+  it.each(table.rows)("isStaffRoleDemotion(%s, %s) is %s", (from, to, expected) => {
+    expect(isStaffRoleDemotion(from, to)).toBe(expected);
+  });
+
+  it("the real route cancels the shared links for exactly the moves the table calls a demotion", async () => {
+    const owner = await signup("table");
+    const member = await joinStaff(owner.token, "general");
+
+    for (const [from, to, demotion] of table.rows) {
+      // Put them in the starting role directly, so setting it isn't itself a move.
+      writeCollection(
+        "users",
+        storedUsers().map(u => (u.id === member.user.id ? { ...u, staffRole: from } : u))
+      );
+      const link = await makeLink(owner.token, "manager");
+      expect((await preview(link)).status, `${from} -> ${to}: link made`).toBe(200);
+
+      const res = await setRole(owner.token, member.user.id, to);
+      expect(res.status, `${from} -> ${to}`).toBe(200);
+
+      const after = await preview(link);
+      expect(after.status === 400, `${from} -> ${to}: link cancelled`).toBe(demotion);
+    }
   });
 });
 

@@ -18,6 +18,26 @@ export function removeTeammatePrompt(name: string): string {
   );
 }
 
+// Asked BEFORE moving someone to a lower role, in the same in-page
+// confirmation the Remove button uses. A step down cancels every invite link
+// already shared (the person could otherwise use a link carrying their old role
+// to make a second account with it), and moving them back up does not bring the
+// links back, so the owner has to know first.
+export function lowerRolePrompt(name: string, fromLabel: string, toLabel: string): string {
+  return (
+    `Move ${name} from ${fromLabel} to ${toLabel}? This also cancels every invite link you've already shared, ` +
+    `and moving them back up won't bring those links back. Create a new link for anyone you're expecting.`
+  );
+}
+
+// One line shown after a step down has gone through.
+export function roleLoweredNotice(name: string, toLabel: string): string {
+  return (
+    `${name} is now ${toLabel}. Invite links you'd already shared no longer work — ` +
+    `create a new link for anyone you're expecting.`
+  );
+}
+
 export const MANAGE_TEAM_INTRO =
   "Role changes and removals take effect on their very next click — no waiting for them to log in again. " +
   "Removing someone, or moving them to a lower role, also cancels every invite link you've already shared.";

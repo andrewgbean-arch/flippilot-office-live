@@ -20,8 +20,11 @@ import {
   MANAGE_TEAM_INTRO,
   inviteLinkWarning,
   inviteShareIntro,
+  lowerRolePrompt,
   removeTeammatePrompt,
+  roleLoweredNotice,
 } from "./teamCopy";
+import { roleChangeStep } from "./roleLadder";
 
 import { BASE_URL } from "@/lib/apiBaseUrl";
 
@@ -31,6 +34,12 @@ const STAFF_ROLE_OPTIONS: { value: "sales" | "finance" | "manager" | "general"; 
   { value: "manager", label: "Manager", description: "Broad access — bookkeeping, staff, inventory, leads" },
   { value: "general", label: "General", description: "View access; can't record sales/costs or manage staff" },
 ];
+
+// A role's name as the owner sees it ("Manager", not "manager"), for messages.
+function roleLabel(role: string | undefined): string {
+  const value = role ?? "general";
+  return STAFF_ROLE_OPTIONS.find((opt) => opt.value === value)?.label ?? value;
+}
 
 function InviteTeammateModal({ onClose }: { onClose: () => void }) {
   const [inviteeName, setInviteeName] = useState("");
@@ -158,11 +167,16 @@ function InviteTeammateModal({ onClose }: { onClose: () => void }) {
 // request (the backend re-reads the account every time), so removing
 // someone here really does cut them off immediately, not when their
 // login eventually expires.
-function ManageTeamModal({ onClose }: { onClose: () => void }) {
+export function ManageTeamModal({ onClose }: { onClose: () => void }) {
   const [members, setMembers] = useState<TeamMember[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  // A step down the owner has picked but not yet confirmed. Nothing is sent
+  // until they confirm it: it also cancels every invite link already shared.
+  const [pendingRole, setPendingRole] = useState<{ memberId: string; staffRole: string } | null>(null);
+  // One line about what the last role change did to the shared links.
+  const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -185,7 +199,28 @@ function ManageTeamModal({ onClose }: { onClose: () => void }) {
     };
   }, []);
 
+  // The role dropdown. A step up is made at once; a step down first asks,
+  // because it also cancels every invite link already shared (and changing the
+  // role back doesn't restore them).
+  function requestRoleChange(member: TeamMember, chosen: string) {
+    setNotice(null);
+    setError(null);
+    const step = roleChangeStep(member.staffRole, chosen);
+    if (step === "confirm") {
+      setConfirmingId(null);
+      setPendingRole({ memberId: member.id, staffRole: chosen });
+      return;
+    }
+    // Anything else drops a question left open on the last pick.
+    setPendingRole(null);
+    if (step === "apply") void changeRole(member, chosen);
+  }
+
   async function changeRole(member: TeamMember, staffRole: string) {
+    // Worked out before anything is sent, from the row as it is now: was this a
+    // step down? The server answers that question the same way, and if it was,
+    // the shared links are gone once this succeeds, so the owner is told.
+    const steppedDown = roleChangeStep(member.staffRole, staffRole) === "confirm";
     setBusyId(member.id);
     setError(null);
     try {
@@ -200,6 +235,8 @@ function ManageTeamModal({ onClose }: { onClose: () => void }) {
         return;
       }
       setMembers((prev) => prev && prev.map((m) => (m.id === member.id ? data.member : m)));
+      setPendingRole(null);
+      if (steppedDown) setNotice(roleLoweredNotice(member.name, roleLabel(staffRole)));
     } catch {
       setError("Backend unreachable — try again.");
     } finally {
@@ -240,6 +277,12 @@ function ManageTeamModal({ onClose }: { onClose: () => void }) {
 
         {members === null && !error && <p className="text-white/60 text-sm mb-4">Loading team…</p>}
 
+        {notice && (
+          <p role="status" className="text-yellow-200/90 text-sm mb-4">
+            {notice}
+          </p>
+        )}
+
         {members && (
           <ul className="space-y-3 mb-4">
             {members.map((m) => (
@@ -259,7 +302,7 @@ function ManageTeamModal({ onClose }: { onClose: () => void }) {
                       aria-label={`Role for ${m.name}`}
                       value={m.staffRole ?? "general"}
                       disabled={busyId === m.id}
-                      onChange={(e) => changeRole(m, e.target.value)}
+                      onChange={(e) => requestRoleChange(m, e.target.value)}
                       className="p-1 rounded bg-black/40 border border-white/10 text-white/80 text-sm disabled:opacity-60"
                     >
                       {STAFF_ROLE_OPTIONS.map((opt) => (
@@ -269,7 +312,31 @@ function ManageTeamModal({ onClose }: { onClose: () => void }) {
                   )}
                 </div>
 
-                {m.role !== "owner" &&
+                {m.role !== "owner" && pendingRole?.memberId === m.id && (
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                    <p className="text-red-300 text-xs flex-1 min-w-[12rem]">
+                      {lowerRolePrompt(m.name, roleLabel(m.staffRole), roleLabel(pendingRole.staffRole))}
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setPendingRole(null)}
+                        disabled={busyId === m.id}
+                        className="px-3 py-1 rounded text-xs bg-white/10 text-white/70 hover:bg-white/20 disabled:opacity-60"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => changeRole(m, pendingRole.staffRole)}
+                        disabled={busyId === m.id}
+                        className="px-3 py-1 rounded text-xs font-semibold bg-red-500 text-white hover:bg-red-400 disabled:opacity-60"
+                      >
+                        {busyId === m.id ? "Changing…" : "Change role"}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {m.role !== "owner" && pendingRole?.memberId !== m.id &&
                   (confirmingId === m.id ? (
                     <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
                       <p className="text-red-300 text-xs flex-1 min-w-[12rem]">{removeTeammatePrompt(m.name)}</p>
@@ -292,7 +359,11 @@ function ManageTeamModal({ onClose }: { onClose: () => void }) {
                     </div>
                   ) : (
                     <button
-                      onClick={() => setConfirmingId(m.id)}
+                      onClick={() => {
+                        setPendingRole(null);
+                        setNotice(null);
+                        setConfirmingId(m.id);
+                      }}
                       className="mt-2 text-xs text-red-400 hover:text-red-300"
                     >
                       Remove from team
