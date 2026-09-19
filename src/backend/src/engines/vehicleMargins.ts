@@ -105,14 +105,28 @@ export function summariseVehicleMargins(
 
   const heading = `Vehicle profit (cars sold in the last ${MARGIN_WINDOW_DAYS} days, from the Bookkeeping ledger)`;
 
-  const recentSales = [...sales.entries()].filter(([, sale]) => {
+  // A sale whose date can't be placed in time (missing, unreadable, or further
+  // ahead than a clock that runs a little fast could explain, as with lead
+  // dates) is counted rather than silently dropped, so it can be reported.
+  // Without that, "no sales recorded" could be said while a sale with a
+  // mistyped date is sitting in the ledger.
+  let undated = 0;
+  const recentSales: [string, Record<string, unknown>][] = [];
+  for (const [vehicleId, sale] of sales) {
     const t = typeof sale.date === "string" ? new Date(sale.date).getTime() : NaN;
-    // A day's grace for a clock that runs a little fast, as with lead dates.
-    return !Number.isNaN(t) && t >= cutoff && t <= now + DAY_MS;
-  });
+    if (Number.isNaN(t) || t > now + DAY_MS) {
+      undated += 1;
+      continue;
+    }
+    if (t >= cutoff) recentSales.push([vehicleId, sale]);
+  }
+  const undatedNote =
+    undated > 0
+      ? [`${undated} ${plural(undated, "sale has", "sales have")} no usable date and ${plural(undated, "is", "are")} left out.`]
+      : [];
 
   if (recentSales.length === 0) {
-    return [`${heading}: no sales recorded in that window.`];
+    return [`${heading}: no sales recorded in that window.`, ...undatedNote];
   }
 
   const known: KnownSale[] = [];
@@ -146,7 +160,7 @@ export function summariseVehicleMargins(
     `${heading}: ${recentSales.length} sold, profit known for ${known.length}${unknownNote}.`,
   ];
 
-  if (known.length === 0) return lines;
+  if (known.length === 0) return [...lines, ...undatedNote];
 
   const totalProfit = known.reduce((sum, k) => sum + k.profit, 0);
   const totalSales = known.reduce((sum, k) => sum + k.sale, 0);
@@ -178,5 +192,5 @@ export function summariseVehicleMargins(
     );
   }
 
-  return lines;
+  return [...lines, ...undatedNote];
 }

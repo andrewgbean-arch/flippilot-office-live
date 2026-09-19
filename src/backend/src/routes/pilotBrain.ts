@@ -21,7 +21,7 @@ import {
 import { runWatcher, type WatcherResult } from "../engines/watcherEngine";
 import { investigate, findOpportunities, type InvestigationReport, type Opportunity } from "../engines/advisorEngine";
 import { summariseAppointmentOutcomes } from "../engines/appointmentOutcomes";
-import { summariseLeadSources } from "../engines/leadSources";
+import { summariseLeadSources, MOT_BOOKING_STATUS } from "../engines/leadSources";
 import { summariseVehicleMargins } from "../engines/vehicleMargins";
 import { buildMarketSummaryFromStorage, getStoredMarketData } from "./marketIntelligence";
 import { computeStrategicHealth } from "../engines/cofounderEngine";
@@ -146,8 +146,11 @@ export function buildBusinessSummary(dealershipId: string): string {
     return days <= 30;
   }).length;
 
+  // A website MOT booking is the customer's own car, so it can never become a
+  // sale and isn't an "open lead": the lead-source block and the Watcher both
+  // leave it out, and this headline count has to agree with them.
   const openLeads = leads.filter(
-    (l: any) => l.status && !["won", "lost"].includes(String(l.status).toLowerCase())
+    (l: any) => l.status && !["won", "lost", MOT_BOOKING_STATUS].includes(String(l.status).trim().toLowerCase())
   ).length;
 
   // A plain count, from the same vehicle records read above: a car with no

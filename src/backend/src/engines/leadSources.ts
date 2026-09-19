@@ -27,7 +27,7 @@ export const NO_SOURCE_LABEL = "(no source recorded)";
 // The public booking form also creates a lead for an MOT booking. That's the
 // customer's own car, so it can never be won as a sale — counting it would
 // drag "Website Booking" conversion down for no real reason.
-const MOT_BOOKING_STATUS = "mot_booked";
+export const MOT_BOOKING_STATUS = "mot_booked";
 
 interface Bucket {
   spellings: Map<string, number>;

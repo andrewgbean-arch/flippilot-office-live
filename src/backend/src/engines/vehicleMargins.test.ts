@@ -147,8 +147,10 @@ describe("summariseVehicleMargins", () => {
 
   it("leaves out a sale dated well in the future, but allows a day's leeway for time zones and a fast clock", () => {
     const typo = summariseVehicleMargins(ledger([{ id: "a", bought: 5000, sold: 6000, soldDaysAgo: -30 }]), [car("a")], NOW);
-    expect(typo).toHaveLength(1);
+    // Left out of the figures, but reported: a mistyped year must not read as "no sales".
+    expect(typo).toHaveLength(2);
     expect(typo[0]).toContain("no sales recorded in that window");
+    expect(typo[1]).toBe("1 sale has no usable date and is left out.");
 
     const tomorrow = summariseVehicleMargins(ledger([{ id: "a", bought: 5000, sold: 6000, soldDaysAgo: -0.5 }]), [car("a")], NOW);
     expect(tomorrow[0]).toContain("1 sold, profit known for 1");
@@ -265,5 +267,70 @@ describe("summariseVehicleMargins", () => {
     expect(lines.some(l => l.startsWith("SYSTEM"))).toBe(false);
     const longLine = lines.find(l => l.includes("Ford SYSTEM"))!;
     expect(longLine.slice(2, longLine.indexOf(": bought")).length).toBeLessThanOrEqual(50);
+  });
+});
+
+// A sale whose date can't be placed in time used to be dropped without a word,
+// so the Brain could say "no sales recorded" while one sat in the ledger. It is
+// now counted and reported, the way the lead-source block reports undated leads.
+describe("summariseVehicleMargins — sales with no usable date", () => {
+  const sale = (vehicleId: string, date: unknown, salePrice = 6000) => ({ vehicleId, salePrice, date });
+
+  it("says so, and leaves the figures alone, when some sales have no usable date", () => {
+    const lines = summariseVehicleMargins(
+      {
+        purchases: [{ vehicleId: "a", purchasePrice: 5000 }, { vehicleId: "b", purchasePrice: 5000 }, { vehicleId: "c", purchasePrice: 5000 }],
+        sales: [sale("a", dateDaysAgo(10)), sale("b", "not a date"), sale("c", undefined)],
+        costs: [],
+      },
+      [car("a"), car("b"), car("c")],
+      NOW
+    );
+    expect(lines[0]).toContain("1 sold, profit known for 1");
+    expect(lines[1]).toContain("Total £1,000 on £6,000 of sales"); // only the dated sale is in the numbers
+    expect(lines[lines.length - 1]).toBe("2 sales have no usable date and are left out.");
+  });
+
+  it("does not claim there are no sales when the only sales have no usable date", () => {
+    const lines = summariseVehicleMargins(
+      { purchases: [{ vehicleId: "a", purchasePrice: 5000 }], sales: [sale("a", "31/02/2030")], costs: [] },
+      [car("a")],
+      NOW
+    );
+    expect(lines).toEqual([
+      "Vehicle profit (cars sold in the last 90 days, from the Bookkeeping ledger): no sales recorded in that window.",
+      "1 sale has no usable date and is left out.",
+    ]);
+  });
+
+  it("still says so when no profit could be worked out for the dated sales", () => {
+    const lines = summariseVehicleMargins(
+      { purchases: [], sales: [sale("a", dateDaysAgo(5)), sale("b", "garbage")], costs: [] }, // no purchase for a
+      [car("a"), car("b")],
+      NOW
+    );
+    expect(lines[0]).toContain("1 sold, profit known for 0");
+    expect(lines[lines.length - 1]).toBe("1 sale has no usable date and is left out.");
+  });
+
+  it("says nothing about an ordinary old sale: that is just outside the window", () => {
+    const lines = summariseVehicleMargins(
+      { purchases: [{ vehicleId: "a", purchasePrice: 5000 }], sales: [sale("a", dateDaysAgo(200))], costs: [] },
+      [car("a")],
+      NOW
+    );
+    expect(lines).toEqual([
+      "Vehicle profit (cars sold in the last 90 days, from the Bookkeeping ledger): no sales recorded in that window.",
+    ]);
+  });
+
+  it("does not treat a date a day ahead (a fast clock or a time zone) as unusable", () => {
+    const lines = summariseVehicleMargins(
+      { purchases: [{ vehicleId: "a", purchasePrice: 5000 }], sales: [sale("a", new Date(NOW + 0.5 * DAY).toISOString())], costs: [] },
+      [car("a")],
+      NOW
+    );
+    expect(lines.join("\n")).not.toContain("no usable date");
+    expect(lines[0]).toContain("1 sold, profit known for 1");
   });
 });
