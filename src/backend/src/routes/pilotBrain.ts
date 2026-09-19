@@ -193,7 +193,7 @@ export function extractRememberTag(rawReply: string): { visible: string; fact: s
 
   // Only a note that is the very last thing (bar blanks, marks and stray closing tags) is one to remember.
   const isFinal =
-    last !== undefined && cutOff === undefined && /^[\s*_~`]*$/.test(rawReply.slice(last.close.end).replace(/<\/remember>/gi, ""));
+    last !== undefined && /^[\s*_~`]*$/.test(rawReply.slice(last.close.end).replace(/<\/remember>/gi, ""));
 
   const cuts: [number, number][] = [];
   for (const pair of outer) {
@@ -226,7 +226,7 @@ export function extractRememberTag(rawReply: string): { visible: string; fact: s
 
   const fact =
     isFinal && last
-      ? toMemoryLine(rawReply.slice(last.open.end, last.close.start).replace(/<\/?remember>/gi, " "), MAX_MEMORY_CHARS)
+      ? toMemoryLine(rawReply.slice(last.open.end, last.close.start), MAX_MEMORY_CHARS) // (tags nested inside it are dropped there)
       : "";
   return { visible: visible.trim(), fact: fact || null };
 }

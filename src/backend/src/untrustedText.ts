@@ -200,7 +200,7 @@ function cutWithEllipsis(text: string, max: number): string {
 }
 
 export function toMemoryLine(input: unknown, max: number): string {
-  const cleaned = plainCharacters(input, max)
+  const cleaned = plainCharacters(input, max) // one line, hidden characters dropped
     .replace(LINK_OR_IMAGE, "$1") // [label](url) and ![alt](url) keep just the label
     .replace(MEMORY_WEB_ADDRESS, " ") // https://... and www... go, up to the bracket or full stop that ends them
     .replace(SCHEME_URL, " ") // javascript:... and the like go whole

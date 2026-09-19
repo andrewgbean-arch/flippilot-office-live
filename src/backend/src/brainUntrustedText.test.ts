@@ -935,6 +935,16 @@ describe("Pilot Brain treats outside text as data", () => {
       // a mention that opens a line, followed by a long answer, is not a note cut off either
       const longAnswer = "<remember> is a tag I never use.\n\n" + "Here is a long and careful answer. ".repeat(30);
       expect(extractRememberTag(longAnswer)).toEqual({ visible: longAnswer.trim(), fact: null });
+      // ...and a long single line is not a fragment of one cut off
+      const longFragment = "I never say <remember> " + "very ".repeat(80) + "loudly";
+      expect(extractRememberTag(longFragment)).toEqual({ visible: longFragment, fact: null });
+    });
+
+    it("only hides a cut-off note at the very end: an opening tag with a note after it is left where it is", () => {
+      expect(extractRememberTag("Ok\n<remember>half\n<remember>Boss likes tea</remember>")).toEqual({
+        visible: "Ok\n<remember>half",
+        fact: "Boss likes tea",
+      });
     });
 
     it("still hides a note that was cut off by the length limit, wherever it starts", () => {
