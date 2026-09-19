@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import {
   fetchGoals,
@@ -90,6 +91,9 @@ export default function PilotBrainStrategy() {
           <p className="sn-hero__subtitle">
             Real goals, real progress, and an executive-level view of where the business stands.
           </p>
+          <Link to="/pilot-brain/decisions" style={{ display: "inline-block", marginTop: 8, fontSize: 13, color: "#ffd700" }}>
+            Decision Journal (owners and managers) &rarr;
+          </Link>
         </div>
       </header>
 
