@@ -1,6 +1,7 @@
 import { Express, Request } from "express";
 import { readTenantDoc, writeTenantDoc } from "../db";
 import { requireStaffRole, type AuthUser } from "../auth";
+import { bookkeepingDocFromBody } from "../wholeListGuard";
 
 function dealershipId(req: Request): string {
   return (req as Request & { user: AuthUser }).user.dealershipId;
@@ -42,15 +43,10 @@ export default function registerBookkeepingRoute(app: Express) {
   // territory — a "sales" or general staff account can see the books
   // but not write to them.
   app.put("/bookkeeping", requireStaffRole("finance", "manager"), (req, res) => {
-    const body = req.body ?? {};
-    const data: BookkeepingDoc = {
-      costs: Array.isArray(body.costs) ? body.costs : [],
-      purchases: Array.isArray(body.purchases) ? body.purchases : [],
-      sales: Array.isArray(body.sales) ? body.sales : [],
-      transactions: Array.isArray(body.transactions) ? body.transactions : [],
-      suppliers: Array.isArray(body.suppliers) ? body.suppliers : [],
-      categories: Array.isArray(body.categories) ? body.categories : [],
-    };
+    // A whole-ledger replace: every list must actually be in the request,
+    // or a partial or broken body would blank the ones it left out.
+    const data: BookkeepingDoc | null = bookkeepingDocFromBody(req, res);
+    if (!data) return;
     writeTenantDoc(dealershipId(req), "bookkeeping", data);
     res.json({ ok: true, ...data });
   });
