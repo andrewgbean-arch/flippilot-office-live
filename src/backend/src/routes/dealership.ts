@@ -12,6 +12,47 @@ import {
   type StoredUser,
 } from "../auth";
 
+// What a signed-in teammate (anyone who is not the owner) may read about the
+// dealership at GET /dealership/me. The stored record also holds the Stripe
+// customer and subscription ids (billing identifiers no teammate has any use
+// for) and inviteEpoch (the counter behind cancelling shared invite links). The
+// owner gets the whole record; everyone else gets only what the app reads. The
+// list comes from the callers, not from guessing:
+//   id, name, phone, address, vatNumber - DealerContext: the dealership's name
+//        and contact/VAT details, shown on invoices and the public page
+//   subscriptionStatus, trialEndsAt     - TrialBanner and BillingScreen: the
+//        trial and subscription messages
+//   pilotBrainEnabled                   - BillingScreen: the Pilot Brain line
+//   approvalStatus                      - nothing on the web reads it from here
+//        (login and /auth/me carry it), but this route is deliberately open to a
+//        dealership still awaiting approval so a client can show its real status
+//        (see app.ts), and it is not sensitive
+// The phone companion app reads `name` only. dealershipMeFields.test.ts checks
+// this list against the callers' source, so the two cannot drift silently.
+export const TEAMMATE_DEALERSHIP_FIELDS = [
+  "id",
+  "name",
+  "phone",
+  "address",
+  "vatNumber",
+  "subscriptionStatus",
+  "trialEndsAt",
+  "pilotBrainEnabled",
+  "approvalStatus",
+] as const satisfies readonly (keyof Dealership)[];
+
+// The owner's view is the stored record itself; anyone else's is only the
+// whitelisted fields the record actually has (an unset field stays absent,
+// exactly as it is in the owner's copy).
+export function dealershipViewFor(user: Pick<AuthUser, "role">, dealership: Dealership): Partial<Dealership> {
+  if (user.role === "owner") return dealership;
+  const view: Record<string, unknown> = {};
+  for (const field of TEAMMATE_DEALERSHIP_FIELDS) {
+    if (dealership[field] !== undefined) view[field] = dealership[field];
+  }
+  return view as Partial<Dealership>;
+}
+
 export default function registerDealershipRoute(app: Express) {
   app.get("/dealership/me", requireAuth, (req, res) => {
     const user = (req as Request & { user: AuthUser }).user;
@@ -22,7 +63,7 @@ export default function registerDealershipRoute(app: Express) {
       return res.status(404).json({ ok: false, error: "Dealership not found" });
     }
 
-    res.json({ ok: true, dealership });
+    res.json({ ok: true, dealership: dealershipViewFor(user, dealership) });
   });
 
   // Lets the "Edit Dealer Profile" screen actually save something — it
