@@ -4,6 +4,7 @@ import rateLimit from "express-rate-limit";
 import { readCollection, readTenantCollection, writeTenantCollection, readTenantDoc } from "../db";
 import type { StoredUser, Dealership } from "../auth";
 import { isSampleVehicleId } from "../sampleVehicles";
+import { bookedStatus, leadUpdateForBooking } from "../engines/leadBookingStatus";
 import { DEFAULT_BOOKING_SETTINGS, type BookingSettings, type WeekDay } from "./bookingSettings";
 
 export type AppointmentType = "viewing" | "test_drive" | "mot";
@@ -289,10 +290,11 @@ export default function registerPublicBookingRoute(app: Express) {
     let lead = leads.find(
       l => (customerEmail && l.email === customerEmail) || (customerPhone && l.phone === customerPhone)
     );
-    const leadStatus = type === "test_drive" ? "test_drive" : type === "mot" ? "mot_booked" : "viewing_booked";
     if (lead) {
-      lead.status = leadStatus;
-      lead.vehicleInterest = vehicleLabel;
+      // Never wipes a win or drags a lead backwards — see leadBookingStatus.
+      const update = leadUpdateForBooking(lead.status, type);
+      if (update.status !== (lead.status ?? "")) lead.status = update.status;
+      if (update.updateInterest) lead.vehicleInterest = vehicleLabel;
     } else {
       lead = {
         id: randomUUID(),
@@ -301,7 +303,7 @@ export default function registerPublicBookingRoute(app: Express) {
         ...(customerEmail ? { email: customerEmail } : {}),
         source: "Website Booking",
         vehicleInterest: vehicleLabel,
-        status: leadStatus,
+        status: bookedStatus(type),
         createdAt: new Date().toISOString(),
       };
       leads.push(lead);

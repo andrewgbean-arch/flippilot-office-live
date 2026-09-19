@@ -893,6 +893,72 @@ describe("public booking — the one part of the app reachable with no account a
     expect(notifRes.body.items.some((n: any) => n.title.includes("test drive"))).toBe(true);
   });
 
+  it("a returning customer's booking never wipes a win or drags a lead backwards", async () => {
+    const owner = await signup("public-booking-returning");
+    const dealershipId = owner.user.dealershipId;
+    await request(app)
+      .put("/inventory")
+      .set("Authorization", `Bearer ${owner.token}`)
+      .send({ items: [{ id: "veh-return", make: "Mini", model: "Cooper", reg: "MN19ABC" }] });
+
+    const lead = (n: number, status: string) => ({
+      id: `ret-${n}`,
+      name: `Returning ${n}`,
+      phone: `0770090110${n}`,
+      source: "AutoTrader",
+      vehicleInterest: `Original interest ${n}`,
+      status,
+      createdAt: new Date().toISOString(),
+    });
+    writeTenantCollection(dealershipId, "leads", [
+      lead(1, "won"),
+      lead(2, "negotiating"),
+      lead(3, "lost"),
+      lead(4, "new"),
+      lead(5, "won"),
+    ]);
+
+    let slot = 8; // a different half-hour each time: 2030-01-07 is an open Monday
+    const book = (n: number, type: "viewing" | "test_drive" | "mot") => {
+      slot += 1;
+      return request(app)
+        .post(`/public/${dealershipId}/appointments`)
+        .send({
+          customerName: `Returning ${n}`,
+          customerPhone: `0770090110${n}`,
+          type,
+          requestedDate: "2030-01-07",
+          requestedTime: `${String(slot).padStart(2, "0")}:00`,
+          ...(type === "mot" ? { customerVehicleReg: "AB12 CDE" } : { vehicleId: "veh-return" }),
+        });
+    };
+    const leadsNow = async () =>
+      (await request(app).get("/leads").set("Authorization", `Bearer ${owner.token}`)).body.items as any[];
+    const byId = (items: any[], id: string) => items.find(l => l.id === id);
+
+    expect((await book(1, "viewing")).status).toBe(200); // bought before, now looks at another car
+    expect((await book(5, "mot")).status).toBe(200); // bought before, now books an MOT online
+    expect((await book(2, "viewing")).status).toBe(200); // deep in negotiation
+    expect((await book(3, "test_drive")).status).toBe(200); // had been marked lost
+    expect((await book(4, "test_drive")).status).toBe(200); // brand new lead
+
+    const items = await leadsNow();
+    expect(items).toHaveLength(5); // matched by phone, never duplicated
+
+    expect(byId(items, "ret-1").status).toBe("won");
+    expect(byId(items, "ret-1").vehicleInterest).toBe("Original interest 1");
+
+    expect(byId(items, "ret-5").status).toBe("won"); // an MOT booking used to turn this into "mot_booked"
+    expect(byId(items, "ret-5").vehicleInterest).toBe("Original interest 5"); // and replace it with their reg
+
+    expect(byId(items, "ret-2").status).toBe("negotiating"); // not pushed back to viewing_booked
+
+    expect(byId(items, "ret-3").status).toBe("test_drive"); // a lost lead booking is a real re-engagement
+    expect(byId(items, "ret-3").vehicleInterest).toContain("Mini Cooper");
+
+    expect(byId(items, "ret-4").status).toBe("test_drive"); // moved forward
+  });
+
   it("rejects a booking for a vehicle that doesn't belong to that dealership", async () => {
     const dealerA = await signup("public-cross-a");
     const dealerB = await signup("public-cross-b");
