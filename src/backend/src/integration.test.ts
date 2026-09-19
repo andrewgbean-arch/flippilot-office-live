@@ -1832,6 +1832,117 @@ describe("appointment outcomes — what actually happened, not just that it was 
   });
 });
 
+// Pilot Brain's business snapshot now carries lead conversion per source and
+// per-car profit. The arithmetic and edge cases are unit-tested in
+// leadSources.test.ts / vehicleMargins.test.ts; this checks the wiring — that
+// it reads the dealership's real stored leads, cars and bookkeeping, keeps
+// dealerships apart, survives odd stored data, and hands over nothing about
+// the customers themselves.
+describe("Pilot Brain snapshot — lead sources and per-car profit", () => {
+  const daysAgo = (n: number) => new Date(Date.now() - n * 86400000).toISOString();
+  const day = (n: number) => daysAgo(n).slice(0, 10);
+
+  it("reads the dealership's own leads, cars and ledger, and gives the model none of the people in them", async () => {
+    const dealer = await signup("snapshot-lead-margin");
+    const id = dealer.user.dealershipId;
+
+    const lead = (n: number, source: string, status: string) => ({
+      id: `l${n}`,
+      name: `Private Person ${n}`,
+      phone: `0770090012${n}`,
+      email: `private${n}@example.test`,
+      notes: `PRIVATE NOTE ${n}`,
+      source,
+      status,
+      createdAt: daysAgo(n + 1),
+    });
+    writeTenantCollection(id, "leads", [
+      lead(1, "AutoTrader", "won"),
+      lead(2, "AutoTrader", "lost"),
+      lead(3, "auto trader", "new"),
+      lead(4, "Walk-in", "won"),
+    ]);
+    writeTenantCollection(id, "vehicles", [
+      { id: "v1", make: "BMW", model: "3 Series", year: 2019, status: "sold" },
+      { id: "v2", make: "Ford", model: "Fiesta", year: 2017, status: "sold" },
+    ]);
+    writeTenantDoc(id, "bookkeeping", {
+      purchases: [
+        { id: "p1", vehicleId: "v1", purchasePrice: 9000, date: day(60) },
+        { id: "p2", vehicleId: "v2", purchasePrice: 4000, date: day(50) },
+      ],
+      costs: [{ id: "c1", vehicleId: "v1", type: "parts", amount: 400, date: day(30) }],
+      sales: [
+        { id: "s1", vehicleId: "v1", salePrice: 10200, date: day(10), buyer: "Private Buyer", buyerEmail: "buyer@example.test", buyerPhone: "07700900999", buyerAddress: "1 Private Road", invoiceNumber: "INV-PRIVATE" },
+        { id: "s2", vehicleId: "v2", salePrice: 3700, date: day(5), buyer: "Another Buyer" },
+      ],
+    });
+
+    const summary = buildBusinessSummary(id);
+
+    // lead sources — "AutoTrader" and "auto trader" are one source
+    expect(summary).toContain("Lead sources (leads created in the last 90 days): 4 in all — 2 won, 1 lost, 1 still open.");
+    expect(summary).toContain("- AutoTrader: 3 leads, 1 won (33% conversion), 1 lost, 1 still open");
+    expect(summary).toContain("- Walk-in: 1 lead, 1 won, 0 lost, 0 still open (too few leads to call a conversion rate)");
+
+    // per-car profit, worked out the way the Bookkeeping screen does
+    expect(summary).toContain("2 sold, profit known for 2");
+    expect(summary).toContain("- 2019 BMW 3 Series: bought £9,000 + £400 costs, sold £10,200, profit £800 (7.8%)");
+    expect(summary).toContain("- 2017 Ford Fiesta: bought £4,000 (no costs recorded), sold £3,700, profit -£300 (-8.1%)");
+    expect(summary).toContain("1 sold at a loss.");
+
+    // ...and nothing about the people
+    for (const secret of [
+      "Private Person", "0770090012", "private1@example.test", "PRIVATE NOTE",
+      "Private Buyer", "Another Buyer", "buyer@example.test", "07700900999", "1 Private Road", "INV-PRIVATE",
+    ]) {
+      expect(summary, `the snapshot must not contain: ${secret}`).not.toContain(secret);
+    }
+  });
+
+  it("says plainly that there is nothing yet on a brand-new dealership", async () => {
+    const dealer = await signup("snapshot-lead-margin-empty");
+    const summary = buildBusinessSummary(dealer.user.dealershipId);
+    expect(summary).toContain("Lead sources: no leads recorded yet.");
+    expect(summary).toContain("no sales recorded in that window.");
+  });
+
+  it("keeps working when the stored ledger is missing lists, or a car's details are gone", async () => {
+    const dealer = await signup("snapshot-lead-margin-odd");
+    const id = dealer.user.dealershipId;
+    writeTenantDoc(id, "bookkeeping", {}); // a document with none of its lists
+    expect(() => buildBusinessSummary(id)).not.toThrow();
+    expect(buildBusinessSummary(id)).toContain("no sales recorded in that window.");
+
+    // a sale whose car was since deleted from inventory
+    writeTenantDoc(id, "bookkeeping", {
+      purchases: [{ id: "p", vehicleId: "gone", purchasePrice: 1000, date: day(20) }],
+      sales: [{ id: "s", vehicleId: "gone", salePrice: 1500, date: day(3) }],
+      costs: [],
+    });
+    expect(buildBusinessSummary(id)).toContain("- A vehicle no longer in inventory: bought £1,000 (no costs recorded), sold £1,500, profit £500 (33.3%)");
+  });
+
+  it("never mixes one dealership's leads and sales into another's snapshot", async () => {
+    const a = await signup("snapshot-lead-margin-a");
+    const b = await signup("snapshot-lead-margin-b");
+    writeTenantCollection(a.user.dealershipId, "leads", [
+      { id: "x1", name: "A Lead", source: "Only At Dealer A", status: "won", createdAt: daysAgo(2) },
+    ]);
+    writeTenantDoc(a.user.dealershipId, "bookkeeping", {
+      purchases: [{ id: "p", vehicleId: "a1", purchasePrice: 100, date: day(20) }],
+      sales: [{ id: "s", vehicleId: "a1", salePrice: 999, date: day(3) }],
+      costs: [],
+    });
+
+    expect(buildBusinessSummary(a.user.dealershipId)).toContain("Only At Dealer A");
+    const other = buildBusinessSummary(b.user.dealershipId);
+    expect(other).not.toContain("Only At Dealer A");
+    expect(other).toContain("Lead sources: no leads recorded yet.");
+    expect(other).not.toContain("£999");
+  });
+});
+
 // Pay summary — gross pay for clocked hours at an owner-set rate. This is
 // other people's wages, so the tests are mostly about who can see what:
 // rates are owner-only (and deliberately NOT on the work pattern, which
