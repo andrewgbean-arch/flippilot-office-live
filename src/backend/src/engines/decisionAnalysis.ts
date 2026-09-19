@@ -246,15 +246,15 @@ function matchingBrace(text: string, start: number): number {
 // stops "[{...}]" and "{...} {...}" getting through.
 export function extractJson(reply: unknown): Record<string, unknown> | null {
   if (typeof reply !== "string") return null;
-  const text = reply.replace(/```[A-Za-z0-9_-]*/g, " "); // a fence's markers are not content
-  const start = text.indexOf("{");
+  const start = reply.indexOf("{");
   if (start < 0) return null;
-  const end = matchingBrace(text, start);
+  const end = matchingBrace(reply, start);
   if (end < 0) return null;
-  if (/[{}[\]]/.test(text.slice(0, start)) || /[{}[\]]/.test(text.slice(end + 1))) return null;
+  // (A code fence's own marks, ``` and a language tag, contain no bracket, so they need no special care.)
+  if (/[{}[\]]/.test(reply.slice(0, start)) || /[{}[\]]/.test(reply.slice(end + 1))) return null;
   let parsed: unknown;
   try {
-    parsed = JSON.parse(text.slice(start, end + 1));
+    parsed = JSON.parse(reply.slice(start, end + 1));
   } catch {
     return null;
   }
@@ -310,6 +310,7 @@ export interface ChallengeDraft {
 }
 
 const CONFIDENCE_WORDS = "confidence must be exactly low, medium or high (never a number or a percentage)";
+const UNKNOWNS_REQUIRED = "unknowns needs at least 1: a challenge that lists nothing unknown is hiding uncertainty";
 
 // Checks the model's answer for "Pilot's view". Only the documented fields are
 // read (anything extra is ignored, never copied), so a stray field cannot end up
@@ -349,13 +350,7 @@ export function parseChallenge(json: unknown): Parsed<ChallengeDraft> {
   if (!caseAgainst.ok) return caseAgainst;
   const assumptions = cleanList(json.assumptions, "assumptions", 1, MAX_ASSUMPTIONS);
   if (!assumptions.ok) return assumptions;
-  const unknowns = cleanList(
-    json.unknowns,
-    "unknowns",
-    1,
-    MAX_UNKNOWNS,
-    "unknowns needs at least 1: a challenge that lists nothing unknown is hiding uncertainty"
-  );
+  const unknowns = cleanList(json.unknowns, "unknowns", 1, MAX_UNKNOWNS, UNKNOWNS_REQUIRED);
   if (!unknowns.ok) return unknowns;
   const downside = cleanModelText(json.downside, TEXT_MAX);
   if (!downside) return fail("downside must be some text");

@@ -51,7 +51,9 @@ import { buildBusinessSummary, callClaude } from "./pilotBrain";
 //  - The model is called ONCE (plus one retry for an unreadable reply) and never
 //    inside mutateDecision's function, which must stay synchronous. The decision
 //    is read again inside mutateDecision after the wait, because Boss may have
-//    decided in the meantime; if so nothing is written.
+//    decided in the meantime, or edited its question, context or options (then
+//    the answer is about a decision that no longer exists, and its recommended
+//    option might not be one of the options now); if so nothing is written.
 //  - Confidence is capped in code from the dealership's records (capConfidence),
 //    so the model can never claim more than the data supports.
 
@@ -62,7 +64,13 @@ const NO_KEY = "Pilot's AI service isn't switched on for this system yet, so it 
 const COULD_NOT_REACH = "Couldn't reach Pilot just now. Nothing was saved and today's allowance was not used. Please try again in a moment.";
 const COULD_NOT_READ = "Pilot's answer couldn't be read this time. Nothing was saved and today's allowance was not used. Please try again.";
 const SOMETHING_WRONG = "Something went wrong on our side. Nothing was saved. Please try again.";
+const EDITED_MEANWHILE = "This decision was edited while Pilot was working, so Pilot's answer was not saved. Please ask again. Pilot recommends; Boss decides.";
 const USED_UP = `You have used all ${MAX_ANALYSES_PER_DAY} of today's Pilot views and challenges. They start again tomorrow.`;
+
+// What Pilot is shown of a decision: the words Boss wrote. If any of it changes
+// while Pilot is working, the answer is about a decision that no longer exists
+// (its recommended option might not even be one of the options now).
+const fingerprint = (d: Pick<Decision, "question" | "context" | "options">) => JSON.stringify([d.question, d.context, d.options]);
 
 type Answer = { confidence: Confidence; confidenceReasons: string[] };
 
@@ -148,6 +156,7 @@ async function analyse<T extends Answer>(plan: Plan<T>, req: Request, res: Respo
     const summary = buildBusinessSummary(dealershipId);
     const evidence = readEvidence(dealershipId, nowMs);
     const prompt = plan.prompt(decision, summary);
+    const seen = fingerprint(decision);
 
     const answer = await askForJson({
       call: (system, userMessage, maxTokens) => callClaude(apiKey, system, [{ role: "user", content: userMessage }], maxTokens),
@@ -177,6 +186,7 @@ async function analyse<T extends Answer>(plan: Plan<T>, req: Request, res: Respo
       draft => {
         // Boss may have decided while the model was answering.
         if (decisionState(draft, Date.now()) !== "open") return DECIDED_MEANWHILE;
+        if (fingerprint(draft) !== seen) return EDITED_MEANWHILE;
         plan.save(draft, capped, nowIso);
       },
       plan.note(capped, again),

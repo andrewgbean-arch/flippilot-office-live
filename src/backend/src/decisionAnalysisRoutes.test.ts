@@ -736,6 +736,51 @@ describe.each<Kind>(["recommend", "challenge"])("%s: Boss decides while the mode
   });
 });
 
+describe.each<Kind>(["recommend", "challenge"])("%s: the decision is edited while the model is answering", kind => {
+  const edit = (dealer: Dealer, id: string, change: (d: Decision) => void) => {
+    const r = mutateDecision(dealer.id, id, { id: dealer.owner.id, name: dealer.owner.name }, "edited", change);
+    if (!r.ok) throw new Error("setup: " + r.error);
+  };
+
+  it.each([
+    ["the question", (d: Decision) => { d.question = "Sell the lot instead?"; }],
+    ["the context", (d: Decision) => { d.context = "Things have changed."; }],
+    ["an option", (d: Decision) => { d.options = d.options.slice(0, 2); }],
+  ])("refuses to save an answer about the old version when %s was changed, and keeps the edit", async (_what, change) => {
+    const dealer = makeDealer();
+    const d = newDecision(dealer);
+    stubAnthropic(() => {
+      edit(dealer, d.id, change);
+      return { text: replyFor(kind, { optionKey: "c" }) }; // "c" is exactly the option the edit may have removed
+    });
+    const res = await post(dealer.owner, d.id, kind);
+    expect(res.status).toBe(409);
+    expect(res.body.error).toContain("edited while Pilot was working");
+    expect(res.body.error).toContain("Please ask again");
+    const stored = getDecision(dealer.id, d.id)!;
+    expect(stored.pilotRecommendation).toBeUndefined();
+    expect(stored.devilsAdvocate).toBeUndefined();
+    expect(stored.events.map(e => e.action)).toEqual(["created", "edited"]);
+    expect(JSON.stringify([stored.question, stored.context, stored.options])).not.toBe(JSON.stringify([d.question, d.context, d.options])); // the edit is still there
+  });
+
+  it("still saves when the change was to something Pilot was not shown (a simulation attached meanwhile)", async () => {
+    const dealer = makeDealer();
+    const d = newDecision(dealer);
+    stubAnthropic(() => {
+      mutateDecision(dealer.id, d.id, { id: dealer.owner.id, name: "O" }, "simulation", x => {
+        x.simulations = [{ id: "s1", ranAt: new Date().toISOString(), kind: "stock_investment", title: "t", assumptions: [], scenarios: [], confidence: "low", confidenceReasons: [], note: "" }];
+      });
+      return { text: replyFor(kind) };
+    });
+    const res = await post(dealer.owner, d.id, kind);
+    expect(res.status).toBe(200);
+    const stored = getDecision(dealer.id, d.id)!;
+    expect(stored.simulations).toHaveLength(1); // the simulation is kept
+    expect(kind === "recommend" ? stored.pilotRecommendation : stored.devilsAdvocate).toBeDefined(); // and so is the answer
+  });
+});
+
 /* ------------------------------------------------------------------ */
 /* Text is data                                                         */
 /* ------------------------------------------------------------------ */
