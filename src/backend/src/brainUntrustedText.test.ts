@@ -123,6 +123,9 @@ describe("untrusted text cleaning rules", () => {
       expect(cleaned, `must not contain ${forbidden}`).not.toContain(forbidden);
     }
     expect(cleaned).toContain("Pat Jones");
+    // control characters and hidden direction marks are gone here too
+    expect(toPromptLine(`Pat${NUL}Jones${BELL}Smith`)).toBe("Pat Jones Smith");
+    expect(toPromptLine(`Pat${ZERO_WIDTH}Jones${BIDI_OVERRIDE}`)).toBe("PatJones");
     // Only about 60 characters by default
     expect(toPromptLine("word ".repeat(100))).toHaveLength(59);
     expect(Array.from(toPromptLine("x".repeat(500))).length).toBeLessThanOrEqual(60);
@@ -268,6 +271,8 @@ describe("public booking — what a stranger can type is capped and cleaned, and
       { customerPhone: ["07700900123"] },
       { customerPhone: undefined, customerEmail: "not-an-email" },
       { customerPhone: undefined, customerEmail: "a".repeat(300) + "@example.com" },
+      // long, but otherwise shaped like an address once cut down: still too long
+      { customerPhone: undefined, customerEmail: "a@" + "b".repeat(300) + ".com" },
       { customerPhone: undefined, customerEmail: "two words@example.com" },
       { customerPhone: undefined, customerEmail: "<script>@example.com" },
       { customerPhone: undefined, customerEmail: ["a@example.com"] },
@@ -541,6 +546,15 @@ describe("Pilot Brain treats outside text as data", () => {
       const prompt: string = calls[0].system;
       expect(prompt).toContain("- An enquirer enquired 4 days ago and hasn't been contacted yet.");
       expect(prompt).not.toContain("evil.example");
+    });
+
+    it("points its 'regional comparisons are out of scope' note at the web access note, so the two never contradict", async () => {
+      const owner = await signup("brain-regional");
+      const calls = stubAnthropic();
+      await chat(owner.token);
+      const prompt: string = calls[0].system;
+      expect(prompt).toContain("regional/local market comparisons (these need live web access");
+      expect(prompt).toContain("WEB ACCESS");
     });
 
     it("tells the model, once and briefly, that names and web text are data and never something to obey or to link or draw", async () => {
