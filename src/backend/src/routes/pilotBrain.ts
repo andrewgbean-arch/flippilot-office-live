@@ -21,6 +21,8 @@ import {
 import { runWatcher, type WatcherResult } from "../engines/watcherEngine";
 import { investigate, findOpportunities, type InvestigationReport, type Opportunity } from "../engines/advisorEngine";
 import { summariseAppointmentOutcomes } from "../engines/appointmentOutcomes";
+import { summariseLeadSources } from "../engines/leadSources";
+import { summariseVehicleMargins } from "../engines/vehicleMargins";
 import { buildMarketSummaryFromStorage, getStoredMarketData } from "./marketIntelligence";
 import { computeStrategicHealth } from "../engines/cofounderEngine";
 import { computeAllGoalProgress } from "./cofounder";
@@ -99,12 +101,13 @@ const MEMORIES_COLLECTION = "pilotBrainMemories";
 // context past this window, not an ever-growing transcript.
 const HISTORY_WINDOW = 20;
 
-// V1 Business Summary / Context Awareness Engine — deliberately simple
-// for this version: real inventory + leads counts and MOT risk, not a
-// deep bookkeeping/profit breakdown yet (this dealer app's bookkeeping
-// data model is its own more involved thing — a real V2/V3 extension,
-// not V1's job). Every number here is genuinely computed from this
-// dealership's real stored data, nothing invented.
+// V1 Business Summary / Context Awareness Engine — real inventory and
+// lead counts and MOT risk, then per-source lead conversion, per-car profit
+// from the Bookkeeping ledger, and appointment outcomes. Period profit
+// totals and the wider "why" evidence live in the Advisor summary below.
+// Every number here is genuinely computed from this dealership's real
+// stored data, nothing invented — and where a figure can't be worked out
+// the lines say so (UNKNOWN / "none recorded") rather than implying one.
 export function buildBusinessSummary(dealershipId: string): string {
   const vehicles = readTenantCollection<any>(dealershipId, "vehicles");
   const leads = readTenantCollection<any>(dealershipId, "leads");
@@ -136,6 +139,12 @@ export function buildBusinessSummary(dealershipId: string): string {
     `Total stock value: £${totalValue.toLocaleString()}`,
     `Vehicles with MOT expiring within 30 days (or already expired): ${motRisk}`,
     `Open leads: ${openLeads}`,
+    // Counts per lead source, and per-car profit from the Bookkeeping ledger.
+    // Bookkeeping is readable by everyone on the team (only writing is
+    // restricted), so this shows the model nothing the whole team can't
+    // already open — and nothing about a customer, only the cars and the money.
+    ...summariseLeadSources(leads, now),
+    ...summariseVehicleMargins(readBookkeeping(dealershipId), vehicles, now),
     ...summariseAppointmentOutcomes(appointments, now),
   ].join("\n");
 }
