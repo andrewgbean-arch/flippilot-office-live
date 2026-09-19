@@ -512,10 +512,14 @@ describe("the decisions tab: who can open it", () => {
       const p = lookInsidePromptSection(u);
       expect(p).toContain("decisions (Pilot Brain → Decisions");
       expect(p).toContain("the Decision Journal, one record per decision");
+      expect(p).toContain("how many simulations were run (a plain count, so known)");
       expect(p).toContain("only once reviewed");
+      expect(p).toContain("each figure marked predicted, known or unknown");
       expect(p).toContain("never the background he typed, the notes on options, the challenge text or the edit history");
       expect(p).toContain("you cannot create, change, decide or review anything in it");
       expect(p).toContain("never as a percentage");
+      expect(p).toContain("whether higher is better depends on the measure");
+      expect(p).toContain("never treat it as zero");
       expect(p).not.toContain("Their role doesn't let them open");
     }
   });
