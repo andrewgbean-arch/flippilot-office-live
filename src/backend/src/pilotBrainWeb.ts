@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import { readTenantDoc, writeTenantDoc } from "./db";
+import { MAX_TOOL_ROUNDS, isToolUse, runToolCalls, type ClientTools } from "./pilotBrainToolCore";
 
 /* --------------------------------------------------
    ⭐ Pilot Brain web access (live web search)
@@ -335,21 +336,32 @@ export async function chatWithWebSearch(params: {
   systemPromptWithoutWeb: string;
   messages: WebChatMessage[];
   tool: ReturnType<typeof buildWebSearchTool>;
+  // Tools the model may call alongside the web search (look_inside). Their
+  // results are fed back and the reply continues; see pilotBrainToolCore.
+  clientTools?: ClientTools;
   // Plain (no tools) call, used only if the web-enabled one fails.
   fallbackCall: (systemPrompt: string, messages: WebChatMessage[]) => Promise<string>;
 }): Promise<WebChatOutcome> {
   // Everything the assistant produced so far this turn — kept outside
   // the try so a failure part-way still lets us log searches that ran.
   const turnSoFar: unknown[] = [];
+  // Finished tool exchanges (the assistant's message, then the results we
+  // sent back), and the assistant message still being built: a paused turn
+  // is resumed by sending it back, a tool call ends it.
+  const completed: { role: string; content: unknown }[] = [];
+  let current: unknown[] = [];
+  let toolCalls = 0;
+  const maxRounds = MAX_CONTINUATIONS + (params.clientTools ? MAX_TOOL_ROUNDS : 0);
 
   try {
-    for (let attempt = 0; attempt <= MAX_CONTINUATIONS; attempt++) {
+    for (let attempt = 0; attempt <= maxRounds; attempt++) {
       const messages = [
         ...params.messages.map(m => ({ role: m.role, content: m.content })),
+        ...completed,
         // A paused turn is resumed by sending the assistant's content
         // back unchanged (the search results inside it are encrypted and
         // must not be altered), with the same tools.
-        ...(turnSoFar.length > 0 ? [{ role: "assistant", content: turnSoFar }] : []),
+        ...(current.length > 0 ? [{ role: "assistant", content: current }] : []),
       ];
 
       const response = await fetch(anthropicMessagesUrl(), {
@@ -364,7 +376,7 @@ export async function chatWithWebSearch(params: {
           max_tokens: WEB_MAX_TOKENS,
           system: params.systemPromptWithWeb,
           messages,
-          tools: [params.tool],
+          tools: [params.tool, ...(params.clientTools?.definitions ?? [])],
         }),
         signal: AbortSignal.timeout(WEB_REQUEST_TIMEOUT_MS),
       });
@@ -374,8 +386,20 @@ export async function chatWithWebSearch(params: {
       }
 
       const data = await response.json();
-      if (Array.isArray(data?.content)) turnSoFar.push(...data.content);
-      if (data?.stop_reason !== "pause_turn") break;
+      const blocks: unknown[] = Array.isArray(data?.content) ? data.content : [];
+      turnSoFar.push(...blocks);
+      current.push(...blocks);
+      if (data?.stop_reason === "pause_turn") continue;
+
+      const uses = blocks.filter(isToolUse);
+      if (data?.stop_reason === "tool_use" && params.clientTools && uses.length > 0) {
+        const { results, run } = runToolCalls(params.clientTools, uses, toolCalls);
+        toolCalls = run;
+        completed.push({ role: "assistant", content: current }, { role: "user", content: results });
+        current = [];
+        continue;
+      }
+      break;
     }
 
     const parsed = parseWebResponse(turnSoFar);

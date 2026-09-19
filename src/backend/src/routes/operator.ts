@@ -10,6 +10,10 @@ import {
   type CostEntry,
   type Lead,
 } from "../engines/operatorEngine";
+import { PREPARED_ACTIONS_COLLECTION } from "../engines/preparedActions";
+import { oneLine } from "../engines/promptText";
+import { changeRecord, type RecordUpdatePayload } from "../pilotBrainEdits";
+import { tenantRecordStore } from "../pilotBrainTools";
 import { callClaude } from "./pilotBrain";
 import { DEFAULT_ROTA_SETTINGS, type Shift, type WorkPattern, type LeaveRequest, type RotaSettings } from "./planner";
 import type { Appointment } from "./publicBooking";
@@ -25,9 +29,9 @@ import type { Appointment } from "./publicBooking";
 // new value, reason, outcome) lives directly on the action record —
 // its own state transitions ARE the audit trail, not a separate log.
 
-const ACTIONS_COLLECTION = "pilotBrainActions";
+const ACTIONS_COLLECTION = PREPARED_ACTIONS_COLLECTION;
 
-type ActionType = "bookkeeping_categorize" | "lead_followup" | "rota_shift" | "appointment_followup";
+type ActionType = "bookkeeping_categorize" | "lead_followup" | "rota_shift" | "appointment_followup" | "record_update";
 type ActionStatus = "prepared" | "approved" | "rejected" | "completed" | "rolled_back";
 
 interface BookkeepingCategorizePayload {
@@ -60,7 +64,7 @@ interface AppointmentFollowupPayload {
   taskId?: string; // same rollback pattern as LeadFollowupPayload
 }
 
-type ActionPayload = BookkeepingCategorizePayload | LeadFollowupPayload | RotaShiftPayload | AppointmentFollowupPayload;
+type ActionPayload = BookkeepingCategorizePayload | LeadFollowupPayload | RotaShiftPayload | AppointmentFollowupPayload | RecordUpdatePayload;
 
 interface PreparedAction {
   id: string;
@@ -87,6 +91,10 @@ function actionKey(a: PreparedAction): string {
     case "lead_followup": return `lead:${(a.payload as LeadFollowupPayload).leadId}`;
     case "rota_shift": return `shift-gap:${(a.payload as RotaShiftPayload).date}`;
     case "appointment_followup": return `appointment:${(a.payload as AppointmentFollowupPayload).appointmentId}`;
+    case "record_update": {
+      const p = a.payload as RecordUpdatePayload;
+      return `edit:${p.kind}:${p.recordId}:${p.field}`;
+    }
   }
 }
 
@@ -173,7 +181,7 @@ export default function registerOperatorRoute(app: Express) {
         try {
           draftMessage = await callClaude(
             apiKey,
-            `You are drafting a short, genuine follow-up message from a UK used-car dealer to a real lead named ${lead.name}${lead.vehicleInterest ? `, who enquired about a ${lead.vehicleInterest}` : ""}. Friendly, brief, no pressure, no fabricated details about the vehicle or dealership beyond what's given. 2-3 sentences, no subject line, just the message body.`,
+            `You are drafting a short, genuine follow-up message from a UK used-car dealer to a real lead named ${oneLine(lead.name, 60)}${lead.vehicleInterest ? `, who enquired about a ${oneLine(lead.vehicleInterest, 80)}` : ""}. Friendly, brief, no pressure, no fabricated details about the vehicle or dealership beyond what's given. 2-3 sentences, no subject line, just the message body.`,
             [{ role: "user", content: "Draft the follow-up message." }],
             200
           );
@@ -232,7 +240,7 @@ export default function registerOperatorRoute(app: Express) {
         try {
           apptDraftMessage = await callClaude(
             apiKey,
-            `You are drafting a short, genuine follow-up message from a UK used-car dealer to ${appt.customerName}, whose ${kindLabel} request for ${appt.requestedDate} was never confirmed, declined, or marked complete. Friendly, apologetic for the delay, brief, no pressure, no fabricated details beyond what's given. 2-3 sentences, no subject line, just the message body.`,
+            `You are drafting a short, genuine follow-up message from a UK used-car dealer to ${oneLine(appt.customerName, 60)}, whose ${kindLabel} request for ${oneLine(appt.requestedDate, 12)} was never confirmed, declined, or marked complete. Friendly, apologetic for the delay, brief, no pressure, no fabricated details beyond what's given. 2-3 sentences, no subject line, just the message body.`,
             [{ role: "user", content: "Draft the follow-up message." }],
             200
           );
@@ -337,6 +345,13 @@ export default function registerOperatorRoute(app: Express) {
         payload.taskId = newJob.id;
         break;
       }
+      case "record_update": {
+        // Refuses (and leaves the change waiting) if someone has edited the
+        // record since it was prepared, rather than overwriting their work.
+        const result = changeRecord(tenantRecordStore(user.dealershipId), action.payload as RecordUpdatePayload, "apply", now);
+        if (!result.ok) return res.status(result.conflict ? 409 : 400).json({ ok: false, error: result.error });
+        break;
+      }
     }
 
     const updated = actions.map(a => a.id === action.id
@@ -401,6 +416,12 @@ export default function registerOperatorRoute(app: Express) {
           const shifts = readTenantCollection<Shift>(user.dealershipId, "shifts");
           writeTenantCollection(user.dealershipId, "shifts", shifts.filter(s => s.id !== payload.shiftId));
         }
+        break;
+      }
+      case "record_update": {
+        // Puts the old value back, but only if nobody has changed it again.
+        const result = changeRecord(tenantRecordStore(user.dealershipId), action.payload as RecordUpdatePayload, "revert", new Date().toISOString());
+        if (!result.ok) return res.status(result.conflict ? 409 : 400).json({ ok: false, error: result.error });
         break;
       }
     }

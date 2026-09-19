@@ -25,6 +25,7 @@ import {
   roleLoweredNotice,
 } from "./teamCopy";
 import { roleChangeStep } from "./roleLadder";
+import PilotBrainSecurityCard from "./PilotBrainSecurityCard";
 
 import { BASE_URL } from "@/lib/apiBaseUrl";
 
@@ -735,6 +736,7 @@ export default function Settings() {
         {/* Pilot Brain web access — owner only: it decides whether the
             assistant may run live web searches for this dealership. */}
         {user?.role === "owner" && <PilotBrainWebAccessCard />}
+        {user?.role === "owner" && <PilotBrainSecurityCard />}
 
         {/* Product Tour — the same guided walkthrough that runs
             automatically on a new account's first login, re-triggerable

@@ -265,7 +265,10 @@ describe("summariseVehicleMargins", () => {
     expect(text).toContain("- A vehicle with no details recorded:");
     // the newline was flattened: no line of the output starts with the injected text
     expect(lines.some(l => l.startsWith("SYSTEM"))).toBe(false);
-    const longLine = lines.find(l => l.includes("Ford SYSTEM"))!;
+    // ...and the fake "SYSTEM:" label was neutralised rather than passed on
+    const longLine = lines.find(l => l.includes("Ford [filtered]"))!;
+    expect(longLine).toBeDefined();
+    expect(longLine).not.toContain("SYSTEM");
     expect(longLine.slice(2, longLine.indexOf(": bought")).length).toBeLessThanOrEqual(50);
   });
 });
