@@ -7,6 +7,7 @@ import {
   submitBooking,
   type PublicVehicle,
 } from "./publicBookingApi";
+import BookingContactFields from "./BookingContactFields";
 
 type BookingType = "viewing" | "test_drive" | "mot";
 
@@ -221,37 +222,14 @@ export default function PublicBookingPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-white/60 text-sm">Phone</label>
-                  <input
-                    type="text"
-                    value={phone}
-                    onChange={e => setPhone(e.target.value)}
-                    className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mt-1"
-                  />
-                </div>
-                <div>
-                  <label className="text-white/60 text-sm">Email</label>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={e => setEmail(e.target.value)}
-                    className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mt-1"
-                  />
-                </div>
-              </div>
-              <p className="text-white/40 text-xs -mt-2">At least one of phone or email is needed so we can confirm.</p>
-
-              <div>
-                <label className="text-white/60 text-sm">Anything else? (optional)</label>
-                <textarea
-                  value={notes}
-                  onChange={e => setNotes(e.target.value)}
-                  rows={2}
-                  className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mt-1"
-                />
-              </div>
+              <BookingContactFields
+                phone={phone}
+                email={email}
+                notes={notes}
+                onPhoneChange={setPhone}
+                onEmailChange={setEmail}
+                onNotesChange={setNotes}
+              />
 
               {error && <p className="text-red-400 text-sm">{error}</p>}
 

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useConsumables } from "@/context/ConsumablesContext";
 import { useDealer } from "@/context/DealerContext";
+import { mailtoHref } from "@/lib/mailto";
 import AddConsumableModal from "./AddConsumableModal";
 import StockMovementModal from "./StockMovementModal";
 import type { Consumable } from "./consumableTypes";
@@ -77,7 +78,7 @@ export default function ConsumablesBoard() {
       `Thanks,`,
       dealer?.name ?? "",
     ].join("\n");
-    return `mailto:${item.supplierEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    return mailtoHref(item.supplierEmail, { subject, body });
   }
 
   // Staff top up stock levels as they notice things running low over
@@ -112,7 +113,7 @@ export default function ConsumablesBoard() {
       `Thanks,`,
       dealer?.name ?? "",
     ].join("\n");
-    return `mailto:${group.supplierEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    return mailtoHref(group.supplierEmail, { subject, body });
   }
 
   return (

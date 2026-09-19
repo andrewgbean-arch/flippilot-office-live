@@ -2,6 +2,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useBookkeeping } from "./BookkeepingProvider";
 import { useInventory } from "@/context/InventoryProvider";
 import { useDealer } from "@/context/DealerContext";
+import { mailtoHref } from "@/lib/mailto";
 import "@/staff/StaffDashboard.css";
 
 // Pulls everything from the real records already in the system — the
@@ -45,11 +46,10 @@ export default function Invoice() {
   // own email client instead. Genuinely opens and sends for real, just
   // not an automatically-delivered PDF; that would need a real email
   // service (a provider decision, same as the DVLA API key situation).
-  const mailtoHref = sale.buyerEmail
-    ? `mailto:${sale.buyerEmail}?subject=${encodeURIComponent(
-        `Invoice ${sale.invoiceNumber} from ${dealer?.name ?? "your dealer"}`
-      )}&body=${encodeURIComponent(
-        [
+  const invoiceMailto = sale.buyerEmail
+    ? mailtoHref(sale.buyerEmail, {
+        subject: `Invoice ${sale.invoiceNumber} from ${dealer?.name ?? "your dealer"}`,
+        body: [
           `Dear ${sale.buyer || "Customer"},`,
           "",
           `Please find your invoice details below for the ${vehicle.make} ${vehicle.model}${
@@ -62,8 +62,8 @@ export default function Invoice() {
           "",
           "Thank you for your business.",
           dealer?.name ?? "",
-        ].join("\n")
-      )}`
+        ].join("\n"),
+      })
     : null;
 
   return (
@@ -77,8 +77,8 @@ export default function Invoice() {
           <button className="sn-btn sn-btn--gold" onClick={() => window.print()}>
             Print / Save as PDF
           </button>
-          {mailtoHref ? (
-            <a className="sn-btn sn-btn--gold" href={mailtoHref}>
+          {invoiceMailto ? (
+            <a className="sn-btn sn-btn--gold" href={invoiceMailto}>
               Email to Customer
             </a>
           ) : (
