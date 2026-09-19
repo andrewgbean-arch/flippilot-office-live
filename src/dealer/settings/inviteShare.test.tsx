@@ -269,6 +269,18 @@ describe("the share buttons in the invite dialog", () => {
   });
 });
 
+// The email link must come from the app's one mailto: function (lib/mailto.ts):
+// it percent-encodes what a stranger's or a colleague's typing can hold.
+describe("inviteShare.ts", () => {
+  const code = readFileSync(new URL("./inviteShare.ts", import.meta.url), "utf8").replace(/\/\/.*$/gm, "");
+
+  it("builds the email link only with mailtoHref, never by hand", () => {
+    expect(code).toContain('import { mailtoHref } from "@/lib/mailto";');
+    expect(code).toContain("mailtoHref(");
+    expect(code).not.toMatch(/mailto:/i);
+  });
+});
+
 // The dialog has to really use the pieces above.
 describe("Settings.tsx", () => {
   const source = readFileSync(new URL("./Settings.tsx", import.meta.url), "utf8");
@@ -280,6 +292,10 @@ describe("Settings.tsx", () => {
     expect(source).toContain("inviteShareMode(");
     expect(source).toContain("canShareNatively(");
     expect(source).toContain("await shareInvite(navigator, share.native)");
+  });
+
+  it("shows the share buttons only once there is a link to share", () => {
+    expect(source).toMatch(/\{share && \(\s*<InviteShareOptions/);
   });
 
   it("stays quiet when the owner closes the share sheet, and only reports a real failure", () => {
