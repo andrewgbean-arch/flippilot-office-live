@@ -266,6 +266,38 @@ function Field({ id, label, hint, value, placeholder, onChange }: { id: string; 
   );
 }
 
+// Saving a result to the decision. Only offered while the decision is open and has
+// room; otherwise it says why in plain words (the server refuses it too).
+export function SaveBar({
+  availability,
+  saved,
+  saving,
+  disabled,
+  onSave,
+}: {
+  availability: ReturnType<typeof saveAvailability>;
+  saved: boolean;
+  saving: boolean;
+  disabled: boolean;
+  onSave: () => void;
+}) {
+  return (
+    <div data-part="save" style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+      {availability.can ? (
+        saved ? (
+          <span style={{ color: "#a3e8b0", fontSize: 14 }}>Saved to this decision.</span>
+        ) : (
+          <button type="button" className="sn-btn sn-btn--gold" onClick={onSave} disabled={saving || disabled} style={{ minHeight: 44 }}>
+            {saving ? "Saving..." : "Save to this decision"}
+          </button>
+        )
+      ) : (
+        <span style={{ color: COLOR.warn, fontSize: 13 }}>{availability.reason}</span>
+      )}
+    </div>
+  );
+}
+
 export function SimulatorControls({ decision, onChange }: DecisionPanelProps) {
   const uid = useId();
   const [kind, setKind] = useState<SimulationRequest["kind"]>("stock_investment");
@@ -392,19 +424,7 @@ export function SimulatorControls({ decision, onChange }: DecisionPanelProps) {
       {result && (
         <div style={{ marginTop: 18 }}>
           <SimulationView simulation={result.simulation} />
-          <div data-part="save" style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-            {availability.can ? (
-              saved ? (
-                <span style={{ color: "#a3e8b0", fontSize: 14 }}>Saved to this decision.</span>
-              ) : (
-                <button type="button" className="sn-btn sn-btn--gold" onClick={handleSave} disabled={saving || running} style={{ minHeight: 44 }}>
-                  {saving ? "Saving..." : "Save to this decision"}
-                </button>
-              )
-            ) : (
-              <span style={{ color: COLOR.warn, fontSize: 13 }}>{availability.reason}</span>
-            )}
-          </div>
+          <SaveBar availability={availability} saved={saved} saving={saving} disabled={running} onSave={handleSave} />
         </div>
       )}
 

@@ -7,10 +7,12 @@ import SimulatorPanel, {
   ConfidenceReasons,
   FigureRow,
   NoAccessNotice,
+  SaveBar,
   SavedSimulations,
   SimulationView,
   SimulatorControls,
 } from "./SimulatorPanel";
+import { saveAvailability } from "./simulatorFormat";
 
 // Rendered to static markup, no browser needed: what is actually on the screen.
 // The rules being checked are the Pilot Brain roadmap's: a simulation says it is
@@ -208,6 +210,46 @@ describe("the simulations already saved with a decision", () => {
     expect(t).toContain("Simulation, not a forecast"); // the saved copy carries the banner too
     expect(out).not.toContain("<button"); // read-only: nothing to press
     expect(out).not.toContain("<input");
+  });
+});
+
+describe("saving a result to the decision", () => {
+  const now = Date.parse("2030-06-01T12:00:00Z");
+  const open = saveAvailability({ bossDecision: undefined, outcome: undefined, reviewDueAt: undefined, simulations: [] }, now);
+  const decided = saveAvailability(
+    { bossDecision: { optionKey: "a", reasoning: "", decidedAt: "2030-01-01T00:00:00Z", decidedByUserId: "u", decidedByName: "n" }, outcome: undefined, reviewDueAt: undefined, simulations: [] },
+    now
+  );
+  const full = saveAvailability({ bossDecision: undefined, outcome: undefined, reviewDueAt: undefined, simulations: [{}, {}, {}] as never }, now);
+  const noop = () => undefined;
+
+  it("offers a Save button while the decision is open and has room", () => {
+    const out = renderToStaticMarkup(<SaveBar availability={open} saved={false} saving={false} disabled={false} onSave={noop} />);
+    expect(out).toContain("<button");
+    expect(words(out)).toContain("Save to this decision");
+    expect(out).not.toContain("disabled");
+  });
+
+  it("offers nothing to press once the decision has been made, and says why", () => {
+    const out = renderToStaticMarkup(<SaveBar availability={decided} saved={false} saving={false} disabled={false} onSave={noop} />);
+    expect(out).not.toContain("<button");
+    expect(words(out)).not.toContain("Save to this decision");
+    expect(words(out)).toContain("This decision has already been made, so nothing more can be saved to it.");
+  });
+
+  it("offers nothing to press when the decision already holds the most it can, and says why", () => {
+    const out = renderToStaticMarkup(<SaveBar availability={full} saved={false} saving={false} disabled={false} onSave={noop} />);
+    expect(out).not.toContain("<button");
+    expect(words(out)).toContain("This decision already holds 3 simulations, the most it can hold.");
+  });
+
+  it("says it is saved once it is, and shows Saving while it is being saved", () => {
+    const done = renderToStaticMarkup(<SaveBar availability={open} saved={true} saving={false} disabled={false} onSave={noop} />);
+    expect(words(done)).toContain("Saved to this decision.");
+    expect(done).not.toContain("<button");
+    const busy = renderToStaticMarkup(<SaveBar availability={open} saved={false} saving={true} disabled={false} onSave={noop} />);
+    expect(words(busy)).toContain("Saving...");
+    expect(busy).toContain("disabled");
   });
 });
 
