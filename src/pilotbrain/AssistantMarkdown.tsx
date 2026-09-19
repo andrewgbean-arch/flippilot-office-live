@@ -42,11 +42,6 @@ export const assistantMarkdownComponents: Components = {
 
 export default function AssistantMarkdown({ content }: { content: string }) {
   return (
-    <ReactMarkdown
-      components={assistantMarkdownComponents}
-      urlTransform={url => safeUrl(url, { allowMailto: true }) ?? ""}
-    >
-      {content}
-    </ReactMarkdown>
+    <ReactMarkdown components={assistantMarkdownComponents}>{content}</ReactMarkdown>
   );
 }

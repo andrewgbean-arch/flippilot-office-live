@@ -135,6 +135,9 @@ describe("untrusted text cleaning rules", () => {
     expect(toPromptLine("Zoë O'Brien-Smith")).toBe("Zoë O'Brien-Smith");
     expect(toPromptLine("Brown & Sons Ltd.")).toBe("Brown & Sons Ltd.");
     expect(toPromptLine("![](https://evil.example/a.png)")).toBe("");
+    // link and image syntax keeps only its visible label, whatever it points at
+    expect(toPromptLine("Jo [label](/some/relative/path) Bloggs")).toBe("Jo label Bloggs");
+    expect(toPromptLine("Jo ![alt words](/pic.png) Bloggs")).toBe("Jo alt words Bloggs");
     expect(toPromptLine(undefined)).toBe("");
   });
 });

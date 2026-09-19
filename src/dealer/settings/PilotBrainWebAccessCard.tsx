@@ -26,7 +26,7 @@ function when(iso: string): string {
   return d.toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
-function SearchRow({ entry }: { entry: WebSearchLogEntry }) {
+export function SearchRow({ entry }: { entry: WebSearchLogEntry }) {
   return (
     <li className="p-3 rounded bg-black/40 border border-white/10">
       <p className="text-white/90 text-sm break-words">“{entry.query || "(no query recorded)"}”</p>
