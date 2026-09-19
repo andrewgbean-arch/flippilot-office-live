@@ -977,6 +977,7 @@ describe("Pilot Brain treats outside text as data", () => {
       expect(extractRememberTag("Here.\n<remember>a <remember>half")).toEqual({ visible: "Here.", fact: null });
       expect(extractRememberTag("Here.</remember>\nMore.")).toEqual({ visible: "Here.\nMore.", fact: null });
       expect(extractRememberTag("Here.\n<remember>x</remember>\n</remember>")).toEqual({ visible: "Here.", fact: "x" });
+      expect(extractRememberTag("Sure.\n<remember>a</remember></remember>**")).toEqual({ visible: "Sure.", fact: "a" });
       expect(extractRememberTag("</remember>")).toEqual({ visible: "", fact: null });
     });
 
