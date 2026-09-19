@@ -69,6 +69,11 @@ describe("saveInventoryToServer — what it reports", () => {
     expect(result.message.length).toBeGreaterThan(20);
   });
 
+  it("an error status is a failed save even if the body happens to look like a stock list", async () => {
+    vi.stubGlobal("fetch", respond(500, { ok: true, items: [{ id: "a" }] }));
+    expect(await saveInventoryToServer([car("a")])).toMatchObject({ ok: false, status: 500 });
+  });
+
   it("gives a 413 its own plain message about the stock being too big", async () => {
     vi.stubGlobal("fetch", respond(413, "<html>Payload Too Large</html>"));
     const result = await saveInventoryToServer([car("a")]);
