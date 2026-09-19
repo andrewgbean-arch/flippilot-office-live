@@ -5,6 +5,11 @@ import { BLANKED_VARIABLES, testDataDir } from "./vitest.testEnv";
 export default defineConfig({
   test: {
     globalSetup: ["./vitest.globalSetup.ts"],
+    // Signing up spends about 0.6s hashing the password, and many tests sign up
+    // several people, so a busy machine can push a healthy test past the 5s
+    // default. Generous limits stop that failing a run for no real reason.
+    testTimeout: 30_000,
+    hookTimeout: 30_000,
     // One test file at a time. Every file shares this run's one database, and
     // signup reads the whole users list, waits ~0.5s for bcrypt, then writes
     // the list back (routes/auth.ts), so two files signing up at once lose
