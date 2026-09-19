@@ -11,7 +11,6 @@ import {
   listPhotoMeta,
   photoBytes,
   purgeAbandonedUnsentPhotos,
-  purgeOrphanVehiclePhotos,
   purgeStaleUnattachedMessagePhotos,
   readTenantCollection,
   writeTenantCollection,
@@ -26,7 +25,6 @@ import {
   MAX_PHOTOS_PER_VEHICLE,
   MAX_UNATTACHED_PER_USER,
   MAX_VEHICLE_PHOTO_BYTES_PER_DEALERSHIP,
-  ORPHAN_GRACE_MS,
   photoIdFromUrl,
   signedMessagePhotoUrl,
   UNATTACHED_GRACE_MS,
@@ -57,8 +55,9 @@ export function publicOrigin(req: Request): string {
   return `${proto}://${host && /^[A-Za-z0-9.\-:[\]]+$/.test(host) ? host : "localhost"}`;
 }
 
-// Called by PUT /inventory. The web app saves its whole in-memory stock
-// list, and that list can be out of date in either direction:
+// Called by PUT /inventory on the vehicles a screen sent. The web app saves
+// its whole in-memory stock list, and that list can be out of date in either
+// direction:
 //  - loaded BEFORE a photo arrived from a phone: saving it would quietly
 //    drop the photo's URL from the vehicle, so any hosted photo the server
 //    still holds for a vehicle is put back;
@@ -96,18 +95,12 @@ export function keepHostedPhotos(dealershipId: string, items: unknown[], origin:
   });
 }
 
-// Also called by PUT /inventory: tidy up pictures whose vehicle is gone.
-// Skipped for an empty list (a broken request must not become a mass
-// delete) and never touches anything younger than the grace period.
-export function purgeOrphanPhotos(dealershipId: string, items: unknown[]): void {
-  if (items.length === 0 || countPhotos(dealershipId, "vehicle") === 0) return;
-  const live = new Set<string>();
-  for (const item of items) {
-    const id = item && typeof item === "object" ? (item as VehicleRecord).id : undefined;
-    if (typeof id === "string") live.add(id);
-  }
-  purgeOrphanVehiclePhotos(dealershipId, live, new Date(Date.now() - ORPHAN_GRACE_MS).toISOString());
-}
+// There is deliberately NO clean-up here that deletes pictures because their
+// vehicle isn't in a saved list. A list from a stale screen is missing every
+// car added since it loaded, so "not in the list" says nothing about whether
+// a car is gone. Hosted pictures are removed in exactly two ways: the photo
+// DELETE route below, and PUT /inventory's explicit `deletedIds` (which
+// removes a deleted vehicle's pictures with it).
 
 export interface MessagePhoto {
   id: string;

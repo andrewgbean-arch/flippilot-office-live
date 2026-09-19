@@ -9,7 +9,6 @@ export type PhotoMime = "image/jpeg" | "image/png" | "image/webp";
 export const MAX_PHOTO_BYTES = 1_500_000;
 export const MAX_PHOTOS_PER_VEHICLE = 40;
 export const MAX_PHOTOS_PER_DEALERSHIP = 2000;
-export const ORPHAN_GRACE_MS = 24 * 60 * 60 * 1000;
 
 // Photos attached to messages. Unlike listing photos these are PRIVATE:
 // nobody gets one without a signed, expiring link that is only ever put

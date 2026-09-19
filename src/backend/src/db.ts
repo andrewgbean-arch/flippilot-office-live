@@ -267,26 +267,35 @@ export function deletePhoto(dealershipId: string, id: string): boolean {
   return Number(result.changes) > 0;
 }
 
-// Vehicle photos whose vehicle no longer exists and which are older than
-// `olderThanIso`. The age floor matters: a save from a stale screen can
-// briefly lack a vehicle that's really still there, and this must never
-// delete a picture on the strength of that.
-export function purgeOrphanVehiclePhotos(
-  dealershipId: string,
-  liveVehicleIds: Set<string>,
-  olderThanIso: string
-): number {
-  const candidates = db
-    .prepare(
-      `SELECT id, ref_id AS refId FROM photos
-       WHERE dealership_id = ? AND kind = 'vehicle' AND created_at < ?`
-    )
-    .all(dealershipId, olderThanIso) as unknown as { id: string; refId: string | null }[];
+// The hosted pictures of vehicles someone has explicitly deleted. This is the
+// ONLY way a car's pictures go when the car does: nothing infers "this car is
+// gone" from a saved list any more, because a stale screen's list says exactly
+// that about cars it simply hasn't seen yet.
+//
+// Only ever "vehicle" photos (a message photo's ref_id is a message id and
+// must never be mistaken for a vehicle id) and only ever this dealership's
+// (one dealer can never remove another's, whatever ids they send). Ids with no
+// photos, or no vehicle any more, match nothing, so repeating a delete after a
+// failed request simply finishes the job. All or nothing.
+export function deleteVehiclePhotosFor(dealershipId: string, vehicleIds: readonly string[]): number {
+  if (vehicleIds.length === 0) return 0;
 
+  const CHUNK = 500; // stays well under SQLite's limit on bound parameters
   let removed = 0;
-  for (const photo of candidates) {
-    if (photo.refId !== null && liveVehicleIds.has(photo.refId)) continue;
-    if (deletePhoto(dealershipId, photo.id)) removed += 1;
+  db.exec("BEGIN");
+  try {
+    for (let i = 0; i < vehicleIds.length; i += CHUNK) {
+      const chunk = vehicleIds.slice(i, i + CHUNK);
+      const marks = chunk.map(() => "?").join(", ");
+      const result = db
+        .prepare(`DELETE FROM photos WHERE dealership_id = ? AND kind = 'vehicle' AND ref_id IN (${marks})`)
+        .run(dealershipId, ...chunk);
+      removed += Number(result.changes);
+    }
+    db.exec("COMMIT");
+  } catch (err) {
+    db.exec("ROLLBACK");
+    throw err;
   }
   return removed;
 }
