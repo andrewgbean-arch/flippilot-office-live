@@ -406,7 +406,7 @@ describe("links and dealerships from before this existed", () => {
 // ---- demotion -----------------------------------------------------------
 
 describe("moving someone to a lower role also cancels the links already shared", () => {
-  it("a step down cancels them; the same role, or a step up or sideways, leaves them alone", async () => {
+  it("a step down cancels them; the same role, or a step up, leaves them alone", async () => {
     const owner = await signup("roles");
     const member = await joinStaff(owner.token, "finance");
 

@@ -32,7 +32,7 @@ export const VALID_STAFF_ROLES: StaffRole[] = ["sales", "finance", "manager", "g
 
 // Where each staff role sits, lowest to highest. Used for ONE decision only:
 // telling a step down (which must cancel the invite links already shared,
-// see isStaffRoleDemotion) from a step sideways or up. manager gates the
+// see isStaffRoleDemotion) from a step up or no change. manager gates the
 // most on the server and finance opens bookkeeping writes (requireStaffRole
 // call sites); sales sits above general, the view-only tier. Nothing else
 // should rank roles with this.
@@ -46,7 +46,7 @@ const STAFF_ROLE_LEVEL: Record<StaffRole, number> = {
 // Moving someone to a lower role has to cancel every invite link already
 // shared, because a link isn't tied to an email address: the person just
 // demoted could use any still-live link carrying their old role to create
-// a second account with it. A step sideways or up gives them nothing they
+// a second account with it. A step up, or no change, gives them nothing they
 // couldn't already get, so it leaves other people's pending links alone.
 // An account with no staffRole at all counts as general, as it does in
 // requireStaffRole.
