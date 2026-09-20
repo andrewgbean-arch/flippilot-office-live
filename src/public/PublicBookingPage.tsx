@@ -47,6 +47,11 @@ export default function PublicBookingPage() {
       const [dName, vList] = await Promise.all([loadPublicDealerName(dealershipId), loadPublicVehicles(dealershipId)]);
       setDealerName(dName);
       setVehicles(vList);
+      // A "Book a viewing" link on the store page carries ?vehicle=<id>. It is
+      // only used if it names a car that really is in this dealer's list; the
+      // value comes from the address bar, so anything else is ignored.
+      const wanted = new URLSearchParams(window.location.search).get("vehicle");
+      if (wanted && vList.some(v => v.id === wanted)) setVehicleId(wanted);
       setLoading(false);
     })();
   }, [dealershipId]);
