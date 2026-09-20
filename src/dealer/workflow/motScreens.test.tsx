@@ -13,7 +13,8 @@ import MOTWorkflowPortfolio from "./MOTWorkflowPortfolio";
 import MOTTimeline from "@/features/dealer-ai/mot/MOTTimeline";
 import MOTHealthScore from "@/components/motors/MOTHealthScore";
 import MOTInsightsPanel from "@/components/motors/MOTInsightsPanel";
-import MOTStatusCard from "@/components/motors/MOTStatusCard";
+import { toMileageEntries } from "@/components/motors/MOTMileageHistory";
+import MOTStatusCard, { motStatusLabel } from "@/components/motors/MOTStatusCard";
 import MotAiPassChance from "@/components/motors/MotAiPassChance";
 import MotAiVerdictCard from "@/components/motors/MotAiVerdictCard";
 import { motAiEngine } from "@/engines/motAiEngine";
@@ -241,5 +242,32 @@ describe("MOT Timeline screen", () => {
     expect(html).not.toContain("Risk Score");
     expect(html).toContain("120,000"); // last mileage from the newest test, not mot.mileage (1) or the oldest test
     expect(html.indexOf("2 Oct 2025")).toBeLessThan(html.indexOf("1 Oct 2023"));
+  });
+});
+
+describe("MOT Lookup helpers", () => {
+  it("lists only tests that recorded a mileage, with the real reading (never 0 or the current mileage)", () => {
+    const entries = toMileageEntries([
+      { date: "2025-01-01", mileage: 50000 },
+      { date: "2024-01-01", mileage: null },
+      { date: "2023-01-01" },
+      { year: 2022, mileage: 30000 },
+    ]);
+    expect(entries).toEqual([
+      { date: "2025-01-01", year: undefined, mileage: 50000 },
+      { date: undefined, year: 2022, mileage: 30000 },
+    ]);
+    expect(toMileageEntries(undefined)).toEqual([]);
+  });
+
+  it("labels the MOT status with the same rule as the vehicle list, valid through the expiry day", () => {
+    const noon = new Date(Date.UTC(2026, 8, 20, 12, 0, 0));
+    expect(motStatusLabel("2026-09-19", noon)).toBe("Expired");
+    expect(motStatusLabel("2026-09-20", noon)).toBe("Expiring Soon"); // today is still valid
+    expect(motStatusLabel("2026-10-15", noon)).toBe("Expiring Soon");
+    expect(motStatusLabel("2027-03-01", noon)).toBe("Valid");
+    expect(motStatusLabel("", noon)).toBe("Unknown");
+    expect(motStatusLabel(undefined, noon)).toBe("Unknown");
+    expect(motStatusLabel("garbage", noon)).toBe("Unknown");
   });
 });

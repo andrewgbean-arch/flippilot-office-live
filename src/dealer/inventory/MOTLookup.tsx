@@ -1,15 +1,14 @@
 import React, { useState, useMemo } from "react";
 import { fetchMOT } from "@/features/vehicles/api/mot";
 import { motAiEngine } from "@/engines/motAiEngine";
-import { motState } from "@/dealer/inventory/vehicleListModel";
 
 import { useInventory } from "@/context/InventoryProvider";
 
 // MOT Components
-import MOTStatusCard from "@/components/motors/MOTStatusCard";
+import MOTStatusCard, { motStatusLabel } from "@/components/motors/MOTStatusCard";
 import MOTExpiryCountdownCard from "@/components/motors/MOTExpiryCountdownCard";
 import MOTAdvisoriesList from "@/components/motors/MOTAdvisoriesList";
-import MOTMileageHistory from "@/components/motors/MOTMileageHistory";
+import MOTMileageHistory, { toMileageEntries } from "@/components/motors/MOTMileageHistory";
 import MOTHealthScore from "@/components/motors/MOTHealthScore";
 import MOTInsightsPanel from "@/components/motors/MOTInsightsPanel";
 import MotTestCard, { sortMotHistoryDesc } from "@/components/motors/MotTestCard";
@@ -57,10 +56,7 @@ export default function MOTLookup() {
   // confirmed live.
   // Same rule as the vehicle list: an MOT is valid through its expiry day, so
   // a date-only expiry is not "Expired" until that day has ended.
-  const motStatus = useMemo(() => {
-    const kind = motState(mot?.expiry, new Date()).kind;
-    return kind === "expired" ? "Expired" : kind === "soon" ? "Expiring Soon" : kind === "valid" ? "Valid" : "Unknown";
-  }, [mot?.expiry]);
+  const motStatus = useMemo(() => motStatusLabel(mot?.expiry, new Date()), [mot?.expiry]);
 
   const daysLeft = useMemo(() => {
     const expiry = mot?.expiry;
@@ -164,15 +160,7 @@ export default function MOTLookup() {
     );
   }
 
-  // Only tests that recorded a mileage. A test without one used to be listed
-  // with the car's current mileage, or 0, as if that had been its reading.
-  const safeHistory = (mot.history ?? [])
-    .filter((h: any) => typeof h.mileage === "number")
-    .map((h: any) => ({
-      date: h.date,
-      year: h.year,
-      mileage: h.mileage as number,
-    }));
+  const safeHistory = toMileageEntries(mot.history);
 
   const motWithStatus = { ...mot, motStatus };
 

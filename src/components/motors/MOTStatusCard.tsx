@@ -1,6 +1,13 @@
 import React from "react";
 import { motion } from "framer-motion";
-import { formatDate } from "@/dealer/inventory/vehicleListModel";
+import { formatDate, motState } from "@/dealer/inventory/vehicleListModel";
+
+// The label this card colours: same rule as the vehicle list, so an MOT is
+// valid through its expiry day and a blank or unreadable date is "Unknown".
+export function motStatusLabel(expiry: string | null | undefined, now: Date): "Expired" | "Expiring Soon" | "Valid" | "Unknown" {
+  const kind = motState(expiry, now).kind;
+  return kind === "expired" ? "Expired" : kind === "soon" ? "Expiring Soon" : kind === "valid" ? "Valid" : "Unknown";
+}
 
 type Props = {
   status: string | null;
