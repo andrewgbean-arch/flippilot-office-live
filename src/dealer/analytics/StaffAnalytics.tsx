@@ -1,4 +1,5 @@
 import { useStaff } from "@/staff/StaffContext";
+import { averageDaysOnApp } from "./staffFigures";
 import "@/staff/StaffDashboard.css";
 
 export default function StaffAnalytics() {
@@ -18,16 +19,9 @@ export default function StaffAnalytics() {
     return acc;
   }, {} as Record<string, number>);
 
-  // `joinedAt` is set to "now" when the staff record is created in FlipPilot
-  // (staff/AddStaff.tsx), not when the person started work, so this is how long
-  // they have been on FlipPilot, not their tenure. It used to be labelled
-  // "Avg Tenure". Records with no usable date are left out of the average.
-  const daysOnApp = staff
-    .map(s => new Date(s.joinedAt).getTime())
-    .filter(t => Number.isFinite(t))
-    .map(t => Math.max(0, (Date.now() - t) / 86400000));
-  const avgDaysOnApp =
-    daysOnApp.length > 0 ? Math.round(daysOnApp.reduce((sum, d) => sum + d, 0) / daysOnApp.length) : 0;
+  // Was "Avg Tenure", but the date behind it is when the record was created in
+  // FlipPilot, not when the person started work (see staffFigures.ts).
+  const avgDaysOnApp = averageDaysOnApp(staff, new Date());
 
   return (
     <div className="sn-dashboard sn-dashboard--cosmic">
@@ -89,12 +83,12 @@ function MetricCard({
   accent,
 }: {
   label: string;
-  value: number;
+  value: number | null;
   accent?: "primary" | "success" | "gold" | "blue" | "purple";
 }) {
   return (
     <div className={`sn-metric sn-metric--${accent ?? "primary"}`}>
-      <div className="sn-metric__value">{value}</div>
+      <div className="sn-metric__value">{value === null ? "–" : value}</div>
       <div className="sn-metric__label">{label}</div>
     </div>
   );
