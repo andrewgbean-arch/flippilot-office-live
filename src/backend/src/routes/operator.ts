@@ -161,7 +161,9 @@ export default function registerOperatorRoute(app: Express) {
         type: "bookkeeping_categorize",
         status: "prepared",
         title: `Categorise a ${cost.type} cost as "${suggestedCategory}"`,
-        description: `£${cost.amount.toLocaleString()} ${cost.type} cost${cost.label ? ` ("${cost.label}")` : ""} has no category set yet.`,
+        // A stored cost can lack a usable amount (an old record, a raw API call); say so
+        // plainly instead of throwing, which used to end the whole server process.
+        description: `${typeof cost.amount === "number" && Number.isFinite(cost.amount) ? `£${cost.amount.toLocaleString()} ` : "A "}${cost.type} cost${cost.label ? ` ("${cost.label}")` : ""} has no category set yet.`,
         reason: `Cost type "${cost.type}" maps to "${suggestedCategory}" — a consistent real rule, not a per-record guess.`,
         payload: { costId: cost.id, vehicleId: cost.vehicleId, currentCategory: cost.category ?? null, suggestedCategory },
         preparedAt: new Date(now).toISOString(),

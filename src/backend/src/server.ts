@@ -5,6 +5,12 @@ import app from "./app";
 // the same time.
 const PORT = 4001;
 
+// A last net under asyncErrors.ts: log a stray unhandled rejection instead of letting
+// Node end the process that every dealership shares. (Not the fix, only a backstop.)
+process.on("unhandledRejection", (reason) => {
+  console.error("Unhandled promise rejection (server kept running):", reason);
+});
+
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`🔥 FlipPilot Office backend listening on http://0.0.0.0:${PORT}`);
 });

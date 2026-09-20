@@ -195,7 +195,10 @@ export function findOverdueAppointments(appointments: AppointmentLike[], now: nu
 }
 
 export function suggestCategoryForCost(cost: CostEntry): string | null {
-  if (cost.category && cost.category.trim()) return null; // already categorised — nothing to prepare
+  // Stored records are whatever a client sent: only text can be a category or a type, and only
+  // the types this table really lists map to anything (not "constructor" or other inherited names).
+  if (typeof cost.category === "string" && cost.category.trim()) return null; // already categorised — nothing to prepare
+  if (typeof cost.type !== "string" || !Object.prototype.hasOwnProperty.call(TYPE_TO_CATEGORY, cost.type)) return null;
   return TYPE_TO_CATEGORY[cost.type] ?? null;
 }
 

@@ -122,7 +122,9 @@ export default function registerDVLA(app: Express) {
   }
 
   app.get("/dvla", async (req, res) => {
-    const reg = (req.query.reg as string)?.replace(/\s+/g, "").toUpperCase();
+    // ?reg=A&reg=B arrives as an array and ?reg[x]=1 as an object; only plain text is a registration.
+    const rawReg = req.query.reg;
+    const reg = typeof rawReg === "string" ? rawReg.replace(/\s+/g, "").toUpperCase() : undefined;
 
     if (!reg) {
       return res.status(400).json({ ok: false, error: "Missing reg" });

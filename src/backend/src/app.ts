@@ -2,6 +2,7 @@ import dotenv from "dotenv";
 dotenv.config();
 
 import express from "express";
+import "./asyncErrors";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
@@ -265,5 +266,20 @@ registerCarPassportRoute(app);
 // stopping it being scraped at scale.
 registerDVLA(app);
 registerSyndicationRoute(app);
+
+// The last stop for anything a route throws or rejects (asyncErrors.ts makes a
+// rejected async handler arrive here instead of killing the process). Answer in JSON
+// and keep serving. An error that carries its own 4xx status (a malformed or oversized
+// JSON body, say) keeps that status; anything else is a 500 that never shows internals.
+app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  const status = Number((err as { status?: unknown } | null)?.status ?? (err as { statusCode?: unknown } | null)?.statusCode);
+  const clientError = Number.isInteger(status) && status >= 400 && status < 500;
+  if (!clientError) console.error("Unhandled error in a request:", err);
+  if (res.headersSent) return;
+  res.status(clientError ? status : 500).json({
+    ok: false,
+    error: clientError ? "That request could not be read." : "Something went wrong on our side. Please try again.",
+  });
+});
 
 export default app;

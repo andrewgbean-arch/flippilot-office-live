@@ -59,9 +59,17 @@ function emailInUse(normalizedEmail: string): boolean {
 // array back afterwards silently undoes whatever happened in the meantime:
 // a removal, a role change, another signup.
 
+// A JSON body can put an object, array, number or boolean where text is expected. Left
+// alone, String(email) on {"toString":1} or bcrypt on an object throws inside an async
+// handler (before asyncErrors.ts, that took the whole server down, from one anonymous
+// request). Absent is fine (the existing "required" checks answer that); any other
+// non-text value is refused up front.
+const notText = (...values: unknown[]) => values.some((v) => v !== undefined && v !== null && typeof v !== "string");
+
 export default function registerAuthRoute(app: Express) {
   app.post("/auth/signup", async (req, res) => {
     const { email, password, name, dealershipName } = req.body ?? {};
+    if (notText(email, password, name, dealershipName)) return res.status(400).json({ ok: false, error: "Those details must be text." });
 
     if (!email || !password || !name || !dealershipName) {
       return res.status(400).json({
@@ -180,6 +188,7 @@ export default function registerAuthRoute(app: Express) {
   // isolated one instead.
   app.post("/auth/join", async (req, res) => {
     const { token, name, email, password } = req.body ?? {};
+    if (notText(token, name, email, password)) return res.status(400).json({ ok: false, error: "Those details must be text." });
 
     if (!token || !name || !email || !password) {
       return res.status(400).json({
@@ -258,6 +267,7 @@ export default function registerAuthRoute(app: Express) {
 
   app.post("/auth/login", async (req, res) => {
     const { email, password } = req.body ?? {};
+    if (notText(email, password)) return res.status(400).json({ ok: false, error: "Those details must be text." });
 
     if (!email || !password) {
       return res
@@ -303,6 +313,7 @@ export default function registerAuthRoute(app: Express) {
   app.put("/auth/password", requireAuth, async (req, res) => {
     const authUser = (req as any).user as AuthUser;
     const { currentPassword, newPassword } = req.body ?? {};
+    if (notText(currentPassword, newPassword)) return res.status(400).json({ ok: false, error: "Those details must be text." });
 
     if (!currentPassword || !newPassword) {
       return res.status(400).json({
@@ -347,6 +358,7 @@ export default function registerAuthRoute(app: Express) {
   // endpoint could be used to check which emails have accounts.
   app.post("/auth/forgot-password", async (req, res) => {
     const { email } = req.body ?? {};
+    if (notText(email)) return res.status(400).json({ ok: false, error: "Those details must be text." });
     if (!email) {
       return res.status(400).json({ ok: false, error: "Email is required" });
     }
@@ -384,6 +396,7 @@ export default function registerAuthRoute(app: Express) {
 
   app.post("/auth/reset-password", async (req, res) => {
     const { token, newPassword } = req.body ?? {};
+    if (notText(token, newPassword)) return res.status(400).json({ ok: false, error: "Those details must be text." });
 
     if (!token || !newPassword) {
       return res.status(400).json({ ok: false, error: "Token and new password are required" });
