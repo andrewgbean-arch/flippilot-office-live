@@ -73,3 +73,16 @@ export function advisoryCount(car: Pick<Vehicle, "mot">): number {
   const advisories = car.mot?.advisories;
   return Array.isArray(advisories) ? advisories.length : 0;
 }
+
+// "£1,450", "-£300", "£0". Whole pounds: these are counts of the dealer's own
+// prices, not measurements that deserve pence.
+export function formatMoney(amount: number): string {
+  const rounded = Math.round(Math.abs(amount));
+  const sign = amount < 0 && rounded !== 0 ? "-" : "";
+  return `${sign}£${rounded.toLocaleString("en-GB")}`;
+}
+
+// "1 car", "3 cars", "0 cars".
+export function plural(count: number, one: string, many: string = `${one}s`): string {
+  return `${count} ${count === 1 ? one : many}`;
+}

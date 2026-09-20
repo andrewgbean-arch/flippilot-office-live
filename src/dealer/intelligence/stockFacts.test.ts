@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { Vehicle } from "@/types/Vehicle";
-import { advisoryCount, averageDaysInStock, motCounts, unsoldCars } from "./stockFacts";
+import { advisoryCount, averageDaysInStock, formatMoney, motCounts, plural, unsoldCars } from "./stockFacts";
 
 // "Now" is fixed so every date below means the same thing on any day.
 const NOW = new Date("2026-09-20T12:00:00Z");
@@ -89,5 +89,24 @@ describe("advisoryCount", () => {
     expect(advisoryCount(car({ advisories: [] }))).toBe(0);
     expect(advisoryCount(car({ advisories: "three" }))).toBe(0);
     expect(advisoryCount({} as unknown as Vehicle)).toBe(0);
+  });
+});
+
+describe("formatMoney", () => {
+  it("writes whole pounds with thousands separators, and a minus sign only for a real loss", () => {
+    expect(formatMoney(1450)).toBe("£1,450");
+    expect(formatMoney(1449.6)).toBe("£1,450");
+    expect(formatMoney(-300)).toBe("-£300");
+    expect(formatMoney(0)).toBe("£0");
+    expect(formatMoney(-0.2)).toBe("£0");
+  });
+});
+
+describe("plural", () => {
+  it("uses the singular for exactly one, the plural for everything else including none", () => {
+    expect(plural(1, "car")).toBe("1 car");
+    expect(plural(3, "car")).toBe("3 cars");
+    expect(plural(0, "car")).toBe("0 cars");
+    expect(plural(2, "day", "days")).toBe("2 days");
   });
 });
