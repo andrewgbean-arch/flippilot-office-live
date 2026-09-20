@@ -1,141 +1,151 @@
-import React from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
+import { FiChevronDown } from "react-icons/fi";
 
 type HudProps = {
   aiSync?: "idle" | "syncing" | "error" | "running";
   marketTrend?: "rising" | "flat" | "falling";
-  brainMode?: string;
   riskLevel?: "low" | "medium" | "high";
   flipScore?: number;
   motHealth?: "good" | "watch" | "bad";
+  // How many vehicles the figures are averaged over. With none there is
+  // nothing to summarise, so the bar says so instead of showing zeros that
+  // read as real results.
+  // `undefined` while stock is still loading (then the pills show, syncing).
+  vehicleCount?: number | undefined;
 };
 
-const badgeBase =
-  "px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1 transition hover:brightness-125 hover:scale-105";
+const pill =
+  "px-2.5 py-2 sm:py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 border transition hover:brightness-125";
 
+// The HUD used to be two full-width cards on every dealer page (a title block
+// with a marketing caption, then a second line repeating the same three
+// numbers), which pushed the page's own content roughly half a screen down.
+// It is now one slim bar: all the pills on a line at desktop widths, and one
+// summary line on a phone that opens to show them.
 export default function SupernovaDealerHUD({
   aiSync = "idle",
-  marketTrend = "rising",
-  brainMode = "Pricing Brain",
-  riskLevel = "medium",
-  flipScore = 87,
-  motHealth = "watch"
+  marketTrend = "flat",
+  riskLevel = "low",
+  flipScore = 0,
+  motHealth = "good",
+  vehicleCount,
 }: HudProps) {
+  const [open, setOpen] = useState(false);
 
-  // ⭐ AI Sync Color Logic (Upgraded)
-  const aiColor =
-    aiSync === "running"
-      ? "bg-yellow-400/20 text-yellow-200 border border-yellow-400/60 animate-pulse shadow-[0_0_12px_rgba(250,204,21,0.6)]"
-      : aiSync === "syncing"
-      ? "bg-yellow-500/20 text-yellow-300 border border-yellow-500/60 animate-pulse"
+  const syncColor =
+    aiSync === "running" || aiSync === "syncing"
+      ? "bg-yellow-400/20 text-yellow-200 border-yellow-400/60 animate-pulse"
       : aiSync === "error"
-      ? "bg-red-500/20 text-red-300 border border-red-500/60"
-      : "bg-green-500/20 text-green-300 border border-green-500/60";
+      ? "bg-red-500/20 text-red-300 border-red-500/60"
+      : "bg-green-500/20 text-green-300 border-green-500/60";
 
   const marketColor =
     marketTrend === "rising"
-      ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/60"
+      ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/60"
       : marketTrend === "falling"
-      ? "bg-red-500/20 text-red-300 border border-red-500/60"
-      : "bg-slate-500/20 text-slate-300 border border-slate-500/60";
+      ? "bg-red-500/20 text-red-300 border-red-500/60"
+      : "bg-slate-500/20 text-slate-200 border-slate-400/60";
 
   const riskColor =
     riskLevel === "high"
-      ? "bg-red-500/20 text-red-300 border border-red-500/60"
+      ? "bg-red-500/20 text-red-300 border-red-500/60"
       : riskLevel === "medium"
-      ? "bg-amber-500/20 text-amber-300 border border-amber-500/60"
-      : "bg-emerald-500/20 text-emerald-300 border border-emerald-500/60";
+      ? "bg-amber-500/20 text-amber-300 border-amber-500/60"
+      : "bg-emerald-500/20 text-emerald-300 border-emerald-500/60";
 
   const motColor =
     motHealth === "good"
-      ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/60"
+      ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/60"
       : motHealth === "bad"
-      ? "bg-red-500/20 text-red-300 border border-red-500/60"
-      : "bg-amber-500/20 text-amber-300 border border-amber-500/60";
+      ? "bg-red-500/20 text-red-300 border-red-500/60"
+      : "bg-amber-500/20 text-amber-300 border-amber-500/60";
+
+  const syncLabel =
+    aiSync === "error" ? "Insights: problem" : aiSync === "idle" ? "Insights: up to date" : "Insights: updating…";
+
+  const empty = vehicleCount === 0;
 
   return (
-    <div className="w-full bg-black/70 border-b border-yellow-500/30 backdrop-blur-md relative z-30">
+    <section
+      aria-label="Stock snapshot"
+      className="w-full rounded-xl bg-black/60 border border-yellow-500/25 backdrop-blur-md"
+    >
+      <div className="flex items-center gap-3 px-3 sm:px-4 py-1.5 sm:py-2">
+        <span className="hidden sm:inline shrink-0 text-[11px] font-semibold uppercase tracking-[0.18em] text-yellow-400">
+          Stock snapshot
+        </span>
 
-      {/* ⭐ Particle shimmer */}
-      <div className="absolute inset-0 pointer-events-none opacity-10 bg-[radial-gradient(circle_at_50%_50%,rgba(255,215,0,0.3),transparent_70%)]" />
+        {empty ? (
+          <p className="py-1.5 text-sm text-white/75">
+            Add vehicles to your stock to switch on the fleet insights.
+          </p>
+        ) : (
+          <>
+            {/* PHONES: one line that opens to the full set. */}
+            <button
+              type="button"
+              aria-expanded={open}
+              aria-controls="hud-pills"
+              onClick={() => setOpen((v) => !v)}
+              className="sm:hidden flex-1 min-h-[44px] flex items-center justify-between gap-2 text-left text-sm text-white/85"
+            >
+              <span>
+                Market {marketTrend} · Risk {riskLevel} · MOT {motHealth}
+              </span>
+              <FiChevronDown
+                aria-hidden="true"
+                className={`shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
+              />
+            </button>
 
-      {/* ⭐ Supernova top glow */}
-      <div className="absolute inset-x-0 -top-px h-px bg-gradient-to-r from-transparent via-yellow-400/70 to-transparent" />
+            <div
+              id="hud-pills"
+              className={`${open ? "flex" : "hidden"} sm:flex flex-wrap items-center gap-2 pb-2 sm:pb-0`}
+            >
+              <div className={`${pill} ${syncColor}`} title="Whether the numbers below are up to date with your stock">
+                <span className="h-2 w-2 rounded-full bg-current" />
+                <span>{syncLabel}</span>
+              </div>
 
-      {/* ⭐ Supernova waveform (running only) */}
-      {aiSync === "running" && (
-        <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-transparent via-yellow-400 to-transparent animate-pulse" />
-      )}
+              {/* MARKET: computed from each vehicle's own flip-score-driven
+                  demand estimate, not a live market-data feed (this app has no
+                  market-data API yet), hence "(est.)". */}
+              <Link
+                to="/dealer/intelligence/market"
+                className={`${pill} ${marketColor}`}
+                title="Estimated from each vehicle's flip score. Not a live market-data feed."
+              >
+                Market: {marketTrend} (est.)
+              </Link>
 
-      <div className="px-6 py-3 flex flex-wrap items-center justify-between gap-4">
+              <Link
+                to="/dealer/intelligence/risk"
+                className={`${pill} ${riskColor}`}
+                title="A rough guide from each car's mileage, age and MOT advisories and failures, averaged across your stock. Low is under 30, medium 30 to 59, high 60 or more."
+              >
+                Risk: {riskLevel}
+              </Link>
 
-        {/* LEFT CLUSTER */}
-        <div className="flex items-center gap-3">
-          <div className="h-8 w-8 rounded-full border border-yellow-400/60 bg-black flex items-center justify-center shadow-[0_0_12px_rgba(250,204,21,0.6)]">
-            <span className="h-4 w-4 rounded-full bg-yellow-400 animate-pulse" />
-          </div>
+              <Link
+                to="/ai-insights"
+                className={`${pill} bg-purple-500/20 text-purple-200 border-purple-400/60`}
+                title="A rough 0 to 100 guide from each car's trade-to-retail price gap and MOT status, averaged across your stock. Market demand isn't fed in yet, so scores run low: compare cars with each other rather than reading it as a grade."
+              >
+                FlipScore: {flipScore}/100
+              </Link>
 
-          <div className="flex flex-col">
-            <span className="text-xs uppercase tracking-[0.2em] text-yellow-400/80">
-              Supernova Dealer HUD
-            </span>
-            <span className="text-sm text-white/70">
-              Real-time AI insights for FlipPilot Dealer OS
-            </span>
-          </div>
-        </div>
-
-        {/* CENTER CLUSTER */}
-        <div className="flex flex-wrap items-center gap-3">
-
-          {/* AI SYNC BADGE */}
-          <div className={`${badgeBase} ${aiColor}`}>
-            <span className="h-2 w-2 rounded-full bg-current" />
-            <span>AI Sync: {aiSync === "running" ? "Running" : aiSync}</span>
-          </div>
-
-          {/* AI LOAD METER (running only) */}
-          {aiSync === "running" && (
-            <div className="w-24 h-2 bg-black/40 border border-yellow-500/40 rounded-full overflow-hidden">
-              <div className="h-full w-3/4 bg-yellow-400 animate-pulse" />
+              <Link
+                to="/dealer/workflow/mot"
+                className={`${pill} ${motColor}`}
+                title="The most urgent MOT status in your stock: bad means at least one has expired, watch means one is due soon, good means none are."
+              >
+                MOT: {motHealth}
+              </Link>
             </div>
-          )}
-
-          {/* MARKET — computed from each vehicle's own flip-score-driven
-              demand estimate, not a live external market feed (this app
-              has no real market-data API yet) — labelled "(est.)" so it
-              doesn't overclaim alongside the genuinely real-data badges
-              next to it (Risk/FlipScore/MOT, all computed directly from
-              this dealer's own vehicle records). */}
-          <Link
-            to="/dealer/intelligence/market"
-            className={`${badgeBase} ${marketColor}`}
-            title="Estimated from each vehicle's flip score — not a live market-data feed"
-          >
-            <span>Market: {marketTrend} (est.)</span>
-          </Link>
-
-          {/* BRAIN MODE — links to the actual Pricing Brain tool this badge names */}
-          <Link to="/dealer/intelligence/pricing" className={`${badgeBase} bg-blue-500/20 text-blue-300 border border-blue-500/60`}>
-            <span>Brain: {brainMode}</span>
-          </Link>
-        </div>
-
-        {/* RIGHT CLUSTER */}
-        <div className="flex flex-wrap items-center gap-3">
-          <Link to="/dealer/intelligence/risk" className={`${badgeBase} ${riskColor}`}>
-            <span>Risk: {riskLevel}</span>
-          </Link>
-
-          <Link to="/ai-insights" className={`${badgeBase} bg-purple-500/20 text-purple-300 border border-purple-500/60`}>
-            <span>FlipScore: {flipScore}/100</span>
-          </Link>
-
-          <Link to="/dealer/workflow/mot" className={`${badgeBase} ${motColor}`}>
-            <span>MOT: {motHealth}</span>
-          </Link>
-        </div>
+          </>
+        )}
       </div>
-    </div>
+    </section>
   );
 }

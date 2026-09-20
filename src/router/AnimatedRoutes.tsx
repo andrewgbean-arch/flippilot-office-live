@@ -142,8 +142,13 @@ import DealerPublicPage from "@/dealer/public/DealerPublicPage";
 /* NOT FOUND */
 import NotFoundScreen from "@/screens/NotFoundScreen";
 
+/* TAB TITLE + SCREEN-READER PAGE ANNOUNCEMENT */
+import PageTitle from "@/components/PageTitle";
+
 export default function AnimatedRoutes() {
   return (
+    <>
+    <PageTitle />
     <Routes>
       {/* PUBLIC BOOKING — no account, no sidebar/nav chrome, the one
           page a customer reaches directly */}
@@ -314,5 +319,6 @@ export default function AnimatedRoutes() {
 
       </Route>
     </Routes>
+    </>
   );
 }

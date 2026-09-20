@@ -43,7 +43,7 @@ export default function BookkeepingEntryScreen() {
   }
 
   return (
-    <div className="p-10 animate-fadeIn text-white">
+    <div className="animate-fadeIn text-white">
 
       {/* MODALS */}
       {showCostModal && (

@@ -49,3 +49,65 @@
     width: 100%;
   }
 }
+
+/* -------------------------------------------------------
+   ⭐ TOUCH TARGETS (phones and touch screens)
+   A crawl of every screen at phone width found ~700 buttons and
+   controls under 32px tall (Log Out was 30, Skip was 20). Fingers need
+   about 44px, so controls get that minimum wherever the window is phone
+   sized or the device is touch. Pill-shaped links get 40px. Plain text
+   links inside sentences are left alone. Desktop is unchanged.
+------------------------------------------------------- */
+@media (max-width: 640px), (pointer: coarse) {
+  button,
+  [role="button"],
+  select,
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"]) {
+    min-height: 44px;
+  }
+
+  a[class*="rounded"][class*="px-"] {
+    min-height: 40px;
+    display: inline-flex;
+    align-items: center;
+  }
+}
+
+/* iPhones zoom the whole page in when a form field under 16px gets focus,
+   and don't zoom back out. Forms here use 14px text, so on phones the field
+   text is 16px. !important because the Tailwind size classes on the fields
+   would otherwise win. */
+@media (max-width: 640px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* -------------------------------------------------------
+   ⭐ KEYBOARD FOCUS
+   A visible gold ring, only when the keyboard is doing the navigating
+   (never on a mouse click), so tabbing through a form shows where you are.
+   Elements that draw their own focus style keep it.
+------------------------------------------------------- */
+:focus-visible {
+  outline: 2px solid #ffd700;
+  outline-offset: 2px;
+}
+
+/* -------------------------------------------------------
+   ⭐ REDUCED MOTION
+   The app pulses, glows and drifts a lot. People who ask their device for
+   less motion get the same screens without the movement.
+------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
