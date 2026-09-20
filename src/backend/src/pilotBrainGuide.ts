@@ -47,14 +47,7 @@ export const APP_MAP: AppMapSection[] = [
   },
   {
     section: "Intelligence",
-    items: [
-      "Market Intelligence",
-      "Motors Dashboard",
-      "Pricing Brain",
-      "CRM Intelligence",
-      "Risk Intelligence",
-      "Master Brain",
-    ],
+    items: ["Motors Dashboard", "CRM Intelligence", "Risk Intelligence"],
   },
   {
     section: "Analytics",
@@ -72,7 +65,6 @@ export const APP_MAP: AppMapSection[] = [
   { section: "Marketing", items: ["Marketing Hub", "Marketplace Sync"] },
   { section: "Bookkeeping", items: ["Bookkeeping Hub"] },
   { section: "Risk", items: ["Risk Hub"] },
-  { section: "AI", items: ["AI Insights"] },
   { section: "Tools", items: ["Tools Hub"] },
   { section: "Settings", items: ["Settings", "Billing"] },
   { section: "Workflows", items: ["Finance Workflow"] },

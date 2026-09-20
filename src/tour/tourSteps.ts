@@ -60,7 +60,7 @@ export const TOUR_STEPS: TourStep[] = [
     target: "tour-dealer-modules",
     title: "Every part of the app, from here",
     narration:
-      "These module cards are quick access to everything — inventory, sales, finance, recon, market intelligence, and bookkeeping. We'll walk through the main ones now.",
+      "These module cards are quick access to everything — inventory, sales, finance, recon, MOT and risk checks, and bookkeeping. We'll walk through the main ones now.",
   },
   {
     id: "vehicle-list",

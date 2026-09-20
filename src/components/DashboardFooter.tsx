@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useLocation, Link } from "react-router-dom";
 import {
   FiSearch,
-  FiCpu,
+  FiCheckCircle,
   FiBell,
 } from "react-icons/fi";
 import { FaCarSide } from "react-icons/fa";
@@ -43,10 +43,13 @@ export default function DashboardFooter() {
       icon: <FiTrendingUp className="text-green-300" />,
       to: "/new-flip",
     },
+    // Was "AI Scan", which opened the AI Insights screen (removed: its
+    // scores were constants). The MOT lookup is the real "scan": type a
+    // registration and it returns the DVSA record.
     {
-      label: "AI Scan",
-      icon: <FiCpu className="text-purple-300" />,
-      to: "/ai-insights",
+      label: "MOT Check",
+      icon: <FiCheckCircle className="text-purple-300" />,
+      to: "/dealer/inventory/mot-lookup",
     },
     {
       label: "Search",

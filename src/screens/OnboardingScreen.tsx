@@ -27,7 +27,7 @@ export default function OnboardingScreen() {
           <ul className="space-y-2 text-white/70 text-sm">
             <li>🚗 <span className="text-white">Inventory</span> — track every vehicle you buy, recondition, and sell.</li>
             <li>📊 <span className="text-white">Bookkeeping</span> — purchases, costs, sales, and VAT, calculated automatically.</li>
-            <li>🧠 <span className="text-white">AI Insights</span> — real pricing, risk, and market signals from your own stock.</li>
+            <li>🔧 <span className="text-white">MOT and risk checks</span> — which cars have an MOT expired, due soon or missing, worked out from your own stock.</li>
             <li>👥 <span className="text-white">Leads</span> — track buyers from first enquiry to sale.</li>
           </ul>
         </>
@@ -38,7 +38,7 @@ export default function OnboardingScreen() {
       body: (
         <>
           <p className="text-white/70 mb-4">
-            Everything in FlipPilot — bookkeeping, AI valuations, profit
+            Everything in FlipPilot — bookkeeping, MOT checks, profit
             tracking — starts with real vehicles in your inventory. Add one
             by hand, or bring in your whole existing stock list from a CSV
             spreadsheet at once.

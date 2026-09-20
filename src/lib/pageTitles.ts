@@ -103,14 +103,10 @@ export const PAGE_TITLES: Record<string, string> = {
 
   // Insight and analytics
   "/dealer/risk": "Risk",
-  "/ai-insights": "Insights",
   "/dealer/intelligence": "Intelligence",
-  "/dealer/intelligence/market": "Market intelligence",
   "/dealer/intelligence/motors": "Motors intelligence",
-  "/dealer/intelligence/pricing": "Pricing intelligence",
   "/dealer/intelligence/crm": "Customer intelligence",
   "/dealer/intelligence/risk": "Risk intelligence",
-  "/dealer/intelligence/brain": "Master brain",
   "/dealer/analytics": "Analytics",
   "/dealer/analytics/sales": "Sales analytics",
   "/dealer/analytics/inventory": "Stock analytics",

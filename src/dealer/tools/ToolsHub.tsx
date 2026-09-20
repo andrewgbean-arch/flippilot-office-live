@@ -127,24 +127,15 @@ export default function ToolsHub() {
           )}
         </SupernovaGlowCard>
 
-        {/* AI PRICE ESTIMATOR */}
-        <SupernovaGlowCard>
-          <h2 className="text-blue-400 font-bold text-xl mb-3">AI Price Estimator</h2>
-          <p className="text-white/70 mb-4">
-            Real per-vehicle valuation, risk, and market-pressure scoring,
-            computed from your actual inventory.
-          </p>
-          <Link to="/ai-insights" className={linkClass}>Open AI Insights</Link>
-        </SupernovaGlowCard>
-
-        {/* MARKET LOOKUP */}
+        {/* MARKET LOOKUP. (The AI Price Estimator card and the Market
+            Intelligence link that used to sit here opened screens that showed
+            the dealer's own prices back as "market" figures, so they're gone.) */}
         <SupernovaGlowCard>
           <h2 className="text-yellow-300 font-bold text-xl mb-3">Market Lookup</h2>
           <p className="text-white/70 mb-4">
             Market trends and pricing intelligence for your fleet.
           </p>
           <div className="flex flex-col gap-3">
-            <Link to="/dealer/intelligence/market" className={linkClass}>Market Intelligence</Link>
             <Link to="/dealer/analytics/market-trends" className={linkClass}>Market Trends</Link>
           </div>
         </SupernovaGlowCard>
@@ -163,10 +154,9 @@ export default function ToolsHub() {
         <SupernovaGlowCard>
           <h2 className="text-blue-400 font-bold text-xl mb-3">Marketplace Tools</h2>
           <p className="text-white/70 mb-4">
-            Pricing Brain and marketplace stock syndication.
+            Marketplace stock syndication.
           </p>
           <div className="flex flex-col gap-3">
-            <Link to="/dealer/intelligence/pricing" className={linkClass}>Pricing Brain</Link>
             <Link to="/dealer/marketing/sync" className={linkClass}>Marketplace Sync</Link>
           </div>
         </SupernovaGlowCard>

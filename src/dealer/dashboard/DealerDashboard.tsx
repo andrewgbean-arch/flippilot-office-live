@@ -429,8 +429,7 @@ export default function DealerDashboard({ brain }: Props) {
           icon={<FiBarChart2 className="cosmic-pulse" />}
           accent="purple"
         >
-          <GoldButton onPress={() => navigate("/dealer/intelligence/market")}>Market Intelligence</GoldButton>
-          <GoldButton onPress={() => navigate("/dealer/intelligence/pricing")}>Pricing Brain</GoldButton>
+          <GoldButton onPress={() => navigate("/dealer/intelligence/motors")}>Motors Dashboard</GoldButton>
           <GoldButton onPress={() => navigate("/dealer/intelligence/risk")}>Risk Hub</GoldButton>
         </SupernovaCard>
 
