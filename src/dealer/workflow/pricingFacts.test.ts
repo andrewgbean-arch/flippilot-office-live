@@ -72,6 +72,11 @@ describe("computePricingFacts", () => {
     expect(f.daysInStock).toBeNull(); // a sold car isn't "in stock"
   });
 
+  it("does not count days in stock for a car marked sold, even if its sale has not been recorded in Bookkeeping", () => {
+    const added = new Date(NOW.getTime() - 12 * 86_400_000).toISOString();
+    expect(computePricingFacts(car({ createdAt: added, status: "sold" }), undefined, [], undefined, NOW).daysInStock).toBeNull();
+  });
+
   it("counts days in stock for an unsold car from its date added, and gives null when there is none", () => {
     const added = new Date(NOW.getTime() - 12 * 86_400_000).toISOString();
     expect(computePricingFacts(car({ createdAt: added }), undefined, [], undefined, NOW).daysInStock).toBe(12);

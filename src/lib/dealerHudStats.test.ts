@@ -125,6 +125,9 @@ describe("hudPills", () => {
     const partial = hudPills(stats({ inStock: 5, daysCounted: 3 })).find(p => p.key === "days");
     expect(partial?.title).toContain("3 cars that have a date added");
     expect(partial?.title).toContain("other 2");
+    // ...and doesn't when every car has one
+    const full = hudPills(stats({ inStock: 5, daysCounted: 5 })).find(p => p.key === "days");
+    expect(full?.title).not.toContain("left out");
   });
 
   it("uses the singular for one day", () => {
