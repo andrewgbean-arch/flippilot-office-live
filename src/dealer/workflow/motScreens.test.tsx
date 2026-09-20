@@ -139,6 +139,11 @@ describe("MOT cards with a real record", () => {
     expect(html).toMatch(/Expiry: \d{1,2} \w{3} \d{4}/);
     expect(html).toContain("Failures: 5");
   });
+
+  it("shows a Status row only when the caller worked one out (the vehicle record never stores it)", () => {
+    expect(renderToStaticMarkup(<MOTInsightsPanel mot={mot} />)).not.toContain("Status:");
+    expect(renderToStaticMarkup(<MOTInsightsPanel mot={{ ...mot, motStatus: "Valid" }} />)).toContain("Status: Valid");
+  });
 });
 
 describe("MOT Workflow screen (vehicle MOT tab)", () => {
