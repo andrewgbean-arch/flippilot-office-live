@@ -551,6 +551,14 @@ describe("edits made while a save is on its way", () => {
     await h.calls[0]!.respond(ok([car("a", { priceRetail: 1, mileage: 5 })]));
     expect(h.calls[1]!.payload.changes).toEqual([{ id: "a", set: { priceRetail: 2 } }]); // mileage isn't sent again
     expect(byId(h.screen(), "a")).toMatchObject({ priceRetail: 2, mileage: 5 });
+
+    // The first save is confirmed, but the edit made meanwhile is not: still unsaved.
+    expect(h.saver.hasUnsaved()).toBe(true);
+    expect(h.lastStatus()).toMatchObject({ saving: true, unsaved: true });
+
+    await h.calls[1]!.respond(ok([car("a", { priceRetail: 2, mileage: 5 })]));
+    expect(h.saver.hasUnsaved()).toBe(false);
+    expect(h.lastStatus()).toEqual({ saving: false, error: null, unsaved: false, notice: null });
   });
 
   it("a removal made in flight isn't lost when the earlier value is confirmed", async () => {
@@ -752,11 +760,12 @@ describe("taking in the server's answer", () => {
       },
     });
     h.saver.loaded([car("a")]);
-    void edit(h, "a", { priceRetail: 1 });
+    const done = edit(h, "a", { priceRetail: 1 });
 
     await h.calls[0]!.respond(ok([car("a", { priceRetail: 1 }), car("z")]));
     expect(ids(h.screen())).toEqual(["a"]);
     expect(h.lastStatus()).toEqual({ saving: false, error: null, unsaved: false, notice: null });
+    await expect(done).resolves.toBeUndefined(); // the failure to show it isn't an error for whoever made the edit
   });
 
   it("prepares what it adopts: new cars, and cars someone else changed with this user's waiting edit on top", async () => {
@@ -788,6 +797,16 @@ describe("taking in the server's answer", () => {
     expect(h.shown).toHaveLength(updates); // the same stock: no churn, even for the entry with no id
   });
 
+  it("a car whose id is an empty string can't be told apart from another: shown, never sent", async () => {
+    const h = harness();
+    const blank = { id: "", make: "Blank", model: "One" } as unknown as Vehicle;
+    h.saver.loaded([car("a"), blank]);
+    await edit(h, "", { priceRetail: 1 }); // the screen edits "the car with id ''"
+    await h.saver.change([...h.screen(), { id: "", make: "Blank", model: "Two" } as unknown as Vehicle]);
+    expect(h.calls).toHaveLength(0);
+    expect(h.saver.hasUnsaved()).toBe(false);
+  });
+
   it("the same id twice on the server doesn't confuse it", async () => {
     const h = harness();
     h.saver.loaded([car("a"), car("a", { priceRetail: 1 })]);
@@ -815,6 +834,33 @@ describe("the screen doesn't churn", () => {
     void h.saver.retry();
     await h.calls[0]!.respond(ok([car("a"), car("b")])); // new objects, same content
     expect(h.shown).toHaveLength(updates);
+  });
+
+  it("a car created here isn't rebuilt when the server confirms it: the screen keeps the very object", async () => {
+    const h = harness();
+    h.saver.loaded([car("a")]);
+    void add(h, car("n"));
+    const mine = byId(h.screen(), "n");
+    const updates = h.shown.length;
+
+    await h.calls[0]!.respond(ok([car("a"), car("n")]));
+    expect(h.shown).toHaveLength(updates);
+    expect(byId(h.screen(), "n")).toBe(mine);
+  });
+
+  it("once another person's edit has been taken in, an answer holding the same thing doesn't replace the list again", async () => {
+    const h = harness();
+    h.saver.loaded([car("a"), car("b")]);
+    void h.saver.retry();
+    await h.calls[0]!.respond(ok([car("a"), car("b", { priceRetail: 999 })])); // someone changed b
+    expect(byId(h.screen(), "b")).toMatchObject({ priceRetail: 999 });
+    const updates = h.shown.length;
+    const before = [...h.screen()];
+
+    void h.saver.retry();
+    await h.calls[1]!.respond(ok([car("a"), car("b", { priceRetail: 999 })])); // and nothing since
+    expect(h.shown).toHaveLength(updates);
+    expect(h.screen()[1]).toBe(before[1]);
   });
 
   it("a car whose pictures are null on the server and an empty list here isn't a change", async () => {

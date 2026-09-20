@@ -23,7 +23,13 @@ const car = (extra: Record<string, unknown> = {}) =>
   ({ id: "a", make: "Ford", model: "Fiesta", priceRetail: 5000, mileage: 40000, images: null, ...extra }) as unknown as Vehicle;
 
 const edit = (set: Record<string, unknown> = {}, unset: string[] = []): FieldEdit => ({ set, unset: new Set(unset) });
-const plain = (e: FieldEdit | null) => (e === null ? null : { set: { ...e.set }, unset: [...e.unset].sort() });
+const plain = (e: FieldEdit | null) => {
+  if (e === null) return null;
+  // toEqual ignores a key that holds undefined, so look for one here: a field
+  // that has no value is in `unset`, never in `set` with nothing in it.
+  expect(Object.values(e.set).includes(undefined), "`set` holds a field whose value is undefined").toBe(false);
+  return { set: { ...e.set }, unset: [...e.unset].sort() };
+};
 
 // Freezes a value all the way down, so any attempt to change it throws (the
 // test files are modules, so a write to a frozen object is an error).
@@ -165,6 +171,8 @@ describe("sameServerCar", () => {
   it("copes with things that aren't cars", () => {
     expect(sameServerCar(undefined, car())).toBe(false);
     expect(sameServerCar(car(), undefined)).toBe(false);
+    expect(sameServerCar(null, car())).toBe(false);
+    expect(sameServerCar(car(), null)).toBe(false);
     expect(sameServerCar(null, null)).toBe(true);
   });
 });
@@ -201,6 +209,12 @@ describe("diffVehicle", () => {
   it("a field that stops having a value is unset, whether it is missing or explicitly undefined", () => {
     expect(plain(diffVehicle(car({ notes: "x" }), car()))).toEqual({ set: {}, unset: ["notes"] });
     expect(plain(diffVehicle(car({ notes: "x" }), car({ notes: undefined })))).toEqual({ set: {}, unset: ["notes"] });
+  });
+
+  it("a field that stops having a value is never also in set, not even holding undefined", () => {
+    const e = diffVehicle(car({ notes: "x" }), car({ notes: undefined }))!;
+    expect(Object.keys(e.set)).toEqual([]);
+    expect([...e.unset]).toEqual(["notes"]);
   });
 
   it("a field set to null is a value (set), not a removal", () => {

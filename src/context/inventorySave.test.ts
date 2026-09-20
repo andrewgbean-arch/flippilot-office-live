@@ -163,6 +163,11 @@ describe("saveInventoryToServer — what it reports", () => {
     expect(describeSaveFailure(418)).toContain("418");
   });
 
+  it("a 5xx is the server's trouble, try again soon; any other unexpected status is refused", () => {
+    for (const status of [500, 502, 503, 599]) expect(describeSaveFailure(status), String(status)).toMatch(/had a problem saving/i);
+    for (const status of [400, 404, 418, 499]) expect(describeSaveFailure(status), String(status)).toMatch(/wouldn't accept/i);
+  });
+
   it("every failure message says the changes weren't saved (or may not be)", () => {
     for (const problem of [400, 401, 402, 403, 413, 500, 503, "network", "bad-reply", "old-server"] as const) {
       expect(describeSaveFailure(problem)).toMatch(/haven't been saved|may not have been saved|are not saved/i);

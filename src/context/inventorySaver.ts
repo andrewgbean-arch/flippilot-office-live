@@ -148,7 +148,8 @@ export function createInventorySaver(options: InventorySaverOptions): InventoryS
   const pendingDeleted = new Set<string>(); // deleted here
 
   // Names of cars that left the screen while an edit of theirs was still
-  // waiting, so the notice can still name them when the server says so.
+  // waiting, so the notice can still name them when the server says so. Only
+  // ever a few short strings; emptied with the login.
   const leftScreen = new Map<string, string>();
   // The cars the notice is about (id -> name, or null when it had none).
   const noticeCars = new Map<string, string | null>();
@@ -293,19 +294,13 @@ export function createInventorySaver(options: InventorySaverOptions): InventoryS
     }
 
     for (const [id, car] of pendingAdded) {
-      if (!inNext.has(id) && !pendingDeleted.has(id)) {
-        next.push(car);
-        inNext.add(id);
-      }
+      if (!inNext.has(id) && !pendingDeleted.has(id)) next.push(car);
     }
 
     // Preparing worked; now it's safe to change things.
     for (const [id, mine] of onScreen) {
       const label = carLabel(mine);
       if (!inNext.has(id) && pendingChanges.has(id) && label !== null) leftScreen.set(id, label);
-    }
-    for (const id of [...leftScreen.keys()]) {
-      if (inNext.has(id) || !pendingChanges.has(id)) leftScreen.delete(id);
     }
     rememberServerCars(nextKnown);
     // Only replace the list if something on it is different: a save that
@@ -368,11 +363,7 @@ export function createInventorySaver(options: InventorySaverOptions): InventoryS
       if (pendingDeleted.has(id)) continue; // deleted here too: nothing to tell them
       dropped.push([id, carLabel(list.find(vehicle => idOf(vehicle) === id)) ?? leftScreen.get(id) ?? null]);
     }
-    for (const id of missing) {
-      pendingChanges.delete(id);
-      leftScreen.delete(id);
-      known.delete(id);
-    }
+    for (const id of missing) pendingChanges.delete(id);
     if (dropped.length > 0) {
       for (const [id, label] of dropped) noticeCars.set(id, label);
       notice = deletedByOthersNotice([...noticeCars.values()]);
