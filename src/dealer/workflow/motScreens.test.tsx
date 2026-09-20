@@ -114,7 +114,7 @@ describe("MOT cards with a real record", () => {
   it("the score card shows a score, what it was worked out from, and the rule", () => {
     const html = renderToStaticMarkup(<MOTHealthScore mot={mot} />);
     expect(html).toMatch(/\d+\/100/);
-    expect(html).toContain("5 failure items across 2 failed tests");
+    expect(html).toContain("5 failure items on record, 2 failed tests of 4");
     expect(html).toContain("120,000 miles"); // the NEWEST test's mileage, not the oldest (96,000)
     expect(html.toLowerCase()).toContain("not a prediction");
     expect(html).not.toContain("AI");

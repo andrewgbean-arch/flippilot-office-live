@@ -164,6 +164,14 @@ describe("motAiEngine — failures come from the test history", () => {
     expect(passed.basis.failureItems).toBe(0);
   });
 
+  it("failure items listed on a test that passed (pass after rectification) still count as items, but it is not a failed test", () => {
+    const r = motAiEngine({ expiry: future }, [
+      { date: "2025-05-01T09:00:00.000Z", result: "PASS", failures: ["Headlamp aim", "Tyre"], mileage: 40000 },
+    ]);
+    expect(r.basis.failureItems).toBe(2);
+    expect(r.basis.failedTests).toBe(0);
+  });
+
   it("a failed test with no items listed still counts as one failure", () => {
     const r = motAiEngine({ expiry: future }, [{ date: "2024-05-01T09:00:00.000Z", result: "FAIL", mileage: 50000 }]);
     expect(r.basis.failedTests).toBe(1);
@@ -224,6 +232,23 @@ describe("motAiEngine — latest mileage is the newest test by date, never by po
     expect(b.basis.latestTest?.date).toBe("2025-06-01T10:00:00.000Z");
   });
 
+  it("the newest test wins even when an older test shows a higher mileage (newest by date, not the biggest number)", () => {
+    const r = motAiEngine({ expiry: future }, [
+      { date: "2019-06-01T10:00:00.000Z", result: "PASS", mileage: 90000 },
+      { date: "2025-06-01T10:00:00.000Z", result: "PASS", mileage: 40000 },
+    ]);
+    expect(r.basis.mileage).toBe(40000);
+    expect(r.mileageRisk).toBe(15);
+  });
+
+  it("the newest test wins by year too when tests only have a year", () => {
+    const r = motAiEngine({ expiry: future }, [
+      { year: 2018, result: "PASS", mileage: 90000 },
+      { year: 2024, result: "PASS", mileage: 50000 },
+    ]);
+    expect(r.basis.mileage).toBe(50000);
+  });
+
   it("uses the newest test that actually recorded a mileage", () => {
     const r = motAiEngine({ expiry: future }, [
       { date: "2025-06-01T10:00:00.000Z", result: "PASS", mileage: null },
@@ -273,6 +298,50 @@ describe("motAiEngine — latest mileage is the newest test by date, never by po
   });
 });
 
+describe("motAiEngine — the outlook band follows the risk level", () => {
+  const future = new Date(Date.now() + 200 * 86400000).toISOString();
+  // Low mileage, so the score is set by failure items (about 14 each) and advisories (3.5 each).
+  const withFailures = (items: number, advisories = 0) =>
+    motAiEngine(
+      { expiry: future, advisories: Array(advisories).fill("a") },
+      [{ date: "2025-01-01T10:00:00.000Z", result: items ? "FAIL" : "PASS", failures: Array(items).fill("f"), mileage: 10000 }]
+    );
+
+  it("70 and above is low risk and a 'good' outlook; just under is medium and 'fair'", () => {
+    const seventy = withFailures(2); // 70
+    expect(seventy.healthScore).toBe(70);
+    expect(seventy.riskLevel).toBe("low");
+    expect(seventy.passOutlook).toBe("good");
+
+    const sixtySeven = withFailures(2, 1); // 67
+    expect(sixtySeven.healthScore).toBe(67);
+    expect(sixtySeven.riskLevel).toBe("medium");
+    expect(sixtySeven.passOutlook).toBe("fair");
+  });
+
+  it("45 and above is medium and 'fair'; just under is high and 'poor'", () => {
+    const fortyFive = withFailures(3, 3); // 45
+    expect(fortyFive.healthScore).toBe(45);
+    expect(fortyFive.riskLevel).toBe("medium");
+    expect(fortyFive.passOutlook).toBe("fair");
+
+    const fortyTwo = withFailures(3, 4); // 42
+    expect(fortyTwo.healthScore).toBe(42);
+    expect(fortyTwo.riskLevel).toBe("high");
+    expect(fortyTwo.passOutlook).toBe("poor");
+  });
+
+  it("never shows 'good' with a medium or high risk, or the reverse", () => {
+    for (let items = 0; items <= 6; items++) {
+      for (let adv = 0; adv <= 10; adv++) {
+        const r = withFailures(items, adv);
+        const expected = r.riskLevel === "low" ? "good" : r.riskLevel === "medium" ? "fair" : "poor";
+        expect(r.passOutlook).toBe(expected);
+      }
+    }
+  });
+});
+
 describe("motAiEngine — the pass chance is a rough band, not a probability", () => {
   const future = new Date(Date.now() + 200 * 86400000).toISOString();
 
@@ -318,7 +387,7 @@ describe("motAiEngine — the summary says what the rule was worked out from", (
       ]
     );
     expect(r.summary).toContain("2 current advisories");
-    expect(r.summary).toContain("1 failure item across 1 failed test (of 2 on record)");
+    expect(r.summary).toContain("1 failure item on record, 1 failed test of 2");
     expect(r.summary).toContain("87,000 miles");
     expect(r.summary.toLowerCase()).toContain("rule of thumb");
   });

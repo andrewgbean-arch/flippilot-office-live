@@ -19,7 +19,7 @@ export type MotPassOutlook = "good" | "fair" | "poor";
 export type MotAiBasis = {
   /** MOT tests found in the history (entries with a date, year, result or test number). */
   testsRecorded: number;
-  /** Tests that failed, counting a fail with no listed items as a failed test. */
+  /** Tests whose result was a fail. */
   failedTests: number;
   /** Failure items listed across the whole history (a fail with no listed items counts as 1). */
   failureItems: number;
@@ -198,7 +198,9 @@ export function motAiEngine(mot: any, history: any[], now: number = Date.now()):
   const candidates = [datedMileage, bareMileage].filter((m): m is number => m !== null);
   const mileage = candidates.length ? Math.max(...candidates) : num(mot?.mileage);
 
-  const failedTests = tests.filter((t) => isFail(t) || (Array.isArray(t.failures) && t.failures.length > 0)).length;
+  // A test that FAILED. (A "pass after rectification" lists failure items but
+  // its result is a pass; the items still count below, the test does not.)
+  const failedTests = tests.filter(isFail).length;
   const failureItems = tests.reduce((sum, t) => sum + failureItemCount(t), 0);
 
   const mileageRisk = mileageBand(mileage);
@@ -234,13 +236,15 @@ export function motAiEngine(mot: any, history: any[], now: number = Date.now()):
     healthScore >= 45 ? 62 :
     healthScore >= 30 ? 45 : 25;
 
-  const passOutlook: MotPassOutlook | null = expired ? null :
-    healthScore >= 75 ? "good" :
-    healthScore >= 45 ? "fair" : "poor";
-
   const riskLevel: MotRiskLevel = expired ? "high" :
     healthScore >= 70 ? "low" :
     healthScore >= 45 ? "medium" : "high";
+
+  // The band follows the risk level, so a card never says "low risk" and
+  // "fair outlook" about the same car.
+  const passOutlook: MotPassOutlook | null = expired ? null :
+    riskLevel === "low" ? "good" :
+    riskLevel === "medium" ? "fair" : "poor";
 
   const nextTestRisk = expired
     ? "The MOT has expired. It should not be driven on the road, other than to a pre-booked MOT test, until it has been retested."
@@ -264,7 +268,7 @@ export function motAiEngine(mot: any, history: any[], now: number = Date.now()):
     parts.push(
       failureItems === 0
         ? `no failures on record across ${tests.length} ${tests.length === 1 ? "test" : "tests"}`
-        : `${failureItems} failure ${failureItems === 1 ? "item" : "items"} across ${failedTests} failed ${failedTests === 1 ? "test" : "tests"} (of ${tests.length} on record)`
+        : `${failureItems} failure ${failureItems === 1 ? "item" : "items"} on record, ${failedTests} failed ${failedTests === 1 ? "test" : "tests"} of ${tests.length}`
     );
   } else {
     parts.push("no test history on record");
