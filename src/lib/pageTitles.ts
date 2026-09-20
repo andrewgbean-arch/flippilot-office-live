@@ -42,7 +42,7 @@ export const PAGE_TITLES: Record<string, string> = {
   "/dealer/sales": "Sales",
   "/dealer/sales/add": "Add a lead",
   "/dealer/sales/pipeline": "Sales pipeline",
-  "/dealer/sales/crm": "Customer relationships",
+  "/dealer/sales/crm": "Lead summary",
   "/dealer/sales/leads": "Leads",
   "/dealer/sales/leads/:id": "Lead",
 
@@ -102,11 +102,11 @@ export const PAGE_TITLES: Record<string, string> = {
   "/dealer/staff/:id": "Staff member",
 
   // Insight and analytics
-  "/dealer/risk": "Risk",
+  "/dealer/risk": "Risk hub",
   "/dealer/intelligence": "Intelligence",
-  "/dealer/intelligence/motors": "Motors intelligence",
-  "/dealer/intelligence/crm": "Customer intelligence",
-  "/dealer/intelligence/risk": "Risk intelligence",
+  "/dealer/intelligence/motors": "Motors dashboard",
+  "/dealer/intelligence/crm": "Lead summary",
+  "/dealer/intelligence/risk": "Risk hub",
   "/dealer/analytics": "Analytics",
   "/dealer/analytics/sales": "Sales analytics",
   "/dealer/analytics/inventory": "Stock analytics",

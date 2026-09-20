@@ -394,7 +394,7 @@ export default function DealerDashboard({ brain }: Props) {
         >
           <GoldButton onPress={() => navigate("/dealer/sales/add")}>Add Lead</GoldButton>
           <GoldButton onPress={() => navigate("/dealer/sales/pipeline")}>Sales Pipeline</GoldButton>
-          <GoldButton onPress={() => navigate("/dealer/intelligence/crm")}>CRM Intelligence</GoldButton>
+          <GoldButton onPress={() => navigate("/dealer/intelligence/crm")}>Lead Summary</GoldButton>
         </SupernovaCard>
 
         <SupernovaCard

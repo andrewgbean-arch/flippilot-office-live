@@ -47,7 +47,7 @@ export const APP_MAP: AppMapSection[] = [
   },
   {
     section: "Intelligence",
-    items: ["Motors Dashboard", "CRM Intelligence", "Risk Intelligence"],
+    items: ["Motors Dashboard", "Lead Summary", "Risk Intelligence"],
   },
   {
     section: "Analytics",

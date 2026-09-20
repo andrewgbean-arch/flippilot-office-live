@@ -163,7 +163,7 @@ export default function DealerSidebar() {
       icon: FiActivity,
       items: [
         { to: "/dealer/intelligence/motors", label: "Motors Dashboard" },
-        { to: "/dealer/intelligence/crm", label: "CRM Intelligence" },
+        { to: "/dealer/intelligence/crm", label: "Lead Summary" },
         { to: "/dealer/intelligence/risk", label: "Risk Intelligence" },
       ],
     },
