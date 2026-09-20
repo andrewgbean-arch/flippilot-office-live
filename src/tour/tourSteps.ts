@@ -79,7 +79,7 @@ export const TOUR_STEPS: TourStep[] = [
     target: "tour-vehicle-list-buttons",
     title: "Opening a vehicle",
     narration:
-      "Tap any vehicle, or its Overview button, to open its full record. The MOT button jumps straight to its MOT history and health score.",
+      "Tap any vehicle, or its Overview button, to open its full record. The MOT button jumps straight to its MOT history and checks.",
   },
   {
     id: "vehicle-overview-tabs",

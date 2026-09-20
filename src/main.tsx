@@ -15,7 +15,6 @@ import { DealerNotificationsProvider } from "./features/dealer-notifications/Dea
 
 import { DealerContextProvider } from "./context/DealerContext";
 import { InventoryProvider } from "./context/InventoryProvider";
-import { IntelligenceProvider } from "./context/IntelligenceProvider";
 import { LeadsProvider } from "./context/LeadsContext";
 import { BookkeepingProvider } from "./bookkeeping/BookkeepingProvider";
 import { StaffProvider } from "./staff/StaffContext";
@@ -52,33 +51,31 @@ createRoot(document.getElementById("root")!).render(
           <DealerNotificationsProvider>
             <DealerContextProvider>
               <InventoryProvider>
-                <IntelligenceProvider>
-                  <LeadsProvider>
-                    <VehicleHistoryProvider>
-                      <BookkeepingProvider>
-                        <StaffProvider>
-                          <JobsProvider>
-                            <TimeClockProvider>
-                              <PlannerProvider>
-                                <FeedbackProvider>
-                                  <ConsumablesProvider>
-                                    <AppointmentsProvider>
-                                      <ContactsProvider>
-                                        <DiaryProvider>
-                                          <App />
-                                        </DiaryProvider>
-                                      </ContactsProvider>
-                                    </AppointmentsProvider>
-                                  </ConsumablesProvider>
-                                </FeedbackProvider>
-                              </PlannerProvider>
-                            </TimeClockProvider>
-                          </JobsProvider>
-                        </StaffProvider>
-                      </BookkeepingProvider>
-                    </VehicleHistoryProvider>
-                  </LeadsProvider>
-                </IntelligenceProvider>
+                <LeadsProvider>
+                  <VehicleHistoryProvider>
+                    <BookkeepingProvider>
+                      <StaffProvider>
+                        <JobsProvider>
+                          <TimeClockProvider>
+                            <PlannerProvider>
+                              <FeedbackProvider>
+                                <ConsumablesProvider>
+                                  <AppointmentsProvider>
+                                    <ContactsProvider>
+                                      <DiaryProvider>
+                                        <App />
+                                      </DiaryProvider>
+                                    </ContactsProvider>
+                                  </AppointmentsProvider>
+                                </ConsumablesProvider>
+                              </FeedbackProvider>
+                            </PlannerProvider>
+                          </TimeClockProvider>
+                        </JobsProvider>
+                      </StaffProvider>
+                    </BookkeepingProvider>
+                  </VehicleHistoryProvider>
+                </LeadsProvider>
               </InventoryProvider>
             </DealerContextProvider>
           </DealerNotificationsProvider>

@@ -25,6 +25,20 @@ const PLATFORM_LABELS: Record<string, string> = {
   gumtree: "Gumtree",
 };
 
+// What a portal needs from the dealer, with no "Connected" badge: the old badge
+// turned on from a server-wide environment variable that nothing in the app
+// uses, so it would have been false for every dealer.
+export function PlatformCard({ label, platform }: { label: string; platform: PlatformStatus }) {
+  return (
+    <SupernovaGlowCard>
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="text-lg font-bold text-white">{label}</h3>
+      </div>
+      <p className="text-white/60 text-sm">{platform.note}</p>
+    </SupernovaGlowCard>
+  );
+}
+
 export default function MarketplaceSync() {
   const { user } = useAuth();
   // Was a single hardcoded URL reading a global, disconnected
@@ -57,7 +71,7 @@ export default function MarketplaceSync() {
     <div className="px-6 py-10 space-y-10">
       <SupernovaHeroHeader
         title="Marketplace Sync"
-        subtitle="Push your stock to AutoTrader, Motors.co.uk, eBay Motors and other portals."
+        subtitle="Download your stock as a CSV feed, or copy its link, for the portals you use."
       />
 
       <SupernovaSectionDivider label="Live Now" />
@@ -67,10 +81,11 @@ export default function MarketplaceSync() {
           Generic CSV Stock Feed
         </h3>
         <p className="text-white/70 text-sm mb-4">
-          Works right now, no account or API key needed. Several portals
-          (including Motors.co.uk) accept a stock feed like this directly —
-          point their feed importer at this URL, or download it and upload
-          manually.
+          A CSV file of the stock you have not sold, built from your
+          inventory each time it is opened. No account or API key needed.
+          Download it to upload by hand to a portal that takes CSV uploads,
+          or give the link to a portal that has agreed to collect a feed
+          from you. FlipPilot does not send your stock to any portal for you.
         </p>
         <div className="flex flex-wrap gap-3 items-center">
           {feedUrl && (
@@ -93,7 +108,12 @@ export default function MarketplaceSync() {
         </div>
       </SupernovaGlowCard>
 
-      <SupernovaSectionDivider label="Needs a Business Account First" />
+      <SupernovaSectionDivider label="Direct Portal Connections: Not Available Yet" />
+
+      <p className="text-white/60 text-sm">
+        FlipPilot cannot send your stock to these portals yet. This is what
+        each one needs from you.
+      </p>
 
       {loading && <p className="text-white/60">Checking platform status…</p>}
 
@@ -101,23 +121,7 @@ export default function MarketplaceSync() {
         Object.entries(status.platforms)
           .filter(([key]) => key !== "genericFeed")
           .map(([key, platform]) => (
-            <SupernovaGlowCard key={key}>
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-lg font-bold text-white">
-                  {PLATFORM_LABELS[key] ?? key}
-                </h3>
-                <span
-                  className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                    platform.available
-                      ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/60"
-                      : "bg-white/10 text-white/50 border border-white/20"
-                  }`}
-                >
-                  {platform.available ? "Connected" : "Not Connected"}
-                </span>
-              </div>
-              <p className="text-white/60 text-sm">{platform.note}</p>
-            </SupernovaGlowCard>
+            <PlatformCard key={key} label={PLATFORM_LABELS[key] ?? key} platform={platform} />
           ))}
 
       {!loading && !status?.ok && (

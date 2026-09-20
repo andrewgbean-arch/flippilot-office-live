@@ -76,7 +76,9 @@ export default function ToolsHub() {
           <p className="text-white/50 text-xs mb-3">
             Decodes make and model year from the VIN itself. Model/trim/
             engine can't be reliably determined from a VIN alone — enter
-            those manually when adding the vehicle.
+            those manually when adding the vehicle. Best effort only: it
+            recognises just five makes (Ford, Volkswagen, Mercedes, BMW and
+            Toyota), and the year is read from a single character.
           </p>
 
           <SupernovaInput
@@ -127,18 +129,6 @@ export default function ToolsHub() {
           )}
         </SupernovaGlowCard>
 
-        {/* MARKET LOOKUP. (The AI Price Estimator card and the Market
-            Intelligence link that used to sit here opened screens that showed
-            the dealer's own prices back as "market" figures, so they're gone.) */}
-        <SupernovaGlowCard>
-          <h2 className="text-yellow-300 font-bold text-xl mb-3">Market Lookup</h2>
-          <p className="text-white/70 mb-4">
-            Market trends and pricing intelligence for your fleet.
-          </p>
-          <div className="flex flex-col gap-3">
-          </div>
-        </SupernovaGlowCard>
-
         {/* PHOTO STUDIO */}
         <SupernovaGlowCard>
           <h2 className="text-blue-400 font-bold text-xl mb-3">Photo Studio</h2>
@@ -153,7 +143,8 @@ export default function ToolsHub() {
         <SupernovaGlowCard>
           <h2 className="text-blue-400 font-bold text-xl mb-3">Marketplace Tools</h2>
           <p className="text-white/70 mb-4">
-            Marketplace stock syndication.
+            A CSV stock feed you can give to a portal. Nothing is sent to any
+            portal automatically.
           </p>
           <div className="flex flex-col gap-3">
             <Link to="/dealer/marketing/sync" className={linkClass}>Marketplace Sync</Link>

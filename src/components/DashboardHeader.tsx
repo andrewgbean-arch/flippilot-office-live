@@ -3,7 +3,6 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { FiMenu } from "react-icons/fi";
 import { useAuth } from "@/context/AuthContext";
 import { useInventory } from "@/context/InventoryProvider";
-import { useIntelligence } from "@/context/IntelligenceProvider";
 
 interface DashboardHeaderProps {
   // Opens the navigation drawer on phones and narrow windows, where the
@@ -18,10 +17,9 @@ export default function DashboardHeader({ onOpenMenu }: DashboardHeaderProps) {
   const navigate = useNavigate();
 
   const { loading: inventoryLoading, refreshInventory } = useInventory();
-  const { loading: intelLoading } = useIntelligence();
   const [manualSyncing, setManualSyncing] = useState(false);
 
-  const syncing = manualSyncing || inventoryLoading || intelLoading;
+  const syncing = manualSyncing || inventoryLoading;
 
   // This button used to be labelled "Sync AI" and had no onClick at all: it
   // looked clickable but did nothing. It now re-pulls the stock from the
