@@ -3,6 +3,8 @@ import { isPositiveAmount } from "@/lib/parseMoney";
 import React from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useBookkeeping } from "./BookkeepingProvider";
+import { useLedgerPurchases } from "./useLedgerPurchases";
+import { isMarginPurchase } from "./purchaseVat";
 import { useInventory } from "@/context/InventoryProvider";
 import AddCostModal from "./AddCostModal";
 import AddSaleModal from "./AddSaleModal";
@@ -11,13 +13,15 @@ export default function BookkeepingEntryScreen() {
   const { vehicleId } = useParams();
   const navigate = useNavigate();
   const {
-    purchases,
     costs,
     sales,
     getTotalCostForVehicle,
     getProfitForVehicle,
   } = useBookkeeping();
   const { vehicles } = useInventory();
+  // Margin-scheme purchases saved with phantom VAT read as the no-VAT purchases
+  // they are (in memory only; nothing stored is rewritten).
+  const purchases = useLedgerPurchases();
 
   const vehicle = vehicles.find((v) => v.id === vehicleId);
   const vehicleLabel = vehicle ? `${vehicle.make} ${vehicle.model}` : vehicleId;
@@ -80,8 +84,16 @@ export default function BookkeepingEntryScreen() {
         </p>
         <p><span className="text-white/60">Purchased From:</span> {purchase.source}</p>
         <p><span className="text-white/60">Date:</span> {purchase.date}</p>
-        <p><span className="text-white/60">VAT:</span> {formatMoney(purchase.vatAmount, { pence: true })}</p>
-        <p><span className="text-white/60">Net:</span> {formatMoney(purchase.netAmount, { pence: true })}</p>
+        {isMarginPurchase(purchase) ? (
+          // Bought under the Margin Scheme: there is no VAT invoice on the purchase,
+          // so no VAT amount is shown (there is none to reclaim).
+          <p><span className="text-white/60">VAT:</span> None: bought under the Margin Scheme</p>
+        ) : (
+          <>
+            <p><span className="text-white/60">VAT:</span> {formatMoney(purchase.vatAmount, { pence: true })}</p>
+            <p><span className="text-white/60">Net:</span> {formatMoney(purchase.netAmount, { pence: true })}</p>
+          </>
+        )}
       </div>
 
       {/* COSTS */}

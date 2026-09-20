@@ -11,6 +11,7 @@ import {
 } from "./types";
 import { calculateVat, calculateMarginVat } from "./vatUtils";
 import { hubTotals, carProfit } from "./profitTotals";
+import { purchaseVatSettings } from "./purchaseVat";
 import { loadBookkeeping, saveBookkeeping, type BookkeepingDoc } from "./bookkeepingStorage.web";
 import { useAuth } from "@/context/AuthContext";
 import { useGuardedLoad } from "@/lib/useGuardedLoad";
@@ -167,14 +168,23 @@ export function BookkeepingProvider({ children }: BookkeepingProviderProps) {
   // PURCHASES
   const addPurchase = (entry: PurchaseEntry) => {
     if (!guardSave()) return;
+    // A purchase that says it was bought under the Margin Scheme has no VAT
+    // invoice, so it is stored with no VAT whatever rate the caller left on it.
+    const { vatRate, vatIncluded } = purchaseVatSettings(
+      entry.vatScheme === "margin" ? "margin" : "standard",
+      entry.vatRate,
+      entry.vatIncluded
+    );
     const vat = calculateVat(entry.purchasePrice, {
-      vatRate: entry.vatRate,
-      vatIncluded: entry.vatIncluded,
+      vatRate,
+      vatIncluded,
       vatReclaimable: true,
     });
 
     const enriched: PurchaseEntry = {
       ...entry,
+      vatRate,
+      vatIncluded,
       vatAmount: vat.vat,
       netAmount: vat.net,
     };

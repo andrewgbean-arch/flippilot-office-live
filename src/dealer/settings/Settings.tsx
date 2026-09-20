@@ -10,6 +10,7 @@ import { useDealer } from "@/context/DealerContext";
 import { useAuth } from "@/context/AuthContext";
 import { useInventory } from "@/context/InventoryProvider";
 import { useBookkeeping } from "@/bookkeeping/BookkeepingProvider";
+import { useLedgerPurchases } from "@/bookkeeping/useLedgerPurchases";
 import { authHeaders } from "@/lib/authToken";
 import { useTour } from "@/tour/TourProvider";
 import { toCSV, downloadCSV } from "@/lib/csv";
@@ -632,7 +633,9 @@ export default function Settings() {
   const navigate = useNavigate();
   const { startTour } = useTour();
   const { vehicles } = useInventory();
-  const { purchases, costs, sales } = useBookkeeping();
+  const { costs, sales } = useBookkeeping();
+  // The purchases CSV must not carry VAT on a margin-scheme purchase: there is none.
+  const purchases = useLedgerPurchases();
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);

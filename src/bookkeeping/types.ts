@@ -72,6 +72,12 @@ export interface PurchaseEntry {
   source?: string;
   date: string;
 
+  // The VAT scheme the car was bought under. Optional because purchases saved
+  // before this field existed do not carry it (see purchaseVat.ts, which reads it
+  // from the car instead). Under "margin" there is no VAT invoice on the
+  // purchase, so vatRate is 0, vatIncluded false and vatAmount 0.
+  vatScheme?: "margin" | "standard";
+
   vatRate: number;
   vatIncluded: boolean;
   vatAmount: number;

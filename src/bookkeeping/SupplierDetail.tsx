@@ -3,7 +3,7 @@ import React, { useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { FiArrowLeft } from "react-icons/fi";
 
-import { useBookkeeping } from "@/bookkeeping/BookkeepingProvider";
+import { useLedgerPurchases } from "@/bookkeeping/useLedgerPurchases";
 import { useInventory } from "@/context/InventoryProvider";
 
 import { SupernovaHeroHeader } from "@/components/supernova/SupernovaHeroHeader";
@@ -14,7 +14,9 @@ export default function SupplierDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  const { purchases } = useBookkeeping();
+  // Margin-scheme purchases carry no VAT (older ones were saved with phantom VAT:
+  // see purchaseVat.ts), so the VAT total here counts only real VAT.
+  const purchases = useLedgerPurchases();
   const { vehicles } = useInventory();
 
   const sourceName = id ?? "Unknown";

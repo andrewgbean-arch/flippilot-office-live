@@ -1,8 +1,10 @@
 import React, { useState } from "react";
 import { PurchaseEntry } from "./types";
 import { calculateVat } from "./vatUtils";
+import { purchaseVatSettings } from "./purchaseVat";
 import { useBookkeeping } from "./BookkeepingProvider";
 import { useInventory } from "@/context/InventoryProvider";
+import { readMoney } from "@/lib/parseMoney";
 
 interface AddPurchaseModalProps {
   vehicleId: string | null;
@@ -23,15 +25,35 @@ export default function AddPurchaseModal({ onClose }: AddPurchaseModalProps) {
   const [source, setSource] = useState<string>("");
   const [date, setDate] = useState<string>(new Date().toISOString().slice(0, 10));
 
+  // The purchase price is REQUIRED and must be an amount above £0. A blank used to
+  // be saved as £0, and "4,500" used to be lost; either made a later sale look like
+  // pure profit. Nothing is saved until the price reads as a real amount.
+  const [submitted, setSubmitted] = useState(false);
+  const priceRead = readMoney(purchasePrice, { positive: true, blankMessage: "Enter the purchase price." });
+  const priceError = priceRead.ok ? null : priceRead.message;
+  const showPriceError = priceError !== null && (submitted || purchasePrice.trim() !== "");
+  const isMargin = vatScheme === "margin";
+
   function handleSave() {
     if (!make.trim() || !model.trim()) return;
+    if (!priceRead.ok) {
+      setSubmitted(true);
+      return;
+    }
 
-    const numericPrice = Number(purchasePrice) || 0;
-    const numericVatRate = (Number(vatRate) || 0) / 100;
+    const numericPrice = priceRead.value;
+    // Under the Margin Scheme there is no VAT invoice on the purchase, so the rate
+    // is 0 and the price is not "VAT included", whatever the boxes still say. The
+    // provider works VAT and net out from what is passed, so it must be right here.
+    const { vatRate: numericVatRate, vatIncluded: effectiveVatIncluded } = purchaseVatSettings(
+      vatScheme,
+      (Number(vatRate) || 0) / 100,
+      vatIncluded
+    );
 
     const breakdown = calculateVat(numericPrice, {
       vatRate: numericVatRate,
-      vatIncluded,
+      vatIncluded: effectiveVatIncluded,
       vatReclaimable: true,
     });
 
@@ -55,8 +77,9 @@ export default function AddPurchaseModal({ onClose }: AddPurchaseModalProps) {
       purchasePrice: numericPrice,
       source,
       date,
+      vatScheme,
       vatRate: numericVatRate,
-      vatIncluded,
+      vatIncluded: effectiveVatIncluded,
       vatAmount: breakdown.vat,
       netAmount: breakdown.net,
     };
@@ -101,14 +124,25 @@ export default function AddPurchaseModal({ onClose }: AddPurchaseModalProps) {
         />
 
         {/* PURCHASE PRICE */}
-        <label htmlFor="addpurchasemodal-purchase-price" className="text-white/60 text-sm">Purchase Price</label>
+        <label htmlFor="addpurchasemodal-purchase-price" className="text-white/60 text-sm">Purchase Price (£)</label>
         <input id="addpurchasemodal-purchase-price"
-          type="number"
+          type="text"
+          inputMode="decimal"
+          autoComplete="off"
           value={purchasePrice}
           onChange={(e) => setPurchasePrice(e.target.value)}
-          placeholder="0.00"
-          className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-4"
+          placeholder="e.g. 4500 or £4,500.00"
+          aria-invalid={showPriceError}
+          aria-describedby={showPriceError ? "addpurchasemodal-purchase-price-error" : undefined}
+          className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-1"
         />
+        {showPriceError ? (
+          <p id="addpurchasemodal-purchase-price-error" role="alert" className="text-red-400 text-sm mb-4">
+            {priceError}
+          </p>
+        ) : (
+          <div className="mb-4" />
+        )}
 
         {/* VAT SCHEME */}
         <label htmlFor="addpurchasemodal-vat-scheme-for-when-this-vehicle-is-sold" className="text-white/60 text-sm">VAT Scheme (for when this vehicle is sold)</label>
@@ -121,27 +155,35 @@ export default function AddPurchaseModal({ onClose }: AddPurchaseModalProps) {
           <option value="standard">Standard VAT — VAT invoice received on purchase</option>
         </select>
 
-        {/* VAT RATE */}
-        <label htmlFor="addpurchasemodal-vat-rate-on-this-purchase" className="text-white/60 text-sm">VAT Rate on this Purchase (%)</label>
-        <input id="addpurchasemodal-vat-rate-on-this-purchase"
-          type="number"
-          step="1"
-          value={vatRate}
-          onChange={(e) => setVatRate(e.target.value)}
-          placeholder="20"
-          className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-4"
-        />
+        {isMargin ? (
+          <p role="note" className="mb-4 px-3 py-2 rounded bg-black/30 border border-yellow-400/20 text-sm text-yellow-300/90">
+            Margin Scheme purchases carry no VAT, so no VAT rate applies and none is recorded.
+          </p>
+        ) : (
+          <>
+            {/* VAT RATE */}
+            <label htmlFor="addpurchasemodal-vat-rate-on-this-purchase" className="text-white/60 text-sm">VAT Rate on this Purchase (%)</label>
+            <input id="addpurchasemodal-vat-rate-on-this-purchase"
+              type="number"
+              step="1"
+              value={vatRate}
+              onChange={(e) => setVatRate(e.target.value)}
+              placeholder="20"
+              className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-4"
+            />
 
-        {/* VAT INCLUDED */}
-        <label htmlFor="addpurchasemodal-vat-included" className="text-white/60 text-sm">VAT Included?</label>
-        <select id="addpurchasemodal-vat-included"
-          value={vatIncluded ? "yes" : "no"}
-          onChange={(e) => setVatIncluded(e.target.value === "yes")}
-          className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-4"
-        >
-          <option value="yes">Yes (price includes VAT)</option>
-          <option value="no">No (VAT added on top)</option>
-        </select>
+            {/* VAT INCLUDED */}
+            <label htmlFor="addpurchasemodal-vat-included" className="text-white/60 text-sm">VAT Included?</label>
+            <select id="addpurchasemodal-vat-included"
+              value={vatIncluded ? "yes" : "no"}
+              onChange={(e) => setVatIncluded(e.target.value === "yes")}
+              className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-4"
+            >
+              <option value="yes">Yes (price includes VAT)</option>
+              <option value="no">No (VAT added on top)</option>
+            </select>
+          </>
+        )}
 
         {/* PURCHASED FROM */}
         <label htmlFor="addpurchasemodal-purchased-from" className="text-white/60 text-sm">Purchased From</label>
