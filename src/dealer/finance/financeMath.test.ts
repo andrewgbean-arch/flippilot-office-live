@@ -189,8 +189,8 @@ describe("compareLenders", () => {
 
   it("one lender is not a comparison: no lowest mark", () => {
     const rows = compareLenders(10000, 36, [lender("a", "9.9")]);
-    expect(rows[0].loan.status).toBe("ok");
-    expect(rows[0].isLowest).toBe(false);
+    expect(rows[0]?.loan.status).toBe("ok");
+    expect(rows[0]?.isLowest).toBe(false);
   });
 
   it("marks the lowest payment when two or more usable rates differ", () => {
@@ -210,9 +210,9 @@ describe("compareLenders", () => {
 
   it("a lender with no APR yet is left out of the comparison, and 0% counts as a real rate", () => {
     const rows = compareLenders(10000, 36, [lender("a", ""), lender("b", "9.9"), lender("c", "0")]);
-    expect(rows[0].loan.status).toBe("incomplete");
-    expect(rows[0].isLowest).toBe(false);
-    expect(rows[2].loan.monthlyPayment).toBeCloseTo(277.7778, 4);
+    expect(rows[0]?.loan.status).toBe("incomplete");
+    expect(rows[0]?.isLowest).toBe(false);
+    expect(rows[2]?.loan.monthlyPayment).toBeCloseTo(277.7778, 4);
     expect(rows.map((r) => r.isLowest)).toEqual([false, false, true]);
   });
 

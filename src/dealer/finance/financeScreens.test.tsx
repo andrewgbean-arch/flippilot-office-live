@@ -99,13 +99,13 @@ describe("finance screens as first opened", () => {
     });
 
     it("marks nothing for a single lender", () => {
-      const out = render([two[0]]);
+      const out = render([two[0]!]);
       expect(out).not.toContain("sn-lender-badge");
       expect(out).toContain("£320.22");
     });
 
     it("says what is missing for a lender with no APR, and marks nothing", () => {
-      const out = render([{ id: "a", name: "Northern Motor Finance", apr: "" }, two[1]]);
+      const out = render([{ id: "a", name: "Northern Motor Finance", apr: "" }, two[1]!]);
       expect(out).not.toContain("sn-lender-badge");
       expect(out).toContain("Enter an APR");
     });

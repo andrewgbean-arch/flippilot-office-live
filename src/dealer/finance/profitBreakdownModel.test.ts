@@ -106,7 +106,7 @@ describe("margin scheme (the default): the audit's worked example", () => {
   });
 
   it("agrees with calculateMarginVat for a spread of figures", () => {
-    for (const [buy, sale] of [[1000, 1500], [2499, 3995], [12000, 11000], [0, 800], [7450.5, 8999.99]]) {
+    for (const [buy, sale] of [[1000, 1500], [2499, 3995], [12000, 11000], [0, 800], [7450.5, 8999.99]] as [number, number][]) {
       const r = calculateProfitBreakdown(input({ purchasePrice: buy, reconCost: 0, salePrice: sale }));
       const shared = calculateMarginVat(sale, buy, 0.2);
       expect(r.vat).toBeCloseTo(shared.vat, 8);
