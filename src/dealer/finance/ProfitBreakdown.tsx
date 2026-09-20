@@ -33,6 +33,7 @@ export default function ProfitBreakdown() {
 
   const dash = "—";
   const enteredSale = toAmount(salePrice);
+  const noCostsYet = [purchasePrice, reconCost, partsLabour, otherCosts].every(v => toAmount(v) === null);
 
   return (
     <div className="sn-panel sn-panel--full">
@@ -116,7 +117,7 @@ export default function ProfitBreakdown() {
 
         <div className="sn-deal-row">
           <span>Total Costs (purchase + recon + parts &amp; labour + other)</span>
-          <span>{formatMoney(result.totalCosts)}</span>
+          <span>{noCostsYet ? dash : formatMoney(result.totalCosts)}</span>
         </div>
         <div className="sn-deal-row">
           <span>Sale Price</span>
