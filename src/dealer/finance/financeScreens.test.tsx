@@ -55,6 +55,7 @@ describe("finance screens as first opened", () => {
   });
 
   it("the disclaimer sits with the figures themselves, not only in the page header", () => {
+    expect(html.calculator.split("Finance Inputs")[0]).toContain("not a finance quote or a credit offer");
     expect(html.calculator.split("Monthly Payment (illustrative)")[1]).toContain("not a finance quote or a credit offer");
     expect(html.dealSheet.split("Summary (illustrative)")[1]).toContain("not a finance quote or a credit offer");
   });
