@@ -145,7 +145,6 @@ export default function ToolsHub() {
           </p>
           <div className="flex flex-col gap-3">
             <Link to="/dealer/intelligence/market" className={linkClass}>Market Intelligence</Link>
-            <Link to="/dealer/analytics/market-trends" className={linkClass}>Market Trends</Link>
           </div>
         </SupernovaGlowCard>
 

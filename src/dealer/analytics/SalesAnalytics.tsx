@@ -41,7 +41,7 @@ export default function SalesAnalytics() {
         <MetricCard label="Total Leads" value={total} accent="primary" />
         <MetricCard label="Active" value={active} accent="blue" />
         <MetricCard label="Won" value={won} accent="success" />
-        <MetricCard label="Conversion Rate" value={conversionRate} accent="gold" />
+        <MetricCard label="Conversion Rate" value={conversionRate} accent="gold" suffix="%" />
       </section>
 
       <main className="sn-grid">
@@ -83,14 +83,16 @@ function MetricCard({
   label,
   value,
   accent,
+  suffix,
 }: {
   label: string;
   value: number;
   accent?: "primary" | "success" | "gold" | "blue" | "purple";
+  suffix?: string;
 }) {
   return (
     <div className={`sn-metric sn-metric--${accent ?? "primary"}`}>
-      <div className="sn-metric__value">{value}</div>
+      <div className="sn-metric__value">{value}{suffix}</div>
       <div className="sn-metric__label">{label}</div>
     </div>
   );

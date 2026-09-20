@@ -1,39 +1,16 @@
 import { useLeads } from "@/context/LeadsContext";
+import { SMALL_SAMPLE, conversionBySource, overallConversion } from "./leadFigures";
 import "@/staff/StaffDashboard.css";
 
+// "Avg Days to Convert" is gone from this page. It was the average age of the
+// won leads TODAY (now minus the date each was created), so it grew by a day
+// every day and said nothing about how long a sale takes; the lead record has no
+// date for when it was won. It can come back once that date is stored.
 export default function LeadConversionAnalytics() {
   const { leads } = useLeads();
 
-  const bySource = leads.reduce((acc, l) => {
-    const key = l.source || "Unknown";
-    if (!acc[key]) acc[key] = { total: 0, won: 0 };
-    acc[key].total += 1;
-    if (l.status === "won") acc[key].won += 1;
-    return acc;
-  }, {} as Record<string, { total: number; won: number }>);
-
-  const sourceConversion = Object.entries(bySource)
-    .map(([source, data]) => ({
-      source,
-      total: data.total,
-      won: data.won,
-      rate: data.total > 0 ? Math.round((data.won / data.total) * 100) : 0,
-    }))
-    .sort((a, b) => b.rate - a.rate);
-
-  const wonLeads = leads.filter(l => l.status === "won");
-  const avgDaysToConvert = wonLeads.length > 0
-    ? Math.round(
-        wonLeads.reduce((sum, l) => {
-          const days = (Date.now() - new Date(l.createdAt).getTime()) / 86400000;
-          return sum + days;
-        }, 0) / wonLeads.length
-      )
-    : 0;
-
-  const overallRate = leads.length > 0
-    ? Math.round((wonLeads.length / leads.length) * 100)
-    : 0;
+  const sources = conversionBySource(leads);
+  const overall = overallConversion(leads);
 
   return (
     <div className="sn-dashboard sn-dashboard--cosmic">
@@ -43,36 +20,47 @@ export default function LeadConversionAnalytics() {
         <div className="sn-hero__content">
           <h1 className="sn-hero__title">Lead Conversion Analytics</h1>
           <p className="sn-hero__subtitle">
-            Which sources convert best, and how long it takes.
+            Which lead sources your won leads came from.
           </p>
         </div>
       </header>
 
       <section className="sn-metrics-row">
-        <MetricCard label="Overall Conversion" value={overallRate} accent="gold" suffix="%" />
-        <MetricCard label="Avg Days to Convert" value={avgDaysToConvert} accent="blue" />
-        <MetricCard label="Total Won" value={wonLeads.length} accent="success" />
+        <MetricCard label="Won, as % of all leads" value={overall.rate} accent="gold" suffix="%" />
+        <MetricCard label="Total Won" value={overall.won} accent="success" />
+        <MetricCard label="Total Leads" value={overall.total} accent="primary" />
       </section>
 
       <main className="sn-grid">
         <section className="sn-panel sn-panel--full">
           <h2 className="sn-panel__title">Conversion Rate by Source</h2>
-          {sourceConversion.length === 0 ? (
+          {sources.length === 0 ? (
             <p className="sn-empty">No lead data yet.</p>
           ) : (
-            <div className="sn-staff-grid">
-              {sourceConversion.map(s => (
-                <div key={s.source} className="sn-staff-card">
-                  <div className="sn-staff-card__header">
-                    <span className="sn-staff-card__name">{s.source}</span>
-                    <span className="sn-staff-card__role">{s.rate}%</span>
+            <>
+              <p className="text-white/60 text-sm mb-3">
+                Biggest sources first. A source with fewer than {SMALL_SAMPLE} leads is greyed out:
+                too few to say whether it converts well.
+              </p>
+              <div className="sn-staff-grid">
+                {sources.map(s => (
+                  <div
+                    key={s.source}
+                    className="sn-staff-card"
+                    style={s.smallSample ? { opacity: 0.55 } : undefined}
+                  >
+                    <div className="sn-staff-card__header">
+                      <span className="sn-staff-card__name">{s.source}</span>
+                      <span className="sn-staff-card__role">{s.rate}%</span>
+                    </div>
+                    <div className="sn-staff-card__branch">
+                      {s.won} won / {s.total} lead{s.total === 1 ? "" : "s"}
+                      {s.smallSample ? " (too few to compare)" : ""}
+                    </div>
                   </div>
-                  <div className="sn-staff-card__branch">
-                    {s.won} won / {s.total} total
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            </>
           )}
         </section>
       </main>

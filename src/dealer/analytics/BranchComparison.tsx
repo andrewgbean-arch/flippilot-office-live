@@ -4,7 +4,9 @@ import { useStaff } from "@/staff/StaffContext";
 // aren't tagged by branch anywhere in the data model, so a genuine sales/
 // inventory-per-branch comparison isn't possible yet. This shows the one
 // real branch breakdown that IS possible (staffing), and says so plainly
-// rather than the bare "add your logic here" stub this used to be.
+// rather than the bare "add your logic here" stub this used to be. It was
+// titled "Branch Comparison", which promised a comparison of how each branch is
+// doing; it is a headcount, so it is now called what it shows.
 export default function BranchComparison() {
   const { staff } = useStaff();
 
@@ -20,7 +22,7 @@ export default function BranchComparison() {
 
   return (
     <div className="text-white">
-      <h1 className="text-3xl font-bold text-yellow-300 mb-2">Branch Comparison</h1>
+      <h1 className="text-3xl font-bold text-yellow-300 mb-2">Staff by Branch</h1>
       <p className="text-white/60 mb-6">
         Staffing by branch — the only field tagged by branch today.
         Vehicle and lead records aren't linked to a branch yet, so

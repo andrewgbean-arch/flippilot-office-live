@@ -18,14 +18,16 @@ export default function StaffAnalytics() {
     return acc;
   }, {} as Record<string, number>);
 
-  const avgTenureDays = total > 0
-    ? Math.round(
-        staff.reduce((sum, s) => {
-          const days = (Date.now() - new Date(s.joinedAt).getTime()) / 86400000;
-          return sum + days;
-        }, 0) / total
-      )
-    : 0;
+  // `joinedAt` is set to "now" when the staff record is created in FlipPilot
+  // (staff/AddStaff.tsx), not when the person started work, so this is how long
+  // they have been on FlipPilot, not their tenure. It used to be labelled
+  // "Avg Tenure". Records with no usable date are left out of the average.
+  const daysOnApp = staff
+    .map(s => new Date(s.joinedAt).getTime())
+    .filter(t => Number.isFinite(t))
+    .map(t => Math.max(0, (Date.now() - t) / 86400000));
+  const avgDaysOnApp =
+    daysOnApp.length > 0 ? Math.round(daysOnApp.reduce((sum, d) => sum + d, 0) / daysOnApp.length) : 0;
 
   return (
     <div className="sn-dashboard sn-dashboard--cosmic">
@@ -35,7 +37,7 @@ export default function StaffAnalytics() {
         <div className="sn-hero__content">
           <h1 className="sn-hero__title">Staff Analytics</h1>
           <p className="sn-hero__subtitle">
-            Team composition and tenure across the business.
+            Your team by role and branch.
           </p>
         </div>
       </header>
@@ -43,7 +45,7 @@ export default function StaffAnalytics() {
       <section className="sn-metrics-row">
         <MetricCard label="Total Staff" value={total} accent="primary" />
         <MetricCard label="Active" value={active} accent="success" />
-        <MetricCard label="Avg Tenure (days)" value={avgTenureDays} accent="gold" />
+        <MetricCard label="Avg Days on FlipPilot" value={avgDaysOnApp} accent="gold" />
       </section>
 
       <main className="sn-grid">

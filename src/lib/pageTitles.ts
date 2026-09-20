@@ -33,9 +33,6 @@ export const PAGE_TITLES: Record<string, string> = {
   "/dealer/inventory/list": "Vehicle list",
   "/dealer/inventory/mot-lookup": "MOT lookup",
   "/dealer/inventory/parts-labour": "Parts and labour",
-  "/dealer/inventory/reconditioning": "Reconditioning",
-  "/dealer/inventory/market-comparison": "Market comparison",
-  "/dealer/inventory/timeline": "Stock timeline",
   "/dealer/inventory/:id": "Vehicle",
 
   // Sales
@@ -114,11 +111,9 @@ export const PAGE_TITLES: Record<string, string> = {
   "/dealer/analytics": "Analytics",
   "/dealer/analytics/sales": "Sales analytics",
   "/dealer/analytics/inventory": "Stock analytics",
-  "/dealer/analytics/pricing": "Pricing analytics",
-  "/dealer/analytics/market-trends": "Market trends",
   "/dealer/analytics/lead-conversion": "Lead conversion",
   "/dealer/analytics/staff": "Staff analytics",
-  "/dealer/analytics/branches": "Branch analytics",
+  "/dealer/analytics/branches": "Staff by branch",
 
   // Workflow
   "/dealer/workflow/finance": "Finance workflow",
