@@ -130,6 +130,23 @@ describe("extractJson: tolerant about wrapping, strict that it is ONE object", (
     expect(extractJson("{'a': 1}")).toBeNull();
     expect(extractJson('{"a": "unterminated}')).toBeNull();
   });
+
+  // The end of the object is found by counting braces, ignoring any inside a quoted
+  // string. A string can hold an escaped quote, and a brace right after one must not
+  // be taken for the end of the object (or the answer would be refused for no reason).
+  it("keeps reading through a quoted string that holds an escaped quote followed by a brace", () => {
+    expect(extractJson('{"a": "he said \\"}\\" and left", "b": 2}')).toEqual({ a: 'he said "}" and left', b: 2 });
+    expect(extractJson('{"a": "ends with a quote \\"}", "b": 2}')).toEqual({ a: 'ends with a quote "}', b: 2 });
+  });
+
+  it("keeps reading through a quoted string that holds a backslash before the closing quote", () => {
+    // The string is  x\  (a backslash), so the quote after it really does end the string.
+    expect(extractJson('{"a": "x\\\\", "b": {"c": 1}}')).toEqual({ a: "x\\", b: { c: 1 } });
+  });
+
+  it("is not thrown by braces inside a quoted string", () => {
+    expect(extractJson('{"a": "}{", "b": "{{{"}')).toEqual({ a: "}{", b: "{{{" });
+  });
 });
 
 /* ------------------------------------------------------------------ */
