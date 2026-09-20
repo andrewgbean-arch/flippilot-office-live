@@ -30,6 +30,11 @@ interface BookkeepingContextValue {
   deleteCost: (id: string) => void;
 
   addPurchase: (entry: PurchaseEntry) => void;
+  // Adds several purchases in ONE update and ONE save, and says how many were
+  // saved (0 when the books were not ready to be written). Calling addPurchase in
+  // a loop cannot do this: each call builds its new list from the same
+  // render-time copy, so every call overwrites the one before it.
+  addPurchases: (entries: PurchaseEntry[]) => number;
   addSale: (entry: SaleEntry) => void;
   updateSale: (id: string, patch: Partial<SaleEntry>) => void;
   addTransaction: (entry: TransactionEntry) => void;
@@ -166,10 +171,11 @@ export function BookkeepingProvider({ children }: BookkeepingProviderProps) {
   };
 
   // PURCHASES
-  const addPurchase = (entry: PurchaseEntry) => {
-    if (!guardSave()) return;
-    // A purchase that says it was bought under the Margin Scheme has no VAT
-    // invoice, so it is stored with no VAT whatever rate the caller left on it.
+  //
+  // The stored form of a purchase. One that says it was bought under the Margin
+  // Scheme has no VAT invoice, so it is stored with no VAT whatever rate the
+  // caller left on it.
+  const enrichPurchase = (entry: PurchaseEntry): PurchaseEntry => {
     const { vatRate, vatIncluded } = purchaseVatSettings(
       entry.vatScheme === "margin" ? "margin" : "standard",
       entry.vatRate,
@@ -181,17 +187,29 @@ export function BookkeepingProvider({ children }: BookkeepingProviderProps) {
       vatReclaimable: true,
     });
 
-    const enriched: PurchaseEntry = {
+    return {
       ...entry,
       vatRate,
       vatIncluded,
       vatAmount: vat.vat,
       netAmount: vat.net,
     };
+  };
 
-    const updated = [...purchases, enriched];
+  const addPurchase = (entry: PurchaseEntry) => {
+    if (!guardSave()) return;
+    const updated = [...purchases, enrichPurchase(entry)];
     setPurchases(updated);
     persist({ purchases: updated });
+  };
+
+  const addPurchases = (entries: PurchaseEntry[]): number => {
+    if (entries.length === 0) return 0;
+    if (!guardSave()) return 0;
+    const updated = [...purchases, ...entries.map(enrichPurchase)];
+    setPurchases(updated);
+    persist({ purchases: updated });
+    return entries.length;
   };
 
   // SALES
@@ -394,6 +412,7 @@ export function BookkeepingProvider({ children }: BookkeepingProviderProps) {
     deleteCost,
 
     addPurchase,
+    addPurchases,
     addSale,
     updateSale,
     addTransaction,

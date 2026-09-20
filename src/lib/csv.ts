@@ -52,6 +52,32 @@ export function parseCSV(text: string): string[][] {
   return rows;
 }
 
+// The text of a CSV file's bytes.
+//
+// `file.text()` always decodes as UTF-8. Excel's default "CSV (Comma delimited)" on
+// a UK Windows PC does NOT save UTF-8: it saves Windows-1252, where the pound sign
+// is the single byte 0xA3. That byte is not valid UTF-8, so every "£5,000" turned
+// into a replacement character and the price could not be read. So: UTF-8 first
+// (what Excel's "CSV UTF-8", Google Sheets and Numbers save), and when the bytes are
+// not valid UTF-8, Windows-1252. A UTF-8 byte order mark is dropped.
+export function decodeCsvBytes(bytes: ArrayBuffer | Uint8Array): string {
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    return new TextDecoder("windows-1252").decode(bytes);
+  }
+}
+
+// Reads a chosen file. A File has arrayBuffer(); anything that only has text()
+// (a stand-in, an old browser) is read the plain way.
+export async function readCsvFile(file: {
+  arrayBuffer?: () => Promise<ArrayBuffer>;
+  text: () => Promise<string>;
+}): Promise<string> {
+  if (typeof file.arrayBuffer === "function") return decodeCsvBytes(await file.arrayBuffer());
+  return file.text();
+}
+
 export interface ParsedCSV {
   headers: string[];
   rows: string[][];
