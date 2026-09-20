@@ -163,6 +163,20 @@ describe("the emailed invoice says the same thing as the page", () => {
     expect(body).not.toContain("166.67");
   });
 
+  it("the email uses the sale's own VAT rate, not a fixed 20%", () => {
+    const cases = [
+      { rate: 0.05, price: 100, label: "5", vat: "£5.00", total: "£105.00" },
+      { rate: 0.175, price: 200, label: "17.5", vat: "£35.00", total: "£235.00" },
+      { rate: 0, price: 500, label: "0", vat: "£0.00", total: "£500.00" },
+    ];
+    for (const c of cases) {
+      const html = render(storedSale({ price: c.price, rate: c.rate, included: false }));
+      const body = emailBody(html)!;
+      expect(body, c.label).toContain(`VAT (${c.label}%): ${c.vat}`);
+      expect(body, c.label).toContain(`Total: ${c.total}`);
+    }
+  });
+
   it("the email total always equals the page's Total Due", () => {
     for (const sale of [
       storedSale({ price: 1000, included: false }),
