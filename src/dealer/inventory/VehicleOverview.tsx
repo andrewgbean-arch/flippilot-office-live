@@ -76,7 +76,7 @@ export default function VehicleOverview() {
 
   const { vehicles: invVehicles, loading: stockLoading } = useInventory();
   const { purchases, sales } = useBookkeeping();
-  const { flipScores, marketIntel, motHealth } = useIntelligence();
+  const { motHealth } = useIntelligence();
 
   const vehicle = invVehicles.find((v: Vehicle) => String(v.id) === vehicleId);
 
@@ -210,16 +210,13 @@ export default function VehicleOverview() {
   // valuationHistory, so every one of those reads silently fell back to
   // its default (0 mileage, 0 MOT failures regardless of the real
   // vehicle, £0 valuation) and every vehicle showed the exact same
-  // "WALK AWAY" verdict. Real per-vehicle intelligence already exists
-  // via useIntelligence() (same source the dashboard HUD and AI
-  // Insights use) — wired in here instead of leaving it all undefined.
+  // "WALK AWAY" verdict. The MOT health result comes from
+  // useIntelligence(); the simulated flip-score and "market" readings
+  // that used to be wired in here are gone (they were the dealer's own
+  // prices handed back as market data).
   // normalizeFlipRecord fills in any field this doesn't set with a
   // real (null, not fabricated) default rather than crashing on a
   // missing nested object.
-  const vehicleIntel = marketIntel[vehicleId] as
-    | { marketAvg?: number; demandIndex?: number; competitorCount?: number }
-    | undefined;
-  const marketAvg = vehicleIntel?.marketAvg ?? vehicle.priceRetail ?? vehicle.priceTrade ?? undefined;
 
   const dealerAIVehicle = normalizeFlipRecord({
     id: vehicle.id,
@@ -236,7 +233,7 @@ export default function VehicleOverview() {
       date: `${2020 + index}-01-01`,
       value,
     })),
-    flipScore: flipScores[vehicleId] ?? vehicle.flipDifficulty ?? null,
+    flipScore: vehicle.flipDifficulty ?? null,
     ai: { conditionScore: (motHealth[vehicleId] ?? ai)?.healthScore ?? null },
     mot: {
       year: mot?.year ?? null,
@@ -244,10 +241,10 @@ export default function VehicleOverview() {
       failures,
       advisories,
     },
-    // Real eBay comps (dealer-only, same year, mileage-comparable) take
-    // priority over the simulated estimate whenever they're available —
-    // same "prefer the real signal when we have one, keep the honest
-    // simulated fallback when we don't" shape as the rest of this app.
+    // Real eBay comps (dealer-only, same year, mileage-comparable) when
+    // they're available. Without them there is NO market data: this used
+    // to fall back to a "simulated" market built from the dealer's own buy
+    // and asking prices (plus or minus 15%), which is not a market at all.
     market: ebayComps
       ? {
           demandScore: ebayComps.demandScore,
@@ -256,13 +253,7 @@ export default function VehicleOverview() {
           average: ebayComps.average,
           soldCount: ebayComps.soldCount,
         }
-      : {
-          demandScore: vehicleIntel?.demandIndex ?? null,
-          lowest: marketAvg != null ? Math.round(marketAvg * 0.85) : null,
-          highest: marketAvg != null ? Math.round(marketAvg * 1.15) : null,
-          average: marketAvg ?? null,
-          soldCount: vehicleIntel?.competitorCount ?? null,
-        },
+      : { demandScore: null, lowest: null, highest: null, average: null, soldCount: null },
     aiValuation: {
       estimatedValue: vehicle.priceRetail ?? vehicle.priceTrade ?? null,
       confidence: vehicle.valuationConfidence ?? null,
