@@ -14,7 +14,6 @@ import TrialBanner from "../components/TrialBanner";
 import InventoryLoadErrorBanner from "../components/InventoryLoadErrorBanner";
 
 import { useInventory } from "@/context/InventoryProvider";
-import { useIntelligence } from "@/context/IntelligenceProvider";
 import { computeDealerHudStats } from "@/lib/dealerHudStats";
 
 export default function DealerLayout() {
@@ -22,17 +21,12 @@ export default function DealerLayout() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   const { vehicles, loading: inventoryLoading } = useInventory();
-  const { flipScores, riskScores, marketIntel, motHealth, loading: intelLoading } =
-    useIntelligence();
 
-  const hud = computeDealerHudStats(
-    vehicles,
-    inventoryLoading || intelLoading,
-    flipScores,
-    riskScores,
-    marketIntel,
-    motHealth
-  );
+  // Counted straight from the stock on every render (a few dozen cars), so a
+  // car marked sold or given an MOT date shows up at once.
+  const hud = computeDealerHudStats(vehicles, new Date());
+  // Only the very first fetch says "loading"; a refresh keeps the last figures on screen.
+  const stockLoading = inventoryLoading && vehicles.length === 0;
 
   const isHome =
     pathname === "/" ||
@@ -96,19 +90,13 @@ export default function DealerLayout() {
         <TrialBanner />
         <InventoryLoadErrorBanner />
 
-        {/* The snapshot bar is one slim strip. A second banner used to sit
-            under it repeating the same market/risk/FlipScore figures in a
-            sentence, which pushed every page's own content further down. */}
+        {/* The snapshot bar is one slim strip of counts from the dealer's own
+            stock. A second banner used to sit under it repeating an invented
+            market/risk/FlipScore line, which pushed every page's own content
+            further down. */}
         {!hideHUD && (
           <div className="px-3 sm:px-6 lg:px-10 pt-3 lg:pt-4 relative z-30">
-            <SupernovaDealerHUD
-              aiSync={hud.aiSync}
-              marketTrend={hud.marketTrend}
-              riskLevel={hud.riskLevel}
-              flipScore={hud.flipScore}
-              motHealth={hud.motHealth}
-              vehicleCount={inventoryLoading || intelLoading ? undefined : vehicles.length}
-            />
+            <SupernovaDealerHUD loading={stockLoading} stats={hud} />
           </div>
         )}
 
