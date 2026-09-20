@@ -709,3 +709,33 @@ describe("dealerships stay separate", () => {
     expect(stored(shared)).toBe(aBefore);
   });
 });
+
+describe("what is stored is exactly the value sent", () => {
+  it("null, 0, false, empty text and nested data are real values, kept as sent", async () => {
+    seed(shared, [car("a", { notes: "x", sellPrice: 9, flag: true })]);
+    const value = { deep: { list: [1, null, "two", { three: 3 }] } };
+    const res = await edit(shared.token, [change("a", { notes: "", sellPrice: 0, flag: false, soldTo: null, extra: value })]);
+    expect(res.body.items[0]).toMatchObject({ notes: "", sellPrice: 0, flag: false, soldTo: null, extra: value });
+    expect((await stock(shared.token))[0].extra).toEqual(value);
+  });
+
+  it("a __proto__ key nested inside a value is only ever data: stored, read back, never a prototype", async () => {
+    seed(shared, [car("a")]);
+    const nested = '{"mot":{"__proto__":{"polluted":"yes"},"expiry":"2027-01-01"}}';
+
+    const res = await putRaw(shared.token, `{"items":[],"changes":[{"id":"a","set":${nested}}]}`);
+    expect(res.status).toBe(200);
+    expect(({} as any).polluted).toBeUndefined();
+    const [a] = await stock(shared.token);
+    expect(Object.getPrototypeOf(a.mot)).toBe(Object.prototype);
+    expect(a.mot.polluted).toBeUndefined();
+    expect(a.mot.expiry).toBe("2027-01-01");
+
+    // a later edit of the same car copies it, and stays clean too
+    const later = await edit(shared.token, [change("a", { priceRetail: 1 })]);
+    expect(later.status).toBe(200);
+    expect(({} as any).polluted).toBeUndefined();
+    expect(later.body.items[0].mot.polluted).toBeUndefined();
+    expect(later.body.items[0].mot.expiry).toBe("2027-01-01");
+  });
+});
