@@ -270,6 +270,23 @@ describe("two people editing the same car: both edits survive", () => {
     expect((await stock(shared.token))[0].priceRetail).toBe(4700);
   });
 
+  it("edits that arrive at the same instant all land: nothing slips in between the server's read and its write", async () => {
+    seed(shared, [car("car-1"), car("car-2")]);
+    const fields = Array.from({ length: 12 }, (_, i) => `field${i}`);
+
+    const replies = await Promise.all(
+      fields.map((field, i) => edit(i % 2 === 0 ? shared.token : secondScreen.token, [change("car-1", { [field]: i })]))
+    );
+
+    for (const reply of replies) {
+      expect(reply.status).toBe(200);
+      expect(reply.body.changed).toBe(1);
+    }
+    const [first, second] = await stock(shared.token);
+    fields.forEach((field, i) => expect(first[field], field).toBe(i));
+    expect(second).toEqual(car("car-2"));
+  });
+
   it("someone else's newly added car is never lost by an edit from a screen that hasn't seen it", async () => {
     seed(shared, [car("c1")]);
     const staleScreen = secondScreen; // loaded [c1]
