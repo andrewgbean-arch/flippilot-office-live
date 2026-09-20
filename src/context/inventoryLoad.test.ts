@@ -2,12 +2,17 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // Runs the REAL InventoryProvider through a stand-in for React's hooks (see
 // lib/testing/hookRuntime.ts) against a fake server that behaves like the real
-// stock route (GET returns what is stored; PUT is an upsert).
+// stock route (GET returns what is stored; PUT is an upsert that also applies
+// field-level edits onto the CURRENT stored car).
 //
-// The bug this pins (found by an independent review): the server accepts a
-// stored car with no `mot` object, and the provider then failed the whole load,
-// showing a load error and NO cars although the server held every one. One odd
-// record must not hide the rest of the stock.
+// The bug the first block pins (found by an independent review): the server
+// accepts a stored car with no `mot` object, and the provider then failed the
+// whole load, showing a load error and NO cars although the server held every
+// one. One odd record must not hide the rest of the stock.
+//
+// The second block pins the saving the provider does on top of the saver: it
+// sends only what the user changed, so a stale screen can't undo what someone
+// else did, and it tells the dealer when an edit had to be dropped.
 
 const auth = vi.hoisted(() => ({ user: null as { dealershipId: string } | null }));
 
@@ -44,6 +49,9 @@ interface Call {
 
 let stored: any[];
 let calls: Call[];
+// An older server: it doesn't know about field-level `changes`, ignores them
+// and answers 200 without `changed`.
+let oldServer = false;
 
 function reply(status: number, body: unknown) {
   return { ok: status >= 200 && status < 300, status, json: async () => body };
@@ -76,7 +84,25 @@ const fakeFetch = async (input: unknown, init?: { method?: string; body?: unknow
     }
     for (const [id, item] of sent) if (!seen.has(id) && !deleted.has(id)) merged.push(item);
     stored = merged;
-    return reply(200, { ok: true, items: structuredClone(stored) });
+    if (oldServer) return reply(200, { ok: true, items: structuredClone(stored) });
+
+    // Field-level edits, applied onto the CURRENT stored car. A car that isn't
+    // there is reported, never created; a car deleted in this same request is
+    // skipped silently.
+    const notFound: string[] = [];
+    let changed = 0;
+    for (const change of (body.changes ?? []) as { id: string; set?: Record<string, unknown>; unset?: string[] }[]) {
+      if (deleted.has(change.id)) continue;
+      const target = stored.find(c => c && c.id === change.id);
+      if (!target) {
+        if (!notFound.includes(change.id)) notFound.push(change.id);
+        continue;
+      }
+      for (const key of change.unset ?? []) delete target[key];
+      Object.assign(target, change.set ?? {});
+      changed += 1;
+    }
+    return reply(200, { ok: true, items: structuredClone(stored), changed, notFound });
   }
   return reply(404, { ok: false, error: `unhandled ${method} ${path}` });
 };
@@ -121,6 +147,7 @@ const bareCar = (id: string) => ({ id, make: "Ford", model: "Focus" });
 beforeEach(() => {
   stored = [];
   calls = [];
+  oldServer = false;
   auth.user = { dealershipId: "dealer-a" };
   vi.stubGlobal("fetch", fakeFetch);
   vi.spyOn(console, "error").mockImplementation(() => {});
@@ -187,5 +214,124 @@ describe("loading the stock when one stored car is odd", () => {
     expect(stored.find(c => c.id === "odd")).toMatchObject({ make: "Ford", model: "Focus" });
     expect(ctx().vehicles.map((v: any) => v.id)).toEqual(["odd", "good"]);
     expect(ctx().saveError).toBeNull();
+  });
+});
+
+const puts = () => calls.filter(c => c.method === "PUT");
+
+describe("saving only what the user changed", () => {
+  it("editing one car sends that field of that car and nothing else", async () => {
+    stored = [bareCar("odd"), goodCar("good")];
+    await open();
+
+    ctx().updateVehicle("good", { notes: "Two keys" });
+    await settle();
+
+    expect(puts()).toHaveLength(1);
+    expect(puts()[0]!.body).toEqual({
+      items: [],
+      changes: [{ id: "good", set: { notes: "Two keys" } }],
+      deletedIds: [],
+    });
+  });
+
+  it("another person's edit to a different car survives this screen's save, and shows up on screen", async () => {
+    stored = [bareCar("odd"), goodCar("good")];
+    await open();
+    // Someone else renames the other car after this screen loaded.
+    stored.find(c => c.id === "odd").model = "Focus ST";
+
+    ctx().updateVehicle("good", { notes: "Two keys" });
+    await settle();
+
+    expect(stored.find(c => c.id === "odd").model).toBe("Focus ST"); // not put back to "Focus"
+    expect(ctx().vehicles.find((v: any) => v.id === "odd").model).toBe("Focus ST");
+    expect(stored.find(c => c.id === "good").notes).toBe("Two keys");
+  });
+
+  it("another person's edit to a different field of the SAME car survives, and both show on screen", async () => {
+    stored = [goodCar("good")];
+    await open();
+    stored[0].priceRetail = 12345; // the price, changed elsewhere
+
+    ctx().updateVehicle("good", { mileage: 60000 }); // the mileage, changed here
+    await settle();
+
+    expect(stored[0]).toMatchObject({ priceRetail: 12345, mileage: 60000 });
+    expect(ctx().vehicles[0]).toMatchObject({ priceRetail: 12345, mileage: 60000 });
+
+    // and a later edit here doesn't put the price back
+    ctx().updateVehicle("good", { notes: "n" });
+    await settle();
+    expect(puts()[1]!.body.changes).toEqual([{ id: "good", set: { notes: "n" } }]);
+    expect(stored[0]).toMatchObject({ priceRetail: 12345, mileage: 60000, notes: "n" });
+  });
+
+  it("a new car is sent whole, and an edit of it afterwards is a field edit", async () => {
+    stored = [goodCar("good")];
+    await open();
+
+    const created = ctx().addManualVehicle({ make: "Audi", model: "A3", reg: "AB12 CDE" });
+    await settle();
+    expect(puts()[0]!.body.items.map((c: any) => c.id)).toEqual([created.id]);
+    expect(puts()[0]!.body.changes).toEqual([]);
+    expect(stored.map(c => c.id)).toEqual(["good", created.id]);
+
+    ctx().updateVehicle(created.id, { notes: "One owner" });
+    await settle();
+    expect(puts()[1]!.body).toEqual({ items: [], changes: [{ id: created.id, set: { notes: "One owner" } }], deletedIds: [] });
+    expect(stored.find(c => c.id === created.id).notes).toBe("One owner");
+    expect(ctx().saveError).toBeNull();
+  });
+
+  it("deleting sends the deletion, and the car stays gone", async () => {
+    stored = [bareCar("odd"), goodCar("good")];
+    await open();
+    ctx().deleteVehicle("odd");
+    await settle();
+    expect(puts()[0]!.body).toEqual({ items: [], changes: [], deletedIds: ["odd"] });
+    expect(stored.map(c => c.id)).toEqual(["good"]);
+    expect(ctx().vehicles.map((v: any) => v.id)).toEqual(["good"]);
+  });
+
+  it("an edit to a car someone else deleted is dropped, the dealer is told, and the car is not brought back", async () => {
+    stored = [{ ...bareCar("odd"), reg: "AB12 CDE" }, goodCar("good")];
+    await open();
+    stored = stored.filter(c => c.id !== "odd"); // deleted elsewhere
+
+    ctx().updateVehicle("odd", { notes: "Two keys" });
+    await settle();
+
+    expect(stored.map(c => c.id)).toEqual(["good"]); // never re-created from an edit
+    expect(ctx().vehicles.map((v: any) => v.id)).toEqual(["good"]);
+    expect(ctx().saveNotice).toBe(`"Ford Focus (AB12 CDE)" was deleted by someone else, so your change to it wasn't saved.`);
+    expect(ctx().saveError).toBeNull();
+
+    // The notice stays through the next save, until it is dismissed.
+    ctx().updateVehicle("good", { notes: "n" });
+    await settle();
+    expect(ctx().saveNotice).toContain("Ford Focus");
+    ctx().dismissSaveNotice();
+    await settle();
+    expect(ctx().saveNotice).toBeNull();
+  });
+
+  it("a server that doesn't understand field-level edits is a failed save, not a lost edit; the edit stays and goes through once it does", async () => {
+    stored = [goodCar("good")];
+    await open();
+    oldServer = true;
+
+    ctx().updateVehicle("good", { notes: "Two keys" });
+    await settle();
+    expect(ctx().saveError).toMatch(/hasn't been updated/i);
+    expect(stored[0].notes).toBeUndefined(); // the old server ignored it, as expected
+    expect(ctx().vehicles[0].notes).toBe("Two keys"); // and the screen still has it
+
+    oldServer = false;
+    ctx().retrySave();
+    await settle();
+    expect(ctx().saveError).toBeNull();
+    expect(stored[0].notes).toBe("Two keys");
+    expect(puts()[1]!.body.changes).toEqual([{ id: "good", set: { notes: "Two keys" } }]);
   });
 });

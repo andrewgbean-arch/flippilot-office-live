@@ -1,14 +1,17 @@
 import type { Vehicle } from "../types/Vehicle";
 import { authHeaders } from "@/lib/authToken";
+import type { SavePayload } from "./inventoryChanges";
 import type { SaveResult } from "./inventorySaver";
 
 import { BASE_URL } from "@/lib/apiBaseUrl";
 
 // GET /inventory used to return two hardcoded vehicles (Ford Fiesta /
 // BMW 1 Series) regardless of what the app did — no real persistence
-// existed. Same whole-collection load/save pattern as leads/staff, now
-// backed by src/backend/src/routes/inventory.ts. This endpoint now
-// requires auth (see backend/src/server.ts), hence authHeaders() below.
+// existed. It is now backed by src/backend/src/routes/inventory.ts. Loading
+// reads the whole collection, like leads/staff; SAVING no longer writes it
+// back whole: it sends only what changed (see saveInventoryToServer). This
+// endpoint requires auth (see backend/src/server.ts), hence authHeaders()
+// below.
 //
 // Returns null — NOT an empty list — when the stock couldn't be read
 // (dropped connection, 401/402/403/5xx, a response that isn't a stock
@@ -37,14 +40,19 @@ export async function loadInventoryFromServer(): Promise<Vehicle[] | null> {
 export const SAVE_TIMEOUT_MS = 90_000;
 
 // What went wrong, in words for the person looking at the screen: the HTTP
-// status, "network" (the server couldn't be reached, or took too long) or
-// "bad-reply" (a 200 that wasn't a stock list, e.g. a captive portal's page).
-export function describeSaveFailure(problem: number | "network" | "bad-reply"): string {
+// status, "network" (the server couldn't be reached, or took too long),
+// "bad-reply" (a 200 that wasn't a stock list, e.g. a captive portal's page) or
+// "old-server" (a 200 that shows the server didn't understand field-level
+// edits: an older server just ignores them, so it must never count as saved).
+export function describeSaveFailure(problem: number | "network" | "bad-reply" | "old-server"): string {
   if (problem === "network") {
     return "We couldn't reach the server, so your latest stock changes haven't been saved. Check your connection and try again.";
   }
   if (problem === "bad-reply") {
     return "The server's reply wasn't what we expected, so your latest stock changes may not have been saved. Try again.";
+  }
+  if (problem === "old-server") {
+    return "The server hasn't been updated to accept this kind of save yet, so your changes are not saved. Try again in a few minutes.";
   }
   switch (problem) {
     case 401:
@@ -62,27 +70,37 @@ export function describeSaveFailure(problem: number | "network" | "bad-reply"): 
   return `The server wouldn't accept your latest stock changes (error ${problem}), so they haven't been saved. Try again, and if it keeps happening, contact support.`;
 }
 
-// Saves the stock: the whole list on screen, plus the ids of cars the user has
-// deliberately deleted since the last confirmed save. The server ADDS and
-// UPDATES the cars it's sent and keeps any it wasn't (this list may be older
-// than the server's), so only an id in `deletedIds` ever removes a car. It
-// answers with the full list as it now stands, which the caller adopts.
+// Saves what the user changed, not the whole stock:
+//   items       - cars created on this screen that the server hasn't confirmed
+//                 yet, as whole records (an id the server already has is
+//                 replaced, as it always was);
+//   changes     - field-level edits of cars that already exist. The server
+//                 applies each onto its CURRENT copy, so another person's edit
+//                 to a different field of the same car survives, and an edit can
+//                 never bring back a car that has been deleted;
+//   deletedIds  - cars the user deliberately deleted. Only an id listed here
+//                 ever removes a car.
+// Cars the server holds that aren't mentioned are left exactly as they are. It
+// answers with the full list as it now stands (which the caller adopts),
+// `changed` (how many edits it applied) and `notFound` (edited cars that no
+// longer exist there, deleted by someone else).
 //
 // Never throws, and never reports a save that didn't happen as done: any
 // status that isn't a success (401/402/403/413/5xx...), a dropped connection,
 // a timeout, or a reply that isn't a stock list comes back as a failure with
-// a plain message.
-export async function saveInventoryToServer(
-  vehicles: Vehicle[],
-  deletedIds: readonly string[] = []
-): Promise<SaveResult> {
+// a plain message. That includes a reply from an OLDER server that doesn't
+// know about `changes` (it ignores them, and would answer 200 with no
+// `changed`): sending edits and getting no `changed` back is a failed save,
+// because reporting an edit that was silently dropped as saved is the worst
+// thing this can do.
+export async function saveInventoryToServer(payload: SavePayload): Promise<SaveResult> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), SAVE_TIMEOUT_MS);
   try {
     const res = await fetch(`${BASE_URL}/inventory`, {
       method: "PUT",
       headers: { "Content-Type": "application/json", ...authHeaders() },
-      body: JSON.stringify({ items: vehicles, deletedIds }),
+      body: JSON.stringify({ items: payload.items, changes: payload.changes, deletedIds: payload.deletedIds }),
       signal: controller.signal,
     });
     if (!res.ok) {
@@ -95,11 +113,18 @@ export async function saveInventoryToServer(
     } catch {
       return { ok: false, status: res.status, message: describeSaveFailure("bad-reply") };
     }
-    const items = (data as { items?: unknown } | null)?.items;
+    const reply = data as { items?: unknown; changed?: unknown; notFound?: unknown } | null;
+    const items = reply?.items;
     if (!Array.isArray(items)) {
       return { ok: false, status: res.status, message: describeSaveFailure("bad-reply") };
     }
-    return { ok: true, items: items as Vehicle[] };
+    if (payload.changes.length > 0 && typeof reply?.changed !== "number") {
+      return { ok: false, status: res.status, message: describeSaveFailure("old-server") };
+    }
+    const notFound = Array.isArray(reply?.notFound)
+      ? (reply.notFound as unknown[]).filter((id): id is string => typeof id === "string")
+      : [];
+    return { ok: true, items: items as Vehicle[], notFound };
   } catch (err) {
     console.error("saveInventoryToServer: could not reach the backend", err);
     return { ok: false, status: null, message: describeSaveFailure("network") };

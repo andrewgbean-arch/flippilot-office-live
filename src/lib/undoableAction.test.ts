@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createUndoableAction } from "./undoableAction";
 import { createInventorySaver, type SaveResult } from "../context/inventorySaver";
+import type { SavePayload } from "../context/inventoryChanges";
 import type { Vehicle } from "../types/Vehicle";
 
 // Delete Vehicle's "Delete Forever, with an Undo toast". The original did the
@@ -107,11 +108,12 @@ describe("Delete Forever ends up sending the deletion to the server", () => {
   const car = (id: string) => ({ id, make: "Ford", model: "Fiesta", images: null }) as unknown as Vehicle;
 
   function wiring() {
-    const sent: { ids: string[]; deletedIds: string[] }[] = [];
+    const sent: SavePayload[] = [];
     const saver = createInventorySaver({
-      send: async (list, deletedIds): Promise<SaveResult> => {
-        sent.push({ ids: list.map(v => v.id), deletedIds });
-        return { ok: true, items: list };
+      send: async (payload): Promise<SaveResult> => {
+        sent.push(payload);
+        // the server, once the doomed car is gone
+        return { ok: true, items: [car("keep")] };
       },
       onVehicles: () => {},
       onStatus: () => {},
@@ -137,7 +139,7 @@ describe("Delete Forever ends up sending the deletion to the server", () => {
     expect(sent).toEqual([]); // nothing yet: still undoable
 
     await vi.advanceTimersByTimeAsync(10_000);
-    expect(sent).toEqual([{ ids: ["keep"], deletedIds: ["doomed"] }]);
+    expect(sent).toEqual([{ items: [], changes: [], deletedIds: ["doomed"] }]);
     expect(saver.getList().map(v => v.id)).toEqual(["keep"]);
   });
 
