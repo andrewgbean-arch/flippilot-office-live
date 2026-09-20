@@ -1,4 +1,5 @@
 import { formatMoney } from "@/lib/formatMoney";
+import { isPositiveAmount } from "@/lib/parseMoney";
 import { formatDate } from "@/dealer/inventory/vehicleListModel";
 import { FiChevronRight } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
@@ -39,7 +40,9 @@ export default function BookkeepingTable({ vehicleId }: BookkeepingTableProps) {
     return {
       id: p.vehicleId,
       vehicle: vehicle ? `${vehicle.make} ${vehicle.model}` : "Unknown vehicle",
-      purchase: p.purchasePrice,
+      // A purchase price that is not a real amount above zero is "not recorded",
+      // shown as a dash, never as £0.
+      purchase: isPositiveAmount(p.purchasePrice) ? p.purchasePrice : null,
       totalCost,
       // Not sold yet (or sold with no purchase on record) means UNKNOWN, not zero:
       // the ledger used to print "Sale £0, Profit £0, Margin 0.0%" for a car that

@@ -1,4 +1,5 @@
 import { formatMoney } from "@/lib/formatMoney";
+import { isPositiveAmount } from "@/lib/parseMoney";
 import React from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useBookkeeping } from "./BookkeepingProvider";
@@ -27,7 +28,9 @@ export default function BookkeepingEntryScreen() {
 
   const totalCost = getTotalCostForVehicle(vehicleId!);
 
-  const profitSummary = getProfitForVehicle(vehicleId!) ?? { profit: 0, margin: 0 };
+  // null = not worked out (no sale yet, or no purchase price recorded). It must
+  // not be shown as £0 profit and 0.0% margin, which reads as a car that broke even.
+  const profitSummary = getProfitForVehicle(vehicleId!);
 
   const [showCostModal, setShowCostModal] = React.useState(false);
   const [showSaleModal, setShowSaleModal] = React.useState(false);
@@ -71,7 +74,10 @@ export default function BookkeepingEntryScreen() {
       <div className="bg-black/40 border border-white/10 p-6 rounded-xl mb-8">
         <h2 className="text-xl font-semibold text-white/80 mb-3">Purchase</h2>
 
-        <p><span className="text-white/60">Price:</span> {formatMoney(purchase.purchasePrice)}</p>
+        <p>
+          <span className="text-white/60">Price:</span>{" "}
+          {isPositiveAmount(purchase.purchasePrice) ? formatMoney(purchase.purchasePrice) : "Not recorded"}
+        </p>
         <p><span className="text-white/60">Purchased From:</span> {purchase.source}</p>
         <p><span className="text-white/60">Date:</span> {purchase.date}</p>
         <p><span className="text-white/60">VAT:</span> {formatMoney(purchase.vatAmount, { pence: true })}</p>
@@ -171,8 +177,16 @@ export default function BookkeepingEntryScreen() {
       <div className="bg-black/40 border border-white/10 p-6 rounded-xl mb-8">
         <h2 className="text-xl font-semibold text-white/80 mb-3">Profit Summary</h2>
 
-        <p><span className="text-white/60">Profit:</span> {formatMoney(profitSummary.profit)}</p>
-        <p><span className="text-white/60">Margin:</span> {profitSummary.margin.toFixed(1)}%</p>
+        <p><span className="text-white/60">Profit:</span> {profitSummary ? formatMoney(profitSummary.profit) : "—"}</p>
+        <p>
+          <span className="text-white/60">Margin:</span>{" "}
+          {profitSummary && profitSummary.margin !== null ? `${profitSummary.margin.toFixed(1)}%` : "—"}
+        </p>
+        {!profitSummary && (
+          <p className="text-white/60 text-sm mt-2">
+            Profit is worked out once this car has a recorded purchase price above £0 and a sale.
+          </p>
+        )}
       </div>
 
       {/* TIMELINE */}

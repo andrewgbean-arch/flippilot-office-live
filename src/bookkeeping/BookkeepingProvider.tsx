@@ -10,7 +10,7 @@ import {
   MonthlyReport,
 } from "./types";
 import { calculateVat, calculateMarginVat } from "./vatUtils";
-import { hubTotals } from "./profitTotals";
+import { hubTotals, carProfit } from "./profitTotals";
 import { loadBookkeeping, saveBookkeeping, type BookkeepingDoc } from "./bookkeepingStorage.web";
 import { useAuth } from "@/context/AuthContext";
 import { useGuardedLoad } from "@/lib/useGuardedLoad";
@@ -304,16 +304,21 @@ export function BookkeepingProvider({ children }: BookkeepingProviderProps) {
 
     if (!purchase || !sale) return null;
 
-    const profit = sale.salePrice - purchase.purchasePrice - totalCosts;
-    const margin = (profit / sale.salePrice) * 100;
+    // One definition of a car's profit, shared with the hub (profitTotals.ts).
+    // A purchase whose price is not a real amount above zero counts as "purchase
+    // not recorded": the profit is unknown (null), never worked out against a
+    // £0 cost. The margin is null when the sale price is not above zero, so a
+    // sale of nothing can never print "-Infinity%" or "NaN%".
+    const worked = carProfit(purchase.purchasePrice, sale.salePrice, totalCosts);
+    if (!worked) return null;
 
     return {
       vehicleId,
       purchasePrice: purchase.purchasePrice,
       totalCosts,
       salePrice: sale.salePrice,
-      profit,
-      margin,
+      profit: worked.profit,
+      margin: worked.margin,
     };
   };
 

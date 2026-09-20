@@ -157,7 +157,8 @@ export interface ProfitSummary {
   totalCosts: number;
   salePrice: number;
   profit: number;
-  margin: number;
+  // null when the sale price is not above zero (no margin on a sale of nothing).
+  margin: number | null;
 }
 
 
