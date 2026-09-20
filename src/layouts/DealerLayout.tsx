@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
-import { FiMenu, FiX } from "react-icons/fi";
+import { FiX } from "react-icons/fi";
 
 import DealerSidebar from "../components/DealerSidebar";
 import DealerRightSidebar from "../components/DealerRightSidebar";
@@ -49,18 +49,13 @@ export default function DealerLayout() {
       <div className="absolute inset-0 bg-gradient-to-br from-black via-[#0A0A14] to-[#1A1A2A] opacity-80 pointer-events-none z-0" />
       <div className="absolute inset-0 sn-stars pointer-events-none z-0" />
 
-      {/* MOBILE MENU BUTTON — the fixed 240px+240px sidebars below don't
-          fit a phone/narrow window at all (they were overlapping the
-          whole viewport and squeezing content to nothing), so both
-          sidebars are hidden below the lg breakpoint and this toggles
-          the left one open as a full-height drawer instead. */}
-      <button
-        onClick={() => setMobileNavOpen(true)}
-        className="lg:hidden fixed top-4 left-4 z-40 p-2 rounded-lg bg-black/60 border border-yellow-400/30 text-yellow-300"
-        aria-label="Open menu"
-      >
-        <FiMenu size={22} />
-      </button>
+      {/* MOBILE MENU — the fixed 240px+240px sidebars below don't fit a
+          phone/narrow window at all (they were overlapping the whole
+          viewport and squeezing content to nothing), so both sidebars are
+          hidden below the lg breakpoint and the header's menu button opens
+          the left one as a full-height drawer instead. The button lives in
+          the header (see DashboardHeader) rather than floating over it, where
+          it used to sit on top of the title. */}
 
       {/* LEFT SIDEBAR — desktop */}
       <aside className="hidden lg:block w-60 h-screen fixed left-0 top-0 z-20 backdrop-blur-xl bg-black/40 border-r border-yellow-400/20">
@@ -73,7 +68,7 @@ export default function DealerLayout() {
           <div className="w-72 h-screen bg-black/95 backdrop-blur-xl border-r border-yellow-400/20 overflow-y-auto">
             <button
               onClick={() => setMobileNavOpen(false)}
-              className="absolute top-4 right-4 p-2 rounded-lg bg-black/60 border border-yellow-400/30 text-yellow-300"
+              className="absolute top-3 right-3 grid place-items-center h-11 w-11 rounded-lg bg-black/60 border border-yellow-400/30 text-yellow-300"
               aria-label="Close menu"
             >
               <FiX size={20} />
@@ -96,39 +91,30 @@ export default function DealerLayout() {
       {/* MAIN CONTENT */}
       <div className="flex-1 lg:ml-60 lg:mr-60 min-h-screen overflow-y-auto relative z-10">
 
-        <DashboardHeader />
+        <DashboardHeader onOpenMenu={() => setMobileNavOpen(true)} />
         <LoadErrorBanner />
         <TrialBanner />
         <InventoryLoadErrorBanner />
 
+        {/* The snapshot bar is one slim strip. A second banner used to sit
+            under it repeating the same market/risk/FlipScore figures in a
+            sentence, which pushed every page's own content further down. */}
         {!hideHUD && (
-          <>
-            <div className="px-10 pt-6 relative z-30">
-              <SupernovaDealerHUD
-                aiSync={hud.aiSync}
-                marketTrend={hud.marketTrend}
-                brainMode="Pricing Brain"
-                riskLevel={hud.riskLevel}
-                flipScore={hud.flipScore}
-                motHealth={hud.motHealth}
-              />
-            </div>
-
-            <div className="px-10 mt-6 relative z-30">
-              <div className="bg-black/40 border border-yellow-400/30 rounded-xl p-4 flex items-center gap-4 shadow-[0_0_20px_rgba(255,215,0,0.25)]">
-                <div className="w-3 h-3 bg-yellow-400 rounded-full animate-pulse" />
-                <p className="text-white/80 text-sm">
-                  {vehicles.length === 0
-                    ? "Supernova: add vehicles to your inventory to activate live intelligence."
-                    : `Supernova: market ${hud.marketTrend} • fleet risk ${hud.riskLevel} • avg FlipScore ${hud.flipScore}/100 across ${vehicles.length} vehicle${vehicles.length === 1 ? "" : "s"}.`}
-                </p>
-              </div>
-            </div>
-          </>
+          <div className="px-3 sm:px-6 lg:px-10 pt-3 lg:pt-4 relative z-30">
+            <SupernovaDealerHUD
+              aiSync={hud.aiSync}
+              marketTrend={hud.marketTrend}
+              riskLevel={hud.riskLevel}
+              flipScore={hud.flipScore}
+              motHealth={hud.motHealth}
+              vehicleCount={inventoryLoading || intelLoading ? undefined : vehicles.length}
+            />
+          </div>
         )}
 
-        {/* PAGE CONTENT */}
-        <main className="p-10 pb-32 relative z-30">
+        {/* PAGE CONTENT. Padding steps up with the screen: it was a flat 40px
+            on every side, which on a 375px phone left about 295px for the page. */}
+        <main className="px-3 pt-4 pb-28 sm:px-6 sm:pt-6 lg:p-10 lg:pb-32 relative z-30">
           <div className="relative animate-fadeIn">
             {/* key=pathname remounts the boundary on navigation, so
                 leaving a crashed page clears its error state instead of

@@ -144,7 +144,7 @@ export default function MOTLookup() {
 
   if (!mot) {
     return (
-      <div className="p-6 text-white">
+      <div className="text-white">
 
         <h1 className="text-2xl font-bold mb-4">MOT Lookup</h1>
 
@@ -179,7 +179,7 @@ export default function MOTLookup() {
   const motWithStatus = { ...mot, motStatus };
 
   return (
-    <div className="p-6 text-white">
+    <div className="text-white">
 
       {/* SEARCH BAR */}
       <div className="flex gap-3 mb-6">

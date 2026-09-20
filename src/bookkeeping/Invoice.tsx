@@ -1,3 +1,4 @@
+import { formatMoney } from "@/lib/formatMoney";
 import { useParams, useNavigate } from "react-router-dom";
 import { useBookkeeping } from "./BookkeepingProvider";
 import { useInventory } from "@/context/InventoryProvider";
@@ -58,7 +59,7 @@ export default function Invoice() {
           "",
           `Invoice Number: ${sale.invoiceNumber}`,
           `Date: ${invoiceDate}`,
-          `Total: £${sale.salePrice.toFixed(2)}`,
+          `Total: ${formatMoney(sale.salePrice, { pence: true })}`,
           "",
           "Thank you for your business.",
           dealer?.name ?? "",
@@ -129,7 +130,7 @@ export default function Invoice() {
                 {vehicle.year ? `, ${vehicle.year}` : ""}
                 {vehicle.mileage != null ? `, ${vehicle.mileage.toLocaleString()} miles` : ""}
               </td>
-              <td style={{ textAlign: "right", padding: "6px 4px" }}>£{sale.salePrice.toFixed(2)}</td>
+              <td style={{ textAlign: "right", padding: "6px 4px" }}>{formatMoney(sale.salePrice, { pence: true })}</td>
             </tr>
           </tbody>
         </table>
@@ -143,11 +144,11 @@ export default function Invoice() {
           <div style={{ marginTop: 12 }}>
             <div style={{ display: "flex", justifyContent: "space-between", padding: "2px 0" }}>
               <span>Net</span>
-              <span>£{sale.netAmount.toFixed(2)}</span>
+              <span>{formatMoney(sale.netAmount, { pence: true })}</span>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", padding: "2px 0" }}>
               <span>VAT ({(sale.vatRate * 100).toFixed(0)}%)</span>
-              <span>£{sale.vatAmount.toFixed(2)}</span>
+              <span>{formatMoney(sale.vatAmount, { pence: true })}</span>
             </div>
           </div>
         )}
@@ -156,7 +157,7 @@ export default function Invoice() {
 
         <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: 16 }}>
           <span>Total Due</span>
-          <span>£{sale.salePrice.toFixed(2)}</span>
+          <span>{formatMoney(sale.salePrice, { pence: true })}</span>
         </div>
 
         <p style={{ marginTop: 20, fontSize: 12, color: "#555" }}>

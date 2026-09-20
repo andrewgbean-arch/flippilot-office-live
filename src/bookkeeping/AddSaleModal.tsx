@@ -1,3 +1,4 @@
+import { formatMoney } from "@/lib/formatMoney";
 import React, { useState, useMemo } from "react";
 import { SaleEntry } from "./types";
 import { calculateVat, calculateMarginVat } from "./vatUtils";
@@ -177,15 +178,15 @@ export default function AddSaleModal({ vehicleId: initialVehicleId, existing, on
           <div className="mb-4 px-3 py-3 rounded bg-black/40 border border-yellow-400/20 text-sm space-y-1">
             <div className="flex justify-between text-white/60">
               <span>Purchase Price</span>
-              <span>£{purchase!.purchasePrice.toFixed(2)}</span>
+              <span>{formatMoney(purchase!.purchasePrice, { pence: true })}</span>
             </div>
             <div className="flex justify-between text-white/60">
               <span>Margin</span>
-              <span>£{(marginPreview?.margin ?? 0).toFixed(2)}</span>
+              <span>{formatMoney(marginPreview?.margin ?? 0, { pence: true })}</span>
             </div>
             <div className="flex justify-between text-yellow-300 font-semibold pt-1 border-t border-white/10 mt-1">
               <span>VAT Due (Margin Scheme)</span>
-              <span>£{(marginPreview?.vat ?? 0).toFixed(2)}</span>
+              <span>{formatMoney(marginPreview?.vat ?? 0, { pence: true })}</span>
             </div>
           </div>
         ) : (

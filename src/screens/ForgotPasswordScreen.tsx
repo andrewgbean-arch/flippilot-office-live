@@ -75,8 +75,14 @@ export default function ForgotPasswordScreen() {
             )}
 
             <div>
-              <label className="text-white/70 text-sm block mb-1">Email</label>
+              <label htmlFor="forgot-email" className="text-white/70 text-sm block mb-1">Email</label>
               <input
+                id="forgot-email"
+                name="email"
+                autoComplete="email"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}

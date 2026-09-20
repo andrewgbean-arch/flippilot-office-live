@@ -1,24 +1,27 @@
 /* ROOT DASHBOARD CONTAINER */
+/* These screens all render inside the dealer layout, which already provides the
+   page padding and the dark background. The root used to add its own full-height
+   gradient box and 32px of padding on top, so each of these pages looked like a
+   different app sitting inside the real one. */
 .sn-dashboard.sn-dashboard--cosmic {
-  min-height: 100vh;
-  padding: 32px;
-  background: radial-gradient(circle at top left, #1b2a4a 0%, #050814 45%, #000000 100%);
+  min-height: 0;
+  padding: 0;
+  background: none;
   color: #f5f7ff;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 /* HERO HEADER */
+/* A plain title block, the same as every other page's header (PageHeader), not a
+   large glowing card that took a third of the screen. */
 .sn-hero {
   position: relative;
-  margin-bottom: 24px;
-  padding: 24px 28px;
-  border-radius: 18px;
-  overflow: hidden;
-  background: linear-gradient(135deg, rgba(10, 17, 40, 0.9), rgba(10, 17, 40, 0.4));
-  border: 1px solid rgba(255, 215, 0, 0.18);
+  margin-bottom: 16px;
+  padding: 0;
 }
 
 .sn-hero__glow {
+  display: none;
   position: absolute;
   inset: -40%;
   background:
@@ -34,16 +37,16 @@
 }
 
 .sn-hero__title {
-  font-size: 28px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #fdf6d0;
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #fde047;
 }
 
 .sn-hero__subtitle {
-  margin-top: 6px;
+  margin-top: 4px;
   font-size: 14px;
-  color: #c7d0ff;
+  color: rgba(255, 255, 255, 0.7);
 }
 
 /* METRICS ROW */
@@ -317,12 +320,23 @@
 }
 
 @media (max-width: 640px) {
-  .sn-dashboard.sn-dashboard--cosmic {
-    padding: 18px;
+  .sn-hero__title {
+    font-size: 22px;
   }
 
+  /* Two tiles to a row, not one full-width tile each (each was ~200px tall around
+     one small number). An odd last tile spans the row. */
   .sn-metrics-row {
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .sn-metrics-row > .sn-metric:last-child:nth-child(odd) {
+    grid-column: span 2;
+  }
+
+  .sn-metric {
+    padding: 12px 14px;
   }
 }
 /* ============================
@@ -593,9 +607,24 @@
   background: rgba(255, 215, 0, 0.25);
 }
 
+/* Remove had no style of its own, so it rendered as bare text beside the styled
+   View button. Same size and shape as View, in a red tint so the destructive one
+   is recognisable without shouting. */
 .sn-staff-card__remove {
   flex: 1;
   margin-top: 0;
+  padding: 6px 10px;
+  font-size: 11px;
+  border-radius: 8px;
+  background: rgba(255, 90, 90, 0.1);
+  border: 1px solid rgba(255, 120, 120, 0.4);
+  color: #ffb4b4;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.sn-staff-card__remove:hover {
+  background: rgba(255, 90, 90, 0.22);
 }
 .sn-quick-actions {
   display: flex;

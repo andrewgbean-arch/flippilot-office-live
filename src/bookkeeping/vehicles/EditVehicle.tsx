@@ -1,3 +1,4 @@
+import { formatMoney } from "@/lib/formatMoney";
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -341,7 +342,7 @@ export default function EditVehicle({ vehicleId }: EditVehicleProps) {
             </div>
 
             <p className={`${profitColor} font-bold mt-2`}>
-              {profit == null ? "Enter buy & sell to see profit" : `£${profit.toFixed(0)} profit`}
+              {profit == null ? "Enter buy & sell to see profit" : `${formatMoney(profit)} profit`}
             </p>
           </div>
         </SupernovaGlowCard>

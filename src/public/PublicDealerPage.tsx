@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { SupernovaGlowCard } from "@/components/supernova/SupernovaGlowCard";
 import { SupernovaHeroHeader } from "@/components/supernova/SupernovaHeroHeader";
-import { SupernovaSectionDivider } from "@/components/supernova/SupernovaSectionDivider";
+import { formatMoney } from "@/lib/formatMoney";
 import {
   loadPublicDealerInfo,
   loadPublicVehicles,
@@ -81,84 +81,109 @@ export default function PublicDealerPage({ dealershipIdOverride }: { dealershipI
     );
   }
 
-  const featuredStock = [...vehicles]
-    .filter((v) => (v.priceRetail ?? 0) > 0)
-    .sort((a, b) => (b.priceRetail ?? 0) - (a.priceRetail ?? 0))
-    .slice(0, 6);
+  // Every car in stock, most recently added first (new cars are appended to the
+  // stock list). This used to show only the six most expensive PRICED cars while
+  // the heading said "8 vehicles in stock", and silently dropped any car without
+  // a price, so a customer never saw part of the forecourt.
+  const stock = [...vehicles].reverse();
+
+  const phone = info.phone?.trim() || null;
+  const address = info.address?.trim() || null;
 
   return (
-    <div className="min-h-screen bg-black animate-fadeIn relative z-10 px-6 py-10 max-w-6xl mx-auto">
+    <div className="min-h-screen bg-black animate-fadeIn relative z-10 px-4 sm:px-6 py-8 sm:py-10 max-w-6xl mx-auto text-white">
       <SupernovaHeroHeader
         title={info.name}
-        subtitle="Vehicles for sale — get in touch to book a viewing or test drive."
+        subtitle="Vehicles for sale. Get in touch to book a viewing or test drive."
       />
 
-      <SupernovaSectionDivider>
-        <h2 className="text-2xl font-bold text-yellow-400">Contact</h2>
-      </SupernovaSectionDivider>
-
-      <SupernovaGlowCard>
-        <div className="text-white/70 space-y-3">
-          <p><span className="text-gold font-semibold">Location:</span> {info.address ?? "Contact us for details"}</p>
-          <p><span className="text-gold font-semibold">Phone:</span> {info.phone ?? "Contact us for details"}</p>
-          <a
-            href={`/book/${dealershipId}`}
-            className="inline-block mt-2 px-4 py-2 rounded font-semibold bg-yellow-500 text-black hover:bg-yellow-400"
-          >
-            Book a Viewing or Test Drive
+      {/* The ways to reach the dealer come first and are short, so the cars are
+          on the first screen. Location and phone only appear when the dealer has
+          filled them in: the page used to print "Contact us for details" in
+          their place, which told a customer nothing. */}
+      <div className="mb-6 flex flex-wrap items-center gap-x-6 gap-y-3 rounded-xl border border-yellow-500/30 bg-black/50 p-4">
+        {phone && (
+          <a href={`tel:${phone.replace(/\s+/g, "")}`} className="inline-flex items-center text-white hover:text-yellow-300">
+            <span className="mr-2 font-semibold text-yellow-400">Call</span>
+            {phone}
           </a>
-        </div>
-      </SupernovaGlowCard>
+        )}
+        {address && (
+          <p className="text-white/80">
+            <span className="mr-2 font-semibold text-yellow-400">Find us</span>
+            {address}
+          </p>
+        )}
+        <a
+          href={`/book/${dealershipId}`}
+          className="inline-flex items-center rounded-lg bg-yellow-400 px-4 py-2 font-bold text-black hover:bg-yellow-300 sm:ml-auto"
+        >
+          Book a viewing or test drive
+        </a>
+      </div>
 
-      {bookingSettings && (
-        <>
-          <SupernovaSectionDivider>
-            <h2 className="text-2xl font-bold text-yellow-400">Opening Hours</h2>
-          </SupernovaSectionDivider>
+      <h2 className="text-xl font-bold text-yellow-400">Vehicles for sale</h2>
+      <p className="mb-4 text-sm text-white/70">
+        {stock.length === 0 ? "No vehicles listed at the moment." : `${stock.length} vehicle${stock.length === 1 ? "" : "s"} in stock`}
+      </p>
 
-          <SupernovaGlowCard>
-            <ul className="text-white/70 space-y-2">
-              {WEEK_DAYS.map(({ key, label }) => (
-                <li key={key} className="flex justify-between">
-                  <span>{label}</span>
-                  <span className="text-gold">
-                    {bookingSettings.openDays.includes(key)
-                      ? `${bookingSettings.openTime} – ${bookingSettings.closeTime}`
-                      : "Closed"}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </SupernovaGlowCard>
-        </>
-      )}
-
-      <SupernovaSectionDivider>
-        <h2 className="text-2xl font-bold text-yellow-400">Vehicles For Sale</h2>
-        <p className="text-white/60">{vehicles.length} vehicle{vehicles.length === 1 ? "" : "s"} in stock</p>
-      </SupernovaSectionDivider>
-
-      <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mb-10">
-        {featuredStock.length === 0 ? (
-          <p className="text-white/60">No vehicles listed yet — check back soon.</p>
+      <section className="mb-10 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {stock.length === 0 ? (
+          <p className="text-white/70">No vehicles listed yet. Check back soon.</p>
         ) : (
-          featuredStock.map((v) => (
-            <SupernovaGlowCard key={v.id}>
-              <h3 className="text-yellow-400 font-bold text-xl mb-2">
-                {v.make} {v.model}
-              </h3>
-              <p className="text-white/60 text-sm mb-1">
-                {[v.year, v.mileage != null ? `${v.mileage.toLocaleString()} miles` : null, v.colour]
-                  .filter(Boolean)
-                  .join(" · ")}
-              </p>
-              <p className="text-white/70">
-                <span className="text-gold font-semibold">£{(v.priceRetail ?? 0).toLocaleString()}</span>
-              </p>
-            </SupernovaGlowCard>
-          ))
+          stock.map((v) => {
+            const reg = v.reg?.trim().toUpperCase() || null;
+            const priced = (v.priceRetail ?? 0) > 0;
+            const facts = [v.year, v.mileage != null ? `${v.mileage.toLocaleString("en-GB")} miles` : null, v.colour]
+              .filter(Boolean)
+              .join(" · ");
+            return (
+              <SupernovaGlowCard key={v.id}>
+                <h3 className="text-xl font-bold text-yellow-400">
+                  {v.make} {v.model}
+                </h3>
+                <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-white/75">
+                  {reg && (
+                    <span className="rounded bg-yellow-300 px-1.5 py-px font-mono text-xs font-bold tracking-wide text-black">
+                      {reg}
+                    </span>
+                  )}
+                  {facts && <span>{facts}</span>}
+                </p>
+                <p className={`mt-3 text-2xl font-bold ${priced ? "text-white" : "text-white/70"}`}>
+                  {priced ? formatMoney(v.priceRetail) : "Price on request"}
+                </p>
+                <a
+                  href={`/book/${dealershipId}?vehicle=${encodeURIComponent(v.id)}`}
+                  className="mt-3 inline-flex items-center rounded-lg border border-yellow-400/70 px-4 py-2 text-sm font-semibold text-yellow-200 hover:bg-white/10"
+                >
+                  Book a viewing
+                </a>
+              </SupernovaGlowCard>
+            );
+          })
         )}
       </section>
+
+      {bookingSettings && (
+        <section aria-labelledby="opening-hours">
+          <h2 id="opening-hours" className="mb-3 text-xl font-bold text-yellow-400">
+            Opening hours
+          </h2>
+          <ul className="max-w-md space-y-2 rounded-xl border border-yellow-500/30 bg-black/50 p-4 text-white/80">
+            {WEEK_DAYS.map(({ key, label }) => (
+              <li key={key} className="flex justify-between">
+                <span>{label}</span>
+                <span className="text-yellow-300">
+                  {bookingSettings.openDays.includes(key)
+                    ? `${bookingSettings.openTime} – ${bookingSettings.closeTime}`
+                    : "Closed"}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </div>
   );
 }

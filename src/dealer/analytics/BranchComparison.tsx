@@ -19,7 +19,7 @@ export default function BranchComparison() {
   const branchNames = Object.keys(branches).sort();
 
   return (
-    <div className="p-6 text-white">
+    <div className="text-white">
       <h1 className="text-3xl font-bold text-yellow-300 mb-2">Branch Comparison</h1>
       <p className="text-white/60 mb-6">
         Staffing by branch — the only field tagged by branch today.

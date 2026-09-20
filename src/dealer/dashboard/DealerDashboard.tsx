@@ -202,13 +202,13 @@ export default function DealerDashboard({ brain }: Props) {
   ].filter((item): item is string => item !== null);
 
   return (
-    <div className="p-10 space-y-16">
+    <div className="space-y-8 lg:space-y-12">
 
       {/* HOME-SCREEN CARD — only on a phone or tablet that has not installed
           the app or dismissed this, and gone for good once dismissed. The
           negative margin pulls the greeting back up under it, since this
           container spaces its children a long way apart. */}
-      <InstallHint className="-mb-10" />
+      <InstallHint className="-mb-4" />
 
       {/* GREETING */}
       <div data-tour="tour-welcome">
@@ -221,7 +221,12 @@ export default function DealerDashboard({ brain }: Props) {
       </div>
 
       {/* HEADLINE NUMBERS */}
-      <div data-tour="tour-headline-stats" className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      {/* On a phone the five tiles sit two to a row; the odd one out spans the
+          full row instead of sitting alone beside an empty gap. */}
+      <div
+        data-tour="tour-headline-stats"
+        className="grid grid-cols-2 md:grid-cols-5 gap-3 sm:gap-4 [&>*:last-child:nth-child(odd)]:col-span-2 md:[&>*:last-child:nth-child(odd)]:col-span-1"
+      >
         <HeroStat
           label="Stock Value"
           value={`£${stockValue.toLocaleString()}`}

@@ -1,3 +1,4 @@
+import { formatMoney } from "@/lib/formatMoney";
 import React, { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -117,7 +118,7 @@ export default function SupplierAnalytics() {
                     <div>
                       <p className="text-white/60 text-sm">Total Spend</p>
                       <p className="text-yellow-300 font-bold">
-                        £{s.totalSpend.toLocaleString()}
+                        {formatMoney(s.totalSpend)}
                       </p>
                     </div>
 
@@ -132,21 +133,21 @@ export default function SupplierAnalytics() {
                             : "text-green-400"
                         }`}
                       >
-                        £{s.totalProfit.toLocaleString()}
+                        {formatMoney(s.totalProfit)}
                       </p>
                     </div>
 
                     <div>
                       <p className="text-white/60 text-sm">Avg Buy</p>
                       <p className="text-white font-bold">
-                        £{s.avgBuy.toFixed(0)}
+                        {formatMoney(s.avgBuy)}
                       </p>
                     </div>
 
                     <div>
                       <p className="text-white/60 text-sm">Avg Sell</p>
                       <p className="text-white font-bold">
-                        £{s.avgSell.toFixed(0)}
+                        {formatMoney(s.avgSell)}
                       </p>
                     </div>
 
@@ -161,14 +162,14 @@ export default function SupplierAnalytics() {
                             : "text-green-400"
                         }`}
                       >
-                        £{s.avgProfit.toFixed(0)}
+                        {formatMoney(s.avgProfit)}
                       </p>
                     </div>
 
                     <div>
                       <p className="text-white/60 text-sm">VAT Impact</p>
                       <p className="text-white font-bold">
-                        £{s.vatTotal.toFixed(0)}
+                        {formatMoney(s.vatTotal)}
                       </p>
                     </div>
                   </div>

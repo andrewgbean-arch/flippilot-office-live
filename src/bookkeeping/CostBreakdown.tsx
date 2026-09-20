@@ -1,4 +1,5 @@
 import { useBookkeeping } from "./BookkeepingProvider";
+import { formatMoney } from "@/lib/formatMoney";
 import type { CostType } from "./types";
 
 const LABELS: Record<CostType, string> = {
@@ -34,8 +35,11 @@ const COLORS: Record<string, string> = {
 export default function CostBreakdown() {
   const { costs } = useBookkeeping();
 
+  // A cost recorded without a type (an import, an older record) goes under
+  // "Misc". Left alone it became the key "undefined" and printed that word.
   const totals = costs.reduce((acc, c) => {
-    acc[c.type] = (acc[c.type] ?? 0) + c.amount;
+    const type = c.type ?? "misc";
+    acc[type] = (acc[type] ?? 0) + c.amount;
     return acc;
   }, {} as Record<string, number>);
 
@@ -58,7 +62,7 @@ export default function CostBreakdown() {
             >
               <p className="text-white/80">{LABELS[type as CostType] ?? type}</p>
               <p className={`${COLORS[type] ?? "text-white"} text-xl font-bold`}>
-                £{amount.toLocaleString()}
+                {formatMoney(amount)}
               </p>
             </div>
           ))}

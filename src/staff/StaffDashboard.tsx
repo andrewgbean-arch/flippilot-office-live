@@ -1,7 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { useStaff } from "./StaffContext";
 import type { StaffRecord } from "./staffTypes";
-import { getWorkforceIntelligence } from "@/core/superbrain/SuperBrainEngine";
 import TimeClockPanel from "./TimeClockPanel";
 import "./StaffDashboard.css";
 
@@ -22,11 +21,11 @@ export function StaffDashboard({}: Props) {
   const officeStaff = staff.filter(s => s.role === "office");
   const motTesters = staff.filter(s => s.role === "mot_tester");
 
-  // Supernova V22 Workforce Intelligence — computed live from real staff
-  // data (this used to come from a `brain` prop that nothing ever
-  // populated, so it always showed hardcoded fallback numbers).
-  const { performanceScore, attritionRisk, productivityIndex, insight } =
-    getWorkforceIntelligence(staff);
+  // This screen used to show a "Performance Score", a "Productivity Index" and an
+  // "Attrition Risk" for the team. They were worked out from nothing but whether a
+  // staff record was marked active and had a recent `lastActive` date (plus
+  // tenure), so they said nothing about anyone's performance, yet read as a
+  // verdict on real people. They are gone; the counts below are real.
 
   function handleOpen(id: string) {
     navigate(`/dealer/staff/${id}`);
@@ -41,7 +40,7 @@ export function StaffDashboard({}: Props) {
         <div className="sn-hero__content">
           <h1 className="sn-hero__title">Staff Command Center</h1>
           <p className="sn-hero__subtitle">
-            Workforce Intelligence • Dealer Operations • Live Status
+            Your team, who is in today and the rota
           </p>
         </div>
       </header>
@@ -59,10 +58,6 @@ export function StaffDashboard({}: Props) {
         <MetricCard label="Managers" value={managers.length} accent="gold" />
         <MetricCard label="Sales Team" value={sales.length} accent="blue" />
         <MetricCard label="Trainees" value={trainees.length} accent="purple" />
-
-        {/* NEW V13 METRICS */}
-        <MetricCard label="Performance Score" value={performanceScore} accent="gold" />
-        <MetricCard label="Productivity Index" value={productivityIndex} accent="blue" />
       </section>
 
       {/* GRID LAYOUT */}
@@ -104,19 +99,6 @@ export function StaffDashboard({}: Props) {
         <section className="sn-panel sn-panel--full">
           <h2 className="sn-panel__title">Activity Heatmap</h2>
           <ActivityHeatmap staff={staff} />
-        </section>
-
-        {/* NEW V13 AI PANEL */}
-        <section className="sn-panel sn-panel--full">
-          <h2 className="sn-panel__title">AI Workforce Intelligence</h2>
-          <div className="sn-ai-panel">
-            <p className="sn-ai-line">
-              <strong>Attrition Risk:</strong> {attritionRisk}
-            </p>
-            <p className="sn-ai-line">
-              <strong>AI Insight:</strong> {insight}
-            </p>
-          </div>
         </section>
 
       </main>

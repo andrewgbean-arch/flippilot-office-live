@@ -133,7 +133,6 @@ export interface TransactionEntry {
 export interface Supplier {
   id: string;
   name: string;
-  reliabilityScore: number; // 0–100
   totalSpend: number;
   totalTransactions: number;
 }

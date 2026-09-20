@@ -68,7 +68,7 @@ export const TOUR_STEPS: TourStep[] = [
     target: "tour-vehicle-list",
     title: "Your vehicle list",
     narration:
-      "This is your full inventory. Every vehicle shows its MOT status and ULEZ compliance at a glance.",
+      "This is your full stock. Every vehicle shows its price, how long it has been in stock and its MOT status at a glance, with ULEZ compliance when the fuel type is known. Search, filter and sort from the bar above.",
   },
   {
     id: "vehicle-list-buttons",
@@ -79,7 +79,7 @@ export const TOUR_STEPS: TourStep[] = [
     target: "tour-vehicle-list-buttons",
     title: "Opening a vehicle",
     narration:
-      "On any vehicle, View Overview opens its full record, and MOT Workflow jumps straight to its MOT history and health score.",
+      "Tap any vehicle, or its Overview button, to open its full record. The MOT button jumps straight to its MOT history and health score.",
   },
   {
     id: "vehicle-overview-tabs",
