@@ -54,6 +54,11 @@ describe("finance screens as first opened", () => {
     expect(html.calculator).not.toContain("powered by");
   });
 
+  it("the disclaimer sits with the figures themselves, not only in the page header", () => {
+    expect(html.calculator.split("Monthly Payment (illustrative)")[1]).toContain("not a finance quote or a credit offer");
+    expect(html.dealSheet.split("Summary (illustrative)")[1]).toContain("not a finance quote or a credit offer");
+  });
+
   it("the deal sheet shows dashes, not zero money, until figures are entered", () => {
     expect(html.dealSheet).not.toContain("£0.00");
     expect(html.dealSheet).not.toContain("NaN");
@@ -68,6 +73,52 @@ describe("finance screens as first opened", () => {
     expect(html.lenders).toContain("No lenders added yet");
     expect(html.lenders).toContain("Add a lender");
     expect(html.lenders).toContain("Nothing is pre-filled");
+    // ...and the loan amount is empty too, not a made-up 10,000.
+    expect(html.lenders).toMatch(/<label>Loan Amount \(£\)<\/label><input[^>]*value=""/);
+  });
+
+  describe("lender comparison once the dealer has typed lenders in", () => {
+    const two = [
+      { id: "a", name: "Northern Motor Finance", apr: "9.9" },
+      { id: "b", name: "Harbour Credit", apr: "12.5" },
+    ];
+    const render = (lenders: typeof two, amount = "10000") =>
+      renderToStaticMarkup(<LenderComparison initialLenders={lenders} initialAmount={amount} />);
+
+    it("marks only the lower payment, once, with 'Lowest monthly payment' and never 'Best Rate'", () => {
+      const out = render(two);
+      expect(out.match(/sn-lender-badge/g)).toHaveLength(1);
+      expect(out).toContain("Lowest monthly payment");
+      expect(out).not.toContain("Best Rate");
+      // The badge is on the first card (9.9%), not the second (12.5%).
+      const first = out.split("Harbour Credit")[0];
+      expect(first).toContain("sn-lender-badge");
+      expect(out.split("Harbour Credit")[1]).not.toContain("sn-lender-badge");
+      expect(out).toContain("£320.22");
+    });
+
+    it("marks nothing for a single lender", () => {
+      const out = render([two[0]]);
+      expect(out).not.toContain("sn-lender-badge");
+      expect(out).toContain("£320.22");
+    });
+
+    it("says what is missing for a lender with no APR, and marks nothing", () => {
+      const out = render([{ id: "a", name: "Northern Motor Finance", apr: "" }, two[1]]);
+      expect(out).not.toContain("sn-lender-badge");
+      expect(out).toContain("Enter an APR");
+    });
+
+    it("shows a 0% lender as amount over months", () => {
+      const out = render([{ id: "z", name: "Dealer promotion", apr: "0" }], "10000");
+      expect(out).toContain("£277.78");
+    });
+
+    it("asks for the loan amount when there is none, instead of £0.00", () => {
+      const out = render(two, "");
+      expect(out).toContain("Enter the amount to finance.");
+      expect(out).not.toContain("sn-lender-badge");
+    });
   });
 
   it("the trade-in screen shows its percentages as an adjustable rule of thumb and no longer collects unused year and mileage", () => {

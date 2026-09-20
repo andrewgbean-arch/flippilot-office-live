@@ -8,10 +8,17 @@ import { formatMoney } from "./money";
 // reads as real lender rates. Only lenders and rates the dealer enters are
 // compared, and a "lowest payment" mark only appears once there are at least
 // two usable, different rates.
-export default function LenderComparison() {
-  const [amount, setAmount] = useState("");
+export default function LenderComparison({
+  initialLenders = [],
+  initialAmount = "",
+}: {
+  // Only for tests, to render a comparison that already has lenders in it.
+  initialLenders?: LenderRowInput[];
+  initialAmount?: string;
+} = {}) {
+  const [amount, setAmount] = useState(initialAmount);
   const [term, setTerm] = useState("36");
-  const [lenders, setLenders] = useState<LenderRowInput[]>([]);
+  const [lenders, setLenders] = useState<LenderRowInput[]>(initialLenders);
 
   function addLender() {
     setLenders(prev => [...prev, { id: crypto.randomUUID(), name: "", apr: "" }]);
