@@ -17,7 +17,8 @@ const DAY = 86_400_000;
 const now = Date.parse("2030-06-15T12:00:00.000Z");
 const ago = (days: number) => new Date(now - days * DAY).toISOString();
 
-const item = (over: Partial<WantedItem> = {}): WantedItem => ({
+// `over` may set an optional field to undefined (to say "this person gave no phone").
+const item = (over: Partial<Record<keyof WantedItem, unknown>> = {}): WantedItem => ({
   id: "r1",
   name: "Priya Shah",
   phone: "07700 900123",
@@ -29,7 +30,7 @@ const item = (over: Partial<WantedItem> = {}): WantedItem => ({
   createdAt: ago(3),
   askedAt: ago(3),
   matches: [],
-  ...over,
+  ...(over as Partial<WantedItem>),
 });
 
 describe("what a request says", () => {

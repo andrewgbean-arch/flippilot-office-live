@@ -7,7 +7,8 @@ import type { WantedItem } from "@/lib/wantedApi";
 const DAY = 86_400_000;
 const ago = (d: number) => new Date(Date.now() - d * DAY).toISOString();
 
-const base = (over: Partial<WantedItem> = {}): WantedItem => ({
+// `over` may set an optional field to undefined (to say "this person gave no phone").
+const base = (over: Partial<Record<keyof WantedItem, unknown>> = {}): WantedItem => ({
   id: "r1",
   name: "Priya Shah",
   phone: "07700 900123",
@@ -21,10 +22,10 @@ const base = (over: Partial<WantedItem> = {}): WantedItem => ({
   createdAt: ago(3),
   askedAt: ago(3),
   matches: [],
-  ...over,
+  ...(over as Partial<WantedItem>),
 });
 
-const row = (over: Partial<WantedItem> = {}, highlight = false) =>
+const row = (over: Partial<Record<keyof WantedItem, unknown>> = {}, highlight = false) =>
   renderToStaticMarkup(
     <MemoryRouter>
       <WantedRow item={base(over)} retentionDays={365} dealerName="Sam's Motors" onChanged={async () => {}} highlight={highlight} />
