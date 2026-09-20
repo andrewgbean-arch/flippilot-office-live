@@ -51,6 +51,17 @@ interface PublicVehicle {
   priceRetail: number | null;
 }
 
+// The price a stranger is shown is the ASKING price the dealer has set (priceRetail)
+// and nothing else. This used to fall back to `sellPrice`, but sellPrice is written
+// once when a car is created and is only the real sale price after a sale: clearing
+// the Retail Price on Edit Vehicle left it behind, so the price the dealer had just
+// taken off (and the app now shows as "Not set") went on being advertised to the
+// public. An unpriced car, or one with a stored 0, has no public price at all, and
+// the store page then says "Price on request".
+export function publicAskingPrice(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : null;
+}
+
 // No API-key/login gate exists here at all — this is the one part of
 // the whole app a stranger on the internet can reach with no account.
 // Rate-limited hard (30 submissions per hour per IP is generous for a
@@ -255,7 +266,7 @@ export default function registerPublicBookingRoute(app: Express) {
       year: v.year ?? null,
       mileage: v.mileage ?? null,
       ...(v.colour ? { colour: v.colour } : {}),
-      priceRetail: v.priceRetail ?? v.sellPrice ?? null,
+      priceRetail: publicAskingPrice(v.priceRetail),
     }));
     res.json({ ok: true, items: publicVehicles });
   });

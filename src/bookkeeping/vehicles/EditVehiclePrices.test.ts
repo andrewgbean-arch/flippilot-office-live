@@ -201,3 +201,46 @@ describe("Live Profit is never a made-up £0", () => {
     expect(screenText(screen())).not.toContain("£0 profit");
   });
 });
+
+// New Vehicle and the CSV import write the asking price to BOTH priceRetail and
+// sellPrice. Edit Vehicle used to touch only priceRetail, so a price the dealer
+// cleared ("Not set" in the app) stayed behind in sellPrice, and the public store
+// feed went on advertising it.
+describe("the asking price and sellPrice move together until the car is sold", () => {
+  it("clearing the Retail Price of an unsold car clears sellPrice in the same save", async () => {
+    state.car = car({ priceRetail: 8000, sellPrice: 8000, status: "new" });
+    await open();
+    await retail("");
+    await save();
+    expect(savedPatch().priceRetail).toBeNull();
+    expect(savedPatch()).toHaveProperty("sellPrice", null);
+    // and the merged car has nothing left to advertise
+    const merged = { ...state.car, ...savedPatch() };
+    expect(merged.priceRetail ?? merged.sellPrice ?? null).toBeNull();
+  });
+
+  it("a changed Retail Price is the new sellPrice too", async () => {
+    state.car = car({ priceRetail: 8000, sellPrice: 8000, status: "new" });
+    await open();
+    await retail("£7,500");
+    await save();
+    expect(savedPatch()).toMatchObject({ priceRetail: 7500, sellPrice: 7500 });
+  });
+
+  it("a car with no status yet counts as unsold", async () => {
+    state.car = car({ priceRetail: 8000, sellPrice: 8000 });
+    await open();
+    await retail("");
+    await save();
+    expect(savedPatch()).toHaveProperty("sellPrice", null);
+  });
+
+  it("a SOLD car keeps its real sale price: editing the asking price never touches sellPrice", async () => {
+    state.car = car({ priceRetail: 8000, sellPrice: 7600, status: "sold" });
+    await open();
+    await retail("");
+    await save();
+    expect(savedPatch().priceRetail).toBeNull();
+    expect(savedPatch()).not.toHaveProperty("sellPrice");
+  });
+});

@@ -255,6 +255,12 @@ export default function EditVehicle({ vehicleId }: EditVehicleProps) {
 
       priceTrade: tradeRead.value,
       priceRetail: retailRead.value,
+      // New Vehicle and the CSV import write the asking price to BOTH priceRetail and
+      // sellPrice. Until the car is sold, sellPrice is just that same asking price, so
+      // it moves with it: a price cleared here must not survive in sellPrice (it was
+      // being advertised to the public from there). Once the car is sold, sellPrice is
+      // the real sale price and is never touched by editing the asking price.
+      ...(String(vehicle.status ?? "").toLowerCase() !== "sold" ? { sellPrice: retailRead.value } : {}),
       vatScheme,
 
       notes: notes || null,
