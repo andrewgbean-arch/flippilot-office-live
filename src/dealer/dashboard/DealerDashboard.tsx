@@ -181,7 +181,7 @@ export default function DealerDashboard({ brain }: Props) {
   // the "Today's Actions" cards below already use — was previously a
   // single hardcoded string with a fabricated "3.2%" that never changed.
   const tickerItems = [
-    `🚗 ${safeVehicles.length} vehicle${safeVehicles.length === 1 ? "" : "s"} in stock`,
+    `🚗 ${forSale.length} vehicle${forSale.length === 1 ? "" : "s"} in stock`,
     motAlerts.length > 0
       ? `⚠️ ${motAlerts.length} vehicle${motAlerts.length === 1 ? "" : "s"} need MOT attention`
       : null,
