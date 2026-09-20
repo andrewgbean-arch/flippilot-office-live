@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useId } from "react";
 
 interface SupernovaInputProps {
   label: string;
@@ -23,14 +23,19 @@ export function SupernovaInput({
     onChange(e.target.value);
   };
 
+  // The label is tied to its field. Without this a screen reader announced a
+  // blank field and tapping the label did not focus it.
+  const id = useId();
+
   return (
     <div className="flex flex-col gap-2 w-full">
-      <label className="text-yellow-400 font-semibold text-sm">
+      <label htmlFor={id} className="text-yellow-400 font-semibold text-sm">
         {label}
       </label>
 
       {multiline ? (
         <textarea
+          id={id}
           value={value}
           onChange={handleChange}
           placeholder={placeholder}
@@ -42,6 +47,7 @@ export function SupernovaInput({
         />
       ) : (
         <input
+          id={id}
           type={type}
           value={value}
           onChange={handleChange}

@@ -79,8 +79,11 @@ export default function ResetPasswordScreen() {
             )}
 
             <div>
-              <label className="text-white/70 text-sm block mb-1">New Password</label>
+              <label htmlFor="reset-new-password" className="text-white/70 text-sm block mb-1">New Password</label>
               <input
+                id="reset-new-password"
+                name="newPassword"
+                autoComplete="new-password"
                 type="password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
@@ -91,8 +94,11 @@ export default function ResetPasswordScreen() {
             </div>
 
             <div>
-              <label className="text-white/70 text-sm block mb-1">Confirm New Password</label>
+              <label htmlFor="reset-confirm-new-password" className="text-white/70 text-sm block mb-1">Confirm New Password</label>
               <input
+                id="reset-confirm-new-password"
+                name="confirmPassword"
+                autoComplete="new-password"
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}

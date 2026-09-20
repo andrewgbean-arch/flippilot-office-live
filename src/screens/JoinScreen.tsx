@@ -129,8 +129,11 @@ export default function JoinScreen() {
             )}
 
             <div>
-              <label className="text-white/70 text-sm block mb-1">Your Name</label>
+              <label htmlFor="join-your-name" className="text-white/70 text-sm block mb-1">Your Name</label>
               <input
+                id="join-your-name"
+                name="name"
+                autoComplete="name"
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -140,8 +143,14 @@ export default function JoinScreen() {
             </div>
 
             <div>
-              <label className="text-white/70 text-sm block mb-1">Email</label>
+              <label htmlFor="join-email" className="text-white/70 text-sm block mb-1">Email</label>
               <input
+                id="join-email"
+                name="email"
+                autoComplete="email"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -151,8 +160,11 @@ export default function JoinScreen() {
             </div>
 
             <div>
-              <label className="text-white/70 text-sm block mb-1">Password</label>
+              <label htmlFor="join-password" className="text-white/70 text-sm block mb-1">Password</label>
               <input
+                id="join-password"
+                name="password"
+                autoComplete="new-password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}

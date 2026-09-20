@@ -47,8 +47,14 @@ export default function LoginScreen() {
         )}
 
         <div>
-          <label className="text-white/70 text-sm block mb-1">Email</label>
+          <label htmlFor="login-email" className="text-white/70 text-sm block mb-1">Email</label>
           <input
+            id="login-email"
+            name="email"
+            autoComplete="username"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
             type="email"
             value={email}
             onChange={e => setEmail(e.target.value)}
@@ -58,8 +64,11 @@ export default function LoginScreen() {
         </div>
 
         <div>
-          <label className="text-white/70 text-sm block mb-1">Password</label>
+          <label htmlFor="login-password" className="text-white/70 text-sm block mb-1">Password</label>
           <input
+            id="login-password"
+            name="password"
+            autoComplete="current-password"
             type="password"
             value={password}
             onChange={e => setPassword(e.target.value)}
