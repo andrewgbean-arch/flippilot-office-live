@@ -8,22 +8,34 @@ type Props = {
 };
 
 export default function MotAiBuyerConfidence({ ai, theme }: Props) {
-  const safeAi = ai ?? {
-    healthScore: 0,
-    predictedPassChance: 0,
-    failureSeverity: 0,
-  };
-
   const safeTheme = theme ?? {
     card: "#111",
     accent: "#FFD700",
     text: "#ccc",
   };
 
+  // With no MOT data (or an expired MOT, which has no pass chance) there is
+  // nothing to combine. This used to score 0 or, worse, a made-up figure.
+  if (!ai || ai.healthScore === null || ai.predictedPassChance === null) {
+    return (
+      <div
+        className="rounded-xl p-6 mb-6 shadow-xl border border-white/10"
+        style={{ backgroundColor: safeTheme.card }}
+      >
+        <h2 className="text-2xl font-extrabold mb-3" style={{ color: safeTheme.accent }}>
+          ⭐ Buyer Confidence Score
+        </h2>
+        <p className="text-xl font-bold" style={{ color: safeTheme.text }}>
+          {ai?.hasData ? "Needs a current MOT first" : "No MOT data"}
+        </p>
+      </div>
+    );
+  }
+
   const score =
-    safeAi.healthScore * 0.5 +
-    safeAi.predictedPassChance * 0.3 -
-    safeAi.failureSeverity * 0.2;
+    ai.healthScore * 0.5 +
+    ai.predictedPassChance * 0.3 -
+    ai.failureSeverity * 0.2;
 
   const rounded = Math.max(0, Math.min(100, Math.round(score)));
 

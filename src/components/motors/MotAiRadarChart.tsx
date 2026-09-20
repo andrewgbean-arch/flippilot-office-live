@@ -12,13 +12,16 @@ type Props = {
 
 
 export default function MotAiRadarChart({ ai, theme }: Props) {
-  const items = [
-    { label: "Health", value: ai.healthScore },
-    { label: "Mileage", value: ai.mileageRisk },
-    { label: "Advisories", value: ai.advisorySeverity },
-    { label: "Failures", value: ai.failureSeverity },
-    { label: "Pass Chance", value: ai.predictedPassChance },
-  ];
+  // Nothing to chart without MOT data; null values used to be drawn as bars.
+  const items = ai.hasData
+    ? [
+        { label: "Health", value: ai.healthScore ?? 0 },
+        { label: "Mileage", value: ai.mileageRisk ?? 0 },
+        { label: "Advisories", value: ai.advisorySeverity },
+        { label: "Failures", value: ai.failureSeverity },
+        { label: "Pass Chance", value: ai.predictedPassChance ?? 0 },
+      ]
+    : [];
 
   return (
     <div
@@ -39,6 +42,10 @@ export default function MotAiRadarChart({ ai, theme }: Props) {
       >
         🧭 MOT AI Radar Chart
       </div>
+
+      {items.length === 0 && (
+        <div style={{ color: theme.text }}>No MOT data</div>
+      )}
 
       {items.map((item, i) => (
         <div key={i} style={{ marginBottom: 10 }}>

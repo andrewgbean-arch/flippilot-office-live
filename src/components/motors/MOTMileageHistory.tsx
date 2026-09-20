@@ -10,6 +10,14 @@ type Entry = {
   mileage: number;
 };
 
+// Only tests that recorded a mileage. A test without one used to be listed with
+// the car's current mileage, or 0, as if that had been its reading.
+export function toMileageEntries(history: any[] | null | undefined): Entry[] {
+  return (history ?? [])
+    .filter((h) => h && typeof h.mileage === "number")
+    .map((h) => ({ date: h.date, year: h.year, mileage: h.mileage as number }));
+}
+
 export default function MOTMileageHistory({
   history,
 }: {

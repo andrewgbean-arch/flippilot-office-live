@@ -6,8 +6,8 @@ type Props = {
 };
 
 export default function MotAiBuyerConfidence({ ai, theme }: Props) {
-  // Null guard
-  if (!ai) {
+  // Null guard (also: no MOT data, or an expired MOT, leaves nothing to combine)
+  if (!ai || ai.healthScore === null || ai.predictedPassChance === null) {
     return (
       <div
         style={{

@@ -21,6 +21,17 @@ export default function MotAiVerdictCard({ ai, theme }: Props) {
     );
   }
 
+  // No MOT data, or an expired MOT, has no pass chance: say that instead of
+  // sliding into the "High failure risk" wording below.
+  if (ai.predictedPassChance === null) {
+    return (
+      <div style={{ backgroundColor: theme.card, padding: 16, borderRadius: 14, marginBottom: 20 }}>
+        <p style={{ fontSize: 20, fontWeight: 700, color: theme.accent, marginBottom: 10 }}>🏁 MOT Verdict</p>
+        <p style={{ color: theme.text }}>{ai.verdict}</p>
+      </div>
+    );
+  }
+
   const verdict =
     ai.predictedPassChance >= 80
       ? "Highly likely to pass"

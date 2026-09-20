@@ -8,10 +8,11 @@ type Props = {
 };
 
 export default function MotAiRiskGauge({ ai, theme }: Props) {
-  const colors: Record<"low" | "medium" | "high", string> = {
+  const colors: Record<MotAiResult["riskLevel"], string> = {
     low: "#4CAF50",
     medium: "#FFC107",
     high: "#F44336",
+    unknown: "#8892a6",
   };
 
   return (
@@ -39,7 +40,7 @@ export default function MotAiRiskGauge({ ai, theme }: Props) {
       >
         <div
           style={{
-            width: `${ai.healthScore}%`,
+            width: `${ai.healthScore ?? 0}%`,
             height: "100%",
             backgroundColor: colors[ai.riskLevel],
             transition: "width 0.4s ease",
@@ -52,7 +53,7 @@ export default function MotAiRiskGauge({ ai, theme }: Props) {
         className="mt-3 font-bold text-lg"
         style={{ color: colors[ai.riskLevel] }}
       >
-        {ai.riskLevel.toUpperCase()} RISK
+        {ai.riskLevel === "unknown" ? "NO MOT DATA" : `${ai.riskLevel.toUpperCase()} RISK`}
       </p>
     </motion.div>
   );

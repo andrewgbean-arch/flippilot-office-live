@@ -1,5 +1,13 @@
 import React from "react";
 import { motion } from "framer-motion";
+import { formatDate, motState } from "@/dealer/inventory/vehicleListModel";
+
+// The label this card colours: same rule as the vehicle list, so an MOT is
+// valid through its expiry day and a blank or unreadable date is "Unknown".
+export function motStatusLabel(expiry: string | null | undefined, now: Date): "Expired" | "Expiring Soon" | "Valid" | "Unknown" {
+  const kind = motState(expiry, now).kind;
+  return kind === "expired" ? "Expired" : kind === "soon" ? "Expiring Soon" : kind === "valid" ? "Valid" : "Unknown";
+}
 
 type Props = {
   status: string | null;
@@ -39,14 +47,14 @@ export default function MOTStatusCard({ status, expiryDate, theme }: Props) {
         className="text-base font-semibold"
         style={{ color: statusColor }}
       >
-        Status: {status ?? "Unknown"}
+        Status: {status && status !== "Unknown" ? status : "No MOT date recorded"}
       </p>
 
       <p
         className="text-base mt-1"
         style={{ color: theme.text }}
       >
-        Expiry: {expiryDate ?? "No expiry data"}
+        Expiry: {expiryDate ? formatDate(expiryDate) ?? expiryDate : "No expiry date recorded"}
       </p>
     </motion.div>
   );

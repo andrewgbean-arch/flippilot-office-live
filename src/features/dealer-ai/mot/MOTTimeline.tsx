@@ -7,6 +7,9 @@ import { useInventory } from "@/context/InventoryProvider";
 import { SupernovaHeroHeader } from "@/components/supernova/SupernovaHeroHeader";
 import { SupernovaSectionDivider } from "@/components/supernova/SupernovaSectionDivider";
 import { SupernovaGlowCard } from "@/components/supernova/SupernovaGlowCard";
+import { sortMotHistoryDesc } from "@/components/motors/MotTestCard";
+import { motAiEngine } from "@/engines/motAiEngine";
+import { motState, formatDate } from "@/dealer/inventory/vehicleListModel";
 
 export default function MOTTimeline() {
   const { id } = useParams();
@@ -30,31 +33,22 @@ export default function MOTTimeline() {
   }
 
   const mot = vehicle.mot;
-  const motHistory = mot?.history ?? [];
+  // Newest test first, whatever order it was stored in.
+  const motHistory = sortMotHistoryDesc(mot?.history ?? []);
 
-  const expiryBadge = (() => {
-    if (!mot?.expiry) return "bg-gray-600 text-white";
+  // Same rule as the rest of the app: an MOT is valid through its expiry day.
+  const expiry = motState(mot?.expiry, new Date());
+  const expiryBadge =
+    expiry.kind === "expired" ? "bg-red-600 text-white"
+    : expiry.kind === "soon" ? "bg-yellow-500 text-black"
+    : expiry.kind === "valid" ? "bg-green-600 text-white"
+    : "bg-gray-600 text-white";
 
-    const exp = new Date(mot.expiry);
-    const now = new Date();
-    const days = (exp.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
-
-    if (days < 0) return "bg-red-600 text-white";
-    if (days < 30) return "bg-yellow-500 text-black";
-    return "bg-green-600 text-white";
-  })();
-
-  const riskScore = (() => {
-    if (!motHistory.length) return 50;
-
-    const fails = motHistory.filter((h) => h.result?.toUpperCase() === "FAIL").length;
-    const advisories = motHistory.reduce(
-      (sum, h) => sum + (h.advisories?.length ?? 0),
-      0
-    );
-
-    return Math.min(100, fails * 20 + advisories * 5);
-  })();
+  // This used to show a "Risk Score /100" (fails x 20 + advisories x 5 over
+  // every test ever, and a made-up 50 when there was no history). A count of
+  // failed tests is the fact behind it.
+  const failedTests = motHistory.filter((h) => h.result?.toUpperCase() === "FAIL").length;
+  const lastMileage = motAiEngine(mot, motHistory).basis.mileage;
 
   return (
     <div className="text-white bg-[#0A1128] min-h-screen p-10 animate-fadeIn">
@@ -67,7 +61,7 @@ export default function MOTTimeline() {
 
       <SupernovaHeroHeader
         title={`MOT Timeline: ${vehicle.make} ${vehicle.model}`}
-        subtitle="Dealer AI • MOT History & Risk Analysis"
+        subtitle="MOT history, newest test first"
       />
 
       <div className="max-w-5xl mx-auto space-y-10">
@@ -78,7 +72,7 @@ export default function MOTTimeline() {
             <div>
               <p className="text-white/60 text-sm">Expiry</p>
               <span className={`px-3 py-1 rounded-lg text-sm font-bold ${expiryBadge}`}>
-                {mot?.expiry ?? "Unknown"}
+                {expiry.date ?? "No MOT date"}
               </span>
             </div>
 
@@ -88,13 +82,15 @@ export default function MOTTimeline() {
             </div>
 
             <div>
-              <p className="text-white/60 text-sm">Risk Score</p>
-              <p className="text-yellow-300 font-bold text-xl">{riskScore}/100</p>
+              <p className="text-white/60 text-sm">Failed Tests</p>
+              <p className="text-white font-bold text-xl">{motHistory.length ? failedTests : "—"}</p>
             </div>
 
             <div>
               <p className="text-white/60 text-sm">Last Mileage</p>
-              <p className="text-white font-bold text-xl">{mot?.mileage ?? "—"}</p>
+              <p className="text-white font-bold text-xl">
+                {lastMileage !== null ? lastMileage.toLocaleString("en-GB") : "—"}
+              </p>
             </div>
           </div>
         </SupernovaGlowCard>
@@ -102,13 +98,13 @@ export default function MOTTimeline() {
         <SupernovaSectionDivider label="Timeline" />
 
         {motHistory.length === 0 ? (
-          <p className="text-white/60 text-center text-lg">No MOT history available.</p>
+          <p className="text-white/60 text-center text-lg">No MOT history recorded for this vehicle.</p>
         ) : (
           motHistory.map((entry, index) => (
             <SupernovaGlowCard key={index}>
               <div className="flex flex-col gap-3">
                 <div className="flex justify-between items-center">
-                  <h2 className="text-xl font-bold">{entry.date ?? "Unknown date"}</h2>
+                  <h2 className="text-xl font-bold">{formatDate(entry.date) ?? entry.year ?? "Unknown date"}</h2>
 
                   <span
                     className={`px-3 py-1 rounded-lg text-xs font-bold ${
