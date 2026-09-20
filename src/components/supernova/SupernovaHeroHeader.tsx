@@ -1,19 +1,15 @@
+import PageHeader from "@/components/PageHeader";
+
 interface Props {
   title: string;
   subtitle: string;
 }
 
+// The page title block used by two dozen screens. It used to be a large glowing
+// card (36px heading, 24px padding, a pulsing gradient behind it, 40px of margin
+// below), which took roughly a third of a laptop screen and more on a phone
+// before any content appeared. It now IS the compact PageHeader, so every
+// screen that used it gets the same slim, consistent title row.
 export function SupernovaHeroHeader({ title, subtitle }: Props) {
-  return (
-    <div className="relative mb-10">
-      <div className="absolute inset-0 blur-xl bg-gradient-to-r from-yellow-500/20 via-blue-500/20 to-purple-500/20 animate-pulse" />
-
-      <div className="relative p-6 rounded-xl border border-yellow-500/40 bg-black/40 backdrop-blur-xl shadow-[0_0_25px_rgba(255,215,0,0.25)]">
-        <h1 className="text-4xl font-extrabold text-yellow-400 tracking-wide drop-shadow-lg">
-          {title}
-        </h1>
-        <p className="text-white/70 mt-2 text-lg">{subtitle}</p>
-      </div>
-    </div>
-  );
+  return <PageHeader title={title} subtitle={subtitle} />;
 }

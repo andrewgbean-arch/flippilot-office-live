@@ -16,18 +16,40 @@ import { SupernovaSectionDivider } from "@/components/supernova/SupernovaSection
 import GoldButton from "@/components/ui/GoldButton.web";   // ⭐ FIXED
 import { useAuth } from "@/context/AuthContext";
 import { canWriteBookkeeping } from "@/lib/permissions";
+import { formatMoney } from "@/lib/formatMoney";
+import { hubTotals } from "./profitTotals";
+
+function SummaryTile({
+  label,
+  value,
+  note,
+  border,
+  tone,
+}: {
+  label: string;
+  value: string;
+  note: string;
+  border: string;
+  tone: string;
+}) {
+  return (
+    <div className={`bg-black/40 border ${border} p-4 sm:p-6 rounded-xl shadow-lg`}>
+      <p className="text-white/70 text-sm">{label}</p>
+      <p className={`mt-1 text-xl sm:text-2xl font-bold ${tone}`}>{value}</p>
+      <p className="mt-1 text-xs text-white/60">{note}</p>
+    </div>
+  );
+}
 
 export default function BookkeepingScreen() {
-  const { getTotalSpend, getTotalProfit, sales, purchases } = useBookkeeping();
+  const { costs, sales, purchases } = useBookkeeping();
   const { user } = useAuth();
   const canWrite = canWriteBookkeeping(user);
 
-  const totalSpend = getTotalSpend();
-  const totalProfit = getTotalProfit();
-  const activeFlips = sales.length;
-
-  const avgMargin =
-    activeFlips > 0 ? (totalProfit / (totalSpend || 1)) * 100 : 0;
+  // Profit and margin are worked out on SOLD cars only (see profitTotals.ts).
+  // The hub used to subtract every purchase from sales income, so stock still
+  // on the forecourt showed up as a loss.
+  const totals = hubTotals(purchases, sales, costs);
 
   // MODAL STATE
 // MODAL STATE
@@ -43,13 +65,13 @@ const [showTransactionModal, setShowTransactionModal] = useState(false); // ⭐ 
   const selectedVehicleId = purchases.at(-1)?.vehicleId ?? null;
 
   return (
-    <div className="min-h-screen bg-[#0A1128] text-white p-10 animate-fadeIn">
+    <div className="text-white animate-fadeIn">
 
       {/* HEADER */}
       <div data-tour="tour-bookkeeping">
         <SupernovaHeroHeader
           title="Bookkeeping Hub"
-          subtitle="Track purchases, costs, sales, suppliers, and profit margins with Supernova intelligence."
+          subtitle="Track purchases, costs, sales, suppliers and profit."
         />
       </div>
 
@@ -59,7 +81,7 @@ const [showTransactionModal, setShowTransactionModal] = useState(false); // ⭐ 
           Sales/General account never gets as far as a confusing 403
           on submit. */}
       {canWrite ? (
-        <div data-tour="tour-bookkeeping-actions" className="grid grid-cols-2 gap-6 my-10 max-w-3xl mx-auto">
+        <div data-tour="tour-bookkeeping-actions" className="grid grid-cols-2 gap-3 sm:gap-6 my-6 max-w-3xl mx-auto">
           <GoldButton onPress={() => setShowPurchaseModal(true)}>
             Add Purchase
           </GoldButton>
@@ -87,34 +109,39 @@ const [showTransactionModal, setShowTransactionModal] = useState(false); // ⭐ 
       {/* SUMMARY CARDS */}
       <SupernovaSectionDivider label="Summary" />
 
-      <div className="grid grid-cols-4 gap-6 mb-10">
-        <div className="bg-black/40 border border-yellow-400/20 p-6 rounded-xl shadow-lg">
-          <p className="text-white/60 text-sm">Total Spend</p>
-          <h2 className="text-2xl font-bold text-yellow-300">
-            £{totalSpend.toFixed(2)}
-          </h2>
-        </div>
-
-        <div className="bg-black/40 border border-green-400/20 p-6 rounded-xl shadow-lg">
-          <p className="text-white/60 text-sm">Total Profit</p>
-          <h2 className="text-2xl font-bold text-green-300">
-            £{totalProfit.toFixed(2)}
-          </h2>
-        </div>
-
-        <div className="bg-black/40 border border-blue-400/20 p-6 rounded-xl shadow-lg">
-          <p className="text-white/60 text-sm">Avg Margin</p>
-          <h2 className="text-2xl font-bold text-blue-300">
-            {avgMargin.toFixed(1)}%
-          </h2>
-        </div>
-
-        <div className="bg-black/40 border border-purple-400/20 p-6 rounded-xl shadow-lg">
-          <p className="text-white/60 text-sm">Active Flips</p>
-          <h2 className="text-2xl font-bold text-purple-300">
-            {activeFlips}
-          </h2>
-        </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 mb-8">
+        <SummaryTile
+          label="Total spent"
+          value={formatMoney(totals.spend)}
+          note="Purchases and costs, sold or not"
+          border="border-yellow-400/20"
+          tone="text-yellow-300"
+        />
+        <SummaryTile
+          label="Profit on sold cars"
+          value={formatMoney(totals.profit)}
+          note={
+            totals.soldWithoutPurchase > 0
+              ? `${totals.soldWithoutPurchase} sale${totals.soldWithoutPurchase === 1 ? " has" : "s have"} no purchase recorded and ${totals.soldWithoutPurchase === 1 ? "is" : "are"} left out`
+              : `${totals.soldCounted} car${totals.soldCounted === 1 ? "" : "s"} sold`
+          }
+          border="border-green-400/20"
+          tone={totals.profit < 0 ? "text-red-300" : "text-green-300"}
+        />
+        <SummaryTile
+          label="Margin on sold cars"
+          value={totals.marginPercent === null ? "—" : `${totals.marginPercent.toFixed(1)}%`}
+          note="Profit as a share of sale price"
+          border="border-blue-400/20"
+          tone="text-blue-300"
+        />
+        <SummaryTile
+          label="Bought, not yet sold"
+          value={String(totals.boughtNotSold)}
+          note="Cars still to sell"
+          border="border-purple-400/20"
+          tone="text-purple-300"
+        />
       </div>
 
       {/* LEDGER TABLE */}

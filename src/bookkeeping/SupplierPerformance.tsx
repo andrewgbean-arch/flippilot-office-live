@@ -1,3 +1,4 @@
+import { formatMoney } from "@/lib/formatMoney";
 import { useBookkeeping } from "./BookkeepingProvider";
 
 // Was hardcoded (BCA 18%, Copart 21%, Private Sellers 15% — the exact
@@ -42,7 +43,7 @@ export default function SupplierPerformance() {
             >
               <p className="text-white/80 font-semibold">{name}</p>
               <p className="text-yellow-300 text-sm">
-                Total Spend: £{stats.spend.toLocaleString()}
+                Total Spend: {formatMoney(stats.spend)}
               </p>
               <p className="text-white/60 text-sm">
                 {stats.count} transaction{stats.count === 1 ? "" : "s"}

@@ -1,3 +1,4 @@
+import { formatMoney } from "@/lib/formatMoney";
 import { FiChevronRight } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 import { useBookkeeping } from "./BookkeepingProvider";
@@ -81,15 +82,15 @@ export default function BookkeepingTable({ vehicleId }: BookkeepingTableProps) {
               className="border-t border-white/10 hover:bg-white/5 transition cursor-pointer"
             >
               <td className="p-3">{row.vehicle}</td>
-              <td className="p-3">£{row.purchase.toLocaleString()}</td>
-              <td className="p-3">£{row.totalCost.toLocaleString()}</td>
-              <td className="p-3">£{row.expectedSale.toLocaleString()}</td>
-              <td className="p-3 text-green-300">£{row.profit.toLocaleString()}</td>
+              <td className="p-3">{formatMoney(row.purchase)}</td>
+              <td className="p-3">{formatMoney(row.totalCost)}</td>
+              <td className="p-3">{formatMoney(row.expectedSale)}</td>
+              <td className={`p-3 ${row.profit < 0 ? "text-red-300" : "text-green-300"}`}>{formatMoney(row.profit)}</td>
               <td className="p-3">{row.margin.toFixed(1)}%</td>
               <td className="p-3">
                 {row.vatDue != null ? (
                   <>
-                    £{row.vatDue.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                    {formatMoney(row.vatDue, { pence: true })}
                     <span
                       className={`ml-2 text-xs px-1.5 py-0.5 rounded ${
                         row.vatScheme === "margin"

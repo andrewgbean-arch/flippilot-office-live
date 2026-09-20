@@ -1,3 +1,4 @@
+import { formatMoney } from "@/lib/formatMoney";
 import React, { useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { FiArrowLeft } from "react-icons/fi";
@@ -98,21 +99,21 @@ export default function SupplierDetail() {
             <div>
               <p className="text-white/60 text-sm">Total Spend</p>
               <p className="text-yellow-300 font-bold text-xl">
-                £{stats.totalSpend.toLocaleString()}
+                {formatMoney(stats.totalSpend)}
               </p>
             </div>
 
             <div>
               <p className="text-white/60 text-sm">Total Profit</p>
               <p className={`${profitColor(stats.totalProfit)} font-bold text-xl`}>
-                £{stats.totalProfit.toLocaleString()}
+                {formatMoney(stats.totalProfit)}
               </p>
             </div>
 
             <div>
               <p className="text-white/60 text-sm">VAT Impact</p>
               <p className="text-white font-bold text-xl">
-                £{stats.totalVAT.toLocaleString()}
+                {formatMoney(stats.totalVAT, { pence: true })}
               </p>
             </div>
 
@@ -175,7 +176,7 @@ export default function SupplierDetail() {
 
                     {/* ⭐ Profit */}
                     <p className={`${profitColor(profit ?? 0)} font-bold mt-2`}>
-                      {profit != null ? `£${profit}` : "No sale yet"}
+                      {profit != null ? `${formatMoney(profit)}` : "No sale yet"}
                     </p>
                   </div>
 

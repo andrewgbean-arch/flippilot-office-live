@@ -1,3 +1,4 @@
+import { formatMoney } from "@/lib/formatMoney";
 import React from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useBookkeeping } from "./BookkeepingProvider";
@@ -70,11 +71,11 @@ export default function BookkeepingEntryScreen() {
       <div className="bg-black/40 border border-white/10 p-6 rounded-xl mb-8">
         <h2 className="text-xl font-semibold text-white/80 mb-3">Purchase</h2>
 
-        <p><span className="text-white/60">Price:</span> £{purchase.purchasePrice.toLocaleString()}</p>
+        <p><span className="text-white/60">Price:</span> {formatMoney(purchase.purchasePrice)}</p>
         <p><span className="text-white/60">Purchased From:</span> {purchase.source}</p>
         <p><span className="text-white/60">Date:</span> {purchase.date}</p>
-        <p><span className="text-white/60">VAT:</span> £{purchase.vatAmount.toLocaleString()}</p>
-        <p><span className="text-white/60">Net:</span> £{purchase.netAmount.toLocaleString()}</p>
+        <p><span className="text-white/60">VAT:</span> {formatMoney(purchase.vatAmount, { pence: true })}</p>
+        <p><span className="text-white/60">Net:</span> {formatMoney(purchase.netAmount, { pence: true })}</p>
       </div>
 
       {/* COSTS */}
@@ -102,13 +103,13 @@ export default function BookkeepingEntryScreen() {
                 <p className="text-white/60">Supplier: {c.supplier}</p>
                 <p className="text-white/60">Date: {c.date}</p>
                 <p className="text-white/60">
-                  Amount: £{c.amount.toLocaleString()}
+                  Amount: {formatMoney(c.amount)}
                 </p>
                 <p className="text-white/60">
-                  VAT: £{c.vatAmount.toLocaleString()}
+                  VAT: {formatMoney(c.vatAmount, { pence: true })}
                 </p>
                 <p className="text-white/60">
-                  Net: £{c.netAmount.toLocaleString()}
+                  Net: {formatMoney(c.netAmount, { pence: true })}
                 </p>
               </li>
             ))}
@@ -116,7 +117,7 @@ export default function BookkeepingEntryScreen() {
         )}
 
         <p className="mt-4 text-white/80 font-bold">
-          Total Cost: £{totalCost.toLocaleString()}
+          Total Cost: {formatMoney(totalCost)}
         </p>
       </div>
 
@@ -138,13 +139,13 @@ export default function BookkeepingEntryScreen() {
         {sale ? (
           <>
             <p><span className="text-white/60">Invoice No:</span> {sale.invoiceNumber}</p>
-            <p><span className="text-white/60">Sale Price:</span> £{sale.salePrice.toLocaleString()}</p>
+            <p><span className="text-white/60">Sale Price:</span> {formatMoney(sale.salePrice)}</p>
             <p><span className="text-white/60">Buyer:</span> {sale.buyer || "—"}</p>
             {sale.buyerEmail && <p><span className="text-white/60">Email:</span> {sale.buyerEmail}</p>}
             {sale.buyerPhone && <p><span className="text-white/60">Phone:</span> {sale.buyerPhone}</p>}
             <p><span className="text-white/60">Date:</span> {sale.date}</p>
-            <p><span className="text-white/60">VAT:</span> £{sale.vatAmount.toLocaleString()}</p>
-            <p><span className="text-white/60">Net:</span> £{sale.netAmount.toLocaleString()}</p>
+            <p><span className="text-white/60">VAT:</span> {formatMoney(sale.vatAmount, { pence: true })}</p>
+            <p><span className="text-white/60">Net:</span> {formatMoney(sale.netAmount, { pence: true })}</p>
 
             <div className="flex gap-3 mt-4">
               <button
@@ -170,7 +171,7 @@ export default function BookkeepingEntryScreen() {
       <div className="bg-black/40 border border-white/10 p-6 rounded-xl mb-8">
         <h2 className="text-xl font-semibold text-white/80 mb-3">Profit Summary</h2>
 
-        <p><span className="text-white/60">Profit:</span> £{profitSummary.profit.toLocaleString()}</p>
+        <p><span className="text-white/60">Profit:</span> {formatMoney(profitSummary.profit)}</p>
         <p><span className="text-white/60">Margin:</span> {profitSummary.margin.toFixed(1)}%</p>
       </div>
 

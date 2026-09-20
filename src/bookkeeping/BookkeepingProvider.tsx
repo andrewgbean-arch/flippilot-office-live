@@ -10,6 +10,7 @@ import {
   MonthlyReport,
 } from "./types";
 import { calculateVat, calculateMarginVat } from "./vatUtils";
+import { hubTotals } from "./profitTotals";
 import { loadBookkeeping, saveBookkeeping, type BookkeepingDoc } from "./bookkeepingStorage.web";
 import { useAuth } from "@/context/AuthContext";
 import { useGuardedLoad } from "@/lib/useGuardedLoad";
@@ -324,8 +325,10 @@ export function BookkeepingProvider({ children }: BookkeepingProviderProps) {
   const getTotalIncome = () =>
     sales.reduce((sum, s) => sum + s.salePrice, 0);
 
-  const getTotalProfit = () =>
-    getTotalIncome() - getTotalSpend();
+  // Profit on SOLD cars, worked out car by car like getProfitForVehicle. This
+  // used to be income minus ALL spend, which counted every unsold car as a
+  // loss (see profitTotals.ts).
+  const getTotalProfit = () => hubTotals(purchases, sales, costs).profit;
 
   // SUPPLIER STATS
   const getSupplierStats = (supplierName: string): Supplier | null => {
@@ -337,7 +340,6 @@ export function BookkeepingProvider({ children }: BookkeepingProviderProps) {
     return {
       id: supplierName,
       name: supplierName,
-      reliabilityScore: 85,
       totalSpend,
       totalTransactions: supplierCosts.length,
     };
