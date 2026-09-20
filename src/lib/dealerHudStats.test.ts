@@ -50,19 +50,24 @@ describe("computeDealerHudStats", () => {
   });
 
   it("counts cars in stock, their average days, and their MOT position", () => {
+    // Each MOT group has a different size (1, 2 and 3), so a figure put under
+    // the wrong heading cannot pass by coincidence.
     const cars = [
       car({ createdAt: daysAgo(10), expiry: "2026-09-19" }), // expired
       car({ createdAt: daysAgo(30), expiry: "2026-10-01" }), // due within 30 days
-      car({ createdAt: daysAgo(20), expiry: "2027-06-01" }), // fine
+      car({ createdAt: daysAgo(20), expiry: "2026-10-10" }), // due within 30 days
       car({ createdAt: daysAgo(40) }), // no MOT date
+      car({ createdAt: daysAgo(50) }), // no MOT date
+      car({ createdAt: daysAgo(60) }), // no MOT date
+      car({ createdAt: daysAgo(20), expiry: "2027-06-01" }), // fine
     ];
     expect(computeDealerHudStats(cars, NOW)).toEqual({
-      inStock: 4,
-      avgDaysInStock: 25,
-      daysCounted: 4,
+      inStock: 7,
+      avgDaysInStock: 33, // 230 / 7 = 32.86
+      daysCounted: 7,
       motExpired: 1,
-      motDueSoon: 1,
-      motNoDate: 1,
+      motDueSoon: 2,
+      motNoDate: 3,
     });
   });
 
