@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { fetchMOT } from "@/features/vehicles/api/mot";
 import { motAiEngine } from "@/engines/motAiEngine";
+import { motState } from "@/dealer/inventory/vehicleListModel";
 
 import { useInventory } from "@/context/InventoryProvider";
 
@@ -13,14 +14,13 @@ import MOTHealthScore from "@/components/motors/MOTHealthScore";
 import MOTInsightsPanel from "@/components/motors/MOTInsightsPanel";
 import MotTestCard, { sortMotHistoryDesc } from "@/components/motors/MotTestCard";
 
-// AI Components
-import MotAiBuyerConfidence from "@/components/motors/MotAiBuyerConfidence";
+// Rule-of-thumb cards. The page used to stack six of these (health score,
+// pass chance, "buyer confidence", risk gauge, radar chart, verdict), all
+// derived from the same three counts. Buyer Confidence was an invented blend
+// with no basis, the radar mixed scales that run in opposite directions, and
+// the gauge repeated the health bar, so those three are no longer shown.
 import MotAiPassChance from "@/components/motors/MotAiPassChance";
-import MotAiRiskGauge from "@/components/motors/MotAiRiskGauge";
-import MotAiRadarChart from "@/components/motors/MotAiRadarChart";
 import MotAiVerdictCard from "@/components/motors/MotAiVerdictCard";
-
-const EMPTY_MOT_AI = motAiEngine({ advisories: [], history: [] } as any, []);
 
 export default function MOTLookup() {
   const [reg, setReg] = useState("");
@@ -55,19 +55,11 @@ export default function MOTLookup() {
   // previous render." This is why a real, successful MOT lookup on
   // this screen always ended in a hard crash, never actual results —
   // confirmed live.
+  // Same rule as the vehicle list: an MOT is valid through its expiry day, so
+  // a date-only expiry is not "Expired" until that day has ended.
   const motStatus = useMemo(() => {
-    const expiry = mot?.expiry;
-    if (!expiry) return "Unknown";
-
-    const exp = new Date(expiry);
-    const now = new Date();
-
-    if (exp < now) return "Expired";
-
-    const days = (exp.getTime() - now.getTime()) / 86400000;
-    if (days < 30) return "Expiring Soon";
-
-    return "Valid";
+    const kind = motState(mot?.expiry, new Date()).kind;
+    return kind === "expired" ? "Expired" : kind === "soon" ? "Expiring Soon" : kind === "valid" ? "Valid" : "Unknown";
   }, [mot?.expiry]);
 
   const daysLeft = useMemo(() => {
@@ -78,10 +70,12 @@ export default function MOTLookup() {
     const now = new Date();
 
     const diff = exp.getTime() - now.getTime();
-    return Math.ceil(diff / 86400000);
+    const days = Math.ceil(diff / 86400000);
+    return Number.isNaN(days) ? null : days;
   }, [mot?.expiry]);
 
-  const motAi = useMemo(() => (mot ? motAiEngine(mot, mot.history ?? []) : EMPTY_MOT_AI), [mot]);
+  // With no lookup yet this is a no-data result, which is never rendered.
+  const motAi = useMemo(() => motAiEngine(mot, mot?.history ?? []), [mot]);
 
   async function handleLookup() {
     if (!reg.trim()) {
@@ -170,11 +164,15 @@ export default function MOTLookup() {
     );
   }
 
-  const safeHistory = (mot.history ?? []).map((h: any) => ({
-    date: h.date,
-    year: h.year,
-    mileage: h.mileage ?? mot.mileage ?? 0,
-  }));
+  // Only tests that recorded a mileage. A test without one used to be listed
+  // with the car's current mileage, or 0, as if that had been its reading.
+  const safeHistory = (mot.history ?? [])
+    .filter((h: any) => typeof h.mileage === "number")
+    .map((h: any) => ({
+      date: h.date,
+      year: h.year,
+      mileage: h.mileage as number,
+    }));
 
   const motWithStatus = { ...mot, motStatus };
 
@@ -211,9 +209,6 @@ export default function MOTLookup() {
       <MOTHealthScore mot={mot} />
 
       <MotAiPassChance ai={motAi} theme={theme} />
-      <MotAiBuyerConfidence ai={motAi} theme={theme} />
-      <MotAiRiskGauge ai={motAi} theme={theme} />
-      <MotAiRadarChart ai={motAi} theme={theme} />
       <MotAiVerdictCard ai={motAi} theme={theme} />
 
       <MOTAdvisoriesList advisories={mot.advisories ?? []} />

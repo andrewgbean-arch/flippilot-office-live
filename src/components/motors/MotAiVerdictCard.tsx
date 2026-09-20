@@ -6,6 +6,8 @@ type Props = {
   theme: any;
 };
 
+// Was titled "MOT AI Verdict". The text comes from a counting rule
+// (advisories, failures on record, mileage), so it is called a summary.
 export default function MotAiVerdictCard({ ai, theme }: Props) {
   return (
     <div
@@ -27,7 +29,7 @@ export default function MotAiVerdictCard({ ai, theme }: Props) {
           marginBottom: 6,
         }}
       >
-        🤖 MOT AI Verdict
+        MOT summary
       </h3>
 
       <p

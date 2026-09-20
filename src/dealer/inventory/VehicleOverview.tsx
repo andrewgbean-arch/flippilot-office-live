@@ -269,7 +269,8 @@ export default function VehicleOverview() {
     },
     aiPrice: {
       recommendedSellPrice: vehicle.priceRetail ?? null,
-      riskLevel: (motHealth[vehicleId] ?? ai)?.riskLevel ?? null,
+      // "unknown" means no MOT data, which is not a level this input accepts.
+      riskLevel: ((r) => (r === "unknown" ? null : (r ?? null)))((motHealth[vehicleId] ?? ai)?.riskLevel),
     },
   });
 

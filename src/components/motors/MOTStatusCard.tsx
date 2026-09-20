@@ -1,5 +1,6 @@
 import React from "react";
 import { motion } from "framer-motion";
+import { formatDate } from "@/dealer/inventory/vehicleListModel";
 
 type Props = {
   status: string | null;
@@ -39,14 +40,14 @@ export default function MOTStatusCard({ status, expiryDate, theme }: Props) {
         className="text-base font-semibold"
         style={{ color: statusColor }}
       >
-        Status: {status ?? "Unknown"}
+        Status: {status && status !== "Unknown" ? status : "No MOT date recorded"}
       </p>
 
       <p
         className="text-base mt-1"
         style={{ color: theme.text }}
       >
-        Expiry: {expiryDate ?? "No expiry data"}
+        Expiry: {expiryDate ? formatDate(expiryDate) ?? expiryDate : "No expiry date recorded"}
       </p>
     </motion.div>
   );

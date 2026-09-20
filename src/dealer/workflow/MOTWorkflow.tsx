@@ -9,8 +9,18 @@ import { SupernovaSectionDivider } from "@/components/supernova/SupernovaSection
 import { SupernovaMetricBar } from "@/components/supernova/SupernovaMetricBar";
 import { SupernovaGlowButton } from "@/components/supernova/SupernovaGlowButton";
 
-import { motAiEngine } from "@/engines/motAiEngine";
+import { motAiEngine, MOT_RULE_OF_THUMB } from "@/engines/motAiEngine";
+import { motState, formatDate } from "@/dealer/inventory/vehicleListModel";
 import MotTestCard, { sortMotHistoryDesc } from "@/components/motors/MotTestCard";
+
+const STATE_COLOUR = {
+  expired: "text-red-400",
+  soon: "text-yellow-300",
+  valid: "text-emerald-300",
+  unknown: "text-white/60",
+} as const;
+
+const OUTLOOK_LABEL = { good: "Good", fair: "Fair", poor: "Poor" } as const;
 
 export default function MOTWorkflow() {
   const { id } = useParams();
@@ -33,7 +43,8 @@ export default function MOTWorkflow() {
 
   const mot = vehicle.mot;
 
-  const motExpiry = mot.expiry ?? "Unknown";
+  // A blank expiry used to print as an empty gap; say so instead.
+  const expiryState = motState(mot.expiry, new Date());
   const advisories: string[] = mot.advisories ?? [];
 
   // Most recent test first, regardless of what order it was stored in.
@@ -47,8 +58,9 @@ export default function MOTWorkflow() {
     .map((h) => ({ date: h.date, year: h.year, mileage: h.mileage, testNumber: h.testNumber, failures: h.failures ?? [] }));
   const failureCount = failedTests.reduce((sum, t) => sum + t.failures.length, 0);
 
-  // ⭐ AI Intelligence
+  // Rule-of-thumb read of the record above (see engines/motAiEngine.ts).
   const ai = motAiEngine(mot, mot.history ?? []);
+  const scoreAccent = ai.riskLevel === "low" ? "yellow" : ai.riskLevel === "medium" ? "blue" : "red";
 
   return (
     <div className="px-6 py-10 space-y-10 text-white animate-fadeIn">
@@ -65,58 +77,100 @@ export default function MOTWorkflow() {
         <div className="space-y-2">
           <div className="text-white font-semibold">
             MOT Expiry:{" "}
-            <span className="text-yellow-300">{motExpiry}</span>
+            <span className={STATE_COLOUR[expiryState.kind]}>
+              {expiryState.date ?? "Not recorded"}
+            </span>
+            {expiryState.kind !== "unknown" && (
+              <span className={`ml-2 text-sm ${STATE_COLOUR[expiryState.kind]}`}>
+                {expiryState.label}
+              </span>
+            )}
           </div>
 
-          <div className="text-white font-semibold">
-            MOT Health Score:{" "}
-            <span className="text-blue-300">{ai.healthScore}%</span>
-          </div>
+          {ai.hasData ? (
+            <>
+              <div className="text-white/60 text-sm">
+                Advisories: {advisories.length}
+              </div>
 
-          <div className="text-white/60 text-sm">
-            Advisories: {advisories.length}
-          </div>
-
-          <div className="text-white/60 text-sm">
-            Failures: {failureCount}
-          </div>
+              <div className="text-white/60 text-sm">
+                Failed tests on record: {ai.basis.failedTests} (failure items listed: {failureCount})
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="text-white/80 text-sm">
+                No MOT data is recorded for this vehicle, so there is no expiry date, advisory or failure
+                to show. Look up its registration to fetch the real record.
+              </p>
+              <SupernovaGlowButton onClick={() => navigate("/dealer/inventory/mot-lookup")}>
+                Look up MOT
+              </SupernovaGlowButton>
+            </>
+          )}
         </div>
       </SupernovaGlowCard>
 
-      {/* MOT INTELLIGENCE */}
-      <SupernovaSectionDivider label="MOT Intelligence" />
+      {/* RULE-OF-THUMB CHECK. It used to show a "Pass Probability", a "Health
+          Score" and a "Mileage Risk" bar: 96% for a car with no MOT data at
+          all, next to "Failures: 3". It now says when there is no data, and
+          otherwise says what the number is worked out from. */}
+      <SupernovaSectionDivider label="MOT check (rule of thumb)" />
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {!ai.hasData ? (
         <SupernovaGlowCard>
-          <SupernovaMetricBar
-            label="Pass Probability"
-            value={ai.predictedPassChance}
-            accent={ai.riskLevel === "low" ? "yellow" : ai.riskLevel === "medium" ? "blue" : "red"}
-          />
+          <p className="text-white/70">No MOT data, so nothing to check.</p>
         </SupernovaGlowCard>
+      ) : ai.basis.expired ? (
+        <SupernovaGlowCard>
+          <p className="text-red-400 font-semibold mb-1">MOT expired</p>
+          <p className="text-white/70 text-sm">{ai.nextTestRisk}</p>
+        </SupernovaGlowCard>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <SupernovaGlowCard>
+              <SupernovaMetricBar
+                label="Rule-of-thumb score"
+                value={ai.healthScore ?? 0}
+                accent={scoreAccent}
+              />
+            </SupernovaGlowCard>
 
-        <SupernovaGlowCard>
-          <SupernovaMetricBar
-            label="Health Score"
-            value={ai.healthScore}
-            accent={ai.riskLevel === "low" ? "yellow" : ai.riskLevel === "medium" ? "blue" : "red"}
-          />
-        </SupernovaGlowCard>
+            <SupernovaGlowCard>
+              <div className="text-white/70 text-sm mb-1">Next MOT: rough outlook</div>
+              <div className="text-white font-bold text-xl">
+                {ai.passOutlook ? OUTLOOK_LABEL[ai.passOutlook] : "No outlook"}
+              </div>
+              <div className="text-white/50 text-xs mt-1">A rough guide, not a measured chance of passing.</div>
+            </SupernovaGlowCard>
 
-        <SupernovaGlowCard>
-          <SupernovaMetricBar
-            label="Mileage Risk"
-            value={ai.mileageRisk}
-            accent="red"
-          />
-        </SupernovaGlowCard>
-      </div>
+            <SupernovaGlowCard>
+              <div className="text-white/70 text-sm mb-1">Latest test on record</div>
+              {ai.basis.latestTest ? (
+                <div className="text-white text-sm">
+                  {ai.basis.latestTest.result ?? "Result unknown"}
+                  {ai.basis.latestTest.date ? ` on ${formatDate(ai.basis.latestTest.date) ?? ai.basis.latestTest.date}` : ""}
+                  {ai.basis.latestTest.mileage !== null ? `, ${ai.basis.latestTest.mileage.toLocaleString("en-GB")} miles` : ""}
+                </div>
+              ) : (
+                <div className="text-white/60 text-sm">No test history on record.</div>
+              )}
+            </SupernovaGlowCard>
+          </div>
+
+          <p className="text-white/70 text-sm">{ai.summary}</p>
+          <p className="text-white/50 text-xs">{MOT_RULE_OF_THUMB}</p>
+        </>
+      )}
 
       {/* ADVISORIES */}
       <SupernovaSectionDivider label="Advisories" />
 
       <SupernovaGlowCard>
-        {advisories.length === 0 ? (
+        {!ai.hasData ? (
+          <p className="text-white/60">No MOT data recorded.</p>
+        ) : advisories.length === 0 ? (
           <p className="text-white/60">No advisories recorded.</p>
         ) : (
           <ul className="space-y-2">

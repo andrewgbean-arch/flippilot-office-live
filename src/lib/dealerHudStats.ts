@@ -56,6 +56,8 @@ export function computeDealerHudStats(
 
   const worstMotRisk = ids.reduce<"low" | "medium" | "high">((worst, id) => {
     const level = motHealth[id]?.riskLevel ?? "low";
+    // "unknown" = no MOT data recorded for that car: it says nothing either way.
+    if (level === "unknown") return worst;
     return MOT_RISK_RANK[level] > MOT_RISK_RANK[worst] ? level : worst;
   }, "low");
 
