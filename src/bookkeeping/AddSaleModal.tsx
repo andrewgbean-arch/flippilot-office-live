@@ -6,6 +6,7 @@ import { nextInvoiceNumber } from "./invoiceUtils";
 import { useBookkeeping } from "./BookkeepingProvider";
 import { useInventory } from "@/context/InventoryProvider";
 import { toDateKey } from "@/planner/dateUtils";
+import { readMoney } from "@/lib/parseMoney";
 import VehiclePicker from "./VehiclePicker";
 
 interface AddSaleModalProps {
@@ -39,19 +40,34 @@ export default function AddSaleModal({ vehicleId: initialVehicleId, existing, on
   // applies), and the UI below says so rather than showing broken maths.
   const isMarginScheme = vehicle?.vatScheme === "margin" && !!purchase;
 
-  const numericPrice = Number(salePrice) || 0;
+  // The sale price is REQUIRED and must be an amount above £0. A blank used to be
+  // saved as a £0 sale (and the car marked SOLD at £0, printing "-Infinity%"), and
+  // "£5,000" was read as nothing. Nothing is saved, and no car is marked sold,
+  // until the price reads as a real amount.
+  const [submitted, setSubmitted] = useState(false);
+  const priceRead = readMoney(salePrice, { positive: true, blankMessage: "Enter the sale price." });
+  const priceError = priceRead.ok ? null : priceRead.message;
+  const showPriceError = priceError !== null && (submitted || salePrice.trim() !== "");
+  // null while the price is blank or unreadable: the preview then shows dashes,
+  // not a made-up £0 margin.
+  const previewPrice = priceRead.ok ? priceRead.value : null;
   const numericVatRate = (Number(vatRate) || 0) / 100;
 
   const marginPreview = useMemo(() => {
-    if (!isMarginScheme || !purchase) return null;
-    return calculateMarginVat(numericPrice, purchase.purchasePrice, numericVatRate);
-  }, [isMarginScheme, purchase, numericPrice, numericVatRate]);
+    if (!isMarginScheme || !purchase || previewPrice === null) return null;
+    return calculateMarginVat(previewPrice, purchase.purchasePrice, numericVatRate);
+  }, [isMarginScheme, purchase, previewPrice, numericVatRate]);
 
   function handleSave() {
     if (!vehicleId) {
       alert("Select a vehicle first.");
       return;
     }
+    if (!priceRead.ok) {
+      setSubmitted(true);
+      return;
+    }
+    const numericPrice = priceRead.value;
 
     let vatAmount: number;
     let netAmount: number;
@@ -129,14 +145,25 @@ export default function AddSaleModal({ vehicleId: initialVehicleId, existing, on
         <VehiclePicker value={vehicleId} onChange={setVehicleId} />
 
         {/* SALE PRICE */}
-        <label htmlFor="addsalemodal-sale-price" className="text-white/60 text-sm">Sale Price</label>
+        <label htmlFor="addsalemodal-sale-price" className="text-white/60 text-sm">Sale Price (£)</label>
         <input id="addsalemodal-sale-price"
-          type="number"
+          type="text"
+          inputMode="decimal"
+          autoComplete="off"
           value={salePrice}
           onChange={(e) => setSalePrice(e.target.value)}
-          placeholder="0.00"
-          className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-4"
+          placeholder="e.g. 6500 or £6,500.00"
+          aria-invalid={showPriceError}
+          aria-describedby={showPriceError ? "addsalemodal-sale-price-error" : undefined}
+          className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-1"
         />
+        {showPriceError ? (
+          <p id="addsalemodal-sale-price-error" role="alert" className="text-red-400 text-sm mb-4">
+            {priceError}
+          </p>
+        ) : (
+          <div className="mb-4" />
+        )}
 
         {/* VAT SCHEME — read-only, driven by the vehicle itself (set
             when it was added/edited), not chosen per sale */}
@@ -182,11 +209,11 @@ export default function AddSaleModal({ vehicleId: initialVehicleId, existing, on
             </div>
             <div className="flex justify-between text-white/60">
               <span>Margin</span>
-              <span>{formatMoney(marginPreview?.margin ?? 0, { pence: true })}</span>
+              <span>{formatMoney(marginPreview?.margin, { pence: true })}</span>
             </div>
             <div className="flex justify-between text-yellow-300 font-semibold pt-1 border-t border-white/10 mt-1">
               <span>VAT Due (Margin Scheme)</span>
-              <span>{formatMoney(marginPreview?.vat ?? 0, { pence: true })}</span>
+              <span>{formatMoney(marginPreview?.vat, { pence: true })}</span>
             </div>
           </div>
         ) : (

@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { CostType, CostEntry } from "./types";
 import { calculateVat } from "./vatUtils";
 import { useBookkeeping } from "./BookkeepingProvider";
+import { readMoney } from "@/lib/parseMoney";
 import VehiclePicker from "./VehiclePicker";
 
 interface AddCostModalProps {
@@ -24,13 +25,24 @@ export default function AddCostModal({ vehicleId: initialVehicleId, onClose }: A
   const [notes, setNotes] = useState<string>("");
   const [date, setDate] = useState<string>(new Date().toISOString().slice(0, 10));
 
+  // The amount is REQUIRED and must be above £0: a blank used to be saved as a £0
+  // cost, and "£120" or "1,200" was read as nothing.
+  const [submitted, setSubmitted] = useState(false);
+  const amountRead = readMoney(amount, { positive: true, blankMessage: "Enter the cost amount." });
+  const amountError = amountRead.ok ? null : amountRead.message;
+  const showAmountError = amountError !== null && (submitted || amount.trim() !== "");
+
   function handleSave() {
     if (!vehicleId) {
       alert("Select a vehicle first.");
       return;
     }
+    if (!amountRead.ok) {
+      setSubmitted(true);
+      return;
+    }
 
-    const numericAmount = Number(amount) || 0;
+    const numericAmount = amountRead.value;
     const numericVatRate = (Number(vatRate) || 0) / 100;
 
     const breakdown = calculateVat(numericAmount, {
@@ -87,14 +99,25 @@ export default function AddCostModal({ vehicleId: initialVehicleId, onClose }: A
         </select>
 
         {/* AMOUNT */}
-        <label htmlFor="addcostmodal-amount" className="text-white/60 text-sm">Amount</label>
+        <label htmlFor="addcostmodal-amount" className="text-white/60 text-sm">Amount (£)</label>
         <input id="addcostmodal-amount"
-          type="number"
+          type="text"
+          inputMode="decimal"
+          autoComplete="off"
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
-          placeholder="0.00"
-          className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-4"
+          placeholder="e.g. 120 or £120.00"
+          aria-invalid={showAmountError}
+          aria-describedby={showAmountError ? "addcostmodal-amount-error" : undefined}
+          className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-1"
         />
+        {showAmountError ? (
+          <p id="addcostmodal-amount-error" role="alert" className="text-red-400 text-sm mb-4">
+            {amountError}
+          </p>
+        ) : (
+          <div className="mb-4" />
+        )}
 
         {/* VAT RATE */}
         <label htmlFor="addcostmodal-vat-rate" className="text-white/60 text-sm">VAT Rate (%)</label>

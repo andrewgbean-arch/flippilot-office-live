@@ -6,6 +6,8 @@ interface SupernovaInputProps {
   onChange: (value: string) => void;
   placeholder?: string;
   type?: string;
+  // e.g. "decimal" to bring up a number pad on a phone for an amount typed as text.
+  inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
   multiline?: boolean;
 }
 
@@ -15,6 +17,7 @@ export function SupernovaInput({
   onChange,
   placeholder,
   type = "text",
+  inputMode,
   multiline = false,
 }: SupernovaInputProps) {
   const handleChange = (
@@ -49,6 +52,7 @@ export function SupernovaInput({
         <input
           id={id}
           type={type}
+          {...(inputMode ? { inputMode, autoComplete: "off" } : {})}
           value={value}
           onChange={handleChange}
           placeholder={placeholder}

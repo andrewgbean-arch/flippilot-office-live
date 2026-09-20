@@ -3,6 +3,7 @@ import { useInventory } from "@/context/InventoryProvider";
 import { useConsumables } from "@/context/ConsumablesContext";
 import { useBookkeeping } from "@/bookkeeping/BookkeepingProvider";
 import { parseCSVWithHeaders, guessColumn } from "@/lib/csv";
+import { readImportPrices, unreadablePriceSummary } from "./importPrices";
 
 type ImportType = "vehicles" | "consumables";
 
@@ -50,7 +51,7 @@ export default function ImportScreen() {
   const [rows, setRows] = useState<string[][]>([]);
   const [mapping, setMapping] = useState<Record<string, string>>({});
   const [importing, setImporting] = useState(false);
-  const [result, setResult] = useState<{ imported: number; skipped: number } | null>(null);
+  const [result, setResult] = useState<{ imported: number; skipped: number; unreadablePrices: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(false);
 
@@ -107,9 +108,12 @@ export default function ImportScreen() {
         values[f.key] = idx >= 0 ? (row[idx] ?? "").trim() : "";
       }
       const missingRequired = fields.filter((f) => f.required && !values[f.key]);
-      return { values, valid: missingRequired.length === 0, missingRequired };
+      // Prices typed in the file that cannot be read ("£5,00", "abc"): the import
+      // leaves them blank, and says so, rather than dropping them silently.
+      const unreadablePrices = type === "vehicles" ? readImportPrices(values).unreadable : [];
+      return { values, valid: missingRequired.length === 0, missingRequired, unreadablePrices };
     });
-  }, [rows, headers, mapping, fields]);
+  }, [rows, headers, mapping, fields, type]);
 
   const validCount = builtRows.filter((r) => r.valid).length;
 
@@ -119,18 +123,26 @@ export default function ImportScreen() {
     try {
       const usable = builtRows.filter((r) => r.valid);
 
+      let unreadablePrices = 0;
+
       if (type === "vehicles") {
-        const payload = usable.map((r) => ({
-          make: r.values.make ?? "",
-          model: r.values.model ?? "",
-          ...(r.values.reg ? { reg: r.values.reg } : {}),
-          year: r.values.year ? Number(r.values.year) || null : null,
-          mileage: r.values.mileage ? Number(r.values.mileage) || null : null,
-          ...(r.values.colour ? { colour: r.values.colour } : {}),
-          buyPrice: r.values.buyPrice ? Number(r.values.buyPrice) || null : null,
-          sellPrice: r.values.sellPrice ? Number(r.values.sellPrice) || null : null,
-          notes: r.values.notes || null,
-        }));
+        const payload = usable.map((r) => {
+          // A price that reads ("£5,000", "5,000") is kept; blank stays unset;
+          // one that is typed but unreadable is left unset and COUNTED.
+          const prices = readImportPrices(r.values);
+          if (prices.unreadable.length > 0) unreadablePrices += 1;
+          return {
+            make: r.values.make ?? "",
+            model: r.values.model ?? "",
+            ...(r.values.reg ? { reg: r.values.reg } : {}),
+            year: r.values.year ? Number(r.values.year) || null : null,
+            mileage: r.values.mileage ? Number(r.values.mileage) || null : null,
+            ...(r.values.colour ? { colour: r.values.colour } : {}),
+            buyPrice: prices.buyPrice,
+            sellPrice: prices.sellPrice,
+            notes: r.values.notes || null,
+          };
+        });
         const created = importVehicles(payload);
         // Without this, an imported vehicle's buyPrice sits only on the
         // Vehicle record — Pricing Workflow (and anything else keyed off
@@ -171,7 +183,7 @@ export default function ImportScreen() {
         await importConsumables(payload);
       }
 
-      setResult({ imported: usable.length, skipped: builtRows.length - usable.length });
+      setResult({ imported: usable.length, skipped: builtRows.length - usable.length, unreadablePrices });
     } catch (err) {
       setError("Import failed — check the backend is reachable and try again.");
       console.error(err);
@@ -334,7 +346,13 @@ export default function ImportScreen() {
                     {fields.map((f) => <td key={f.key} className="pr-4 py-1 text-white/80">{r.values[f.key] || "—"}</td>)}
                     <td className="py-1">
                       {r.valid ? (
-                        <span className="text-green-400">Ready</span>
+                        r.unreadablePrices.length > 0 ? (
+                          <span className="text-yellow-300">
+                            Ready, but {r.unreadablePrices.join(" and ")} can't be read and will be left blank
+                          </span>
+                        ) : (
+                          <span className="text-green-400">Ready</span>
+                        )
                       ) : (
                         <span className="text-red-400">Missing {r.missingRequired.map((f) => f.label).join(", ")}</span>
                       )}
@@ -352,6 +370,11 @@ export default function ImportScreen() {
                 Imported {result.imported} {type === "vehicles" ? "vehicle" : "item"}{result.imported === 1 ? "" : "s"}.
                 {result.skipped > 0 && ` Skipped ${result.skipped} row${result.skipped === 1 ? "" : "s"} missing required fields.`}
               </p>
+              {unreadablePriceSummary(result.unreadablePrices) && (
+                <p role="status" className="text-yellow-300 text-sm mt-2">
+                  {unreadablePriceSummary(result.unreadablePrices)}
+                </p>
+              )}
               <button onClick={resetFile} className="mt-3 px-4 py-2 rounded bg-white/10 text-white/70 hover:bg-white/20">
                 Import Another File
               </button>

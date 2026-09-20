@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { TransactionEntry } from "./types";
 import { useBookkeeping } from "./BookkeepingProvider";
+import { readMoney } from "@/lib/parseMoney";
 
 type AddTransactionModalProps = {
   onClose: () => void;
@@ -23,12 +24,23 @@ export default function AddTransactionModal({
   const [amount, setAmount] = useState("");
   const [notes, setNotes] = useState("");
 
+  // The amount is REQUIRED and must be above £0: a blank used to be saved as a £0
+  // transaction, and "£1,200" was read as nothing.
+  const [submitted, setSubmitted] = useState(false);
+  const amountRead = readMoney(amount, { positive: true, blankMessage: "Enter the amount." });
+  const amountError = amountRead.ok ? null : amountRead.message;
+  const showAmountError = amountError !== null && (submitted || amount.trim() !== "");
+
   function handleSave() {
+    if (!amountRead.ok) {
+      setSubmitted(true);
+      return;
+    }
     const entry: TransactionEntry = {
       id: crypto.randomUUID(),
       type,
       category,
-      amount: Number(amount) || 0,
+      amount: amountRead.value,
       date: new Date().toISOString().slice(0, 10),
       notes,
     };
@@ -68,12 +80,21 @@ export default function AddTransactionModal({
 
           <label htmlFor="addtransactionmodal-amount" className="text-white/60 text-sm -mb-2">Amount (£)</label>
           <input id="addtransactionmodal-amount"
-            type="number"
+            type="text"
+            inputMode="decimal"
+            autoComplete="off"
             className="bg-black/40 border border-white/20 p-3 rounded-lg text-white"
-            placeholder="0.00"
+            placeholder="e.g. 250 or £250.00"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
+            aria-invalid={showAmountError}
+            aria-describedby={showAmountError ? "addtransactionmodal-amount-error" : undefined}
           />
+          {showAmountError && (
+            <p id="addtransactionmodal-amount-error" role="alert" className="text-red-400 text-sm -mt-2">
+              {amountError}
+            </p>
+          )}
 
           <label htmlFor="addtransactionmodal-notes" className="text-white/60 text-sm -mb-2">Notes</label>
           <textarea id="addtransactionmodal-notes"

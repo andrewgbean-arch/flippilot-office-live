@@ -12,6 +12,7 @@ import { SupernovaGlowCard } from "@/components/supernova/SupernovaGlowCard";
 import { SupernovaGlowButton } from "@/components/supernova/SupernovaGlowButton";
 import { SupernovaInput } from "@/components/supernova/SupernovaInput";
 import { averageSpendOnSoldCars } from "./reconSpend";
+import { readMoney } from "@/lib/parseMoney";
 
 export default function ReconWorkflow() {
   const { id } = useParams();
@@ -78,6 +79,13 @@ export default function ReconWorkflow() {
     setAddError("Enter both an item description and a cost before adding.");
     return;
   }
+  // The cost must be an amount above £0. "£120" or "1,200" used to become NaN and
+  // be saved as a cost of nothing, which then dropped out of the car's profit.
+  const costRead = readMoney(newCost, { positive: true });
+  if (!costRead.ok) {
+    setAddError(`Cost: ${costRead.message}`);
+    return;
+  }
   const qty = Number(qtyUsed) || 1;
   if (linkedConsumable && qty > linkedConsumable.currentStock) {
     setAddError(`Only ${linkedConsumable.currentStock}${linkedConsumable.unit ? ` ${linkedConsumable.unit}` : ""} of ${linkedConsumable.name} left in stock.`);
@@ -86,7 +94,7 @@ export default function ReconWorkflow() {
   setAddError(null);
   setSubmitting(true);
 
-  const amount = Number(newCost);
+  const amount = costRead.value;
 
   // Deduct stock FIRST, before logging the cost — recordStockMovement
   // is the one call here with a real error to check (addCost is a
@@ -297,6 +305,7 @@ const handleRemoveRecon = async (item: (typeof reconItems)[number]) => {
               label="Cost (£)"
               value={newCost}
               onChange={setNewCost}
+              inputMode="decimal"
               placeholder="150"
             />
 

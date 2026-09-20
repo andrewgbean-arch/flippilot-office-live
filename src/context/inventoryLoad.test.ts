@@ -436,3 +436,50 @@ describe("cars the app creates itself carry none of the invented fields", () => 
     stored.forEach(expectNoRetiredFields);
   });
 });
+
+describe("a car with no prices is stored unpriced (null), never at £0", () => {
+  it("a car added by hand with no buy or sell price", async () => {
+    await open();
+
+    const added = ctx().addManualVehicle({ make: "Ford", model: "Fiesta" });
+    await settle();
+
+    expect(added).toMatchObject({ priceRetail: null, priceTrade: null, buyPrice: null, sellPrice: null });
+    expect(stored[0]).toMatchObject({ priceRetail: null, priceTrade: null });
+    expect(stored[0].priceRetail).not.toBe(0);
+    expect(stored[0].priceTrade).not.toBe(0);
+  });
+
+  it("only the price that was given is set", async () => {
+    await open();
+
+    ctx().addManualVehicle({ make: "Ford", model: "Fiesta", buyPrice: 4500 });
+    await settle();
+
+    expect(stored[0]).toMatchObject({ priceTrade: 4500, priceRetail: null, buyPrice: 4500, sellPrice: null });
+  });
+
+  it("cars imported in bulk with no prices", async () => {
+    await open();
+
+    const built = ctx().importVehicles([
+      { make: "Ford", model: "Ka" },
+      { make: "Audi", model: "A3", buyPrice: 5000, sellPrice: 6500 },
+    ]);
+    await settle();
+
+    expect(built[0]).toMatchObject({ priceRetail: null, priceTrade: null });
+    expect(built[1]).toMatchObject({ priceRetail: 6500, priceTrade: 5000 });
+    expect(stored.find(c => c.model === "Ka")).toMatchObject({ priceRetail: null, priceTrade: null });
+  });
+
+  it("a car created from an MOT lookup has no price yet", async () => {
+    await open();
+
+    const added = ctx().createVehicleFromMOT({ make: "Ford", model: "Focus", year: 2017, mileage: 60000, expiry: "2030-01-01" });
+    await settle();
+
+    expect(added).toMatchObject({ priceRetail: null, priceTrade: null });
+    expect(stored[0]).toMatchObject({ priceRetail: null, priceTrade: null });
+  });
+});

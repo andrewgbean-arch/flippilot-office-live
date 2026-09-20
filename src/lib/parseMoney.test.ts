@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readMoney, parseMoney, moneyProblem, isPositiveAmount, MAX_MONEY, type MoneyProblem } from "./parseMoney";
+import { readMoney, parseMoney, moneyProblem, isPositiveAmount, readOptionalMoney, MAX_MONEY, type MoneyProblem } from "./parseMoney";
 
 // Hand-computed: every row is what a person would say the text means.
 describe("parseMoney reads what a dealer types", () => {
@@ -221,5 +221,34 @@ describe("isPositiveAmount: is a STORED number a usable price", () => {
     for (const n of [0, -0, -1, NaN, Infinity, -Infinity, null, undefined, "4500", {}, []]) {
       expect(isPositiveAmount(n), String(n)).toBe(false);
     }
+  });
+});
+
+describe("readOptionalMoney: an optional stock price is unset, never 0", () => {
+  it("blank is null, not 0", () => {
+    for (const blank of ["", "   ", null, undefined]) {
+      expect(readOptionalMoney(blank)).toEqual({ ok: true, value: null });
+    }
+  });
+
+  it("a typed 0 is unset too (a stock car is never priced at nothing)", () => {
+    expect(readOptionalMoney("0")).toEqual({ ok: true, value: null });
+    expect(readOptionalMoney("0.00")).toEqual({ ok: true, value: null });
+    expect(readOptionalMoney("£0")).toEqual({ ok: true, value: null });
+  });
+
+  it("a real price comes back as the number", () => {
+    expect(readOptionalMoney("7,250")).toEqual({ ok: true, value: 7250 });
+    expect(readOptionalMoney("£7,250.50")).toEqual({ ok: true, value: 7250.5 });
+    expect(readOptionalMoney(" 0.01 ")).toEqual({ ok: true, value: 0.01 });
+  });
+
+  it("something typed but unreadable is refused with its reason, never quietly dropped to null", () => {
+    expect(readOptionalMoney("7,25")).toMatchObject({ ok: false, reason: "commas" });
+    expect(readOptionalMoney("abc")).toMatchObject({ ok: false, reason: "unreadable" });
+    expect(readOptionalMoney("-5")).toMatchObject({ ok: false, reason: "negative" });
+    expect(readOptionalMoney("4.500,00")).toMatchObject({ ok: false, reason: "european" });
+    expect(readOptionalMoney("7250.999")).toMatchObject({ ok: false, reason: "pence" });
+    expect(readOptionalMoney("99999999999")).toMatchObject({ ok: false, reason: "too-large" });
   });
 });

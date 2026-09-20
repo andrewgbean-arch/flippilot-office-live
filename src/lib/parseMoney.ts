@@ -131,6 +131,21 @@ export function moneyProblem(input: unknown, options: MoneyOptions = {}): string
   return read.ok ? null : read.message;
 }
 
+export type OptionalMoneyRead =
+  | { ok: true; value: number | null }
+  | { ok: false; reason: MoneyProblem; message: string };
+
+// For an OPTIONAL stock price (an asking price, a trade price): blank means "not
+// priced yet" and comes back as null, never 0. A typed 0 means the same thing (a
+// stock car is never really priced at nothing), so it is unset too. Anything
+// that is typed but cannot be read is still refused: it is never dropped quietly.
+export function readOptionalMoney(input: unknown): OptionalMoneyRead {
+  const read = readMoney(input);
+  if (read.ok) return { ok: true, value: read.value > 0 ? read.value : null };
+  if (read.reason === "blank") return { ok: true, value: null };
+  return read;
+}
+
 // A stored amount that can be trusted as a real price: a finite number above
 // zero. A blank that was once saved as 0, or a NaN that JSON turned into null,
 // is NOT a price and must never be treated as one.
