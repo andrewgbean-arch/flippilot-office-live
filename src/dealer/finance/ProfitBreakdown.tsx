@@ -1,112 +1,180 @@
 import { useState } from "react";
 import "@/staff/StaffDashboard.css";
+import {
+  calculateProfitBreakdown,
+  formatMoney,
+  toAmount,
+  type ProfitVatTreatment,
+} from "./profitBreakdownModel";
+
+// The sums live in profitBreakdownModel.ts, which calls the same VAT code as
+// the bookkeeping module. This file used to take 1/6 of (sale - ALL costs),
+// which understated the VAT under the margin scheme.
+
+const TREATMENT_LABEL: Record<ProfitVatTreatment, string> = {
+  margin: "VAT margin scheme (VAT on sale price minus purchase price)",
+  standard: "Standard 20% VAT (sale price includes VAT)",
+  none: "No VAT taken off",
+};
 
 export default function ProfitBreakdown() {
-  const [purchasePrice, setPurchasePrice] = useState(0);
-  const [reconCost, setReconCost] = useState(0);
-  const [partsLabour, setPartsLabour] = useState(0);
-  const [otherCosts, setOtherCosts] = useState(0);
-  const [salePrice, setSalePrice] = useState(0);
-  const [vatMarginScheme, setVatMarginScheme] = useState(true);
+  // Text state, so a blank box stays blank instead of turning into a 0.
+  const [purchasePrice, setPurchasePrice] = useState("");
+  const [reconCost, setReconCost] = useState("");
+  const [partsLabour, setPartsLabour] = useState("");
+  const [otherCosts, setOtherCosts] = useState("");
+  const [salePrice, setSalePrice] = useState("");
+  const [treatment, setTreatment] = useState<ProfitVatTreatment>("margin");
 
-  const totalCosts = purchasePrice + reconCost + partsLabour + otherCosts;
-  const grossProfit = salePrice - totalCosts;
+  const result = calculateProfitBreakdown({
+    purchasePrice,
+    reconCost,
+    partsLabour,
+    otherCosts,
+    salePrice,
+    treatment,
+  });
 
-  // VAT margin scheme: VAT is only due on the profit margin (UK used car dealers)
-  const vatOnMargin = vatMarginScheme && grossProfit > 0 ? grossProfit * (1 / 6) : 0;
-  const netProfit = grossProfit - vatOnMargin;
-
-  const marginPct = salePrice > 0 ? (grossProfit / salePrice) * 100 : 0;
+  const dash = "—";
+  const enteredSale = toAmount(salePrice);
 
   return (
     <div className="sn-panel sn-panel--full">
       <h2 className="sn-panel__title">Profit Breakdown</h2>
       <p className="sn-form-note" style={{ marginTop: 0, marginBottom: 12 }}>
-        See the real margin on a vehicle after all costs.
+        Work out the profit on a vehicle after costs and VAT. The VAT figure is a guide to
+        check with your accountant, not a VAT return.
       </p>
 
       <div className="sn-form">
         <label>Purchase Price (£)</label>
         <input
           type="number"
+          min={0}
           className="sn-input"
           value={purchasePrice}
-          onChange={e => setPurchasePrice(Number(e.target.value))}
+          placeholder="0.00"
+          onChange={e => setPurchasePrice(e.target.value)}
         />
 
         <label>Reconditioning Cost (£)</label>
         <input
           type="number"
+          min={0}
           className="sn-input"
           value={reconCost}
-          onChange={e => setReconCost(Number(e.target.value))}
+          placeholder="0.00"
+          onChange={e => setReconCost(e.target.value)}
         />
 
         <label>Parts & Labour (£)</label>
         <input
           type="number"
+          min={0}
           className="sn-input"
           value={partsLabour}
-          onChange={e => setPartsLabour(Number(e.target.value))}
+          placeholder="0.00"
+          onChange={e => setPartsLabour(e.target.value)}
         />
 
         <label>Other Costs (£)</label>
         <input
           type="number"
+          min={0}
           className="sn-input"
           value={otherCosts}
-          onChange={e => setOtherCosts(Number(e.target.value))}
+          placeholder="0.00"
+          onChange={e => setOtherCosts(e.target.value)}
         />
 
         <label>Sale Price (£)</label>
         <input
           type="number"
+          min={0}
           className="sn-input"
           value={salePrice}
-          onChange={e => setSalePrice(Number(e.target.value))}
+          placeholder="0.00"
+          onChange={e => setSalePrice(e.target.value)}
         />
 
-        <label className="sn-checkbox-row">
-          <input
-            type="checkbox"
-            checked={vatMarginScheme}
-            onChange={e => setVatMarginScheme(e.target.checked)}
-          />
-          Apply VAT Margin Scheme
-        </label>
+        <label>VAT treatment</label>
+        <select
+          className="sn-input"
+          value={treatment}
+          onChange={e => setTreatment(e.target.value as ProfitVatTreatment)}
+        >
+          {(Object.keys(TREATMENT_LABEL) as ProfitVatTreatment[]).map(key => (
+            <option key={key} value={key}>{TREATMENT_LABEL[key]}</option>
+          ))}
+        </select>
       </div>
 
       <div className="sn-deal-summary">
         <h3 className="sn-panel__title" style={{ marginTop: 20 }}>Breakdown</h3>
 
+        {!result.ready && (
+          <p className="sn-form-note" style={{ marginTop: 0 }}>
+            Enter the purchase price and the sale price to see the profit and the VAT.
+          </p>
+        )}
+
         <div className="sn-deal-row">
-          <span>Total Costs</span>
-          <span>£{totalCosts.toFixed(2)}</span>
+          <span>Total Costs (purchase + recon + parts &amp; labour + other)</span>
+          <span>{formatMoney(result.totalCosts)}</span>
         </div>
         <div className="sn-deal-row">
           <span>Sale Price</span>
-          <span>£{salePrice.toFixed(2)}</span>
+          <span>{enteredSale === null ? dash : formatMoney(enteredSale)}</span>
         </div>
         <div className="sn-deal-row">
-          <span>Gross Profit</span>
-          <span>£{grossProfit.toFixed(2)}</span>
+          <span>Gross Profit (sale price minus all costs, before VAT)</span>
+          <span>{result.grossProfit === null ? dash : formatMoney(result.grossProfit)}</span>
         </div>
-        {vatMarginScheme && (
+        {treatment === "margin" && (
           <div className="sn-deal-row">
-            <span>VAT on Margin (1/6)</span>
-            <span>-£{vatOnMargin.toFixed(2)}</span>
+            <span>
+              VAT on margin (1/6 of sale price minus purchase price
+              {result.vatBasis === null ? "" : `, ${formatMoney(result.vatBasis)}`})
+            </span>
+            <span>{result.vat === null ? dash : `-${formatMoney(result.vat)}`}</span>
+          </div>
+        )}
+        {treatment === "standard" && (
+          <div className="sn-deal-row">
+            <span>VAT in the sale price (1/6 at 20%)</span>
+            <span>{result.vat === null ? dash : `-${formatMoney(result.vat)}`}</span>
           </div>
         )}
         <div className="sn-deal-row sn-deal-row--total">
-          <span>Net Profit</span>
-          <span style={{ color: netProfit >= 0 ? "#00dc8c" : "#ff6b6b" }}>
-            £{netProfit.toFixed(2)}
+          <span>{treatment === "none" ? "Profit (no VAT taken off)" : "Net profit after VAT"}</span>
+          <span
+            style={
+              result.netProfit === null
+                ? undefined
+                : { color: result.netProfit >= 0 ? "#00dc8c" : "#ff6b6b" }
+            }
+          >
+            {result.netProfit === null ? dash : formatMoney(result.netProfit)}
           </span>
         </div>
         <div className="sn-deal-row">
-          <span>Margin %</span>
-          <span>{marginPct.toFixed(1)}%</span>
+          <span>Margin % (gross profit as a share of the sale price)</span>
+          <span>{result.marginPct === null ? dash : `${result.marginPct.toFixed(1)}%`}</span>
         </div>
+
+        {treatment === "margin" && (
+          <p className="sn-form-note">
+            Under the margin scheme the VAT is worked out on sale price minus purchase price only.
+            Reconditioning, parts and other costs do not reduce it, and no VAT is due if the car
+            sells for less than it cost.
+          </p>
+        )}
+        {treatment === "standard" && (
+          <p className="sn-form-note">
+            The sale price is treated as including 20% VAT. Enter your costs without any VAT you
+            can reclaim.
+          </p>
+        )}
       </div>
     </div>
   );
