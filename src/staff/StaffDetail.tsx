@@ -70,15 +70,15 @@ export default function StaffDetail() {
       </div>
 
       <div className="sn-form">
-        <label>Name</label>
-        <input
+        <label htmlFor="staffdetail-name">Name</label>
+        <input id="staffdetail-name"
           className="sn-input"
           value={form.name}
           onChange={e => update("name", e.target.value)}
         />
 
-        <label>Role</label>
-        <select
+        <label htmlFor="staffdetail-role">Role</label>
+        <select id="staffdetail-role"
           className="sn-input"
           value={form.role}
           onChange={e => update("role", e.target.value as StaffRole)}
@@ -93,53 +93,53 @@ export default function StaffDetail() {
           <option value="staff">Other / General Staff</option>
         </select>
 
-        <label>Branch</label>
-        <input
+        <label htmlFor="staffdetail-branch">Branch</label>
+        <input id="staffdetail-branch"
           className="sn-input"
           value={form.branch ?? ""}
           onChange={e => update("branch", e.target.value)}
         />
 
-        <label>Email</label>
-        <input
+        <label htmlFor="staffdetail-email">Email</label>
+        <input id="staffdetail-email"
           className="sn-input"
           value={form.email ?? ""}
           onChange={e => update("email", e.target.value)}
         />
 
-        <label>Phone</label>
-        <input
+        <label htmlFor="staffdetail-phone">Phone</label>
+        <input id="staffdetail-phone"
           className="sn-input"
           value={form.phone ?? ""}
           onChange={e => update("phone", e.target.value)}
         />
 
-        <label>National Insurance Number</label>
-        <input
+        <label htmlFor="staffdetail-national-insurance-number">National Insurance Number</label>
+        <input id="staffdetail-national-insurance-number"
           className="sn-input"
           value={form.nationalInsurance ?? ""}
           onChange={e => update("nationalInsurance", e.target.value)}
           placeholder="e.g. QQ123456C"
         />
 
-        <label>Address</label>
-        <textarea
+        <label htmlFor="staffdetail-address">Address</label>
+        <textarea id="staffdetail-address"
           className="sn-input sn-textarea"
           value={form.address ?? ""}
           onChange={e => update("address", e.target.value)}
           rows={3}
         />
 
-        <label>Skills (comma separated)</label>
-        <input
+        <label htmlFor="staffdetail-skills-comma-separated">Skills (comma separated)</label>
+        <input id="staffdetail-skills-comma-separated"
           className="sn-input"
           value={skillsInput}
           onChange={e => setSkillsInput(e.target.value)}
           placeholder="e.g. Valuations, Finance, MOT prep"
         />
 
-        <label>Notes</label>
-        <textarea
+        <label htmlFor="staffdetail-notes">Notes</label>
+        <textarea id="staffdetail-notes"
           className="sn-input sn-textarea"
           value={form.notes ?? ""}
           onChange={e => update("notes", e.target.value)}

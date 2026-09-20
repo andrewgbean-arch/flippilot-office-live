@@ -32,8 +32,8 @@ export default function DealSheet() {
       </p>
 
       <div className="sn-form">
-        <label>Customer / Lead</label>
-        <select
+        <label htmlFor="dealsheet-customer-lead">Customer / Lead</label>
+        <select id="dealsheet-customer-lead"
           className="sn-input"
           value={leadId}
           onChange={e => setLeadId(e.target.value)}
@@ -46,48 +46,48 @@ export default function DealSheet() {
           ))}
         </select>
 
-        <label>Vehicle</label>
-        <input
+        <label htmlFor="dealsheet-vehicle">Vehicle</label>
+        <input id="dealsheet-vehicle"
           className="sn-input"
           value={vehicle}
           onChange={e => setVehicle(e.target.value)}
           placeholder="e.g. BMW M2 Competition"
         />
 
-        <label>Sale Price (£)</label>
-        <input
+        <label htmlFor="dealsheet-sale-price">Sale Price (£)</label>
+        <input id="dealsheet-sale-price"
           type="number"
           className="sn-input"
           value={salePrice}
           onChange={e => setSalePrice(Number(e.target.value))}
         />
 
-        <label>Trade-In Value (£)</label>
-        <input
+        <label htmlFor="dealsheet-trade-in-value">Trade-In Value (£)</label>
+        <input id="dealsheet-trade-in-value"
           type="number"
           className="sn-input"
           value={tradeInValue}
           onChange={e => setTradeInValue(Number(e.target.value))}
         />
 
-        <label>Deposit (£)</label>
-        <input
+        <label htmlFor="dealsheet-deposit">Deposit (£)</label>
+        <input id="dealsheet-deposit"
           type="number"
           className="sn-input"
           value={deposit}
           onChange={e => setDeposit(Number(e.target.value))}
         />
 
-        <label>Finance Term (months)</label>
-        <input
+        <label htmlFor="dealsheet-finance-term-months">Finance Term (months)</label>
+        <input id="dealsheet-finance-term-months"
           type="number"
           className="sn-input"
           value={financeTerm}
           onChange={e => setFinanceTerm(Number(e.target.value))}
         />
 
-        <label>APR (%)</label>
-        <input
+        <label htmlFor="dealsheet-apr">APR (%)</label>
+        <input id="dealsheet-apr"
           type="number"
           className="sn-input"
           value={apr}

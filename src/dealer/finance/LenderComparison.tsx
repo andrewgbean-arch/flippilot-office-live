@@ -58,8 +58,8 @@ export default function LenderComparison() {
           onChange={e => setAmount(Number(e.target.value))}
         />
 
-        <label>Term (months)</label>
-        <input
+        <label htmlFor="lendercomparison-term-months">Term (months)</label>
+        <input id="lendercomparison-term-months"
           type="number"
           className="sn-input"
           value={term}

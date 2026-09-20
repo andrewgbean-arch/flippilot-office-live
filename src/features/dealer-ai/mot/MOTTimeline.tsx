@@ -131,7 +131,7 @@ export default function MOTTimeline() {
                     </ul>
                   </div>
                 ) : (
-                  <p className="text-white/40 text-sm">No advisories</p>
+                  <p className="text-white/60 text-sm">No advisories</p>
                 )}
               </div>
             </SupernovaGlowCard>

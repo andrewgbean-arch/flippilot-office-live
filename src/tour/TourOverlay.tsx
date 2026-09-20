@@ -37,7 +37,7 @@ export function TourOverlay() {
               Yes, I have sound
             </button>
           </div>
-          <button onClick={stopTour} className="mt-4 text-white/40 hover:text-white/70 text-xs transition">
+          <button onClick={stopTour} className="mt-4 text-white/60 hover:text-white/70 text-xs transition">
             Skip tour
           </button>
         </div>

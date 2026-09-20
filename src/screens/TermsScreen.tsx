@@ -12,7 +12,7 @@ export default function TermsScreen() {
         </Link>
 
         <h1 className="text-3xl font-bold text-yellow-300 mt-6 mb-2">Terms of Service</h1>
-        <p className="text-white/40 text-sm mb-8">Last updated: 2026</p>
+        <p className="text-white/60 text-sm mb-8">Last updated: 2026</p>
 
         <div className="space-y-6 text-white/70 text-sm leading-relaxed">
           <section>

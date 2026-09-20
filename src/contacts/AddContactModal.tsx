@@ -63,8 +63,8 @@ export default function AddContactModal({ existing, onClose }: AddContactModalPr
       <div className="bg-black/80 border border-white/10 p-6 rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <h2 className="text-white/80 text-xl font-semibold mb-4">{existing ? "Edit Contact" : "Add Contact"}</h2>
 
-        <label className="text-white/60 text-sm">Business Name</label>
-        <input
+        <label htmlFor="addcontactmodal-business-name" className="text-white/60 text-sm">Business Name</label>
+        <input id="addcontactmodal-business-name"
           type="text"
           value={name}
           onChange={e => setName(e.target.value)}
@@ -72,8 +72,8 @@ export default function AddContactModal({ existing, onClose }: AddContactModalPr
           className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-4"
         />
 
-        <label className="text-white/60 text-sm">Category</label>
-        <select
+        <label htmlFor="addcontactmodal-category" className="text-white/60 text-sm">Category</label>
+        <select id="addcontactmodal-category"
           value={category}
           onChange={e => setCategory(e.target.value as ContactCategory)}
           className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-4"
@@ -83,8 +83,8 @@ export default function AddContactModal({ existing, onClose }: AddContactModalPr
           ))}
         </select>
 
-        <label className="text-white/60 text-sm">Contact Person (optional)</label>
-        <input
+        <label htmlFor="addcontactmodal-contact-person-optional" className="text-white/60 text-sm">Contact Person (optional)</label>
+        <input id="addcontactmodal-contact-person-optional"
           type="text"
           value={contactName}
           onChange={e => setContactName(e.target.value)}
@@ -94,8 +94,8 @@ export default function AddContactModal({ existing, onClose }: AddContactModalPr
 
         <div className="grid grid-cols-2 gap-4 mb-4">
           <div>
-            <label className="text-white/60 text-sm">Email (optional)</label>
-            <input
+            <label htmlFor="addcontactmodal-email-optional" className="text-white/60 text-sm">Email (optional)</label>
+            <input id="addcontactmodal-email-optional"
               type="email"
               value={email}
               onChange={e => setEmail(e.target.value)}
@@ -103,8 +103,8 @@ export default function AddContactModal({ existing, onClose }: AddContactModalPr
             />
           </div>
           <div>
-            <label className="text-white/60 text-sm">Phone (optional)</label>
-            <input
+            <label htmlFor="addcontactmodal-phone-optional" className="text-white/60 text-sm">Phone (optional)</label>
+            <input id="addcontactmodal-phone-optional"
               type="text"
               value={phone}
               onChange={e => setPhone(e.target.value)}
@@ -113,16 +113,16 @@ export default function AddContactModal({ existing, onClose }: AddContactModalPr
           </div>
         </div>
 
-        <label className="text-white/60 text-sm">Address (optional)</label>
-        <input
+        <label htmlFor="addcontactmodal-address-optional" className="text-white/60 text-sm">Address (optional)</label>
+        <input id="addcontactmodal-address-optional"
           type="text"
           value={address}
           onChange={e => setAddress(e.target.value)}
           className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-4"
         />
 
-        <label className="text-white/60 text-sm">Notes (optional)</label>
-        <textarea
+        <label htmlFor="addcontactmodal-notes-optional" className="text-white/60 text-sm">Notes (optional)</label>
+        <textarea id="addcontactmodal-notes-optional"
           value={notes}
           onChange={e => setNotes(e.target.value)}
           rows={2}

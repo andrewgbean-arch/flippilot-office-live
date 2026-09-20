@@ -315,8 +315,8 @@ export default function EditVehicle({ vehicleId }: EditVehicleProps) {
           </div>
 
           <div className="mt-4">
-            <label className="text-white/70 text-sm mb-1 block">VAT Scheme (for when this vehicle is sold)</label>
-            <select
+            <label htmlFor="editvehicle-vat-scheme-for-when-this-vehicle-is-sold" className="text-white/70 text-sm mb-1 block">VAT Scheme (for when this vehicle is sold)</label>
+            <select id="editvehicle-vat-scheme-for-when-this-vehicle-is-sold"
               value={vatScheme}
               onChange={(e) => setVatScheme(e.target.value as "margin" | "standard")}
               className="bg-black/40 border border-white/20 rounded-xl px-4 py-3 text-white w-full"
@@ -395,7 +395,7 @@ export default function EditVehicle({ vehicleId }: EditVehicleProps) {
             onChange={handleImageUpload}
             className="mb-4 text-white"
           />
-          <p className="text-white/40 text-xs -mt-2 mb-4">
+          <p className="text-white/60 text-xs -mt-2 mb-4">
             Select multiple photos at once. The first photo is used as the cover everywhere this vehicle is shown.
           </p>
 

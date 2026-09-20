@@ -81,16 +81,16 @@ export default function ShiftEditModal({ userId, userName, date, existing, onClo
         <h2 className="text-white/80 text-xl font-semibold mb-1">{userName}</h2>
         <p className="text-white/50 text-sm mb-4">{date}</p>
 
-        <label className="text-white/60 text-sm">Start</label>
-        <input
+        <label htmlFor="shifteditmodal-start" className="text-white/60 text-sm">Start</label>
+        <input id="shifteditmodal-start"
           type="time"
           value={start}
           onChange={e => setStart(e.target.value)}
           className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-4"
         />
 
-        <label className="text-white/60 text-sm">End</label>
-        <input
+        <label htmlFor="shifteditmodal-end" className="text-white/60 text-sm">End</label>
+        <input id="shifteditmodal-end"
           type="time"
           value={end}
           onChange={e => setEnd(e.target.value)}
@@ -99,8 +99,8 @@ export default function ShiftEditModal({ userId, userName, date, existing, onClo
         {end <= start && <p className="text-red-400 text-xs mb-4">End time must be after start time.</p>}
         {error && <p className="text-red-400 text-xs mb-4">{error}</p>}
 
-        <label className="text-white/60 text-sm">Notes (optional)</label>
-        <input
+        <label htmlFor="shifteditmodal-notes-optional" className="text-white/60 text-sm">Notes (optional)</label>
+        <input id="shifteditmodal-notes-optional"
           type="text"
           value={notes}
           onChange={e => setNotes(e.target.value)}

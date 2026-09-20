@@ -43,8 +43,8 @@ export default function ProfitBreakdown() {
       </p>
 
       <div className="sn-form">
-        <label>Purchase Price (£)</label>
-        <input
+        <label htmlFor="profitbreakdown-purchase-price">Purchase Price (£)</label>
+        <input id="profitbreakdown-purchase-price"
           type="number"
           min={0}
           className="sn-input"
@@ -53,8 +53,8 @@ export default function ProfitBreakdown() {
           onChange={e => setPurchasePrice(e.target.value)}
         />
 
-        <label>Reconditioning Cost (£)</label>
-        <input
+        <label htmlFor="profitbreakdown-reconditioning-cost">Reconditioning Cost (£)</label>
+        <input id="profitbreakdown-reconditioning-cost"
           type="number"
           min={0}
           className="sn-input"
@@ -63,8 +63,8 @@ export default function ProfitBreakdown() {
           onChange={e => setReconCost(e.target.value)}
         />
 
-        <label>Parts & Labour (£)</label>
-        <input
+        <label htmlFor="profitbreakdown-parts-labour">Parts & Labour (£)</label>
+        <input id="profitbreakdown-parts-labour"
           type="number"
           min={0}
           className="sn-input"
@@ -73,8 +73,8 @@ export default function ProfitBreakdown() {
           onChange={e => setPartsLabour(e.target.value)}
         />
 
-        <label>Other Costs (£)</label>
-        <input
+        <label htmlFor="profitbreakdown-other-costs">Other Costs (£)</label>
+        <input id="profitbreakdown-other-costs"
           type="number"
           min={0}
           className="sn-input"
@@ -83,8 +83,8 @@ export default function ProfitBreakdown() {
           onChange={e => setOtherCosts(e.target.value)}
         />
 
-        <label>Sale Price (£)</label>
-        <input
+        <label htmlFor="profitbreakdown-sale-price">Sale Price (£)</label>
+        <input id="profitbreakdown-sale-price"
           type="number"
           min={0}
           className="sn-input"
@@ -93,8 +93,8 @@ export default function ProfitBreakdown() {
           onChange={e => setSalePrice(e.target.value)}
         />
 
-        <label>VAT treatment</label>
-        <select
+        <label htmlFor="profitbreakdown-vat-treatment">VAT treatment</label>
+        <select id="profitbreakdown-vat-treatment"
           className="sn-input"
           value={treatment}
           onChange={e => setTreatment(e.target.value as ProfitVatTreatment)}

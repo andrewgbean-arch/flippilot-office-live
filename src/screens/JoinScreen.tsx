@@ -116,7 +116,7 @@ export default function JoinScreen() {
               </h1>
               <p className="text-white/60 text-sm mt-1">Create your account to get started</p>
               {staffRole && (
-                <p className="text-white/40 text-xs mt-2">
+                <p className="text-white/60 text-xs mt-2">
                   You're being added as: <span className="text-yellow-300/80 capitalize">{staffRole}</span>
                 </p>
               )}
@@ -172,7 +172,7 @@ export default function JoinScreen() {
                 minLength={8}
                 className="w-full px-4 py-2 rounded-lg bg-black/40 border border-white/20 text-white focus:border-yellow-400/60 outline-none"
               />
-              <p className="text-white/40 text-xs mt-1">At least 8 characters</p>
+              <p className="text-white/60 text-xs mt-1">At least 8 characters</p>
             </div>
 
             <button

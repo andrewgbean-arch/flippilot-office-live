@@ -33,7 +33,7 @@ export default function PilotBrainWatcherCard() {
   if (loading) {
     return (
       <div className="bg-black/20 border border-white/10 rounded-xl p-6 backdrop-blur-xl">
-        <p className="text-white/40 text-sm">Pilot Brain is checking your business…</p>
+        <p className="text-white/60 text-sm">Pilot Brain is checking your business…</p>
       </div>
     );
   }
@@ -76,7 +76,7 @@ export default function PilotBrainWatcherCard() {
         </div>
       )}
 
-      <p className="text-white/30 text-xs mt-4">Tap to talk to Pilot Brain about any of this.</p>
+      <p className="text-white/60 text-xs mt-4">Tap to talk to Pilot Brain about any of this.</p>
     </div>
   );
 }

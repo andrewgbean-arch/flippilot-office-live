@@ -31,12 +31,12 @@ function EventRow({ event }: { event: SecurityEvent }) {
     <li className="p-3 rounded bg-black/40 border border-white/10">
       <p className="text-sm">
         <span className={`font-semibold ${KIND_STYLE[event.kind]}`}>{KIND_LABEL[event.kind]}</span>
-        <span className="text-white/40"> · {event.userName} · {when(event.at)}</span>
+        <span className="text-white/60"> · {event.userName} · {when(event.at)}</span>
       </p>
       {/* what was actually typed: shown as plain text, never as markup */}
       <p className="text-white/80 text-sm mt-1 break-words">{event.snippet || "(nothing recorded)"}</p>
       {event.categories.length > 0 && (
-        <p className="text-white/40 text-xs mt-1">{event.categories.map(c => c.replace(/_/g, " ")).join(" · ")}</p>
+        <p className="text-white/60 text-xs mt-1">{event.categories.map(c => c.replace(/_/g, " ")).join(" · ")}</p>
       )}
     </li>
   );
@@ -72,7 +72,7 @@ export function SecurityLogView({
             {log.locked.map(p => (
               <li key={p.userId} className="p-3 rounded bg-black/40 border border-red-400/30 flex items-center justify-between gap-3">
                 <span className="text-sm text-white/90">
-                  {p.userName} <span className="text-white/40">· until {when(p.until)}</span>
+                  {p.userName} <span className="text-white/60">· until {when(p.until)}</span>
                 </span>
                 <SupernovaGlowButton label={busy === p.userId ? "Working…" : "Lift pause"} onClick={busy ? () => {} : () => onUnlock(p.userId)} />
               </li>
@@ -83,9 +83,9 @@ export function SecurityLogView({
 
       <h3 className="text-white/80 text-sm font-semibold mb-2">Recent events</h3>
       {!log ? (
-        <p className="text-white/40 text-sm">{error ? "" : "Loading…"}</p>
+        <p className="text-white/60 text-sm">{error ? "" : "Loading…"}</p>
       ) : log.events.length === 0 ? (
-        <p className="text-white/40 text-sm">Nothing so far. No one has tried to get around Wendy's rules.</p>
+        <p className="text-white/60 text-sm">Nothing so far. No one has tried to get around Wendy's rules.</p>
       ) : (
         <ul className="space-y-2">
           {log.events.map(e => (

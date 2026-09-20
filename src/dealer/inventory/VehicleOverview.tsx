@@ -400,7 +400,7 @@ export default function VehicleOverview() {
                     ? "text-green-300"
                     : ulez.status === "non-compliant"
                     ? "text-red-400"
-                    : "text-white/40"
+                    : "text-white/60"
                 }
               >
                 {ulez.label}
@@ -503,7 +503,7 @@ export default function VehicleOverview() {
                   <p className="text-white/50 text-sm">No usable dealer price mentions found for this search.</p>
                 )}
                 {googleGuideStatus === "idle" && !googleGuide && (
-                  <p className="text-white/40 text-sm">AutoTrader, Cazoo, AutoUncle, Parkers and others — click to cross-reference.</p>
+                  <p className="text-white/60 text-sm">AutoTrader, Cazoo, AutoUncle, Parkers and others — click to cross-reference.</p>
                 )}
               </div>
             </div>

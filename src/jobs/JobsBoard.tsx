@@ -70,7 +70,7 @@ function JobCard({ job, onEdit }: { job: Job; onEdit: (job: Job) => void }) {
           {job.assignedToName ? `👤 ${job.assignedToName}` : "Unassigned"}
         </span>
         {job.dueDate && (
-          <span className={isOverdue ? "text-red-400 font-semibold" : "text-white/40"}>
+          <span className={isOverdue ? "text-red-400 font-semibold" : "text-white/60"}>
             {isOverdue ? "Overdue: " : "Due "}
             {new Date(job.dueDate).toLocaleDateString()}
           </span>
@@ -139,11 +139,11 @@ export default function JobsBoard() {
               <SupernovaGlowCard key={col.status}>
                 <h2 className="text-yellow-300 font-bold text-lg mb-4 flex justify-between items-center">
                   {col.label}
-                  <span className="text-white/40 text-sm font-normal">{colJobs.length}</span>
+                  <span className="text-white/60 text-sm font-normal">{colJobs.length}</span>
                 </h2>
 
                 {colJobs.length === 0 ? (
-                  <p className="text-white/40 text-sm">Nothing here.</p>
+                  <p className="text-white/60 text-sm">Nothing here.</p>
                 ) : (
                   colJobs
                     .slice()

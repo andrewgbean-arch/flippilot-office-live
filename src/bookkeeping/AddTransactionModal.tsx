@@ -48,8 +48,8 @@ export default function AddTransactionModal({
 
         {/* FORM */}
         <div className="flex flex-col gap-4">
-          <label className="text-white/60 text-sm -mb-2">Type</label>
-          <select
+          <label htmlFor="addtransactionmodal-type" className="text-white/60 text-sm -mb-2">Type</label>
+          <select id="addtransactionmodal-type"
             className="bg-black/40 border border-white/20 p-3 rounded-lg text-white"
             value={type}
             onChange={(e) => setType(e.target.value as "income" | "expense")}
@@ -58,16 +58,16 @@ export default function AddTransactionModal({
             <option value="income">Income</option>
           </select>
 
-          <label className="text-white/60 text-sm -mb-2">Category</label>
-          <input
+          <label htmlFor="addtransactionmodal-category" className="text-white/60 text-sm -mb-2">Category</label>
+          <input id="addtransactionmodal-category"
             className="bg-black/40 border border-white/20 p-3 rounded-lg text-white"
             placeholder="e.g. Transport, Parts, Rent, Other Income"
             value={category}
             onChange={(e) => setCategory(e.target.value)}
           />
 
-          <label className="text-white/60 text-sm -mb-2">Amount (£)</label>
-          <input
+          <label htmlFor="addtransactionmodal-amount" className="text-white/60 text-sm -mb-2">Amount (£)</label>
+          <input id="addtransactionmodal-amount"
             type="number"
             className="bg-black/40 border border-white/20 p-3 rounded-lg text-white"
             placeholder="0.00"
@@ -75,8 +75,8 @@ export default function AddTransactionModal({
             onChange={(e) => setAmount(e.target.value)}
           />
 
-          <label className="text-white/60 text-sm -mb-2">Notes</label>
-          <textarea
+          <label htmlFor="addtransactionmodal-notes" className="text-white/60 text-sm -mb-2">Notes</label>
+          <textarea id="addtransactionmodal-notes"
             className="bg-black/40 border border-white/20 p-3 rounded-lg text-white"
             placeholder="Notes"
             value={notes}

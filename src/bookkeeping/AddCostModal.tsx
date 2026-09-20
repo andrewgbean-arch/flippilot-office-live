@@ -68,8 +68,8 @@ export default function AddCostModal({ vehicleId: initialVehicleId, onClose }: A
         <VehiclePicker value={vehicleId} onChange={setVehicleId} />
 
         {/* TYPE */}
-        <label className="text-white/60 text-sm">Cost Type</label>
-        <select
+        <label htmlFor="addcostmodal-cost-type" className="text-white/60 text-sm">Cost Type</label>
+        <select id="addcostmodal-cost-type"
           value={type}
           onChange={(e) => setType(e.target.value as CostType)}
           className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-4"
@@ -87,8 +87,8 @@ export default function AddCostModal({ vehicleId: initialVehicleId, onClose }: A
         </select>
 
         {/* AMOUNT */}
-        <label className="text-white/60 text-sm">Amount</label>
-        <input
+        <label htmlFor="addcostmodal-amount" className="text-white/60 text-sm">Amount</label>
+        <input id="addcostmodal-amount"
           type="number"
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
@@ -97,8 +97,8 @@ export default function AddCostModal({ vehicleId: initialVehicleId, onClose }: A
         />
 
         {/* VAT RATE */}
-        <label className="text-white/60 text-sm">VAT Rate (%)</label>
-        <input
+        <label htmlFor="addcostmodal-vat-rate" className="text-white/60 text-sm">VAT Rate (%)</label>
+        <input id="addcostmodal-vat-rate"
           type="number"
           step="1"
           value={vatRate}
@@ -108,8 +108,8 @@ export default function AddCostModal({ vehicleId: initialVehicleId, onClose }: A
         />
 
         {/* VAT INCLUDED */}
-        <label className="text-white/60 text-sm">VAT Included?</label>
-        <select
+        <label htmlFor="addcostmodal-vat-included" className="text-white/60 text-sm">VAT Included?</label>
+        <select id="addcostmodal-vat-included"
           value={vatIncluded ? "yes" : "no"}
           onChange={(e) => setVatIncluded(e.target.value === "yes")}
           className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-4"
@@ -119,8 +119,8 @@ export default function AddCostModal({ vehicleId: initialVehicleId, onClose }: A
         </select>
 
         {/* VAT RECLAIMABLE */}
-        <label className="text-white/60 text-sm">VAT Reclaimable?</label>
-        <select
+        <label htmlFor="addcostmodal-vat-reclaimable" className="text-white/60 text-sm">VAT Reclaimable?</label>
+        <select id="addcostmodal-vat-reclaimable"
           value={vatReclaimable ? "yes" : "no"}
           onChange={(e) => setVatReclaimable(e.target.value === "yes")}
           className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-4"
@@ -130,8 +130,8 @@ export default function AddCostModal({ vehicleId: initialVehicleId, onClose }: A
         </select>
 
         {/* SUPPLIER */}
-        <label className="text-white/60 text-sm">Supplier</label>
-        <input
+        <label htmlFor="addcostmodal-supplier" className="text-white/60 text-sm">Supplier</label>
+        <input id="addcostmodal-supplier"
           type="text"
           value={supplier}
           onChange={(e) => setSupplier(e.target.value)}
@@ -139,16 +139,16 @@ export default function AddCostModal({ vehicleId: initialVehicleId, onClose }: A
         />
 
         {/* NOTES */}
-        <label className="text-white/60 text-sm">Notes</label>
-        <textarea
+        <label htmlFor="addcostmodal-notes" className="text-white/60 text-sm">Notes</label>
+        <textarea id="addcostmodal-notes"
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-4"
         />
 
         {/* DATE */}
-        <label className="text-white/60 text-sm">Date</label>
-        <input
+        <label htmlFor="addcostmodal-date" className="text-white/60 text-sm">Date</label>
+        <input id="addcostmodal-date"
           type="date"
           value={date}
           onChange={(e) => setDate(e.target.value)}

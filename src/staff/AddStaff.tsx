@@ -71,15 +71,15 @@ export default function AddStaff() {
       <h2 className="sn-panel__title">Add Staff Member</h2>
 
       <div className="sn-form">
-        <label>Name</label>
-        <input
+        <label htmlFor="addstaff-name">Name</label>
+        <input id="addstaff-name"
           className="sn-input"
           value={name}
           onChange={e => setName(e.target.value)}
         />
 
-        <label>Role</label>
-        <select
+        <label htmlFor="addstaff-role">Role</label>
+        <select id="addstaff-role"
           className="sn-input"
           value={role}
           onChange={e => setRole(e.target.value as StaffRole)}
@@ -94,22 +94,22 @@ export default function AddStaff() {
           <option value="staff">Other / General Staff</option>
         </select>
 
-        <label>Branch</label>
-        <input
+        <label htmlFor="addstaff-branch">Branch</label>
+        <input id="addstaff-branch"
           className="sn-input"
           value={branch}
           onChange={e => setBranch(e.target.value)}
         />
 
-        <label>Email</label>
-        <input
+        <label htmlFor="addstaff-email">Email</label>
+        <input id="addstaff-email"
           className="sn-input"
           value={email}
           onChange={e => setEmail(e.target.value)}
         />
 
-        <label>Phone</label>
-        <input
+        <label htmlFor="addstaff-phone">Phone</label>
+        <input id="addstaff-phone"
           className="sn-input"
           value={phone}
           onChange={e => setPhone(e.target.value)}

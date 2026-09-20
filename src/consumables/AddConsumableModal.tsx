@@ -65,8 +65,8 @@ export default function AddConsumableModal({ existing, onClose }: AddConsumableM
       <div className="bg-black/80 border border-white/10 p-6 rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <h2 className="text-white/80 text-xl font-semibold mb-4">{existing ? "Edit Consumable" : "Add Consumable"}</h2>
 
-        <label className="text-white/60 text-sm">Item Name</label>
-        <input
+        <label htmlFor="addconsumablemodal-item-name" className="text-white/60 text-sm">Item Name</label>
+        <input id="addconsumablemodal-item-name"
           type="text"
           value={name}
           onChange={e => setName(e.target.value)}
@@ -76,8 +76,8 @@ export default function AddConsumableModal({ existing, onClose }: AddConsumableM
 
         <div className="grid grid-cols-2 gap-4 mb-4">
           <div>
-            <label className="text-white/60 text-sm">Part Number (optional)</label>
-            <input
+            <label htmlFor="addconsumablemodal-part-number-optional" className="text-white/60 text-sm">Part Number (optional)</label>
+            <input id="addconsumablemodal-part-number-optional"
               type="text"
               value={partNumber}
               onChange={e => setPartNumber(e.target.value)}
@@ -86,8 +86,8 @@ export default function AddConsumableModal({ existing, onClose }: AddConsumableM
             />
           </div>
           <div>
-            <label className="text-white/60 text-sm">Description (optional)</label>
-            <input
+            <label htmlFor="addconsumablemodal-description-optional" className="text-white/60 text-sm">Description (optional)</label>
+            <input id="addconsumablemodal-description-optional"
               type="text"
               value={description}
               onChange={e => setDescription(e.target.value)}
@@ -99,10 +99,10 @@ export default function AddConsumableModal({ existing, onClose }: AddConsumableM
 
         <div className="grid grid-cols-2 gap-4 mb-4">
           <div>
-            <label className="text-white/60 text-sm">
+            <label htmlFor="addconsumablemodal-field" className="text-white/60 text-sm">
               {existing ? "Current Stock" : "Starting Stock"}
             </label>
-            <input
+            <input id="addconsumablemodal-field"
               type="number"
               value={currentStock}
               onChange={e => setCurrentStock(e.target.value)}
@@ -110,12 +110,12 @@ export default function AddConsumableModal({ existing, onClose }: AddConsumableM
               className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 disabled:opacity-50"
             />
             {existing && (
-              <p className="text-white/40 text-xs mt-1">Use "Stock" on the item's row to log a delivery or correction.</p>
+              <p className="text-white/60 text-xs mt-1">Use "Stock" on the item's row to log a delivery or correction.</p>
             )}
           </div>
           <div>
-            <label className="text-white/60 text-sm">Reorder Below</label>
-            <input
+            <label htmlFor="addconsumablemodal-reorder-below" className="text-white/60 text-sm">Reorder Below</label>
+            <input id="addconsumablemodal-reorder-below"
               type="number"
               value={reorderThreshold}
               onChange={e => setReorderThreshold(e.target.value)}
@@ -124,8 +124,8 @@ export default function AddConsumableModal({ existing, onClose }: AddConsumableM
           </div>
         </div>
 
-        <label className="text-white/60 text-sm">Unit (optional)</label>
-        <input
+        <label htmlFor="addconsumablemodal-unit-optional" className="text-white/60 text-sm">Unit (optional)</label>
+        <input id="addconsumablemodal-unit-optional"
           type="text"
           value={unit}
           onChange={e => setUnit(e.target.value)}
@@ -133,16 +133,16 @@ export default function AddConsumableModal({ existing, onClose }: AddConsumableM
           className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-4"
         />
 
-        <label className="text-white/60 text-sm">Supplier Name (optional)</label>
-        <input
+        <label htmlFor="addconsumablemodal-supplier-name-optional" className="text-white/60 text-sm">Supplier Name (optional)</label>
+        <input id="addconsumablemodal-supplier-name-optional"
           type="text"
           value={supplierName}
           onChange={e => setSupplierName(e.target.value)}
           className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-4"
         />
 
-        <label className="text-white/60 text-sm">Supplier Email (optional — needed for the Order button)</label>
-        <input
+        <label htmlFor="addconsumablemodal-supplier-email-optional-needed-for-the-order-button" className="text-white/60 text-sm">Supplier Email (optional — needed for the Order button)</label>
+        <input id="addconsumablemodal-supplier-email-optional-needed-for-the-order-button"
           type="email"
           value={supplierEmail}
           onChange={e => setSupplierEmail(e.target.value)}
@@ -150,8 +150,8 @@ export default function AddConsumableModal({ existing, onClose }: AddConsumableM
           className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-4"
         />
 
-        <label className="text-white/60 text-sm">Supplier Phone (optional)</label>
-        <input
+        <label htmlFor="addconsumablemodal-supplier-phone-optional" className="text-white/60 text-sm">Supplier Phone (optional)</label>
+        <input id="addconsumablemodal-supplier-phone-optional"
           type="text"
           value={supplierPhone}
           onChange={e => setSupplierPhone(e.target.value)}
@@ -159,8 +159,8 @@ export default function AddConsumableModal({ existing, onClose }: AddConsumableM
           className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-4"
         />
 
-        <label className="text-white/60 text-sm">Notes (optional)</label>
-        <textarea
+        <label htmlFor="addconsumablemodal-notes-optional" className="text-white/60 text-sm">Notes (optional)</label>
+        <textarea id="addconsumablemodal-notes-optional"
           value={notes}
           onChange={e => setNotes(e.target.value)}
           rows={2}

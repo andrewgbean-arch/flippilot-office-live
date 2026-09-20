@@ -136,7 +136,7 @@ export default function DealerRightSidebar() {
       )}
 
       {/* FOOTER */}
-      <div className="mt-auto pt-10 text-white/40 text-xs relative z-10">
+      <div className="mt-auto pt-10 text-white/60 text-xs relative z-10">
         FlipPilot © 2026
       </div>
 

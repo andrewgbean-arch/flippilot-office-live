@@ -78,7 +78,7 @@ export default function SignupScreen() {
             onChange={e => setDealershipName(e.target.value)}
             required
             placeholder="e.g. Bean Motors"
-            className="w-full px-4 py-2 rounded-lg bg-black/40 border border-white/20 text-white focus:border-yellow-400/60 outline-none placeholder:text-white/30"
+            className="w-full px-4 py-2 rounded-lg bg-black/40 border border-white/20 text-white focus:border-yellow-400/60 outline-none placeholder:text-white/60"
           />
         </div>
 
@@ -112,7 +112,7 @@ export default function SignupScreen() {
             minLength={8}
             className="w-full px-4 py-2 rounded-lg bg-black/40 border border-white/20 text-white focus:border-yellow-400/60 outline-none"
           />
-          <p className="text-white/40 text-xs mt-1">At least 8 characters</p>
+          <p className="text-white/60 text-xs mt-1">At least 8 characters</p>
         </div>
 
         <button
@@ -123,7 +123,7 @@ export default function SignupScreen() {
           {submitting ? "Creating account…" : "Create Account"}
         </button>
 
-        <p className="text-center text-white/40 text-xs">
+        <p className="text-center text-white/60 text-xs">
           By creating an account you agree to our{" "}
           <Link to="/terms" className="text-yellow-300/80 hover:underline">Terms</Link>{" "}
           and{" "}

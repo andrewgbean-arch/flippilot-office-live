@@ -143,8 +143,8 @@ export default function EmailSettingsScreen() {
 
               <div className="flex gap-2 items-end flex-wrap mb-4">
                 <div className="flex-1 min-w-[200px]">
-                  <label className="text-white/60 text-sm">Send a test email to</label>
-                  <input className={inputClass} value={testTo} onChange={e => setTestTo(e.target.value)} placeholder="you@example.com" style={{ marginBottom: 0 }} />
+                  <label htmlFor="emailsettingsscreen-send-a-test-email-to" className="text-white/60 text-sm">Send a test email to</label>
+                  <input id="emailsettingsscreen-send-a-test-email-to" className={inputClass} value={testTo} onChange={e => setTestTo(e.target.value)} placeholder="you@example.com" style={{ marginBottom: 0 }} />
                 </div>
                 <SupernovaGlowButton label={testing ? "Sending…" : "Send Test"} onClick={handleTest} disabled={testing || !isOwner} />
               </div>
@@ -173,14 +173,14 @@ export default function EmailSettingsScreen() {
 
               <SupernovaGlowCard>
                 <h2 className="text-yellow-300 font-bold text-xl mb-3">Connect your account</h2>
-                <label className="text-white/60 text-sm">SendGrid API Key</label>
-                <input className={inputClass} type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="SG...." />
+                <label htmlFor="emailsettingsscreen-sendgrid-api-key" className="text-white/60 text-sm">SendGrid API Key</label>
+                <input id="emailsettingsscreen-sendgrid-api-key" className={inputClass} type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="SG...." />
 
-                <label className="text-white/60 text-sm">From Email (must be the sender you verified in SendGrid)</label>
-                <input className={inputClass} value={fromEmail} onChange={e => setFromEmail(e.target.value)} placeholder="sales@yourdealership.co.uk" />
+                <label htmlFor="emailsettingsscreen-from-email-must-be-the-sender-you-verified-in-sendgrid" className="text-white/60 text-sm">From Email (must be the sender you verified in SendGrid)</label>
+                <input id="emailsettingsscreen-from-email-must-be-the-sender-you-verified-in-sendgrid" className={inputClass} value={fromEmail} onChange={e => setFromEmail(e.target.value)} placeholder="sales@yourdealership.co.uk" />
 
-                <label className="text-white/60 text-sm">From Name</label>
-                <input className={inputClass} value={fromName} onChange={e => setFromName(e.target.value)} placeholder="Your Dealership Name" />
+                <label htmlFor="emailsettingsscreen-from-name" className="text-white/60 text-sm">From Name</label>
+                <input id="emailsettingsscreen-from-name" className={inputClass} value={fromName} onChange={e => setFromName(e.target.value)} placeholder="Your Dealership Name" />
 
                 <SupernovaGlowButton label={saving ? "Connecting…" : "Connect"} onClick={handleSave} disabled={saving} />
               </SupernovaGlowCard>

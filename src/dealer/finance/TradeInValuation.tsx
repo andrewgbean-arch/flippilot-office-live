@@ -35,40 +35,40 @@ export default function TradeInValuation() {
       </p>
 
       <div className="sn-form">
-        <label>Make</label>
-        <input
+        <label htmlFor="tradeinvaluation-make">Make</label>
+        <input id="tradeinvaluation-make"
           className="sn-input"
           value={make}
           onChange={e => setMake(e.target.value)}
           placeholder="e.g. Ford"
         />
 
-        <label>Model</label>
-        <input
+        <label htmlFor="tradeinvaluation-model">Model</label>
+        <input id="tradeinvaluation-model"
           className="sn-input"
           value={model}
           onChange={e => setModel(e.target.value)}
           placeholder="e.g. Fiesta"
         />
 
-        <label>Year</label>
-        <input
+        <label htmlFor="tradeinvaluation-year">Year</label>
+        <input id="tradeinvaluation-year"
           type="number"
           className="sn-input"
           value={year}
           onChange={e => setYear(Number(e.target.value))}
         />
 
-        <label>Mileage</label>
-        <input
+        <label htmlFor="tradeinvaluation-mileage">Mileage</label>
+        <input id="tradeinvaluation-mileage"
           type="number"
           className="sn-input"
           value={mileage}
           onChange={e => setMileage(Number(e.target.value))}
         />
 
-        <label>Estimated Market Value (£)</label>
-        <input
+        <label htmlFor="tradeinvaluation-estimated-market-value">Estimated Market Value (£)</label>
+        <input id="tradeinvaluation-estimated-market-value"
           type="number"
           className="sn-input"
           value={marketValue}
@@ -76,8 +76,8 @@ export default function TradeInValuation() {
           placeholder="e.g. from AutoTrader/CAP"
         />
 
-        <label>Condition</label>
-        <select
+        <label htmlFor="tradeinvaluation-condition">Condition</label>
+        <select id="tradeinvaluation-condition"
           className="sn-input"
           value={condition}
           onChange={e => setCondition(e.target.value as Condition)}
@@ -88,8 +88,8 @@ export default function TradeInValuation() {
           <option value="poor">Poor</option>
         </select>
 
-        <label>Outstanding Finance (£)</label>
-        <input
+        <label htmlFor="tradeinvaluation-outstanding-finance">Outstanding Finance (£)</label>
+        <input id="tradeinvaluation-outstanding-finance"
           type="number"
           className="sn-input"
           value={outstandingFinance}

@@ -110,8 +110,8 @@ function InviteTeammateModal({ onClose }: { onClose: () => void }) {
 
         {!link ? (
           <>
-            <label className="text-white/60 text-sm">Their Name (optional)</label>
-            <input
+            <label htmlFor="settings-their-name-optional" className="text-white/60 text-sm">Their Name (optional)</label>
+            <input id="settings-their-name-optional"
               type="text"
               value={inviteeName}
               onChange={(e) => setInviteeName(e.target.value)}
@@ -119,8 +119,8 @@ function InviteTeammateModal({ onClose }: { onClose: () => void }) {
               className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-4"
             />
 
-            <label className="text-white/60 text-sm">Their Role</label>
-            <select
+            <label htmlFor="settings-their-role" className="text-white/60 text-sm">Their Role</label>
+            <select id="settings-their-role"
               value={staffRole}
               onChange={(e) => setStaffRole(e.target.value as typeof staffRole)}
               className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-1"
@@ -129,7 +129,7 @@ function InviteTeammateModal({ onClose }: { onClose: () => void }) {
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
               ))}
             </select>
-            <p className="text-white/40 text-xs mb-4">
+            <p className="text-white/60 text-xs mb-4">
               {STAFF_ROLE_OPTIONS.find((opt) => opt.value === staffRole)?.description}
             </p>
 
@@ -179,7 +179,7 @@ function InviteTeammateModal({ onClose }: { onClose: () => void }) {
                 {copied ? "Copied!" : "Copy link"}
               </button>
             </div>
-            <p className="text-white/40 text-xs mb-4">{INVITE_LINK_CANCEL_NOTE}</p>
+            <p className="text-white/60 text-xs mb-4">{INVITE_LINK_CANCEL_NOTE}</p>
             <div className="flex justify-end">
               <button
                 onClick={onClose}
@@ -323,7 +323,7 @@ export function ManageTeamModal({ onClose }: { onClose: () => void }) {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="text-white/90 font-semibold truncate">{m.name}</p>
-                    <p className="text-white/40 text-xs truncate">{m.email}</p>
+                    <p className="text-white/60 text-xs truncate">{m.email}</p>
                   </div>
 
                   {m.role === "owner" ? (
@@ -454,16 +454,16 @@ function EditDealerProfileModal({ onClose }: { onClose: () => void }) {
       <div className="bg-black/90 border border-yellow-400/30 p-6 rounded-xl w-full max-w-md">
         <h2 className="text-yellow-300 text-xl font-bold mb-4">Edit Dealer Profile</h2>
 
-        <label className="text-white/60 text-sm">Dealership Name</label>
-        <input
+        <label htmlFor="settings-dealership-name" className="text-white/60 text-sm">Dealership Name</label>
+        <input id="settings-dealership-name"
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
           className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-4"
         />
 
-        <label className="text-white/60 text-sm">Phone</label>
-        <input
+        <label htmlFor="settings-phone" className="text-white/60 text-sm">Phone</label>
+        <input id="settings-phone"
           type="text"
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
@@ -471,23 +471,23 @@ function EditDealerProfileModal({ onClose }: { onClose: () => void }) {
           className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-4"
         />
 
-        <label className="text-white/60 text-sm">Address</label>
-        <textarea
+        <label htmlFor="settings-address" className="text-white/60 text-sm">Address</label>
+        <textarea id="settings-address"
           value={address}
           onChange={(e) => setAddress(e.target.value)}
           placeholder="Unit 4, Motor Park, Paignton, Devon"
           className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-4"
         />
 
-        <label className="text-white/60 text-sm">VAT Number (optional)</label>
-        <input
+        <label htmlFor="settings-vat-number-optional" className="text-white/60 text-sm">VAT Number (optional)</label>
+        <input id="settings-vat-number-optional"
           type="text"
           value={vatNumber}
           onChange={(e) => setVatNumber(e.target.value)}
           placeholder="GB123456789"
           className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-4"
         />
-        <p className="text-white/40 text-xs -mt-3 mb-4">
+        <p className="text-white/60 text-xs -mt-3 mb-4">
           Shown on customer invoices if set. Leave blank if you're not VAT-registered.
         </p>
 
@@ -572,24 +572,24 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
           </>
         ) : (
           <>
-            <label className="text-white/60 text-sm">Current Password</label>
-            <input
+            <label htmlFor="settings-current-password" className="text-white/60 text-sm">Current Password</label>
+            <input id="settings-current-password"
               type="password"
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
               className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-4"
             />
 
-            <label className="text-white/60 text-sm">New Password</label>
-            <input
+            <label htmlFor="settings-new-password" className="text-white/60 text-sm">New Password</label>
+            <input id="settings-new-password"
               type="password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-4"
             />
 
-            <label className="text-white/60 text-sm">Confirm New Password</label>
-            <input
+            <label htmlFor="settings-confirm-new-password" className="text-white/60 text-sm">Confirm New Password</label>
+            <input id="settings-confirm-new-password"
               type="password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}

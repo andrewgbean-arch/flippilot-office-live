@@ -154,8 +154,8 @@ export default function PhotoEditorModal({ imageSrc, onSave, onClose }: PhotoEdi
           </div>
 
           <div>
-            <label className="text-white/60 text-sm block mb-1">Crop</label>
-            <select
+            <label htmlFor="photoeditormodal-crop" className="text-white/60 text-sm block mb-1">Crop</label>
+            <select id="photoeditormodal-crop"
               value={cropAspect}
               onChange={e => setCropAspect(e.target.value as CropAspect)}
               className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80"
@@ -215,7 +215,7 @@ export default function PhotoEditorModal({ imageSrc, onSave, onClose }: PhotoEdi
           </div>
         </div>
 
-        <p className="text-white/40 text-xs mb-4">
+        <p className="text-white/60 text-xs mb-4">
           AI enhancement (background removal, auto-touch-up) isn't available yet — needs an image-AI provider not yet configured for this app.
         </p>
 

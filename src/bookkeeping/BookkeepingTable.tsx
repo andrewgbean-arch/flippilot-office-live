@@ -106,13 +106,13 @@ export default function BookkeepingTable({ vehicleId }: BookkeepingTableProps) {
                     </span>
                   </>
                 ) : (
-                  <span className="text-white/30">—</span>
+                  <span className="text-white/60">—</span>
                 )}
               </td>
               <td className="p-3">{row.source}</td>
               <td className="p-3">{formatDate(row.date) ?? row.date}</td>
               <td className="p-3">
-                <FiChevronRight className="text-white/40 hover:text-yellow-300 transition" />
+                <FiChevronRight className="text-white/60 hover:text-yellow-300 transition" />
               </td>
             </tr>
           ))}

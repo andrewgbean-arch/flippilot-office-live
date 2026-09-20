@@ -84,8 +84,8 @@ export default function AddJobModal({ existing, onClose }: AddJobModalProps) {
       <div className="bg-black/80 border border-white/10 p-6 rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <h2 className="text-white/80 text-xl font-semibold mb-4">{existing ? "Edit Job" : "Add Job"}</h2>
 
-        <label className="text-white/60 text-sm">Title</label>
-        <input
+        <label htmlFor="addjobmodal-title" className="text-white/60 text-sm">Title</label>
+        <input id="addjobmodal-title"
           type="text"
           value={title}
           onChange={e => setTitle(e.target.value)}
@@ -93,8 +93,8 @@ export default function AddJobModal({ existing, onClose }: AddJobModalProps) {
           className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-4"
         />
 
-        <label className="text-white/60 text-sm">Notes (optional)</label>
-        <textarea
+        <label htmlFor="addjobmodal-notes-optional" className="text-white/60 text-sm">Notes (optional)</label>
+        <textarea id="addjobmodal-notes-optional"
           value={notes}
           onChange={e => setNotes(e.target.value)}
           rows={2}
@@ -104,8 +104,8 @@ export default function AddJobModal({ existing, onClose }: AddJobModalProps) {
         <label className="text-white/60 text-sm">Vehicle (optional)</label>
         <VehiclePicker value={vehicleId} onChange={setVehicleId} />
 
-        <label className="text-white/60 text-sm">Assign To</label>
-        <select
+        <label htmlFor="addjobmodal-assign-to" className="text-white/60 text-sm">Assign To</label>
+        <select id="addjobmodal-assign-to"
           value={assignedToUserId}
           onChange={e => setAssignedToUserId(e.target.value)}
           className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-4"
@@ -120,8 +120,8 @@ export default function AddJobModal({ existing, onClose }: AddJobModalProps) {
 
         <div className="grid grid-cols-2 gap-4 mb-4">
           <div>
-            <label className="text-white/60 text-sm">Priority</label>
-            <select
+            <label htmlFor="addjobmodal-priority" className="text-white/60 text-sm">Priority</label>
+            <select id="addjobmodal-priority"
               value={priority}
               onChange={e => setPriority(e.target.value as JobPriority)}
               className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80"
@@ -132,8 +132,8 @@ export default function AddJobModal({ existing, onClose }: AddJobModalProps) {
             </select>
           </div>
           <div>
-            <label className="text-white/60 text-sm">Due Date (optional)</label>
-            <input
+            <label htmlFor="addjobmodal-due-date-optional" className="text-white/60 text-sm">Due Date (optional)</label>
+            <input id="addjobmodal-due-date-optional"
               type="date"
               value={dueDate}
               onChange={e => setDueDate(e.target.value)}
@@ -145,8 +145,8 @@ export default function AddJobModal({ existing, onClose }: AddJobModalProps) {
         <div className="border-t border-white/10 pt-4 mt-2 mb-4">
           <p className="text-white/60 text-sm mb-2">Workshop Booking (optional)</p>
 
-          <label className="text-white/60 text-sm">Date</label>
-          <input
+          <label htmlFor="addjobmodal-date" className="text-white/60 text-sm">Date</label>
+          <input id="addjobmodal-date"
             type="date"
             value={scheduledDate}
             onChange={e => setScheduledDate(e.target.value)}
@@ -155,8 +155,8 @@ export default function AddJobModal({ existing, onClose }: AddJobModalProps) {
 
           <div className="grid grid-cols-2 gap-4 mb-3">
             <div>
-              <label className="text-white/60 text-sm">Start Time</label>
-              <input
+              <label htmlFor="addjobmodal-start-time" className="text-white/60 text-sm">Start Time</label>
+              <input id="addjobmodal-start-time"
                 type="time"
                 value={scheduledStart}
                 onChange={e => setScheduledStart(e.target.value)}
@@ -164,8 +164,8 @@ export default function AddJobModal({ existing, onClose }: AddJobModalProps) {
               />
             </div>
             <div>
-              <label className="text-white/60 text-sm">End Time</label>
-              <input
+              <label htmlFor="addjobmodal-end-time" className="text-white/60 text-sm">End Time</label>
+              <input id="addjobmodal-end-time"
                 type="time"
                 value={scheduledEnd}
                 onChange={e => setScheduledEnd(e.target.value)}
@@ -174,8 +174,8 @@ export default function AddJobModal({ existing, onClose }: AddJobModalProps) {
             </div>
           </div>
 
-          <label className="text-white/60 text-sm">Bay / Location</label>
-          <input
+          <label htmlFor="addjobmodal-bay-location" className="text-white/60 text-sm">Bay / Location</label>
+          <input id="addjobmodal-bay-location"
             type="text"
             value={bay}
             onChange={e => setBay(e.target.value)}

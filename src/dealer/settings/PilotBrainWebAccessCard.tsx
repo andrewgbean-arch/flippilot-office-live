@@ -30,7 +30,7 @@ export function SearchRow({ entry }: { entry: WebSearchLogEntry }) {
   return (
     <li className="p-3 rounded bg-black/40 border border-white/10">
       <p className="text-white/90 text-sm break-words">“{entry.query || "(no query recorded)"}”</p>
-      <p className="text-white/40 text-xs mt-1">
+      <p className="text-white/60 text-xs mt-1">
         {when(entry.at)} · asked by {entry.askedByName || "someone"} ·{" "}
         {entry.errorCode ? (
           <span className="text-red-300">didn't run ({entry.errorCode.replace(/_/g, " ")})</span>
@@ -44,7 +44,7 @@ export function SearchRow({ entry }: { entry: WebSearchLogEntry }) {
             const href = safeUrl(s.url);
             return (
               <span key={s.url}>
-                {i > 0 && <span className="text-white/30"> · </span>}
+                {i > 0 && <span className="text-white/60"> · </span>}
                 {href ? (
                   <a href={href} target="_blank" rel="noopener noreferrer" className="text-yellow-300/90 underline">
                     {hostOf(s.url)}
@@ -108,7 +108,7 @@ export default function PilotBrainWebAccessCard() {
       <p className={`text-sm mb-1 font-semibold ${state.enabled ? "text-green-400" : "text-white/50"}`}>
         {state.enabled ? "Web access is ON" : "Web access is OFF"}
       </p>
-      <p className="text-white/40 text-xs mb-4">
+      <p className="text-white/60 text-xs mb-4">
         {state.usedToday} of {state.dailyCap} searches used today. Listing prices are asking prices, not what cars
         actually sold for.
       </p>
@@ -124,7 +124,7 @@ export default function PilotBrainWebAccessCard() {
 
       <h3 className="text-white/80 text-sm font-semibold mb-2">Recent searches</h3>
       {state.recent.length === 0 ? (
-        <p className="text-white/40 text-sm">No searches yet.</p>
+        <p className="text-white/60 text-sm">No searches yet.</p>
       ) : (
         <ul className="space-y-2">
           {state.recent.map((entry) => (

@@ -59,31 +59,31 @@ export default function ContractGenerator() {
       </div>
 
       <div className="sn-form">
-        <label>Your business name (the seller)</label>
-        <input
+        <label htmlFor="contractgenerator-your-business-name-the-seller">Your business name (the seller)</label>
+        <input id="contractgenerator-your-business-name-the-seller"
           className="sn-input"
           value={sellerName}
           onChange={e => setSellerName(e.target.value)}
           placeholder="Trading name as it appears on your invoices"
         />
 
-        <label>Your address</label>
-        <textarea
+        <label htmlFor="contractgenerator-your-address">Your address</label>
+        <textarea id="contractgenerator-your-address"
           className="sn-input sn-textarea"
           value={sellerAddress}
           onChange={e => setSellerAddress(e.target.value)}
           rows={2}
         />
 
-        <label>VAT number (if you are VAT registered)</label>
-        <input
+        <label htmlFor="contractgenerator-vat-number-if-you-are-vat-registered">VAT number (if you are VAT registered)</label>
+        <input id="contractgenerator-vat-number-if-you-are-vat-registered"
           className="sn-input"
           value={sellerVat}
           onChange={e => setSellerVat(e.target.value)}
         />
 
-        <label>Customer / Lead</label>
-        <select
+        <label htmlFor="contractgenerator-customer-lead">Customer / Lead</label>
+        <select id="contractgenerator-customer-lead"
           className="sn-input"
           value={leadId}
           onChange={e => setLeadId(e.target.value)}
@@ -96,39 +96,39 @@ export default function ContractGenerator() {
           ))}
         </select>
 
-        <label>Vehicle</label>
-        <input
+        <label htmlFor="contractgenerator-vehicle">Vehicle</label>
+        <input id="contractgenerator-vehicle"
           className="sn-input"
           value={vehicle}
           onChange={e => setVehicle(e.target.value)}
           placeholder="e.g. BMW M2 Competition"
         />
 
-        <label>Registration</label>
-        <input
+        <label htmlFor="contractgenerator-registration">Registration</label>
+        <input id="contractgenerator-registration"
           className="sn-input"
           value={reg}
           onChange={e => setReg(e.target.value.toUpperCase())}
           placeholder="e.g. AB12 CDE"
         />
 
-        <label>VIN / chassis number</label>
-        <input
+        <label htmlFor="contractgenerator-vin-chassis-number">VIN / chassis number</label>
+        <input id="contractgenerator-vin-chassis-number"
           className="sn-input"
           value={vin}
           onChange={e => setVin(e.target.value.toUpperCase())}
         />
 
-        <label>Mileage at sale</label>
-        <input
+        <label htmlFor="contractgenerator-mileage-at-sale">Mileage at sale</label>
+        <input id="contractgenerator-mileage-at-sale"
           className="sn-input"
           value={mileage}
           onChange={e => setMileage(e.target.value)}
           placeholder="e.g. 48,200 miles"
         />
 
-        <label>Sale Price (£)</label>
-        <input
+        <label htmlFor="contractgenerator-sale-price">Sale Price (£)</label>
+        <input id="contractgenerator-sale-price"
           type="number"
           min={0}
           className="sn-input"
@@ -137,8 +137,8 @@ export default function ContractGenerator() {
           onChange={e => setSalePrice(e.target.value)}
         />
 
-        <label>Deposit Paid (£)</label>
-        <input
+        <label htmlFor="contractgenerator-deposit-paid">Deposit Paid (£)</label>
+        <input id="contractgenerator-deposit-paid"
           type="number"
           min={0}
           className="sn-input"
@@ -152,8 +152,8 @@ export default function ContractGenerator() {
           </p>
         )}
 
-        <label>Warranty terms (only if you are giving one)</label>
-        <textarea
+        <label htmlFor="contractgenerator-warranty-terms-only-if-you-are-giving-one">Warranty terms (only if you are giving one)</label>
+        <textarea id="contractgenerator-warranty-terms-only-if-you-are-giving-one"
           className="sn-input sn-textarea"
           value={warranty}
           onChange={e => setWarranty(e.target.value)}
@@ -161,8 +161,8 @@ export default function ContractGenerator() {
           placeholder="Leave blank if none. If you give a warranty, write exactly what it covers and for how long."
         />
 
-        <label>Other terms</label>
-        <textarea
+        <label htmlFor="contractgenerator-other-terms">Other terms</label>
+        <textarea id="contractgenerator-other-terms"
           className="sn-input sn-textarea"
           value={otherTerms}
           onChange={e => setOtherTerms(e.target.value)}

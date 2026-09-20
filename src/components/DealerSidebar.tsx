@@ -343,7 +343,7 @@ export default function DealerSidebar() {
         </nav>
       )}
 
-      <div className="mt-auto pt-10 text-white/40 text-xs">
+      <div className="mt-auto pt-10 text-white/60 text-xs">
         FlipPilot © 2026
       </div>
     </aside>

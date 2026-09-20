@@ -139,8 +139,8 @@ export default function PublicBookingPage() {
 
         <div className="space-y-4">
           <div>
-            <label className="text-white/60 text-sm">I'd like to</label>
-            <select
+            <label htmlFor="publicbookingpage-i-d-like-to" className="text-white/60 text-sm">I'd like to</label>
+            <select id="publicbookingpage-i-d-like-to"
               value={type}
               onChange={e => setType(e.target.value as BookingType)}
               className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mt-1"
@@ -153,8 +153,8 @@ export default function PublicBookingPage() {
 
           {type === "mot" ? (
             <div>
-              <label className="text-white/60 text-sm">Your Vehicle Registration</label>
-              <input
+              <label htmlFor="publicbookingpage-your-vehicle-registration" className="text-white/60 text-sm">Your Vehicle Registration</label>
+              <input id="publicbookingpage-your-vehicle-registration"
                 type="text"
                 value={customerVehicleReg}
                 onChange={e => setCustomerVehicleReg(e.target.value.toUpperCase())}
@@ -166,8 +166,8 @@ export default function PublicBookingPage() {
             <p className="text-white/60">No vehicles are available to book at the moment.</p>
           ) : (
             <div>
-              <label className="text-white/60 text-sm">Vehicle</label>
-              <select
+              <label htmlFor="publicbookingpage-vehicle" className="text-white/60 text-sm">Vehicle</label>
+              <select id="publicbookingpage-vehicle"
                 value={vehicleId}
                 onChange={e => setVehicleId(e.target.value)}
                 className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mt-1"
@@ -189,8 +189,8 @@ export default function PublicBookingPage() {
             <>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-white/60 text-sm">Preferred Date</label>
-                  <input
+                  <label htmlFor="publicbookingpage-preferred-date" className="text-white/60 text-sm">Preferred Date</label>
+                  <input id="publicbookingpage-preferred-date"
                     type="date"
                     value={date}
                     onChange={e => setDate(e.target.value)}
@@ -198,8 +198,8 @@ export default function PublicBookingPage() {
                   />
                 </div>
                 <div>
-                  <label className="text-white/60 text-sm">Preferred Time</label>
-                  <select
+                  <label htmlFor="publicbookingpage-preferred-time" className="text-white/60 text-sm">Preferred Time</label>
+                  <select id="publicbookingpage-preferred-time"
                     value={time}
                     onChange={e => setTime(e.target.value)}
                     disabled={!date || slotsLoading}
@@ -218,8 +218,8 @@ export default function PublicBookingPage() {
               </div>
 
               <div>
-                <label className="text-white/60 text-sm">Your Name</label>
-                <input
+                <label htmlFor="publicbookingpage-your-name" className="text-white/60 text-sm">Your Name</label>
+                <input id="publicbookingpage-your-name"
                   type="text"
                   value={name}
                   onChange={e => setName(e.target.value)}

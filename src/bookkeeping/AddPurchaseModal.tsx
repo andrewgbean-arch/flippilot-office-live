@@ -71,8 +71,8 @@ export default function AddPurchaseModal({ onClose }: AddPurchaseModalProps) {
         <h2 className="text-white/80 text-xl font-semibold mb-4">Add Vehicle Purchase</h2>
 
         {/* REGISTRATION */}
-        <label className="text-white/60 text-sm">Registration (optional)</label>
-        <input
+        <label htmlFor="addpurchasemodal-registration-optional" className="text-white/60 text-sm">Registration (optional)</label>
+        <input id="addpurchasemodal-registration-optional"
           type="text"
           value={reg}
           onChange={(e) => setReg(e.target.value.toUpperCase())}
@@ -81,8 +81,8 @@ export default function AddPurchaseModal({ onClose }: AddPurchaseModalProps) {
         />
 
         {/* MAKE */}
-        <label className="text-white/60 text-sm">Make</label>
-        <input
+        <label htmlFor="addpurchasemodal-make" className="text-white/60 text-sm">Make</label>
+        <input id="addpurchasemodal-make"
           type="text"
           value={make}
           onChange={(e) => setMake(e.target.value)}
@@ -91,8 +91,8 @@ export default function AddPurchaseModal({ onClose }: AddPurchaseModalProps) {
         />
 
         {/* MODEL */}
-        <label className="text-white/60 text-sm">Model</label>
-        <input
+        <label htmlFor="addpurchasemodal-model" className="text-white/60 text-sm">Model</label>
+        <input id="addpurchasemodal-model"
           type="text"
           value={model}
           onChange={(e) => setModel(e.target.value)}
@@ -101,8 +101,8 @@ export default function AddPurchaseModal({ onClose }: AddPurchaseModalProps) {
         />
 
         {/* PURCHASE PRICE */}
-        <label className="text-white/60 text-sm">Purchase Price</label>
-        <input
+        <label htmlFor="addpurchasemodal-purchase-price" className="text-white/60 text-sm">Purchase Price</label>
+        <input id="addpurchasemodal-purchase-price"
           type="number"
           value={purchasePrice}
           onChange={(e) => setPurchasePrice(e.target.value)}
@@ -111,8 +111,8 @@ export default function AddPurchaseModal({ onClose }: AddPurchaseModalProps) {
         />
 
         {/* VAT SCHEME */}
-        <label className="text-white/60 text-sm">VAT Scheme (for when this vehicle is sold)</label>
-        <select
+        <label htmlFor="addpurchasemodal-vat-scheme-for-when-this-vehicle-is-sold" className="text-white/60 text-sm">VAT Scheme (for when this vehicle is sold)</label>
+        <select id="addpurchasemodal-vat-scheme-for-when-this-vehicle-is-sold"
           value={vatScheme}
           onChange={(e) => setVatScheme(e.target.value as "margin" | "standard")}
           className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-4"
@@ -122,8 +122,8 @@ export default function AddPurchaseModal({ onClose }: AddPurchaseModalProps) {
         </select>
 
         {/* VAT RATE */}
-        <label className="text-white/60 text-sm">VAT Rate on this Purchase (%)</label>
-        <input
+        <label htmlFor="addpurchasemodal-vat-rate-on-this-purchase" className="text-white/60 text-sm">VAT Rate on this Purchase (%)</label>
+        <input id="addpurchasemodal-vat-rate-on-this-purchase"
           type="number"
           step="1"
           value={vatRate}
@@ -133,8 +133,8 @@ export default function AddPurchaseModal({ onClose }: AddPurchaseModalProps) {
         />
 
         {/* VAT INCLUDED */}
-        <label className="text-white/60 text-sm">VAT Included?</label>
-        <select
+        <label htmlFor="addpurchasemodal-vat-included" className="text-white/60 text-sm">VAT Included?</label>
+        <select id="addpurchasemodal-vat-included"
           value={vatIncluded ? "yes" : "no"}
           onChange={(e) => setVatIncluded(e.target.value === "yes")}
           className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-4"
@@ -144,8 +144,8 @@ export default function AddPurchaseModal({ onClose }: AddPurchaseModalProps) {
         </select>
 
         {/* PURCHASED FROM */}
-        <label className="text-white/60 text-sm">Purchased From</label>
-        <input
+        <label htmlFor="addpurchasemodal-purchased-from" className="text-white/60 text-sm">Purchased From</label>
+        <input id="addpurchasemodal-purchased-from"
           type="text"
           value={source}
           onChange={(e) => setSource(e.target.value)}
@@ -154,8 +154,8 @@ export default function AddPurchaseModal({ onClose }: AddPurchaseModalProps) {
         />
 
         {/* DATE */}
-        <label className="text-white/60 text-sm">Date</label>
-        <input
+        <label htmlFor="addpurchasemodal-date" className="text-white/60 text-sm">Date</label>
+        <input id="addpurchasemodal-date"
           type="date"
           value={date}
           onChange={(e) => setDate(e.target.value)}

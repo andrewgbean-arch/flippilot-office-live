@@ -120,7 +120,7 @@ export default function ToolsHub() {
             </p>
           )}
           {untrackedCount > 0 && (
-            <p className="text-white/40 text-xs mt-2">
+            <p className="text-white/60 text-xs mt-2">
               {untrackedCount} vehicle{untrackedCount === 1 ? "" : "s"} added
               before stock-age tracking existed, excluded above.
             </p>

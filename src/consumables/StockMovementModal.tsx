@@ -73,10 +73,10 @@ export default function StockMovementModal({ item, onClose }: StockMovementModal
 
         <div className="grid grid-cols-2 gap-4 mb-4">
           <div>
-            <label className="text-white/60 text-sm">
+            <label htmlFor="stockmovementmodal-field" className="text-white/60 text-sm">
               {type === "receive" ? "Quantity received" : "Adjustment (+/-)"}
             </label>
-            <input
+            <input id="stockmovementmodal-field"
               type="number"
               value={quantity}
               onChange={e => setQuantity(e.target.value)}
@@ -84,8 +84,8 @@ export default function StockMovementModal({ item, onClose }: StockMovementModal
             />
           </div>
           <div>
-            <label className="text-white/60 text-sm">Date</label>
-            <input
+            <label htmlFor="stockmovementmodal-date" className="text-white/60 text-sm">Date</label>
+            <input id="stockmovementmodal-date"
               type="date"
               value={date}
               onChange={e => setDate(e.target.value)}
@@ -97,8 +97,8 @@ export default function StockMovementModal({ item, onClose }: StockMovementModal
         {type === "receive" && (
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div>
-              <label className="text-white/60 text-sm">Cost (optional)</label>
-              <input
+              <label htmlFor="stockmovementmodal-cost-optional" className="text-white/60 text-sm">Cost (optional)</label>
+              <input id="stockmovementmodal-cost-optional"
                 type="number"
                 value={cost}
                 onChange={e => setCost(e.target.value)}
@@ -107,8 +107,8 @@ export default function StockMovementModal({ item, onClose }: StockMovementModal
               />
             </div>
             <div>
-              <label className="text-white/60 text-sm">Supplier</label>
-              <input
+              <label htmlFor="stockmovementmodal-supplier" className="text-white/60 text-sm">Supplier</label>
+              <input id="stockmovementmodal-supplier"
                 type="text"
                 value={supplier}
                 onChange={e => setSupplier(e.target.value)}
@@ -118,8 +118,8 @@ export default function StockMovementModal({ item, onClose }: StockMovementModal
           </div>
         )}
 
-        <label className="text-white/60 text-sm">Note (optional)</label>
-        <input
+        <label htmlFor="stockmovementmodal-note-optional" className="text-white/60 text-sm">Note (optional)</label>
+        <input id="stockmovementmodal-note-optional"
           type="text"
           value={note}
           onChange={e => setNote(e.target.value)}
@@ -144,7 +144,7 @@ export default function StockMovementModal({ item, onClose }: StockMovementModal
 
         <h3 className="text-white/70 text-sm font-semibold mb-2">History</h3>
         {history.length === 0 ? (
-          <p className="text-white/40 text-sm">No stock movements logged yet.</p>
+          <p className="text-white/60 text-sm">No stock movements logged yet.</p>
         ) : (
           <div className="space-y-2">
             {history.map(m => (
@@ -158,7 +158,7 @@ export default function StockMovementModal({ item, onClose }: StockMovementModal
                     {m.quantity > 0 ? "+" : ""}{m.quantity}{item.unit ? ` ${item.unit}` : ""}
                   </span>
                   {(m.supplier || m.note) && (
-                    <div className="text-white/40 text-xs mt-0.5">
+                    <div className="text-white/60 text-xs mt-0.5">
                       {[m.supplier, m.note].filter(Boolean).join(" · ")}
                     </div>
                   )}

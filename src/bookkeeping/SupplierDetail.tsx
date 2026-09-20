@@ -156,7 +156,7 @@ export default function SupplierDetail() {
                         className="w-full h-full object-cover"
                       />
                     ) : (
-                      <div className="w-full h-full bg-black/40 flex items-center justify-center text-white/40 text-sm">
+                      <div className="w-full h-full bg-black/40 flex items-center justify-center text-white/60 text-sm">
                         No Image
                       </div>
                     )}

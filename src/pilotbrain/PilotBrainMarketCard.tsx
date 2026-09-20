@@ -10,7 +10,7 @@ function healthColor(score: number): string {
 const CONFIDENCE_STYLE: Record<string, string> = {
   high: "text-green-300",
   medium: "text-yellow-300",
-  low: "text-white/40",
+  low: "text-white/60",
 };
 
 // V4 (Market Intelligence) — unlike the Watcher card, this is NOT
@@ -55,22 +55,22 @@ export default function PilotBrainMarketCard() {
         </div>
       )}
 
-      {loading && <p className="text-white/40 text-sm">Checking real comparable listings — this fans out to a few real API calls, give it a moment…</p>}
+      {loading && <p className="text-white/60 text-sm">Checking real comparable listings — this fans out to a few real API calls, give it a moment…</p>}
 
       {result && !loading && (
         <div className="space-y-4">
           <div className="grid grid-cols-3 gap-2 text-center">
             <div className="bg-black/30 rounded-lg p-2">
               <div className="text-white font-bold">{result.health.demand}</div>
-              <div className="text-white/40 text-xs">Demand</div>
+              <div className="text-white/60 text-xs">Demand</div>
             </div>
             <div className="bg-black/30 rounded-lg p-2">
               <div className="text-white font-bold">{result.health.pricing}</div>
-              <div className="text-white/40 text-xs">Pricing</div>
+              <div className="text-white/60 text-xs">Pricing</div>
             </div>
             <div className="bg-black/30 rounded-lg p-2">
               <div className="text-white font-bold">{result.health.supply}</div>
-              <div className="text-white/40 text-xs">Supply</div>
+              <div className="text-white/60 text-xs">Supply</div>
             </div>
           </div>
 
@@ -102,11 +102,11 @@ export default function PilotBrainMarketCard() {
             </div>
           )}
 
-          <p className="text-white/30 text-xs">{result.platformInsight.message}</p>
+          <p className="text-white/60 text-xs">{result.platformInsight.message}</p>
 
           <button
             onClick={runCheck}
-            className="text-xs text-white/40 hover:text-white/70 transition"
+            className="text-xs text-white/60 hover:text-white/70 transition"
           >
             Check again
           </button>

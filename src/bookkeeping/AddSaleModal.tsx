@@ -129,8 +129,8 @@ export default function AddSaleModal({ vehicleId: initialVehicleId, existing, on
         <VehiclePicker value={vehicleId} onChange={setVehicleId} />
 
         {/* SALE PRICE */}
-        <label className="text-white/60 text-sm">Sale Price</label>
-        <input
+        <label htmlFor="addsalemodal-sale-price" className="text-white/60 text-sm">Sale Price</label>
+        <input id="addsalemodal-sale-price"
           type="number"
           value={salePrice}
           onChange={(e) => setSalePrice(e.target.value)}
@@ -160,8 +160,8 @@ export default function AddSaleModal({ vehicleId: initialVehicleId, existing, on
         )}
 
         {/* VAT RATE */}
-        <label className="text-white/60 text-sm">VAT Rate (%)</label>
-        <input
+        <label htmlFor="addsalemodal-vat-rate" className="text-white/60 text-sm">VAT Rate (%)</label>
+        <input id="addsalemodal-vat-rate"
           type="number"
           step="1"
           value={vatRate}
@@ -192,8 +192,8 @@ export default function AddSaleModal({ vehicleId: initialVehicleId, existing, on
         ) : (
           /* VAT INCLUDED */
           <>
-            <label className="text-white/60 text-sm">VAT Included?</label>
-            <select
+            <label htmlFor="addsalemodal-vat-included" className="text-white/60 text-sm">VAT Included?</label>
+            <select id="addsalemodal-vat-included"
               value={vatIncluded ? "yes" : "no"}
               onChange={(e) => setVatIncluded(e.target.value === "yes")}
               className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-4"
@@ -205,16 +205,16 @@ export default function AddSaleModal({ vehicleId: initialVehicleId, existing, on
         )}
 
         {/* BUYER */}
-        <label className="text-white/60 text-sm">Buyer Name</label>
-        <input
+        <label htmlFor="addsalemodal-buyer-name" className="text-white/60 text-sm">Buyer Name</label>
+        <input id="addsalemodal-buyer-name"
           type="text"
           value={buyer}
           onChange={(e) => setBuyer(e.target.value)}
           className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-4"
         />
 
-        <label className="text-white/60 text-sm">Buyer Email (optional — needed to email an invoice)</label>
-        <input
+        <label htmlFor="addsalemodal-buyer-email-optional-needed-to-email-an-invoice" className="text-white/60 text-sm">Buyer Email (optional — needed to email an invoice)</label>
+        <input id="addsalemodal-buyer-email-optional-needed-to-email-an-invoice"
           type="email"
           value={buyerEmail}
           onChange={(e) => setBuyerEmail(e.target.value)}
@@ -222,16 +222,16 @@ export default function AddSaleModal({ vehicleId: initialVehicleId, existing, on
           className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-4"
         />
 
-        <label className="text-white/60 text-sm">Buyer Phone (optional)</label>
-        <input
+        <label htmlFor="addsalemodal-buyer-phone-optional" className="text-white/60 text-sm">Buyer Phone (optional)</label>
+        <input id="addsalemodal-buyer-phone-optional"
           type="text"
           value={buyerPhone}
           onChange={(e) => setBuyerPhone(e.target.value)}
           className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-4"
         />
 
-        <label className="text-white/60 text-sm">Buyer Address (optional)</label>
-        <textarea
+        <label htmlFor="addsalemodal-buyer-address-optional" className="text-white/60 text-sm">Buyer Address (optional)</label>
+        <textarea id="addsalemodal-buyer-address-optional"
           value={buyerAddress}
           onChange={(e) => setBuyerAddress(e.target.value)}
           rows={2}
@@ -239,8 +239,8 @@ export default function AddSaleModal({ vehicleId: initialVehicleId, existing, on
         />
 
         {/* DATE */}
-        <label className="text-white/60 text-sm">Date</label>
-        <input
+        <label htmlFor="addsalemodal-date" className="text-white/60 text-sm">Date</label>
+        <input id="addsalemodal-date"
           type="date"
           value={date}
           onChange={(e) => setDate(e.target.value)}

@@ -102,7 +102,7 @@ export default function OnboardingScreen() {
         <div className="flex justify-between items-center mt-8">
           <button
             onClick={() => navigate("/", { replace: true })}
-            className="text-white/40 text-sm hover:text-white/70 transition"
+            className="text-white/60 text-sm hover:text-white/70 transition"
           >
             Skip
           </button>

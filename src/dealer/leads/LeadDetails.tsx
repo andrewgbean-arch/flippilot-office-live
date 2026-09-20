@@ -113,43 +113,43 @@ export default function LeadDetails() {
       </div>
 
       <div className="sn-form">
-        <label>Full Name</label>
-        <input
+        <label htmlFor="leaddetails-full-name">Full Name</label>
+        <input id="leaddetails-full-name"
           className="sn-input"
           value={form.name}
           onChange={e => update("name", e.target.value)}
         />
 
-        <label>Lead Source</label>
-        <input
+        <label htmlFor="leaddetails-lead-source">Lead Source</label>
+        <input id="leaddetails-lead-source"
           className="sn-input"
           value={form.source}
           onChange={e => update("source", e.target.value)}
         />
 
-        <label>Phone Number</label>
-        <input
+        <label htmlFor="leaddetails-phone-number">Phone Number</label>
+        <input id="leaddetails-phone-number"
           className="sn-input"
           value={form.phone ?? ""}
           onChange={e => update("phone", e.target.value)}
         />
 
-        <label>Email Address</label>
-        <input
+        <label htmlFor="leaddetails-email-address">Email Address</label>
+        <input id="leaddetails-email-address"
           className="sn-input"
           value={form.email ?? ""}
           onChange={e => update("email", e.target.value)}
         />
 
-        <label>Interested Vehicle</label>
-        <input
+        <label htmlFor="leaddetails-interested-vehicle">Interested Vehicle</label>
+        <input id="leaddetails-interested-vehicle"
           className="sn-input"
           value={form.vehicleInterest ?? ""}
           onChange={e => update("vehicleInterest", e.target.value)}
         />
 
-        <label>Vehicle of Interest (real stock — for affordability check)</label>
-        <select
+        <label htmlFor="leaddetails-vehicle-of-interest-real-stock-for-affordability-check">Vehicle of Interest (real stock — for affordability check)</label>
+        <select id="leaddetails-vehicle-of-interest-real-stock-for-affordability-check"
           className="sn-input"
           value={form.interestedVehicleId ?? ""}
           onChange={e => update("interestedVehicleId", e.target.value || undefined)}
@@ -162,8 +162,8 @@ export default function LeadDetails() {
           ))}
         </select>
 
-        <label>Status</label>
-        <select
+        <label htmlFor="leaddetails-status">Status</label>
+        <select id="leaddetails-status"
           className="sn-input"
           value={form.status}
           onChange={e => update("status", e.target.value as LeadStatus)}
@@ -175,8 +175,8 @@ export default function LeadDetails() {
           ))}
         </select>
 
-        <label>Notes</label>
-        <textarea
+        <label htmlFor="leaddetails-notes">Notes</label>
+        <textarea id="leaddetails-notes"
           className="sn-input sn-textarea"
           value={form.notes ?? ""}
           onChange={e => update("notes", e.target.value)}
@@ -190,48 +190,48 @@ export default function LeadDetails() {
           Enter what the buyer's told you during a finance conversation. Leave blank if you haven't discussed it yet — nothing is calculated until income is filled in.
         </p>
 
-        <label>Monthly Income (£)</label>
-        <input
+        <label htmlFor="leaddetails-monthly-income">Monthly Income (£)</label>
+        <input id="leaddetails-monthly-income"
           className="sn-input"
           type="number"
           value={form.income ?? ""}
           onChange={e => updateNumber("income", e.target.value)}
         />
 
-        <label>Monthly Expenses (£)</label>
-        <input
+        <label htmlFor="leaddetails-monthly-expenses">Monthly Expenses (£)</label>
+        <input id="leaddetails-monthly-expenses"
           className="sn-input"
           type="number"
           value={form.expenses ?? ""}
           onChange={e => updateNumber("expenses", e.target.value)}
         />
 
-        <label>Deposit Available (£)</label>
-        <input
+        <label htmlFor="leaddetails-deposit-available">Deposit Available (£)</label>
+        <input id="leaddetails-deposit-available"
           className="sn-input"
           type="number"
           value={form.deposit ?? ""}
           onChange={e => updateNumber("deposit", e.target.value)}
         />
 
-        <label>Credit Score (0–1000)</label>
-        <input
+        <label htmlFor="leaddetails-credit-score-0-1000">Credit Score (0–1000)</label>
+        <input id="leaddetails-credit-score-0-1000"
           className="sn-input"
           type="number"
           value={form.creditScore ?? ""}
           onChange={e => updateNumber("creditScore", e.target.value)}
         />
 
-        <label>Savings (£)</label>
-        <input
+        <label htmlFor="leaddetails-savings">Savings (£)</label>
+        <input id="leaddetails-savings"
           className="sn-input"
           type="number"
           value={form.savings ?? ""}
           onChange={e => updateNumber("savings", e.target.value)}
         />
 
-        <label>Employment Stability (0–100)</label>
-        <input
+        <label htmlFor="leaddetails-employment-stability-0-100">Employment Stability (0–100)</label>
+        <input id="leaddetails-employment-stability-0-100"
           className="sn-input"
           type="number"
           value={form.employmentStability ?? ""}

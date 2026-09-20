@@ -63,48 +63,48 @@ export default function AddLead() {
       </p>
 
       <div className="sn-form">
-        <label>Full Name</label>
-        <input
+        <label htmlFor="addlead-full-name">Full Name</label>
+        <input id="addlead-full-name"
           className="sn-input"
           value={name}
           onChange={e => setName(e.target.value)}
           placeholder="Enter lead name"
         />
 
-        <label>Lead Source</label>
-        <input
+        <label htmlFor="addlead-lead-source">Lead Source</label>
+        <input id="addlead-lead-source"
           className="sn-input"
           value={source}
           onChange={e => setSource(e.target.value)}
           placeholder="AutoTrader, Facebook Ads, Walk-In..."
         />
 
-        <label>Phone Number</label>
-        <input
+        <label htmlFor="addlead-phone-number">Phone Number</label>
+        <input id="addlead-phone-number"
           className="sn-input"
           value={phone}
           onChange={e => setPhone(e.target.value)}
           placeholder="07..."
         />
 
-        <label>Email Address</label>
-        <input
+        <label htmlFor="addlead-email-address">Email Address</label>
+        <input id="addlead-email-address"
           className="sn-input"
           value={email}
           onChange={e => setEmail(e.target.value)}
           placeholder="example@email.com"
         />
 
-        <label>Interested Vehicle</label>
-        <input
+        <label htmlFor="addlead-interested-vehicle">Interested Vehicle</label>
+        <input id="addlead-interested-vehicle"
           className="sn-input"
           value={vehicleInterest}
           onChange={e => setVehicleInterest(e.target.value)}
           placeholder="e.g. BMW M2 Competition"
         />
 
-        <label>Status</label>
-        <select
+        <label htmlFor="addlead-status">Status</label>
+        <select id="addlead-status"
           className="sn-input"
           value={status}
           onChange={e => setStatus(e.target.value as LeadStatus)}
@@ -118,8 +118,8 @@ export default function AddLead() {
           <option value="lost">Lost</option>
         </select>
 
-        <label>Notes</label>
-        <textarea
+        <label htmlFor="addlead-notes">Notes</label>
+        <textarea id="addlead-notes"
           className="sn-input sn-textarea"
           value={notes}
           onChange={e => setNotes(e.target.value)}

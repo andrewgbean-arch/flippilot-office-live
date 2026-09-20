@@ -32,8 +32,8 @@ export default function BookingContactFields({
     <>
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="text-white/60 text-sm">Phone</label>
-          <input
+          <label htmlFor="bookingcontactfields-phone" className="text-white/60 text-sm">Phone</label>
+          <input id="bookingcontactfields-phone"
             type="text"
             value={phone}
             onChange={e => onPhoneChange(e.target.value)}
@@ -42,22 +42,22 @@ export default function BookingContactFields({
           />
         </div>
         <div>
-          <label className="text-white/60 text-sm">Email</label>
-          <input type="email" value={email} onChange={e => onEmailChange(e.target.value)} className={FIELD_CLASS} />
+          <label htmlFor="bookingcontactfields-email" className="text-white/60 text-sm">Email</label>
+          <input id="bookingcontactfields-email" type="email" value={email} onChange={e => onEmailChange(e.target.value)} className={FIELD_CLASS} />
         </div>
       </div>
-      <p className="text-white/40 text-xs -mt-2">At least one of phone or email is needed so we can confirm.</p>
+      <p className="text-white/60 text-xs -mt-2">At least one of phone or email is needed so we can confirm.</p>
 
       <div>
-        <label className="text-white/60 text-sm">Anything else? (optional)</label>
-        <textarea
+        <label htmlFor="bookingcontactfields-anything-else-optional" className="text-white/60 text-sm">Anything else? (optional)</label>
+        <textarea id="bookingcontactfields-anything-else-optional"
           value={notes}
           onChange={e => onNotesChange(e.target.value)}
           maxLength={NOTES_MAX_CHARS}
           rows={2}
           className={FIELD_CLASS}
         />
-        <p className="text-white/40 text-xs mt-1">
+        <p className="text-white/60 text-xs mt-1">
           {notesLeft} character{notesLeft === 1 ? "" : "s"} left
         </p>
       </div>

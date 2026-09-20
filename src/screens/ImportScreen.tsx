@@ -204,8 +204,8 @@ export default function ImportScreen() {
       </div>
 
       <div className="bg-black/40 border border-white/10 rounded-xl p-6 mb-6">
-        <label className="text-white/60 text-sm block mb-2">CSV file</label>
-        <input
+        <label htmlFor="importscreen-csv-file" className="text-white/60 text-sm block mb-2">CSV file</label>
+        <input id="importscreen-csv-file"
           type="file"
           accept=".csv,text/csv"
           onChange={(e) => {
@@ -214,7 +214,7 @@ export default function ImportScreen() {
           }}
           className="text-white/80 text-sm"
         />
-        {fileName && <p className="text-white/40 text-xs mt-2">{fileName} — {rows.length} row{rows.length === 1 ? "" : "s"} found</p>}
+        {fileName && <p className="text-white/60 text-xs mt-2">{fileName} — {rows.length} row{rows.length === 1 ? "" : "s"} found</p>}
         {error && <p className="text-red-400 text-sm mt-2">{error}</p>}
 
         <button
@@ -271,7 +271,7 @@ export default function ImportScreen() {
               context for what was actually read. */}
           <div className="bg-black/40 border border-white/10 rounded-xl p-6 mb-6 overflow-x-auto">
             <h2 className="text-white/80 font-semibold mb-1">Your file, as uploaded</h2>
-            <p className="text-white/40 text-xs mb-4">
+            <p className="text-white/60 text-xs mb-4">
               Exactly what's in {fileName} — nothing changed or interpreted yet. Check this looks
               like your stock list before mapping the columns below.
             </p>
@@ -291,7 +291,7 @@ export default function ImportScreen() {
                 ))}
               </tbody>
             </table>
-            {rows.length > 5 && <p className="text-white/40 text-xs mt-2">…and {rows.length - 5} more rows</p>}
+            {rows.length > 5 && <p className="text-white/60 text-xs mt-2">…and {rows.length - 5} more rows</p>}
           </div>
 
           <div className="bg-black/40 border border-white/10 rounded-xl p-6 mb-6">
@@ -343,7 +343,7 @@ export default function ImportScreen() {
                 ))}
               </tbody>
             </table>
-            {rows.length > 8 && <p className="text-white/40 text-xs mt-2">…and {rows.length - 8} more rows</p>}
+            {rows.length > 8 && <p className="text-white/60 text-xs mt-2">…and {rows.length - 8} more rows</p>}
           </div>
 
           {result ? (

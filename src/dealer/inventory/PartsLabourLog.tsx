@@ -127,7 +127,7 @@ export default function PartsLabourLog() {
                         {c.supplier ? ` — ${c.supplier}` : ""}
                       </p>
                       {c.notes && <p className="text-white/50 text-sm">{c.notes}</p>}
-                      <p className="text-white/40 text-xs">{c.date}</p>
+                      <p className="text-white/60 text-xs">{c.date}</p>
                     </div>
                     <p className="text-yellow-400 font-bold">£{c.amount.toLocaleString()}</p>
                   </div>

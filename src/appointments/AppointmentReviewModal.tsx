@@ -84,16 +84,16 @@ export default function AppointmentReviewModal({ appointment, onClose }: Appoint
           {appointment.type === "test_drive" ? "Test Drive" : appointment.type === "mot" ? "MOT" : "Viewing"}
         </p>
 
-        <label className="text-white/60 text-sm">Date</label>
-        <input
+        <label htmlFor="appointmentreviewmodal-date" className="text-white/60 text-sm">Date</label>
+        <input id="appointmentreviewmodal-date"
           type="date"
           value={date}
           onChange={e => setDate(e.target.value)}
           className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-3"
         />
 
-        <label className="text-white/60 text-sm">Time</label>
-        <input
+        <label htmlFor="appointmentreviewmodal-time" className="text-white/60 text-sm">Time</label>
+        <input id="appointmentreviewmodal-time"
           type="time"
           value={time}
           onChange={e => setTime(e.target.value)}
@@ -106,8 +106,8 @@ export default function AppointmentReviewModal({ appointment, onClose }: Appoint
           </p>
         )}
 
-        <label className="text-white/60 text-sm">Internal Notes (optional)</label>
-        <textarea
+        <label htmlFor="appointmentreviewmodal-internal-notes-optional" className="text-white/60 text-sm">Internal Notes (optional)</label>
+        <textarea id="appointmentreviewmodal-internal-notes-optional"
           value={notes}
           onChange={e => setNotes(e.target.value)}
           rows={2}

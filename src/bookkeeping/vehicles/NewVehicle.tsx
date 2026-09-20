@@ -257,8 +257,8 @@ export default function NewVehicle() {
           </div>
 
           <div className="mt-4">
-            <label className="text-white/70 text-sm mb-1 block">VAT Scheme (for when this vehicle is sold)</label>
-            <select
+            <label htmlFor="newvehicle-vat-scheme-for-when-this-vehicle-is-sold" className="text-white/70 text-sm mb-1 block">VAT Scheme (for when this vehicle is sold)</label>
+            <select id="newvehicle-vat-scheme-for-when-this-vehicle-is-sold"
               value={vatScheme}
               onChange={(e) => setVatScheme(e.target.value as "margin" | "standard")}
               className="bg-black/40 border border-white/20 rounded-xl px-4 py-3 text-white w-full"
@@ -269,8 +269,8 @@ export default function NewVehicle() {
           </div>
 
           <div className="mt-4">
-            <label className="text-white/70 text-sm mb-1 block">VAT Rate on this Purchase</label>
-            <select
+            <label htmlFor="newvehicle-vat-rate-on-this-purchase" className="text-white/70 text-sm mb-1 block">VAT Rate on this Purchase</label>
+            <select id="newvehicle-vat-rate-on-this-purchase"
               value={vatRate}
               onChange={(e) => setVatRate(e.target.value)}
               className="bg-black/40 border border-white/20 rounded-xl px-4 py-3 text-white w-full"

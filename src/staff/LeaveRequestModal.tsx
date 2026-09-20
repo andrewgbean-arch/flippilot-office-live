@@ -35,8 +35,8 @@ export default function LeaveRequestModal({ onClose }: LeaveRequestModalProps) {
       <div className="bg-black/80 border border-white/10 p-6 rounded-xl w-full max-w-sm">
         <h2 className="text-white/80 text-xl font-semibold mb-4">Request Leave</h2>
 
-        <label className="text-white/60 text-sm">Type</label>
-        <select
+        <label htmlFor="leaverequestmodal-type" className="text-white/60 text-sm">Type</label>
+        <select id="leaverequestmodal-type"
           value={type}
           onChange={e => setType(e.target.value as LeaveType)}
           className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-4"
@@ -46,16 +46,16 @@ export default function LeaveRequestModal({ onClose }: LeaveRequestModalProps) {
           <option value="other">Other</option>
         </select>
 
-        <label className="text-white/60 text-sm">Start Date</label>
-        <input
+        <label htmlFor="leaverequestmodal-start-date" className="text-white/60 text-sm">Start Date</label>
+        <input id="leaverequestmodal-start-date"
           type="date"
           value={startDate}
           onChange={e => setStartDate(e.target.value)}
           className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-4"
         />
 
-        <label className="text-white/60 text-sm">End Date</label>
-        <input
+        <label htmlFor="leaverequestmodal-end-date" className="text-white/60 text-sm">End Date</label>
+        <input id="leaverequestmodal-end-date"
           type="date"
           value={endDate}
           onChange={e => setEndDate(e.target.value)}
@@ -63,8 +63,8 @@ export default function LeaveRequestModal({ onClose }: LeaveRequestModalProps) {
         />
         {invalidRange && <p className="text-red-400 text-xs mb-4">End date can't be before start date.</p>}
 
-        <label className="text-white/60 text-sm">Notes (optional)</label>
-        <textarea
+        <label htmlFor="leaverequestmodal-notes-optional" className="text-white/60 text-sm">Notes (optional)</label>
+        <textarea id="leaverequestmodal-notes-optional"
           value={notes}
           onChange={e => setNotes(e.target.value)}
           rows={2}
