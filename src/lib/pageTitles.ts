@@ -22,6 +22,7 @@ export const PAGE_TITLES: Record<string, string> = {
   "/privacy": "Privacy policy",
   "/book/:dealershipId": "Book a visit",
   "/store/:dealershipId": "Vehicles for sale",
+  "/car/:dealershipId/:vehicleId": "Car details",
 
   // Home
   "/": "Dashboard",

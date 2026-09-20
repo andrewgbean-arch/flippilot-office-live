@@ -19,6 +19,7 @@ import {
   detachMessagePhotos,
   getPhoto,
   writeTenantDoc,
+  readTenantDoc,
 } from "./db.js";
 import { buildBusinessSummary } from "./routes/pilotBrain.js";
 import { PROMPT_HEADERS } from "./pilotBrainShield.js";
@@ -126,6 +127,8 @@ describe("unauthenticated access is blocked on real data routes", () => {
     ["GET", "/feedback"],
     ["GET", "/consumables"],
     ["GET", "/appointments"],
+    ["GET", "/car-passports/any-car"],
+    ["PUT", "/car-passports/any-car"],
   ])("%s %s returns 401 with no token", async (method, url) => {
     const res = await (request(app) as any)[method.toLowerCase()](url);
     expect(res.status).toBe(401);
@@ -2959,6 +2962,280 @@ describe("Pilot Brain — shielded from fishing and corruption", () => {
     expect(draftPrompt).toContain("[filtered]");
     expect(draftPrompt).not.toContain("Ignore all previous instructions");
     expect(draftPrompt).not.toContain("SYSTEM:");
+  });
+});
+
+// The Car Passport: a public page per car that a stranger can open with no
+// account. It exists only for a car the dealer chose to publish, shows only an
+// allowlist of fields, and answers "not available" identically whether a car
+// was never published, doesn't exist, or belongs to someone else.
+describe("Car Passport — a public page per car, published only by the dealer", () => {
+  const auth = (token: string) => ({ Authorization: `Bearer ${token}` });
+  const dayFromNow = (n: number) => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10);
+  const SECRETS = ["SECRET-NOTE", "SECRET-VIN", "SECRET-TESTNUM", "SECRET-CUSTOMER", "777777"];
+
+  const insertedSnapshotIds: string[] = [];
+  afterAll(() => {
+    const rest = readCollection<any>("marketSnapshots").filter(s => !insertedSnapshotIds.includes(s.id));
+    writeCollection("marketSnapshots", rest);
+  });
+
+  function seedCars(dealershipId: string) {
+    writeTenantCollection(dealershipId, "vehicles", [
+      {
+        id: "v1", reg: "AB12CDE", year: 2019, make: "Ford", model: "Fiesta", mileage: 42000, colour: "Blue", status: "in stock", priceRetail: 8495,
+        buyPrice: 777777, purchasePrice: 777777, expectedSale: 777777, notes: "SECRET-NOTE", vin: "SECRET-VIN", customerName: "SECRET-CUSTOMER",
+        images: ["https://api.example.test/photos/aaa.jpg", "data:image/svg+xml;base64,PHN2Zz4=", "http://insecure.example.test/a.jpg"],
+        mot: {
+          expiry: dayFromNow(120), fuelType: "PETROL", euroStatus: "Euro 6",
+          history: [{ date: dayFromNow(-200), result: "PASSED", mileage: 30000, advisories: ["Tyre wearing"], failures: [], testNumber: "SECRET-TESTNUM" }],
+        },
+      },
+      { id: "v2", make: "Audi", model: "A3", year: 2018, status: "sold", priceRetail: 12000, sellPrice: 777777 },
+      { id: "v3", make: "", model: "", status: "in stock" },
+      { id: "DM-001", make: "Demo", model: "Car", status: "in stock", priceRetail: 5000 },
+    ]);
+  }
+
+  async function setup(label: string) {
+    const owner = await signup(label);
+    seedCars(owner.user.dealershipId);
+    return { owner, id: owner.user.dealershipId as string };
+  }
+  const publish = (token: string, vehicleId: string, extra: object = {}) =>
+    request(app).put(`/car-passports/${vehicleId}`).set(auth(token)).send({ published: true, ...extra });
+  const view = (dealershipId: string, vehicleId: string) => request(app).get(`/public/${dealershipId}/cars/${vehicleId}`);
+
+  describe("who can set it up", () => {
+    it("lets sales, managers and the owner publish, but not finance or general staff (who can still look)", async () => {
+      const { owner } = await setup("passport-roles");
+      const manager = await joinStaff(owner.token, "manager");
+      const sales = await joinStaff(owner.token, "sales");
+      const finance = await joinStaff(owner.token, "finance");
+      const general = await joinStaff(owner.token, "general");
+
+      for (const who of [finance, general]) {
+        expect((await publish(who.token, "v1")).status).toBe(403);
+        expect((await request(app).get("/car-passports/v1").set(auth(who.token))).status).toBe(200);
+      }
+      expect((await publish(sales.token, "v1")).status).toBe(200);
+      expect((await publish(manager.token, "v1", { note: "Lovely car." })).status).toBe(200);
+      expect((await publish(owner.token, "v1")).status).toBe(200);
+    });
+
+    it("starts every car unpublished, with the market comparison off, and offers lines from what's already recorded", async () => {
+      const { owner, id } = await setup("passport-defaults");
+      writeTenantCollection(id, "jobs", [
+        { id: "j1", vehicleId: "v1", status: "done", title: "Fit new front brake pads" },
+        { id: "j2", vehicleId: "v1", status: "todo", title: "Not done yet" },
+      ]);
+      writeTenantDoc(id, "bookkeeping", { costs: [{ id: "c1", vehicleId: "v1", type: "tyres", label: "Two new tyres", amount: 120 }, { id: "c2", vehicleId: "v1", type: "purchase", label: "Bought at auction", amount: 5000 }] });
+
+      const res = await request(app).get("/car-passports/v1").set(auth(owner.token));
+
+      expect(res.status).toBe(200);
+      expect(res.body.config).toMatchObject({ published: false, showMarket: false, showReg: true, showMot: true, showUlez: true, workDone: [], note: "" });
+      expect(res.body.canPublish).toBe(true);
+      expect(res.body.suggestions).toEqual(["Fit new front brake pads", "Two new tyres"]);
+      expect(JSON.stringify(res.body)).not.toContain("120"); // never an amount
+    });
+
+    it("refuses a car that isn't theirs, one that doesn't exist, a demo car, and one with no make or model", async () => {
+      const a = await setup("passport-own-a");
+      const b = await setup("passport-own-b");
+      expect((await publish(a.owner.token, "does-not-exist")).status).toBe(404);
+      expect((await request(app).get("/car-passports/does-not-exist").set(auth(a.owner.token))).status).toBe(404);
+
+      // B has its own "v1"; A's token can only ever touch A's
+      await publish(a.owner.token, "v1", { note: "Mine" });
+      const bView = await request(app).get("/car-passports/v1").set(auth(b.owner.token));
+      expect(bView.body.config.published).toBe(false);
+      expect(bView.body.config.note).toBe("");
+
+      const demo = await publish(a.owner.token, "DM-001");
+      expect(demo.status).toBe(400);
+      expect(demo.body.error).toContain("Demo cars");
+      const blank = await publish(a.owner.token, "v3");
+      expect(blank.status).toBe(400);
+      expect(blank.body.error).toContain("make and model");
+      expect((await request(app).get("/car-passports/v3").set(auth(a.owner.token))).body.canPublish).toBe(false);
+    });
+
+    it("says what's wrong with a bad request instead of saving something else", async () => {
+      const { owner } = await setup("passport-validation");
+      for (const body of [
+        {},
+        { published: "yes" },
+        { published: true, workDone: "lots" },
+        { published: true, workDone: Array.from({ length: 13 }, (_, i) => `Line ${i}`) },
+        { published: true, workDone: ["x".repeat(121)] },
+        { published: true, note: "x".repeat(301) },
+        { published: true, showMarket: "sure" },
+      ]) {
+        const res = await request(app).put("/car-passports/v1").set(auth(owner.token)).send(body);
+        expect(res.status, JSON.stringify(body)).toBe(400);
+        expect(res.body.ok).toBe(false);
+      }
+      expect((await request(app).get("/car-passports/v1").set(auth(owner.token))).body.config.published).toBe(false);
+    });
+
+    it("keeps what was saved, and stores nothing for a car left at the defaults and unpublished", async () => {
+      const { owner, id } = await setup("passport-persist");
+      await publish(owner.token, "v1", { workDone: ["New pads", "Valet"], note: "Lovely car.", showMarket: true, showReg: false });
+      const saved = (await request(app).get("/car-passports/v1").set(auth(owner.token))).body.config;
+      expect(saved).toMatchObject({ published: true, workDone: ["New pads", "Valet"], note: "Lovely car.", showMarket: true, showReg: false });
+
+      await request(app).put("/car-passports/v1").set(auth(owner.token)).send({ published: false });
+      expect(Object.keys(readTenantDoc<any>(id, "carPassports", {}))).toEqual([]);
+    });
+
+    it("isn't lost when the stock list is saved: the settings live apart from the vehicle record", async () => {
+      const { owner, id } = await setup("passport-apart");
+      await publish(owner.token, "v1", { note: "Lovely car." });
+      // what any screen that saves the whole stock list does
+      writeTenantCollection(id, "vehicles", readTenantCollection<any>(id, "vehicles").map(v => ({ ...v, colour: "Red" })));
+      const res = await view(id, "v1");
+      expect(res.status).toBe(200);
+      expect(res.body.note).toBe("Lovely car.");
+      expect(res.body.car.colour).toBe("Red");
+    });
+  });
+
+  describe("what a stranger sees", () => {
+    it("shows the car, its MOT, emissions and the dealer's lines, with no login at all", async () => {
+      const { owner, id } = await setup("passport-public");
+      await publish(owner.token, "v1", { workDone: ["New front brake pads and discs"], note: "One careful owner." });
+
+      const res = await view(id, "v1"); // no Authorization header
+
+      expect(res.status).toBe(200);
+      expect(res.headers["cache-control"]).toBe("no-store");
+      expect(res.body).toMatchObject({
+        ok: true,
+        sold: false,
+        car: { id: "v1", year: 2019, make: "Ford", model: "Fiesta", mileage: 42000, colour: "Blue", reg: "AB12CDE", fuelType: "PETROL", askingPrice: 8495 },
+        mot: { state: "valid", daysLeft: 120 },
+        emissions: { fuelType: "PETROL", euroStatus: "Euro 6" },
+        workDone: ["New front brake pads and discs"],
+        note: "One careful owner.",
+      });
+      expect(res.body.dealer.name).toBeTruthy();
+      expect(res.body.mot.tests[0]).toMatchObject({ result: "pass", mileage: 30000, advisories: ["Tyre wearing"] });
+    });
+
+    it("NEVER shows what the dealer paid, the expected sale, notes, the VIN, a customer or test numbers", async () => {
+      const { owner, id } = await setup("passport-secrets");
+      await publish(owner.token, "v1", { showMarket: true, workDone: ["Valet"], note: "Hello" });
+      const json = JSON.stringify((await view(id, "v1")).body);
+      for (const secret of SECRETS) expect(json, `must not contain ${secret}`).not.toContain(secret);
+      for (const field of ["buyPrice", "purchasePrice", "expectedSale", "sellPrice", "notes", "vin", "customerName", "testNumber"]) {
+        expect(json, field).not.toContain(`"${field}"`);
+      }
+    });
+
+    it("only shows photos it can vouch for: hosted https ones, not svg or plain http", async () => {
+      const { owner, id } = await setup("passport-photos");
+      await publish(owner.token, "v1");
+      expect((await view(id, "v1")).body.car.images).toEqual(["https://api.example.test/photos/aaa.jpg"]);
+    });
+
+    it("gives the same 'not available' answer whether a car is unpublished, missing, a demo, or another dealership's", async () => {
+      const a = await setup("passport-404-a");
+      const b = await setup("passport-404-b");
+      await publish(a.owner.token, "v1"); // published at A only
+
+      const answers = await Promise.all([
+        view(a.id, "v2"), // exists, never published
+        view(a.id, "nope"), // doesn't exist
+        view(a.id, "DM-001"), // demo car
+        view("no-such-dealership", "v1"),
+        view(b.id, "v1"), // B has a v1 too, but B never published it
+        view(a.id, "x".repeat(300)),
+      ]);
+      for (const res of answers) {
+        expect(res.status).toBe(404);
+        expect(res.body).toEqual({ ok: false, error: "This car page isn't available." });
+      }
+      expect((await view(a.id, "v1")).status).toBe(200);
+    });
+
+    it("stops answering the moment the dealer unpublishes", async () => {
+      const { owner, id } = await setup("passport-unpublish");
+      await publish(owner.token, "v1");
+      expect((await view(id, "v1")).status).toBe(200);
+      await request(app).put("/car-passports/v1").set(auth(owner.token)).send({ published: false, note: "still here" });
+      expect((await view(id, "v1")).status).toBe(404);
+    });
+
+    it("turns into a plain 'sold' card once the car is sold, with no price, photos or history", async () => {
+      const { owner, id } = await setup("passport-sold");
+      await publish(owner.token, "v1", { note: "Lovely car." });
+      writeTenantCollection(id, "vehicles", readTenantCollection<any>(id, "vehicles").map(v => (v.id === "v1" ? { ...v, status: "sold", sellPrice: 777777 } : v)));
+
+      const res = await view(id, "v1");
+
+      expect(res.status).toBe(200);
+      expect(res.body.sold).toBe(true);
+      expect(res.body.car).toEqual({ year: 2019, make: "Ford", model: "Fiesta" });
+      for (const absent of ["mot", "market", "note", "workDone", "emissions"]) expect(res.body).not.toHaveProperty(absent);
+      expect(JSON.stringify(res.body)).not.toContain("777777");
+      expect(JSON.stringify(res.body)).not.toContain("8495");
+    });
+
+    it("hides the registration, MOT or emissions when the dealer turns them off", async () => {
+      const { owner, id } = await setup("passport-toggles");
+      await publish(owner.token, "v1", { showReg: false, showMot: false, showUlez: false });
+      const res = await view(id, "v1");
+      expect(res.body.car).not.toHaveProperty("reg");
+      expect(res.body).not.toHaveProperty("mot");
+      expect(res.body).not.toHaveProperty("emissions");
+    });
+
+    it("says 'price on request' (no price at all) rather than inventing one", async () => {
+      const { owner, id } = await setup("passport-noprice");
+      writeTenantCollection(id, "vehicles", [{ id: "v9", make: "Kia", model: "Ceed", status: "in stock", sellPrice: 777777 }]);
+      await publish(owner.token, "v9");
+      const res = await view(id, "v9");
+      expect(res.body.car.askingPrice).toBeNull();
+      expect(JSON.stringify(res.body)).not.toContain("777777");
+    });
+  });
+
+  describe("comparing the price with the market", () => {
+    function addSnapshot(make: string, model: string, over: Record<string, unknown> = {}) {
+      const snap = { id: `passport-test-${insertedSnapshotIds.length}`, make, model, avgPrice: 9000, lowPrice: 6000, highPrice: 12000, sampleSize: 14, demandScore: 50, capturedAt: new Date().toISOString(), ...over };
+      insertedSnapshotIds.push(snap.id);
+      writeCollection("marketSnapshots", [...readCollection<any>("marketSnapshots"), snap]);
+    }
+
+    it("is only shown when the dealer switches it on, and says what it is based on", async () => {
+      const { owner, id } = await setup("passport-market");
+      writeTenantCollection(id, "vehicles", [{ id: "m1", make: "Zzpassport", model: "Testcar", year: 2020, status: "in stock", priceRetail: 8500 }]);
+      addSnapshot("Zzpassport", "Testcar");
+
+      await publish(owner.token, "m1");
+      expect(await view(id, "m1").then(r => r.body)).not.toHaveProperty("market"); // off by default
+
+      await publish(owner.token, "m1", { showMarket: true });
+      const res = await view(id, "m1");
+      expect(res.body.market).toMatchObject({ averageAsking: 9000, listings: 14, difference: -500, basis: "make and model", lowest: 6000, highest: 12000 });
+    });
+
+    it("says nothing when there aren't enough recent listings to say anything honest", async () => {
+      const { owner, id } = await setup("passport-market-thin");
+      writeTenantCollection(id, "vehicles", [{ id: "m2", make: "Zzthin", model: "Testcar", status: "in stock", priceRetail: 8500 }]);
+      addSnapshot("Zzthin", "Testcar", { sampleSize: 2 });
+      await publish(owner.token, "m2", { showMarket: true });
+      expect(await view(id, "m2").then(r => r.body)).not.toHaveProperty("market");
+    });
+  });
+
+  it("marks published cars on the public store list, so the store page can link to them", async () => {
+    const { owner, id } = await setup("passport-store");
+    await publish(owner.token, "v1");
+    const list = (await request(app).get(`/public/${id}/vehicles`)).body.items as any[];
+    expect(list.find(v => v.id === "v1")?.hasPassport).toBe(true);
+    for (const v of list.filter(v => v.id !== "v1")) expect(v).not.toHaveProperty("hasPassport");
   });
 });
 

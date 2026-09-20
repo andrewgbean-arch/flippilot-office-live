@@ -35,6 +35,7 @@ import registerDecisionAnalysisRoute from "./routes/decisionAnalysis";
 import registerMarketCompsRoute from "./routes/marketComps";
 import registerGooglePriceGuideRoute from "./routes/googlePriceGuide";
 import registerPublicBookingRoute from "./routes/publicBooking";
+import registerCarPassportRoute from "./routes/carPassport";
 import registerAppointmentsRoute from "./routes/appointments";
 import registerBookingSettingsRoute from "./routes/bookingSettings";
 import registerDVLA from "./dvla";
@@ -197,6 +198,7 @@ app.use(
     "/diary",
     "/ai",
     "/market",
+    "/car-passports",
   ],
   requireAuth,
   requireApprovedDealership,
@@ -248,6 +250,11 @@ registerBookingSettingsRoute(app);
 // inside the route file itself since the risk here is abuse volume,
 // not identity.
 registerPublicBookingRoute(app);
+// The Car Passport: dealer settings (behind the login gate above, via
+// "/car-passports") and the public page a buyer opens (no login, rate-limited
+// inside the route file, and it only ever answers for a car the dealer chose
+// to publish).
+registerCarPassportRoute(app);
 // Real DVSA MOT History + DVLA Vehicle Enquiry Service integration
 // (ported from the sibling flippilotlatest backend's proven pattern) —
 // previously called a placeholder domain that was never a real provider.

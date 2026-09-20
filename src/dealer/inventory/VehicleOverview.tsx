@@ -20,6 +20,7 @@ import { getUlezStatus } from "@/features/vehicles/utils/ulezUtils";
 import type { Vehicle } from "@/types/Vehicle";
 
 import { hasMotRecord } from "./stockFacts";
+import PassportTab from "./PassportTab";
 import {
   ageBand,
   daysInStock,
@@ -38,6 +39,7 @@ const TAB_LABELS = {
   overview: "Overview",
   mot: "MOT",
   market: "Market pricing",
+  passport: "Car Passport",
   costs: "Costs",
   profit: "Profit",
   edit: "Edit",
@@ -94,9 +96,7 @@ export default function VehicleOverview() {
   const purchase = purchases.find((p) => p.vehicleId === vehicleId);
   const sale = sales.find((s) => s.vehicleId === vehicleId);
 
-  const [tab, setTab] = useState<
-    "overview" | "mot" | "market" | "costs" | "profit" | "edit"
-  >("overview");
+  const [tab, setTab] = useState<keyof typeof TAB_LABELS>("overview");
 
   // Real dealer-only, same-year, mileage-comparable eBay listings for
   // this exact vehicle (see backend/src/ebayCarMarket.ts) — fetched
@@ -525,6 +525,9 @@ export default function VehicleOverview() {
 
       {/* EDIT TAB */}
       {tab === "edit" && <EditVehicle vehicleId={vehicleId} />}
+
+      {/* CAR PASSPORT TAB: the public page for this car, and what it shows */}
+      {tab === "passport" && <PassportTab vehicle={vehicle} />}
 
       {/* PHOTO LIGHTBOX */}
       {lightboxIndex !== null && vehicle.images && vehicle.images[lightboxIndex] && (

@@ -153,12 +153,22 @@ export default function PublicDealerPage({ dealershipIdOverride }: { dealershipI
                 <p className={`mt-3 text-2xl font-bold ${priced ? "text-white" : "text-white/70"}`}>
                   {priced ? formatMoney(v.priceRetail) : "Price on request"}
                 </p>
-                <a
-                  href={`/book/${dealershipId}?vehicle=${encodeURIComponent(v.id)}`}
-                  className="mt-3 inline-flex items-center rounded-lg border border-yellow-400/70 px-4 py-2 text-sm font-semibold text-yellow-200 hover:bg-white/10"
-                >
-                  Book a viewing
-                </a>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {v.hasPassport && (
+                    <a
+                      href={`/car/${encodeURIComponent(dealershipId)}/${encodeURIComponent(v.id)}`}
+                      className="inline-flex items-center rounded-lg bg-yellow-400 px-4 py-2 text-sm font-bold text-black hover:bg-yellow-300"
+                    >
+                      See full history
+                    </a>
+                  )}
+                  <a
+                    href={`/book/${dealershipId}?vehicle=${encodeURIComponent(v.id)}`}
+                    className="inline-flex items-center rounded-lg border border-yellow-400/70 px-4 py-2 text-sm font-semibold text-yellow-200 hover:bg-white/10"
+                  >
+                    Book a viewing
+                  </a>
+                </div>
               </SupernovaGlowCard>
             );
           })

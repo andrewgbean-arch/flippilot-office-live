@@ -4,6 +4,7 @@ import rateLimit from "express-rate-limit";
 import { readCollection, readTenantCollection, writeTenantCollection, readTenantDoc } from "../db";
 import type { StoredUser, Dealership } from "../auth";
 import { isSampleVehicleId } from "../sampleVehicles";
+import { publishedVehicleIds } from "./carPassport";
 import { bookedStatus, leadUpdateForBooking } from "../engines/leadBookingStatus";
 import { DEFAULT_BOOKING_SETTINGS, type BookingSettings, type WeekDay } from "./bookingSettings";
 import { toSingleLine, toMultiLine } from "../untrustedText";
@@ -42,6 +43,8 @@ export interface Appointment {
 
 interface PublicVehicle {
   id: string;
+  // True when the dealer has published this car's Car Passport page.
+  hasPassport?: boolean;
   reg?: string;
   make: string;
   model: string;
@@ -247,8 +250,10 @@ export default function registerPublicBookingRoute(app: Express) {
     const vehicles = readTenantCollection<any>(dealershipId, "vehicles")
       .filter(v => String(v.status ?? "").toLowerCase() !== "sold")
       .filter(v => !isSampleVehicleId(v.id));
+    const passports = publishedVehicleIds(dealershipId);
     const publicVehicles: PublicVehicle[] = vehicles.map(v => ({
       id: v.id,
+      ...(passports.has(v.id) ? { hasPassport: true } : {}),
       ...(v.reg ? { reg: v.reg } : {}),
       make: v.make,
       model: v.model,

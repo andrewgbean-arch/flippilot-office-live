@@ -5,6 +5,8 @@ import { BASE_URL } from "@/lib/apiBaseUrl";
 
 export interface PublicVehicle {
   id: string;
+  // The dealer has published this car's Car Passport page.
+  hasPassport?: boolean;
   reg?: string;
   make: string;
   model: string;
