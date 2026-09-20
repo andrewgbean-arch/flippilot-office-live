@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { useInventory } from "@/context/InventoryProvider";
 import { useBookkeeping } from "@/bookkeeping/BookkeepingProvider";
@@ -12,7 +12,7 @@ import ProfitTab from "@/bookkeeping/vehicles/ProfitTab";
 import EditVehicle from "@/bookkeeping/vehicles/EditVehicle";
 import MOTWorkflow from "@/dealer/workflow/MOTWorkflow";
 
-import { SupernovaHeroHeader } from "@/components/supernova/SupernovaHeroHeader";
+import PageHeader from "@/components/PageHeader";
 import { SupernovaGlowCard } from "@/components/supernova/SupernovaGlowCard";
 import { SupernovaSectionDivider } from "@/components/supernova/SupernovaSectionDivider";
 
@@ -30,12 +30,51 @@ import { normalizeFlipRecord } from "@/features/vehicles/models/FlipRecord";
 
 import type { Vehicle } from "@/types/Vehicle";
 
+import {
+  ageBand,
+  daysInStock,
+  formatDate,
+  formatMileage,
+  formatPrice,
+  isSold,
+  motState,
+  prettyStatus,
+  registrationOf,
+  shownPrice,
+  vehicleTitle,
+} from "./vehicleListModel";
+
+const TAB_LABELS = {
+  overview: "Overview",
+  mot: "MOT",
+  "dealer-ai": "AI insights",
+  costs: "Costs",
+  profit: "Profit",
+  edit: "Edit",
+} as const;
+
+const FACT_TONE = {
+  good: "text-emerald-300",
+  warn: "text-amber-300",
+  bad: "text-red-300",
+  plain: "text-white",
+} as const;
+
+function Fact({ label, value, tone = "plain" }: { label: string; value: string; tone?: keyof typeof FACT_TONE }) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-black/40 px-4 py-3">
+      <dt className="text-xs uppercase tracking-wide text-white/70">{label}</dt>
+      <dd className={`mt-0.5 text-lg font-bold ${FACT_TONE[tone]}`}>{value}</dd>
+    </div>
+  );
+}
+
 export default function VehicleOverview() {
   const navigate = useNavigate();
   const { id } = useParams();
   const vehicleId = id as string;
 
-  const { vehicles: invVehicles } = useInventory();
+  const { vehicles: invVehicles, loading: stockLoading } = useInventory();
   const { purchases, sales } = useBookkeeping();
   const { flipScores, marketIntel, motHealth } = useIntelligence();
 
@@ -99,12 +138,27 @@ export default function VehicleOverview() {
   }, [vehicle?.id]);
 
   if (!vehicle) {
+    // On a direct visit or a refresh the stock is still on its way, so the car
+    // isn't "missing" yet: say we're loading rather than flashing "not found".
+    if (stockLoading) {
+      return (
+        <div className="text-white" aria-busy="true">
+          <p className="text-white/70">Loading vehicle…</p>
+        </div>
+      );
+    }
     return (
-      <div className="p-10 text-white">
-        <h2 className="text-2xl font-bold text-red-400">Vehicle Not Found</h2>
-        <p className="text-white/60 mt-2">
-          This vehicle does not exist in your inventory or bookkeeping records.
+      <div className="text-white">
+        <h1 className="text-2xl font-bold text-red-300">Vehicle not found</h1>
+        <p className="mt-2 text-white/70">
+          This vehicle isn't in your stock. It may have been deleted, or the link may be out of date.
         </p>
+        <Link
+          to="/dealer/inventory/list"
+          className="mt-4 inline-flex items-center rounded-lg bg-yellow-400 px-4 py-2 text-sm font-bold text-black hover:bg-yellow-300"
+        >
+          Back to your vehicles
+        </Link>
       </div>
     );
   }
@@ -219,26 +273,91 @@ export default function VehicleOverview() {
     },
   });
 
+  // What a dealer wants the moment they open a car: its plate, price, how long
+  // it has been here and where its MOT stands. (The header used to read
+  // "Record ID: car-1", which means nothing to anyone.)
+  const hdrNow = new Date();
+  const hdrReg = registrationOf(vehicle);
+  const hdrPrice = shownPrice(vehicle);
+  const hdrSold = isSold(vehicle);
+  const hdrDays = hdrSold ? null : daysInStock(vehicle.createdAt, hdrNow);
+  const hdrMot = motState(vehicle.mot?.expiry, hdrNow);
+  const hdrMeta = [vehicle.year ? String(vehicle.year) : null, formatMileage(vehicle.mileage)].filter(
+    (part): part is string => part !== null
+  );
+  const hdrAge = ageBand(hdrDays);
+  const hdrMotText =
+    hdrMot.kind === "unknown"
+      ? "No MOT date"
+      : `${hdrMot.label.slice(4, 5).toUpperCase()}${hdrMot.label.slice(5)} · ${hdrMot.date}`;
+
   return (
-    <div className="p-6 text-white animate-fadeIn">
-      <SupernovaHeroHeader
-        title={`${vehicle.make} ${vehicle.model}`}
-        subtitle={`Record ID: ${vehicleId}`}
+    <div className="animate-fadeIn text-white">
+      <PageHeader
+        title={vehicleTitle(vehicle)}
+        subtitle={
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            {hdrReg && (
+              <span className="rounded bg-yellow-300 px-1.5 py-px font-mono text-xs font-bold tracking-wide text-black">
+                {hdrReg}
+              </span>
+            )}
+            {hdrMeta.length > 0 && <span>{hdrMeta.join(" · ")}</span>}
+            <span className="rounded-full border border-white/25 px-2.5 py-0.5 text-xs font-semibold text-white/90">
+              {prettyStatus(vehicle.status)}
+            </span>
+          </span>
+        }
+        actions={
+          <Link
+            to="/dealer/inventory/list"
+            className="inline-flex items-center rounded-lg border border-white/25 px-4 py-2 text-sm font-semibold text-white/85 transition hover:bg-white/10"
+          >
+            All vehicles
+          </Link>
+        }
       />
 
+      <dl className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Fact label={hdrPrice.label} value={formatPrice(hdrPrice.amount) ?? "Not set"} />
+        {hdrSold ? (
+          <Fact label="Sold on" value={formatDate(sale?.date) ?? "Not in your books"} />
+        ) : (
+          <Fact
+            label="Days in stock"
+            value={hdrDays === null ? "Unknown" : hdrDays === 0 ? "Added today" : String(hdrDays)}
+            tone={hdrAge === "old" ? "bad" : hdrAge === "ageing" ? "warn" : "plain"}
+          />
+        )}
+        <Fact
+          label="MOT"
+          value={hdrMotText}
+          tone={hdrMot.kind === "expired" ? "bad" : hdrMot.kind === "soon" ? "warn" : hdrMot.kind === "valid" ? "good" : "plain"}
+        />
+        <Fact label="Mileage" value={formatMileage(vehicle.mileage) ?? "Not recorded"} />
+      </dl>
+
       {/* TABS */}
-      <div data-tour="tour-vehicle-tabs" className="flex flex-wrap gap-3 mb-6">
-        {["overview", "mot", "dealer-ai", "costs", "profit", "edit"].map((t) => (
+      <div
+        data-tour="tour-vehicle-tabs"
+        role="tablist"
+        aria-label="Vehicle sections"
+        className="mb-6 flex flex-wrap gap-2"
+      >
+        {(Object.keys(TAB_LABELS) as (keyof typeof TAB_LABELS)[]).map((t) => (
           <button
             key={t}
-            onClick={() => setTab(t as any)}
+            type="button"
+            role="tab"
+            aria-selected={tab === t}
+            onClick={() => setTab(t)}
             className={`px-4 py-2 rounded-xl transition font-bold ${
               tab === t
                 ? "bg-yellow-400 text-black"
-                : "bg-white/10 text-white/70 hover:bg-white/20"
+                : "bg-white/10 text-white/80 hover:bg-white/20"
             }`}
           >
-            {t.toUpperCase()}
+            {TAB_LABELS[t]}
           </button>
         ))}
       </div>

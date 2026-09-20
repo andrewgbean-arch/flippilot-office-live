@@ -66,10 +66,12 @@
     min-height: 44px;
   }
 
+  /* Height only: this must not change how a link is laid out (display), or it
+     would override a "hidden" class and reshape block-level links. Links that
+     are plain inline text ignore min-height, so components that want a full
+     target make their links inline-flex themselves. */
   a[class*="rounded"][class*="px-"] {
     min-height: 40px;
-    display: inline-flex;
-    align-items: center;
   }
 }
 

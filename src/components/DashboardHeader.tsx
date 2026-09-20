@@ -76,10 +76,11 @@ export default function DashboardHeader({ onOpenMenu }: DashboardHeaderProps) {
           </button>
         )}
 
-        <h1 className="min-w-0 truncate text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-wide drop-shadow-lg">
+        {/* The brand, not a heading: each page carries its own h1. */}
+        <p className="min-w-0 truncate text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-wide drop-shadow-lg">
           <span className="text-white">FlipPilot</span>
           <span className="text-yellow-300 ml-2 hidden sm:inline">Dealer Hub</span>
-        </h1>
+        </p>
 
         {/* GOLD COSMIC STRIP */}
         <div className="hidden sm:block shrink-0 w-1.5 h-8 bg-yellow-400 rounded-full animate-pulse shadow-[0_0_15px_rgba(255,215,0,0.8)]" />
