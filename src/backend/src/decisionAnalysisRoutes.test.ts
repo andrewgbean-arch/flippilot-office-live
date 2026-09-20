@@ -16,6 +16,7 @@ import { deleteTenantData, readCollection, readTenantCollection, readTenantDoc, 
 import { signToken, type StaffRole } from "./auth.js";
 import { createDecision, getDecision, mutateDecision, takeAnalysisAllowance, validateDraft } from "./decisionStore.js";
 import { MAX_ANALYSES_PER_DAY, type Decision } from "./decisionTypes.js";
+import { withSystemText } from "./pilotBrainPrompt.js";
 
 // Pilot's view and the Devil's Advocate, through the real routes. The vendor call
 // is stubbed, so nothing is spent and no real key is used. What these CANNOT show
@@ -145,7 +146,7 @@ function stubAnthropic(responder: (call: number, body: any) => VendorAnswer | Pr
     "fetch",
     vi.fn(async (url: any, init: any) => {
       if (!String(url).includes("api.anthropic.com")) throw new Error(`unexpected fetch to ${url}`);
-      const body = JSON.parse(init.body);
+      const body = withSystemText(JSON.parse(init.body));
       calls.push(body);
       const answer = await responder(calls.length, body);
       if (answer.networkError) throw new Error("socket hang up");

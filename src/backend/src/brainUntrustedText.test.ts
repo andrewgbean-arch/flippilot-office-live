@@ -25,6 +25,7 @@ import {
 import { extractRememberTag, buildBusinessSummary } from "./routes/pilotBrain.js";
 import { londonToday } from "./routes/publicBooking.js";
 import { toSingleLine, toMultiLine, toPromptLine } from "./untrustedText.js";
+import { withSystemText } from "./pilotBrainPrompt.js";
 
 // Text that comes from outside the dealership — what a stranger types into the
 // public booking form, and what comes back from the live web — must be treated
@@ -422,7 +423,7 @@ describe("Pilot Brain treats outside text as data", () => {
       "fetch",
       vi.fn(async (url: any, init: any) => {
         if (!String(url).includes("api.anthropic.com")) throw new Error(`unexpected fetch to ${url}`);
-        calls.push(JSON.parse(init.body));
+        calls.push(withSystemText(JSON.parse(init.body)));
         const { status = 200, body } = responder(calls.length);
         return { ok: status < 300, status, json: async () => body, text: async () => JSON.stringify(body) };
       })

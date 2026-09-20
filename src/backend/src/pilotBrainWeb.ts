@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { readTenantDoc, writeTenantDoc } from "./db";
 import { MAX_TOOL_ROUNDS, isToolUse, runToolCalls, type ClientTools } from "./pilotBrainToolCore";
+import { logUsage, systemParam, type SystemPrompt } from "./pilotBrainPrompt";
 
 /* --------------------------------------------------
    ⭐ Pilot Brain web access (live web search)
@@ -332,15 +333,15 @@ export interface WebChatOutcome {
 
 export async function chatWithWebSearch(params: {
   apiKey: string;
-  systemPromptWithWeb: string;
-  systemPromptWithoutWeb: string;
+  systemPromptWithWeb: SystemPrompt;
+  systemPromptWithoutWeb: SystemPrompt;
   messages: WebChatMessage[];
   tool: ReturnType<typeof buildWebSearchTool>;
   // Tools the model may call alongside the web search (look_inside). Their
   // results are fed back and the reply continues; see pilotBrainToolCore.
   clientTools?: ClientTools;
   // Plain (no tools) call, used only if the web-enabled one fails.
-  fallbackCall: (systemPrompt: string, messages: WebChatMessage[]) => Promise<string>;
+  fallbackCall: (systemPrompt: SystemPrompt, messages: WebChatMessage[]) => Promise<string>;
 }): Promise<WebChatOutcome> {
   // Everything the assistant produced so far this turn — kept outside
   // the try so a failure part-way still lets us log searches that ran.
@@ -374,7 +375,7 @@ export async function chatWithWebSearch(params: {
         body: JSON.stringify({
           model: "claude-haiku-4-5-20251001",
           max_tokens: WEB_MAX_TOKENS,
-          system: params.systemPromptWithWeb,
+          system: systemParam(params.systemPromptWithWeb),
           messages,
           tools: [params.tool, ...(params.clientTools?.definitions ?? [])],
         }),
@@ -386,6 +387,7 @@ export async function chatWithWebSearch(params: {
       }
 
       const data = await response.json();
+      logUsage("pilot-brain/chat web", data);
       const blocks: unknown[] = Array.isArray(data?.content) ? data.content : [];
       turnSoFar.push(...blocks);
       current.push(...blocks);

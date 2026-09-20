@@ -27,6 +27,7 @@ import {
 import { anthropicMessagesUrl } from "./pilotBrainWeb";
 import { lookInside, lookInsideToolDefinition, type LookInput, type TabSource } from "./pilotBrainTabs";
 import { MAX_TOOL_ROUNDS, isToolUse, runToolCalls, type ClientTools } from "./pilotBrainToolCore";
+import { logUsage, systemParam, type SystemPrompt } from "./pilotBrainPrompt";
 
 export { MAX_TOOL_ROUNDS, MAX_TOOL_CALLS_PER_CHAT, type ClientTools } from "./pilotBrainToolCore";
 
@@ -124,13 +125,13 @@ export function buildClientTools(user: AuthUser, source: TabSource, edits?: Edit
 
 export async function chatWithTools(params: {
   apiKey: string;
-  systemWithTools: string;
+  systemWithTools: SystemPrompt;
   // The same prompt without the tool section, for the no-tools fallback, so
   // the model isn't told about a tool it can't call.
-  systemWithoutTools: string;
+  systemWithoutTools: SystemPrompt;
   messages: ToolChatMessage[];
   tools: ClientTools;
-  fallbackCall: (systemPrompt: string, messages: ToolChatMessage[]) => Promise<string>;
+  fallbackCall: (systemPrompt: SystemPrompt, messages: ToolChatMessage[]) => Promise<string>;
 }): Promise<string> {
   const convo: { role: string; content: unknown }[] = params.messages.map(m => ({ role: m.role, content: m.content }));
   let toolCalls = 0;
@@ -144,7 +145,7 @@ export async function chatWithTools(params: {
         body: JSON.stringify({
           model: "claude-haiku-4-5-20251001",
           max_tokens: TOOL_MAX_TOKENS,
-          system: params.systemWithTools,
+          system: systemParam(params.systemWithTools),
           messages: convo,
           // No tools on the last round, so it has to answer in words.
           ...(lastRound ? {} : { tools: params.tools.definitions }),
@@ -154,6 +155,7 @@ export async function chatWithTools(params: {
       if (!response.ok) throw new Error(`Anthropic API error ${response.status}: ${await response.text()}`);
 
       const data = await response.json();
+      logUsage("pilot-brain/chat", data);
       const content: unknown[] = Array.isArray(data?.content) ? data.content : [];
       const uses = content.filter(isToolUse);
 
