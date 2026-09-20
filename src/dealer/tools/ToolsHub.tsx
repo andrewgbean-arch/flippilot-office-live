@@ -76,7 +76,9 @@ export default function ToolsHub() {
           <p className="text-white/50 text-xs mb-3">
             Decodes make and model year from the VIN itself. Model/trim/
             engine can't be reliably determined from a VIN alone — enter
-            those manually when adding the vehicle.
+            those manually when adding the vehicle. Best effort only: it
+            recognises just five makes (Ford, Volkswagen, Mercedes, BMW and
+            Toyota), and the year is read from a single character.
           </p>
 
           <SupernovaInput
@@ -129,19 +131,21 @@ export default function ToolsHub() {
 
         {/* AI PRICE ESTIMATOR */}
         <SupernovaGlowCard>
-          <h2 className="text-blue-400 font-bold text-xl mb-3">AI Price Estimator</h2>
+          <h2 className="text-blue-400 font-bold text-xl mb-3">AI Insights (experimental)</h2>
           <p className="text-white/70 mb-4">
-            Real per-vehicle valuation, risk, and market-pressure scoring,
-            computed from your actual inventory.
+            An experimental overview of your stock. Its figures come from
+            simple rules applied to your own prices and MOT records. They
+            are not live market data or a valuation.
           </p>
           <Link to="/ai-insights" className={linkClass}>Open AI Insights</Link>
         </SupernovaGlowCard>
 
         {/* MARKET LOOKUP */}
         <SupernovaGlowCard>
-          <h2 className="text-yellow-300 font-bold text-xl mb-3">Market Lookup</h2>
+          <h2 className="text-yellow-300 font-bold text-xl mb-3">Market Views (experimental)</h2>
           <p className="text-white/70 mb-4">
-            Market trends and pricing intelligence for your fleet.
+            Simple rules applied to your own prices. These are not live
+            market data.
           </p>
           <div className="flex flex-col gap-3">
             <Link to="/dealer/intelligence/market" className={linkClass}>Market Intelligence</Link>
@@ -163,7 +167,8 @@ export default function ToolsHub() {
         <SupernovaGlowCard>
           <h2 className="text-blue-400 font-bold text-xl mb-3">Marketplace Tools</h2>
           <p className="text-white/70 mb-4">
-            Pricing Brain and marketplace stock syndication.
+            Pricing Brain (experimental) and a CSV stock feed you can give
+            to a portal. Nothing is sent to any portal automatically.
           </p>
           <div className="flex flex-col gap-3">
             <Link to="/dealer/intelligence/pricing" className={linkClass}>Pricing Brain</Link>
