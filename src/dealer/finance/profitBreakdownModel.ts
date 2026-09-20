@@ -1,4 +1,9 @@
 import { calculateMarginVat, calculateVat } from "@/bookkeeping/vatUtils";
+import { toAmount, type AmountInput } from "./money";
+
+// The finance screens share these two helpers (see money.ts).
+export { toAmount, formatMoney } from "./money";
+export type { AmountInput } from "./money";
 
 // The arithmetic behind the Profit Breakdown screen, kept out of the
 // component so it can be tested.
@@ -21,8 +26,6 @@ export const PROFIT_VAT_RATE = 0.2;
  * none     - not VAT-registered, or no VAT to take off.
  */
 export type ProfitVatTreatment = "margin" | "standard" | "none";
-
-export type AmountInput = number | string | null | undefined;
 
 export interface ProfitBreakdownInput {
   purchasePrice: AmountInput;
@@ -48,19 +51,6 @@ export interface ProfitBreakdownResult {
   netProfit: number | null;
   /** Gross profit as a percentage of the sale price. Null until ready, or when the sale price is 0. */
   marginPct: number | null;
-}
-
-/**
- * Turns whatever the form holds into a usable amount. Blank, non-numeric,
- * negative and non-finite entries are "missing" (null): a blank field is not
- * the same thing as an entered 0.
- */
-export function toAmount(raw: AmountInput): number | null {
-  if (raw === null || raw === undefined) return null;
-  if (typeof raw === "string" && raw.trim() === "") return null;
-  const n = typeof raw === "number" ? raw : Number(raw);
-  if (!Number.isFinite(n) || n < 0) return null;
-  return n;
 }
 
 export function calculateProfitBreakdown(input: ProfitBreakdownInput): ProfitBreakdownResult {
@@ -103,13 +93,4 @@ export function calculateProfitBreakdown(input: ProfitBreakdownInput): ProfitBre
     netProfit: grossProfit - vat,
     marginPct: sale > 0 ? (grossProfit / sale) * 100 : null,
   };
-}
-
-/** "£1,234.50" or "-£1,234.50". */
-export function formatMoney(value: number): string {
-  const pence = Math.round(value * 100);
-  // A value that rounds to nothing must not print as "-£0.00".
-  const sign = pence < 0 ? "-" : "";
-  const abs = Math.abs(pence) / 100;
-  return `${sign}£${abs.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }

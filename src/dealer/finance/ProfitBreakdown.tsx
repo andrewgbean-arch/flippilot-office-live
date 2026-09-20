@@ -1,11 +1,7 @@
 import { useState } from "react";
 import "@/staff/StaffDashboard.css";
-import {
-  calculateProfitBreakdown,
-  formatMoney,
-  toAmount,
-  type ProfitVatTreatment,
-} from "./profitBreakdownModel";
+import { calculateProfitBreakdown, type ProfitVatTreatment } from "./profitBreakdownModel";
+import { formatMoney, toAmount } from "./money";
 
 // The sums live in profitBreakdownModel.ts, which calls the same VAT code as
 // the bookkeeping module. This file used to take 1/6 of (sale - ALL costs),
