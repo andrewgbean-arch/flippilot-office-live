@@ -1,4 +1,5 @@
 import { useStaff } from "@/staff/StaffContext";
+import { averageDaysOnApp } from "./staffFigures";
 import "@/staff/StaffDashboard.css";
 
 export default function StaffAnalytics() {
@@ -18,14 +19,9 @@ export default function StaffAnalytics() {
     return acc;
   }, {} as Record<string, number>);
 
-  const avgTenureDays = total > 0
-    ? Math.round(
-        staff.reduce((sum, s) => {
-          const days = (Date.now() - new Date(s.joinedAt).getTime()) / 86400000;
-          return sum + days;
-        }, 0) / total
-      )
-    : 0;
+  // Was "Avg Tenure", but the date behind it is when the record was created in
+  // FlipPilot, not when the person started work (see staffFigures.ts).
+  const avgDaysOnApp = averageDaysOnApp(staff, new Date());
 
   return (
     <div className="sn-dashboard sn-dashboard--cosmic">
@@ -35,7 +31,7 @@ export default function StaffAnalytics() {
         <div className="sn-hero__content">
           <h1 className="sn-hero__title">Staff Analytics</h1>
           <p className="sn-hero__subtitle">
-            Team composition and tenure across the business.
+            Your team by role and branch.
           </p>
         </div>
       </header>
@@ -43,7 +39,7 @@ export default function StaffAnalytics() {
       <section className="sn-metrics-row">
         <MetricCard label="Total Staff" value={total} accent="primary" />
         <MetricCard label="Active" value={active} accent="success" />
-        <MetricCard label="Avg Tenure (days)" value={avgTenureDays} accent="gold" />
+        <MetricCard label="Avg Days on FlipPilot" value={avgDaysOnApp} accent="gold" />
       </section>
 
       <main className="sn-grid">
@@ -87,12 +83,12 @@ function MetricCard({
   accent,
 }: {
   label: string;
-  value: number;
+  value: number | null;
   accent?: "primary" | "success" | "gold" | "blue" | "purple";
 }) {
   return (
     <div className={`sn-metric sn-metric--${accent ?? "primary"}`}>
-      <div className="sn-metric__value">{value}</div>
+      <div className="sn-metric__value">{value === null ? "–" : value}</div>
       <div className="sn-metric__label">{label}</div>
     </div>
   );

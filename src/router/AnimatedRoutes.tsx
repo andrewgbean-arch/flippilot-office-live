@@ -52,9 +52,6 @@ import VehicleOverview from "@/dealer/inventory/VehicleOverview";
 import VehicleList from "@/dealer/inventory/VehicleList";
 import MOTLookup from "@/dealer/inventory/MOTLookup";
 import PartsLabourLog from "@/dealer/inventory/PartsLabourLog";
-import ReconditioningTracker from "@/dealer/inventory/ReconditioningTracker";
-import MarketComparison from "@/dealer/inventory/MarketComparison";
-import VehicleTimeline from "@/dealer/inventory/VehicleTimeline";
 
 /* SALES */
 import SalesHub from "@/dealer/sales/SalesHub";
@@ -109,8 +106,6 @@ import AIInsights from "@/dealer/AIInsights";
 import AnalyticsHub from "@/dealer/analytics/AnalyticsHub";
 import SalesAnalytics from "@/dealer/analytics/SalesAnalytics";
 import InventoryAnalytics from "@/dealer/analytics/InventoryAnalytics";
-import PricingAnalytics from "@/dealer/analytics/PricingAnalytics";
-import MarketTrends from "@/dealer/analytics/MarketTrends";
 import LeadConversionAnalytics from "@/dealer/analytics/LeadConversionAnalytics";
 import StaffAnalytics from "@/dealer/analytics/StaffAnalytics";
 import BranchComparison from "@/dealer/analytics/BranchComparison";
@@ -203,9 +198,6 @@ export default function AnimatedRoutes() {
         <Route path="dealer/inventory/list" element={<VehicleList />} />
         <Route path="dealer/inventory/mot-lookup" element={<MOTLookup />} />
         <Route path="dealer/inventory/parts-labour" element={<PartsLabourLog />} />
-        <Route path="dealer/inventory/reconditioning" element={<ReconditioningTracker />} />
-        <Route path="dealer/inventory/market-comparison" element={<MarketComparison />} />
-        <Route path="dealer/inventory/timeline" element={<VehicleTimeline />} />
         <Route path="dealer/inventory/:id" element={<VehicleOverview />} />
 
         {/* SALES */}
@@ -292,8 +284,6 @@ export default function AnimatedRoutes() {
         <Route path="dealer/analytics" element={<AnalyticsHub />} />
         <Route path="dealer/analytics/sales" element={<SalesAnalytics />} />
         <Route path="dealer/analytics/inventory" element={<InventoryAnalytics />} />
-        <Route path="dealer/analytics/pricing" element={<PricingAnalytics />} />
-        <Route path="dealer/analytics/market-trends" element={<MarketTrends />} />
         <Route path="dealer/analytics/lead-conversion" element={<LeadConversionAnalytics />} />
         <Route path="dealer/analytics/staff" element={<StaffAnalytics />} />
         <Route path="dealer/analytics/branches" element={<BranchComparison />} />

@@ -87,7 +87,7 @@ export const TOUR_STEPS: TourStep[] = [
     target: "tour-vehicle-tabs",
     title: "A vehicle's full record",
     narration:
-      "Once you're on a vehicle, these tabs cover everything about it — an overview, its full MOT history, AI insights, every cost logged against it, its profit breakdown, and editing its details.",
+      "Once you're on a vehicle, these tabs cover everything about it — an overview, its full MOT history, market pricing from similar listings, every cost logged against it, its profit breakdown, and editing its details.",
   },
   {
     id: "consumables",

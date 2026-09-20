@@ -3,220 +3,60 @@
 import type { Vehicle } from "../../types/Vehicle";
 
 /**
- * Compute a Supernova-style overall intelligence score for the vehicle.
+ * What this file used to do: stamp ten "AI" fields on every car and save them
+ * with it (marketHeat and riskScore as 0, then supernovaScore, flipDifficulty,
+ * valuationConfidence, photoQuality, auctionDelta, buyerPersona,
+ * sellerPsychology and a predictedRepairs table worked out from them).
+ *
+ * All of it was built from a market heat and a risk score that were 0 on every
+ * real car, plus age, mileage and the dealer's own prices. So flip difficulty
+ * read "High" for almost any used car, "valuation confidence" FELL as the
+ * dealer's margin rose, the auction delta was 12 for every car, photo quality
+ * ignored the real photos, and any car over 90,000 miles was "predicted" to need
+ * a £700 clutch. None of it came from the market or from anything the dealer
+ * knew, so it is no longer computed, and the values older versions saved with
+ * the cars are cleared when a car is read (see RETIRED_FIELDS).
+ *
+ * What stays is the half that keeps the app from breaking: a car read back from
+ * the server can lack pieces the screens take for granted, and one odd record
+ * must not hide the rest of the stock.
  */
-function computeSupernovaScore(vehicle: Vehicle): number {
-  const yearSafe = vehicle.year ?? 0;
-  const mileageSafe = vehicle.mileage ?? 0;
-  const retailSafe = vehicle.priceRetail ?? 0;
-  const tradeSafe = vehicle.priceTrade ?? 0;
 
-  const age = new Date().getFullYear() - yearSafe;
-
-  const heatFactor = vehicle.marketHeat;
-  const riskFactor = 100 - vehicle.riskScore;
-  const mileageFactor = Math.max(0, 100 - mileageSafe / 1000);
-  const priceSpread = Math.max(0, retailSafe - tradeSafe);
-
-  const base =
-    heatFactor * 0.3 +
-    riskFactor * 0.25 +
-    mileageFactor * 0.2 +
-    (priceSpread > 0 ? 15 : 0) -
-    age * 1.5;
-
-  return Math.max(0, Math.min(100, Math.round(base)));
-}
-
-/**
- * Flip difficulty: how hard this car is to flip profitably.
- */
-function computeFlipDifficulty(vehicle: Vehicle): number {
-  const mileageSafe = vehicle.mileage ?? 0;
-
-  const mileageFactor = mileageSafe / 1000;
-  const riskFactor = vehicle.riskScore / 2;
-  const heatFactor = (100 - vehicle.marketHeat) / 3;
-
-  const base = mileageFactor + riskFactor + heatFactor;
-
-  return Math.max(0, Math.min(100, Math.round(base)));
-}
-
-/**
- * Valuation confidence: how “solid” the pricing feels.
- */
-function computeValuationConfidence(vehicle: Vehicle): number {
-  const retailSafe = vehicle.priceRetail ?? 0;
-  const tradeSafe = vehicle.priceTrade ?? 0;
-
-  const spread = retailSafe - tradeSafe;
-  const spreadScore = Math.max(0, 40 - spread / 250);
-  const heatScore = vehicle.marketHeat / 2;
-  const riskScore = (100 - vehicle.riskScore) / 3;
-
-  const base = spreadScore + heatScore + riskScore;
-
-  return Math.max(0, Math.min(100, Math.round(base)));
-}
-
-/**
- * Photo quality: simple heuristic based on condition + status.
- */
-function computePhotoQuality(vehicle: Vehicle): number {
-  const conditionBoost =
-    vehicle.condition === "Excellent"
-      ? 20
-      : vehicle.condition === "Good"
-      ? 10
-      : 0;
-
-  const statusBoost =
-    vehicle.status === "In Stock"
-      ? 10
-      : vehicle.status === "In Prep"
-      ? 5
-      : 0;
-
-  const base = 50 + conditionBoost + statusBoost;
-
-  return Math.max(0, Math.min(100, Math.round(base)));
-}
-
-/**
- * Auction delta: estimated % difference between retail and auction.
- */
-function computeAuctionDelta(vehicle: Vehicle): number {
-  const riskFactor = vehicle.riskScore / 2;
-  const heatFactor = (100 - vehicle.marketHeat) / 3;
-  const basePercent = 5 + riskFactor * 0.3 + heatFactor * 0.2;
-
-  return Math.max(0, Math.min(40, Math.round(basePercent)));
-}
-
-/**
- * Buyer persona generator.
- */
-function generateBuyerPersona(vehicle: Vehicle): string[] {
-  const retailSafe = vehicle.priceRetail ?? 0;
-
-  const personas: string[] = [];
-
-  if (retailSafe > 25000) {
-    personas.push("Performance Enthusiast", "Status-Conscious Buyer");
-  } else if (retailSafe > 15000) {
-    personas.push("Comfort & Tech Seeker");
-  } else {
-    personas.push("Budget-Conscious Commuter");
-  }
-
-  if (vehicle.condition === "Excellent") {
-    personas.push("Low-Risk Buyer");
-  } else if (vehicle.condition === "Fair") {
-    personas.push("DIY Mechanic / Enthusiast");
-  }
-
-  if (vehicle.marketHeat > 85) {
-    personas.push("FOMO Buyer");
-  }
-
-  return Array.from(new Set(personas));
-}
-
-/**
- * Seller psychology tags.
- */
-function generateSellerPsychology(vehicle: Vehicle): string[] {
-  const retailSafe = vehicle.priceRetail ?? 0;
-  const tradeSafe = vehicle.priceTrade ?? 0;
-
-  const tags: string[] = [];
-  const spread = retailSafe - tradeSafe;
-
-  if (spread > 4000) tags.push("Profit Maximiser");
-  else if (spread < 2000) tags.push("Quick Turnover Focused");
-
-  if (vehicle.status === "In Prep") tags.push("Detail-Oriented Presentation");
-  if (vehicle.riskScore > 50) tags.push("Risk Offloader");
-  if (vehicle.marketHeat > 90) tags.push("Market Timing Strategist");
-
-  return Array.from(new Set(tags));
-}
-
-/**
- * Predicted repairs based on MOT advisories + mileage.
- */
-function predictRepairs(vehicle: Vehicle) {
-  const mileageSafe = vehicle.mileage ?? 0;
-
-  const predictions: {
-    component: string;
-    likelihood: number;
-    cost: number;
-  }[] = [];
-
-  const advisories = vehicle.mot.advisories || [];
-
-  advisories.forEach((adv) => {
-    if (typeof adv !== "string") return; // not text: nothing to read a repair from
-    const lower = adv.toLowerCase();
-
-    if (lower.includes("tyre")) {
-      predictions.push({ component: "Tyres", likelihood: 80, cost: 300 });
-    } else if (lower.includes("pads") || lower.includes("brake")) {
-      predictions.push({ component: "Brakes", likelihood: 75, cost: 250 });
-    } else if (lower.includes("oil leak")) {
-      predictions.push({
-        component: "Engine Seals / Gaskets",
-        likelihood: 65,
-        cost: 450,
-      });
-    } else if (lower.includes("suspension")) {
-      predictions.push({
-        component: "Suspension Components",
-        likelihood: 70,
-        cost: 500,
-      });
-    } else {
-      predictions.push({
-        component: "General Wear Item",
-        likelihood: 50,
-        cost: 200,
-      });
-    }
-  });
-
-  if (mileageSafe > 90000) {
-    predictions.push({
-      component: "Clutch / Drivetrain",
-      likelihood: 60,
-      cost: 700,
-    });
-  }
-
-  return predictions;
-}
+// The fields older versions computed and saved with every car. They mean
+// nothing, so a car read from the server has them removed, and the next save
+// takes them out of the server's copy too. (They are still declared, as
+// deprecated, on the Vehicle type so code that has not been cleaned up yet
+// keeps compiling.)
+const RETIRED_FIELDS = [
+  "marketHeat",
+  "riskScore",
+  "supernovaScore",
+  "flipDifficulty",
+  "valuationConfidence",
+  "photoQuality",
+  "auctionDelta",
+  "buyerPersona",
+  "sellerPsychology",
+  "predictedRepairs",
+] as const;
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 /**
- * A car read back from the server can lack pieces the scoring and the screens
- * take for granted: the server stores whatever car it is sent, and another
- * client (or an older version) may not have sent them. A car with no `mot`
- * object made the enrichment throw, and one throw made the whole stock fail to
- * load. This fills in the nested objects that are missing (and the two numbers
- * the scoring does arithmetic on) and touches nothing the car does have, so a
- * well-formed car comes back equal to how it went in.
+ * A car read back from the server can lack pieces the screens take for granted:
+ * the server stores whatever car it is sent, and another client (or an older
+ * version) may not have sent them. A car with no `mot` object made the old
+ * enrichment throw, and one throw made the whole stock fail to load. This fills
+ * in the nested objects that are missing and touches nothing the car does have,
+ * so a well-formed car comes back equal to how it went in.
  */
 export function withSafeDefaults(car: Vehicle): Vehicle {
   const mot: Record<string, unknown> = isPlainObject(car.mot) ? car.mot : {};
   const finance: Record<string, unknown> = isPlainObject(car.finance) ? car.finance : {};
   return {
     ...car,
-    marketHeat: car.marketHeat ?? 0,
-    riskScore: car.riskScore ?? 0,
     mot: {
       ...mot,
       expiry: mot.expiry ?? "",
@@ -234,35 +74,33 @@ export function withSafeDefaults(car: Vehicle): Vehicle {
   } as Vehicle;
 }
 
+/** The same car without the fields older versions stamped on it (see RETIRED_FIELDS). */
+export function withoutRetiredFields(car: Vehicle): Vehicle {
+  const rest: Record<string, unknown> = { ...car };
+  for (const key of RETIRED_FIELDS) delete rest[key];
+  return rest as unknown as Vehicle;
+}
+
 /**
- * Main entry: enrich a Vehicle with AI intelligence fields.
+ * Makes a car safe to show and to save: missing pieces filled in, retired fields
+ * cleared. It adds no scores of any kind. (The name is from when it did; it is
+ * kept so the callers in InventoryProvider do not have to change.)
  */
 export function enrichVehicleWithAI(car: Vehicle): Vehicle {
-  const base = withSafeDefaults(car);
-  return {
-    ...base,
-    supernovaScore: computeSupernovaScore(base),
-    flipDifficulty: computeFlipDifficulty(base),
-    valuationConfidence: computeValuationConfidence(base),
-    photoQuality: computePhotoQuality(base),
-    auctionDelta: computeAuctionDelta(base),
-    buyerPersona: generateBuyerPersona(base),
-    sellerPsychology: generateSellerPsychology(base),
-    predictedRepairs: predictRepairs(base),
-  };
+  return withoutRetiredFields(withSafeDefaults(car));
 }
 
 /**
  * Readies ONE car read from the server for display: fills in what it lacks and
- * adds the AI scores. If that fails for any reason the car is kept exactly as it
- * came, only without the scores, rather than costing the dealer their whole
- * stock over one odd record.
+ * clears the retired fields. If that fails for any reason the car is kept
+ * exactly as it came, rather than costing the dealer their whole stock over one
+ * odd record.
  */
 export function prepareVehicle(car: Vehicle): Vehicle {
   try {
     return enrichVehicleWithAI(car);
   } catch (err) {
-    console.error(`Could not add AI scores to vehicle ${String(car?.id)}; showing it without them.`, err);
+    console.error(`Could not get vehicle ${String(car?.id)} ready to show; keeping it as it was saved.`, err);
     return car;
   }
 }

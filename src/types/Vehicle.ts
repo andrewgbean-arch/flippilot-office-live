@@ -29,8 +29,15 @@ export interface Vehicle {
     demandScore?: number;
     heatScore?: number;
   };
-  marketHeat: number;
-  riskScore: number;
+  // RETIRED: the app no longer computes or saves these two (they were stamped
+  // as 0 on every car, so anything built on them was meaningless), and cars read
+  // from the server have them removed (dealer/intelligence/dealerAI.ts). Still
+  // declared, and optional, only so screens that have not been cleaned up yet
+  // keep compiling. Do not read them.
+  /** @deprecated retired, never set */
+  marketHeat?: number;
+  /** @deprecated retired, never set */
+  riskScore?: number;
   condition: string;
 
   // Rarity
@@ -75,7 +82,9 @@ export interface Vehicle {
     cost: number;
   }[];
 
-  // AI predicted repairs
+  // RETIRED "AI predicted repairs" (a fixed cost table keyed on advisory words
+  // and mileage): no longer computed, see dealerAI.ts.
+  /** @deprecated retired, never set */
   predictedRepairs?: {
     component: string;
     likelihood: number;
@@ -90,13 +99,24 @@ export interface Vehicle {
     lenderTier: string;
   };
 
-  // AI Intelligence fields
+  // RETIRED "AI Intelligence fields": no longer computed or saved, and removed
+  // from cars read from the server (dealer/intelligence/dealerAI.ts). They were
+  // worked out from figures the app never had (see the note there), so they
+  // carried no information. Declared only so code that has not been cleaned up
+  // yet keeps compiling; do not read them.
+  /** @deprecated retired, never set */
   buyerPersona?: string[];
+  /** @deprecated retired, never set */
   sellerPsychology?: string[];
+  /** @deprecated retired, never set */
   supernovaScore?: number;
+  /** @deprecated retired, never set */
   flipDifficulty?: number;
+  /** @deprecated retired, never set */
   valuationConfidence?: number;
+  /** @deprecated retired, never set */
   photoQuality?: number;
+  /** @deprecated retired, never set */
   auctionDelta?: number;
 
   aiPriceConfidence?: number; // ⭐ REQUIRED

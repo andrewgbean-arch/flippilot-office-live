@@ -1,50 +1,33 @@
 import { useNavigate } from "react-router-dom";
 import { useInventory } from "@/context/InventoryProvider";
-import { demandLevel } from "../../engines/MarketIntel";
+import { askingPriceSummary, averageDaysInStock, unsold } from "@/dealer/inventory/stockFacts";
 import "@/staff/StaffDashboard.css";
 
+// Every card here describes what its page really shows. The hub used to
+// advertise "AI-recommended pricing" and "aggregate demand and sentiment"; those
+// two pages (Pricing Analytics and Market Trends) are gone because everything on
+// them was worked out from the dealer's own asking prices, not from the market.
 const TOOLS = [
-  { label: "Sales Analytics", to: "/dealer/analytics/sales", desc: "Lead pipeline performance and conversion." },
-  { label: "Inventory Analytics", to: "/dealer/analytics/inventory", desc: "Stock composition and pricing confidence." },
-  { label: "Pricing Analytics", to: "/dealer/analytics/pricing", desc: "AI-recommended pricing across your stock." },
-  { label: "Market Trends", to: "/dealer/analytics/market-trends", desc: "Aggregate demand and sentiment." },
-  { label: "Lead Conversion", to: "/dealer/analytics/lead-conversion", desc: "Which sources convert best." },
-  { label: "Staff Analytics", to: "/dealer/analytics/staff", desc: "Team composition and tenure." },
-  { label: "Branch Comparison", to: "/dealer/analytics/branches", desc: "Compare performance across branches." },
+  { label: "Sales Analytics", to: "/dealer/analytics/sales", desc: "Your leads by status and source." },
+  { label: "Inventory Analytics", to: "/dealer/analytics/inventory", desc: "Stock on hand: MOT dates, prices, mileage and how long cars have been here." },
+  { label: "Lead Conversion", to: "/dealer/analytics/lead-conversion", desc: "Which lead sources your won leads came from." },
+  { label: "Staff Analytics", to: "/dealer/analytics/staff", desc: "Your team by role and branch." },
+  { label: "Staff by Branch", to: "/dealer/analytics/branches", desc: "How many staff work at each branch." },
 ];
 
 export default function AnalyticsHub() {
   const { vehicles } = useInventory();
   const navigate = useNavigate();
 
-  const avgDemandScore =
-    vehicles.length > 0
-      ? vehicles.reduce((sum, v) => sum + (v.market?.demandScore ?? 50), 0) / vehicles.length
-      : 50;
-
-  const demand = demandLevel({ buyers: Math.round(avgDemandScore), sellers: 100 - Math.round(avgDemandScore) });
-
-  // priceMovement/trendDirection compare the first and last item of an
-  // array — meaningful for one vehicle's price over time, meaningless
-  // for a cross-section of different vehicles' current prices (which
-  // is all this app tracks; there's no per-vehicle price history yet).
-  // Real, honest cross-sectional stats instead: average price and the
-  // spread between cheapest and priciest in stock right now.
-  const priceSeries = vehicles
-    .map(v => v.priceRetail)
-    .filter((p): p is number => typeof p === "number" && p > 0);
-
-  const avgPrice = priceSeries.length > 0 ? Math.round(priceSeries.reduce((a, b) => a + b, 0) / priceSeries.length) : 0;
-  const minPrice = priceSeries.length > 0 ? Math.min(...priceSeries) : 0;
-  const maxPrice = priceSeries.length > 0 ? Math.max(...priceSeries) : 0;
-
-  const highConfidenceCount = vehicles.filter(v => (v.valuationConfidence ?? 0) >= 70).length;
-  const stockPerformancePct = vehicles.length > 0
-    ? Math.round((highConfidenceCount / vehicles.length) * 100)
-    : 0;
-
-  const stockPerformanceLabel =
-    stockPerformancePct >= 70 ? "Strong" : stockPerformancePct >= 40 ? "Moderate" : "Weak";
+  // The hub used to open with a "Market Demand" tile (always "Balanced": it read
+  // a demand score nothing ever set) and a "Stock Performance" tile (the share
+  // of cars with a high "valuation confidence", which fell as a dealer's margin
+  // rose). Both are gone. These three are counted from the dealer's own cars,
+  // sold ones left out.
+  const now = new Date();
+  const onHand = unsold(vehicles);
+  const prices = askingPriceSummary(vehicles);
+  const days = averageDaysInStock(vehicles, now);
 
   return (
     <div className="animate-fadeIn">
@@ -53,29 +36,41 @@ export default function AnalyticsHub() {
         Dealer Analytics Hub
       </h1>
       <p className="text-white/60 mb-10">
-        Market trends, pricing intelligence, and performance insights.
+        Figures worked out from your own stock, leads and staff records.
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
 
         <div className="bg-flipDark border border-gold rounded-xl p-6 shadow-blueGlow hover:shadow-goldGlow transition">
-          <h2 className="text-xl font-semibold text-gold mb-2">Market Demand</h2>
-          <p className="text-white text-4xl font-bold">{demand}</p>
-          <p className="text-white/60 mt-1">Based on your stock's demand scoring</p>
-        </div>
-
-        <div className="bg-flipDark border border-gold rounded-xl p-6 shadow-blueGlow hover:shadow-goldGlow transition">
-          <h2 className="text-xl font-semibold text-gold mb-2">Average Price</h2>
-          <p className="text-white text-4xl font-bold">£{avgPrice.toLocaleString()}</p>
+          <h2 className="text-xl font-semibold text-gold mb-2">Cars in Stock</h2>
+          <p className="text-white text-4xl font-bold">{onHand.length}</p>
           <p className="text-white/60 mt-1">
-            {priceSeries.length > 0 ? `£${minPrice.toLocaleString()} – £${maxPrice.toLocaleString()} range` : "No priced stock yet"}
+            {vehicles.length - onHand.length > 0
+              ? `${vehicles.length - onHand.length} sold, not counted`
+              : "Everything not yet sold"}
           </p>
         </div>
 
         <div className="bg-flipDark border border-gold rounded-xl p-6 shadow-blueGlow hover:shadow-goldGlow transition">
-          <h2 className="text-xl font-semibold text-gold mb-2">Stock Performance</h2>
-          <p className="text-white text-4xl font-bold">{stockPerformanceLabel}</p>
-          <p className="text-white/60 mt-1">{stockPerformancePct}% high-confidence pricing</p>
+          <h2 className="text-xl font-semibold text-gold mb-2">Average Price</h2>
+          <p className="text-white text-4xl font-bold">
+            {prices ? `£${prices.average.toLocaleString()}` : "–"}
+          </p>
+          <p className="text-white/60 mt-1">
+            {prices
+              ? `Asking prices, £${prices.lowest.toLocaleString()} – £${prices.highest.toLocaleString()} across ${prices.count} priced car${prices.count === 1 ? "" : "s"}`
+              : "No priced stock yet"}
+          </p>
+        </div>
+
+        <div className="bg-flipDark border border-gold rounded-xl p-6 shadow-blueGlow hover:shadow-goldGlow transition">
+          <h2 className="text-xl font-semibold text-gold mb-2">Average Days in Stock</h2>
+          <p className="text-white text-4xl font-bold">{days ? days.average : "–"}</p>
+          <p className="text-white/60 mt-1">
+            {days
+              ? `Since each car was added, across ${days.count} car${days.count === 1 ? "" : "s"}`
+              : "No stock with a date added yet"}
+          </p>
         </div>
       </div>
 

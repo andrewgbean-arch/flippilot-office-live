@@ -1,22 +1,15 @@
 import React from "react";
 import { useBookkeeping } from "@/bookkeeping/BookkeepingProvider";
 import { useInventory } from "@/context/InventoryProvider";
-import { computeRiskScore } from "@/engines/RiskEngine";
+import { formatPrice } from "@/dealer/inventory/vehicleListModel";
+import { profitBeforeSaleVat, riskCheck } from "./profitFigures";
 
+// A price of 0 or none at all means "not set" (see profitFigures.ts); the
+// caller passes null rather than a 0 that would read as "it cost nothing".
 interface ProfitTabProps {
   vehicleId: string;
-  purchasePrice: number;
-  expectedSale: number;
-}
-
-// Low/Medium/High bands shared by all three AI Insight rows below —
-// same <30/30-69/70+ style split InventoryAnalytics.tsx already uses
-// for valuationConfidence, applied consistently to risk and difficulty
-// too since none of them had an established banding of their own.
-function band(value: number): "Low" | "Medium" | "High" {
-  if (value >= 70) return "High";
-  if (value >= 30) return "Medium";
-  return "Low";
+  purchasePrice: number | null;
+  expectedSale: number | null;
 }
 
 export default function ProfitTab({
@@ -42,17 +35,21 @@ export default function ProfitTab({
 
   const totalGross = totalNet + totalVat;
 
-  const realProfit = expectedSale - totalGross - purchasePrice;
+  // Was "Real Profit". It leaves out any VAT due on the sale itself (a sixth
+  // of the margin under the margin scheme), so on a margin-scheme car it
+  // overstated what the dealer keeps; it is now named for what it is.
+  const profit = profitBeforeSaleVat({
+    purchasePrice,
+    expectedSale,
+    grossCosts: totalGross,
+  });
 
-  // Real per-vehicle figures — used to always show "Medium"/"Moderate"/
-  // "High" for every vehicle regardless of its actual data (a leftover
-  // "Module 10 will replace these" placeholder that never got replaced).
-  // riskScore comes from the same RiskEngine.computeRiskScore used
-  // elsewhere (Risk Hub) rather than vehicle.riskScore, since that field
-  // is never actually set by any real flow in this app and stays 0.
-  const riskScore = vehicle ? band(computeRiskScore(vehicle)) : "Unknown";
-  const flipDifficulty = vehicle ? band(vehicle.flipDifficulty ?? 0) : "Unknown";
-  const valuationConfidence = vehicle ? band(vehicle.valuationConfidence ?? 0) : "Unknown";
+  // This tab also used to show "Flip Difficulty" and "Valuation Confidence".
+  // Both were worked out from a market-heat and risk figure that were 0 on
+  // every car, so flip difficulty read "High" for almost any used car and
+  // valuation confidence FELL as the dealer's margin rose. They were removed
+  // rather than replaced: there is no honest input to compute them from.
+  const risk = riskCheck(vehicle);
 
   return (
     <div className="p-6 space-y-6">
@@ -69,7 +66,7 @@ export default function ProfitTab({
         <div className="bg-black/40 border border-white/10 p-4 rounded-xl">
           <h3 className="text-white/60 text-sm">Purchase Price</h3>
           <p className="text-white text-2xl font-bold">
-            £{purchasePrice.toLocaleString()}
+            {formatPrice(purchasePrice) ?? "Not set"}
           </p>
         </div>
 
@@ -77,7 +74,7 @@ export default function ProfitTab({
         <div className="bg-black/40 border border-white/10 p-4 rounded-xl">
           <h3 className="text-white/60 text-sm">Expected Sale Price</h3>
           <p className="text-green-300 text-2xl font-bold">
-            £{expectedSale.toLocaleString()}
+            {formatPrice(expectedSale) ?? "Not set"}
           </p>
         </div>
 
@@ -105,37 +102,49 @@ export default function ProfitTab({
           </p>
         </div>
 
-        {/* REAL PROFIT */}
+        {/* PROFIT BEFORE VAT ON THE SALE */}
         <div className="bg-black/40 border border-white/10 p-4 rounded-xl">
-          <h3 className="text-white/60 text-sm">Real Profit</h3>
-          <p
-            className={`text-2xl font-bold ${
-              realProfit >= 0 ? "text-green-300" : "text-red-400"
-            }`}
-          >
-            £{realProfit.toLocaleString()}
-          </p>
+          <h3 className="text-white/60 text-sm">Profit before VAT on the sale</h3>
+          {profit === null ? (
+            <>
+              <p className="text-white/60 text-2xl font-bold">Not worked out</p>
+              <p className="text-white/50 text-xs mt-1">
+                Set a purchase price and an asking price on the Edit tab to see this.
+              </p>
+            </>
+          ) : (
+            <>
+              <p
+                className={`text-2xl font-bold ${
+                  profit >= 0 ? "text-green-300" : "text-red-400"
+                }`}
+              >
+                {profit < 0 ? "-" : ""}£{Math.abs(profit).toLocaleString()}
+              </p>
+              <p className="text-white/50 text-xs mt-1">
+                Sale price less the purchase price and all costs above. Any VAT
+                due on the sale (for example under the margin scheme) is not
+                taken off here.
+              </p>
+            </>
+          )}
         </div>
       </div>
 
-      {/* AI SECTION */}
-      <div className="bg-black/40 border border-white/10 p-4 rounded-xl space-y-4">
-        <h3 className="text-white/80 text-lg font-semibold">AI Insights</h3>
+      {/* RULE-OF-THUMB RISK */}
+      <div className="bg-black/40 border border-white/10 p-4 rounded-xl space-y-2">
+        <h3 className="text-white/80 text-lg font-semibold">Risk check</h3>
 
         <div className="flex justify-between text-white/70">
-          <span>Risk Score</span>
-          <span className="font-semibold">{riskScore}</span>
+          <span>Rule-of-thumb risk</span>
+          <span className="font-semibold">{risk}</span>
         </div>
 
-        <div className="flex justify-between text-white/70">
-          <span>Flip Difficulty</span>
-          <span className="font-semibold">{flipDifficulty}</span>
-        </div>
-
-        <div className="flex justify-between text-white/70">
-          <span>Valuation Confidence</span>
-          <span className="font-semibold">{valuationConfidence}</span>
-        </div>
+        <p className="text-white/50 text-xs">
+          Adds up points for high mileage, MOT advisories, recorded MOT
+          failures and the age of the car. It is a rough guide, not a
+          prediction or a valuation.
+        </p>
       </div>
     </div>
   );

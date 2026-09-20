@@ -179,11 +179,9 @@ export default function DealerSidebar() {
         { to: "/dealer/analytics", label: "Analytics Hub" },
         { to: "/dealer/analytics/sales", label: "Sales Analytics" },
         { to: "/dealer/analytics/inventory", label: "Inventory Analytics" },
-        { to: "/dealer/analytics/pricing", label: "Pricing Analytics" },
-        { to: "/dealer/analytics/market-trends", label: "Market Trends" },
         { to: "/dealer/analytics/lead-conversion", label: "Lead Conversion" },
         { to: "/dealer/analytics/staff", label: "Staff Analytics" },
-        { to: "/dealer/analytics/branches", label: "Branch Comparison" },
+        { to: "/dealer/analytics/branches", label: "Staff by Branch" },
       ],
     },
 

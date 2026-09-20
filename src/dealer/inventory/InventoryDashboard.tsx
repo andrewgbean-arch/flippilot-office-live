@@ -3,6 +3,14 @@ import { SupernovaGlowCard } from "@/components/supernova/SupernovaGlowCard";
 import { SupernovaHeroHeader } from "@/components/supernova/SupernovaHeroHeader";
 import { SupernovaSectionDivider } from "@/components/supernova/SupernovaSectionDivider";
 import { useNavigate } from "react-router-dom";
+import {
+  inStockAtLeast,
+  motCounts,
+  unsold,
+  withMotAdvisories,
+  withoutAskingPrice,
+  withoutPhotos,
+} from "./stockFacts";
 
 export default function InventoryDashboard() {
   const { vehicles } = useInventory();
@@ -11,45 +19,25 @@ export default function InventoryDashboard() {
   // -----------------------------
   // REAL INVENTORY SIGNALS
   // -----------------------------
+  //
+  // Counted from the dealer's own cars that are still unsold (see
+  // stockFacts.ts). This dashboard used to show "Pricing Needed" (a
+  // "valuation confidence" that FELL as the dealer's margin rose, so it flagged
+  // the best-margin cars), "Recon Needed" (the guessed repairs table), and
+  // "Finance Risks" (an "auction delta" that was 12 for every car, so it never
+  // fired). They are replaced by plain rules a dealer can check by hand.
 
-  const totalVehicles = vehicles.length;
-
-  const motAlerts = vehicles.filter((v) => {
-    const expiry = v.mot?.expiry;
-    if (!expiry) return false;
-    const days = Math.ceil((new Date(expiry).getTime() - Date.now()) / 86400000);
-    return days <= 30;
-  });
-
-  const reconNeeded = vehicles.filter(
-    (v) => (v.predictedRepairs?.length ?? 0) > 0
-  );
-
-  const pricingNeeded = vehicles.filter(
-    (v) => (v.valuationConfidence ?? 100) < 60
-  );
-
-  // Real photo count, not `photoQuality` — see DealerDashboard.tsx for
-  // why that field is fake and never reflects real uploaded photos.
-  const photoNeeded = vehicles.filter(
-    (v) => (v.images?.length ?? 0) === 0
-  );
-
-  const financeIssues = vehicles.filter(
-    (v) => (v.auctionDelta ?? 0) > 20
-  );
-
-  // -----------------------------
-  // SUMMARY STATS
-  // -----------------------------
+  const now = new Date();
+  const inStock = unsold(vehicles);
+  const mot = motCounts(vehicles, now);
 
   const stats = [
-    { label: "Total Vehicles", value: totalVehicles },
-    { label: "MOT Alerts", value: motAlerts.length },
-    { label: "Recon Needed", value: reconNeeded.length },
-    { label: "Pricing Needed", value: pricingNeeded.length },
-    { label: "Photos Needed", value: photoNeeded.length },
-    { label: "Finance Risks", value: financeIssues.length },
+    { label: "Cars in Stock", value: inStock.length },
+    { label: "MOT Expired or Due in 30 Days", value: mot.expired + mot.dueSoon },
+    { label: "With MOT Advisories", value: withMotAdvisories(vehicles).length },
+    { label: "No Asking Price Set", value: withoutAskingPrice(vehicles).length },
+    { label: "In Stock 90+ Days", value: inStockAtLeast(vehicles, 90, now).length },
+    { label: "Photos Needed", value: withoutPhotos(vehicles).length },
   ];
 
   return (
@@ -128,14 +116,20 @@ export default function InventoryDashboard() {
         </div>
       </SupernovaGlowCard>
 
-      {/* ANALYTICS PREVIEW */}
-      <SupernovaSectionDivider label="Analytics Preview" />
+      {/* ANALYTICS */}
+      <SupernovaSectionDivider label="Analytics" />
 
       <SupernovaGlowCard>
-        <h2 className="text-red-400 font-bold text-xl mb-3">Market Analytics</h2>
-        <p className="text-white/70">
-          Market trends, pricing intelligence, and risk indicators will appear here once engines are rebuilt.
+        <h2 className="text-blue-400 font-bold text-xl mb-3">Stock, Sales and Lead Figures</h2>
+        <p className="text-white/70 mb-4">
+          MOT dates, prices, mileage and how long cars have been in stock, all counted from your own records.
         </p>
+        <button
+          onClick={() => navigate("/dealer/analytics")}
+          className="px-5 py-3 bg-yellow-500 text-black font-semibold rounded-lg hover:bg-yellow-400 transition"
+        >
+          Open Analytics
+        </button>
       </SupernovaGlowCard>
 
     </div>
