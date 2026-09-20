@@ -24,3 +24,10 @@ export function formatMoney(value: number): string {
   const abs = Math.abs(pence) / 100;
   return `${sign}£${abs.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
+
+/** "£8,550" or "-£8,550": whole pounds, for figures that are a rule of thumb and not worth pennies. */
+export function formatWholePounds(value: number): string {
+  const pounds = Math.round(value);
+  const sign = pounds < 0 ? "-" : "";
+  return `${sign}£${Math.abs(pounds).toLocaleString("en-GB")}`;
+}

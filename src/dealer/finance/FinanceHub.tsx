@@ -2,12 +2,12 @@ import { useNavigate } from "react-router-dom";
 import "@/staff/StaffDashboard.css";
 
 const TOOLS = [
-  { label: "Finance Calculator", to: "/dealer/finance/calculator", desc: "Quick monthly payment estimates." },
-  { label: "Deal Sheet", to: "/dealer/finance/deal-sheet", desc: "Build a full deal summary for a customer." },
-  { label: "Lender Comparison", to: "/dealer/finance/lender-comparison", desc: "Compare rates across lenders." },
-  { label: "Profit Breakdown", to: "/dealer/finance/profit-breakdown", desc: "See real margin after all costs." },
-  { label: "Trade-In Valuation", to: "/dealer/finance/trade-in", desc: "Estimate a fair trade-in offer." },
-  { label: "Contract Generator", to: "/dealer/finance/contract", desc: "Generate a printable sale contract." },
+  { label: "Finance Calculator", to: "/dealer/finance/calculator", desc: "Illustrative monthly payments from an APR you enter." },
+  { label: "Deal Sheet", to: "/dealer/finance/deal-sheet", desc: "Build an illustrative deal summary for a customer." },
+  { label: "Lender Comparison", to: "/dealer/finance/lender-comparison", desc: "Compare payments for the lenders and rates you type in." },
+  { label: "Profit Breakdown", to: "/dealer/finance/profit-breakdown", desc: "Profit on a vehicle after costs and VAT." },
+  { label: "Trade-In Valuation", to: "/dealer/finance/trade-in", desc: "A rule-of-thumb starting point for a trade-in offer." },
+  { label: "Contract Generator", to: "/dealer/finance/contract", desc: "A sale agreement template to fill in and print. Check it before use." },
 ];
 
 export default function FinanceHub() {
@@ -21,7 +21,8 @@ export default function FinanceHub() {
         <div className="sn-hero__content">
           <h1 className="sn-hero__title">Finance Hub</h1>
           <p className="sn-hero__subtitle">
-            Deal structuring and finance tools.
+            Deal structuring and finance tools. The finance figures are illustrative only: not a finance
+            quote or a credit offer.
           </p>
         </div>
       </header>
