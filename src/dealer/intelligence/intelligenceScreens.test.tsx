@@ -23,11 +23,15 @@ vi.mock("@/context/LeadsContext", () => ({
 vi.mock("@/bookkeeping/BookkeepingProvider", () => ({
   useBookkeeping: () => books,
 }));
+vi.mock("@/context/ConsumablesContext", () => ({
+  useConsumables: () => ({ consumables: [], recordStockMovement: async () => null }),
+}));
 
 import DealerMotorsDashboard from "./DealerMotorsDashboard";
 import DealerRiskHub from "./DealerRiskHub";
 import DealerCRMIntelligence from "./DealerCRMIntelligence";
 import PricingWorkflow from "@/dealer/workflow/PricingWorkflow";
+import ReconWorkflow from "@/features/dealer-ai/recon/ReconWorkflow";
 
 const DAY = 86_400_000;
 const iso = (daysFromNow: number) => new Date(Date.now() + daysFromNow * DAY).toISOString();
@@ -217,5 +221,44 @@ describe("Pricing workflow", () => {
     expect(html).not.toContain("4,600"); // 4000 x 1.15, the old "trade valuation"
     expectNoInvention(html);
     expect(html).toContain("not a valuation");
+  });
+});
+
+describe("Recon workflow", () => {
+  const at = (id: string) =>
+    render(
+      <Routes>
+        <Route path="/dealer/workflow/recon/:id" element={<ReconWorkflow />} />
+      </Routes>,
+      `/dealer/workflow/recon/${id}`
+    );
+
+  it("no longer offers an 'AI Recon Estimate' worked out from the mileage", () => {
+    // 62,000 miles used to read as £6,200
+    const c = car();
+    (c as unknown as { mileage: number }).mileage = 62000;
+    inventory.vehicles = [c];
+    const html = at(c.id);
+    expect(html).not.toContain("AI Recon Estimate");
+    expect(html).not.toContain("6,200");
+    expect(html).not.toContain("Dealer AI");
+    expect(html).toContain("Total Recon Cost");
+  });
+
+  it("shows the dealer's own average spend per sold car, but only once at least three sold cars have costs", () => {
+    const c = car();
+    inventory.vehicles = [c];
+    const soldWithCost = (id: string, amount: number) => {
+      books.sales = [...books.sales, { id: `s-${id}`, vehicleId: id, salePrice: 5000 }];
+      books.costs = [...books.costs, { id: `c-${id}`, vehicleId: id, amount }];
+    };
+    soldWithCost("a", 200);
+    soldWithCost("b", 400);
+    expect(at(c.id)).not.toContain("average spend per sold car");
+    soldWithCost("c", 600);
+    const html = at(c.id);
+    expect(html).toContain("Your average spend per sold car");
+    expect(html).toContain("£400"); // (200 + 400 + 600) / 3
+    expect(html).toContain("Costs logged against 3 sold cars");
   });
 });
