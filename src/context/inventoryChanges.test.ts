@@ -60,6 +60,12 @@ describe("sameValue", () => {
     expect(sameValue({}, [])).toBe(false);
   });
 
+  it("a list is never the same as an object that merely looks like one", () => {
+    expect(sameValue([], { length: 0 })).toBe(false);
+    expect(sameValue({ length: 0 }, [])).toBe(false);
+    expect(sameValue([1], { length: 1, 0: 1 })).toBe(false);
+  });
+
   it("NaN equals NaN, and nothing else", () => {
     expect(sameValue(NaN, NaN)).toBe(true);
     expect(sameValue(NaN, 0)).toBe(false);
