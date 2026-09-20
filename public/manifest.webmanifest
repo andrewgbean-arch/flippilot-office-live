@@ -2,7 +2,7 @@
   "id": "/",
   "name": "FlipPilot Dealer OS",
   "short_name": "FlipPilot",
-  "description": "Dealer inventory, bookkeeping, and AI insights for independent used-car dealers.",
+  "description": "Stock, bookkeeping, leads, jobs and staff tools for independent used-car dealers.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

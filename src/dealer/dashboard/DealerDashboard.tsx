@@ -1,3 +1,4 @@
+import { inStockAtLeast, unsold, withMotAdvisories, withoutAskingPrice, withoutPhotos } from "@/dealer/inventory/stockFacts";
 import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useInventory } from "@/context/InventoryProvider";
@@ -94,20 +95,24 @@ export default function DealerDashboard({ brain }: Props) {
   // WORKFLOW SIGNALS (SAFE)
   // -----------------------------
 
-  const motAlerts = safeVehicles.filter((v) => {
+  // Everything below is about cars still for sale: a sold car with an advisory
+  // or no photo is not something anyone can act on.
+  const forSale = unsold(safeVehicles);
+  const now = new Date();
+
+  const motAlerts = forSale.filter((v) => {
     const expiry = v.mot?.expiry;
     if (!expiry) return false;
     const days = Math.ceil((new Date(expiry).getTime() - Date.now()) / 86400000);
     return days <= 30;
   });
 
-  const reconNeeded =
-    brain?.workflow?.reconNeeded ??
-    safeVehicles.filter((v) => (v.predictedRepairs?.length ?? 0) > 0);
-
-  const pricingNeeded =
-    brain?.workflow?.pricingNeeded ??
-    safeVehicles.filter((v) => (v.valuationConfidence ?? 100) < 60);
+  // Each of these is a real, checkable fact about a car. They used to read fields
+  // (predictedRepairs, valuationConfidence, auctionDelta) that were invented and
+  // never based on the car, so "need repairs" and "have finance risks" were
+  // constants dressed as findings.
+  const reconNeeded = withMotAdvisories(forSale);
+  const pricingNeeded = withoutAskingPrice(forSale);
 
   // Real photo count, not `photoQuality` — that field is a fake
   // condition/status-derived number from dealerAI.ts's simulated
@@ -115,13 +120,9 @@ export default function DealerDashboard({ brain }: Props) {
   // ever uploaded, and never recalculated after a vehicle's own real
   // `images` change on Edit. A vehicle genuinely needs photos when it
   // has none, full stop.
-  const photoNeeded =
-    brain?.workflow?.photoNeeded ??
-    safeVehicles.filter((v) => (v.images?.length ?? 0) === 0);
+  const photoNeeded = withoutPhotos(forSale);
 
-  const financeIssues =
-    brain?.workflow?.financeIssues ??
-    safeVehicles.filter((v) => (v.auctionDelta ?? 0) > 20);
+  const financeIssues = inStockAtLeast(forSale, 90, now);
 
   // The Jobs Board (day-to-day tasks assigned to real staff accounts)
   // previously had no presence on the main dashboard at all — a manager
@@ -185,16 +186,16 @@ export default function DealerDashboard({ brain }: Props) {
       ? `⚠️ ${motAlerts.length} vehicle${motAlerts.length === 1 ? "" : "s"} need MOT attention`
       : null,
     reconNeeded.length > 0
-      ? `🔧 ${reconNeeded.length} vehicle${reconNeeded.length === 1 ? "" : "s"} flagged for recon`
+      ? `🔧 ${reconNeeded.length} vehicle${reconNeeded.length === 1 ? "" : "s"} with MOT advisories`
       : null,
     pricingNeeded.length > 0
-      ? `📉 ${pricingNeeded.length} vehicle${pricingNeeded.length === 1 ? "" : "s"} need pricing review`
+      ? `📉 ${pricingNeeded.length} vehicle${pricingNeeded.length === 1 ? "" : "s"} with no asking price`
       : null,
     photoNeeded.length > 0
       ? `📷 ${photoNeeded.length} vehicle${photoNeeded.length === 1 ? "" : "s"} missing photos`
       : null,
     financeIssues.length > 0
-      ? `💰 ${financeIssues.length} vehicle${financeIssues.length === 1 ? "" : "s"} flagged for finance risk`
+      ? `💰 ${financeIssues.length} vehicle${financeIssues.length === 1 ? "" : "s"} in stock for 90+ days`
       : null,
     overdueJobs.length > 0
       ? `📋 ${overdueJobs.length} job${overdueJobs.length === 1 ? "" : "s"} overdue`
@@ -283,21 +284,21 @@ export default function DealerDashboard({ brain }: Props) {
         </SupernovaCard>
 
         <SupernovaCard
-          title="Recon Needed"
+          title="MOT Advisories"
           icon={<FiTool className="cosmic-pulse" />}
           accent="gold"
-          {...(reconNeeded[0]?.id ? { to: `/dealer/workflow/recon/${reconNeeded[0].id}` } : {})}
+          {...(reconNeeded[0]?.id ? { to: `/dealer/workflow/mot/${reconNeeded[0].id}` } : {})}
         >
-          <p className="text-white/70">{reconNeeded.length} vehicles need repairs</p>
+          <p className="text-white/70">{reconNeeded.length} vehicles have MOT advisories</p>
         </SupernovaCard>
 
         <SupernovaCard
-          title="Pricing Needed"
+          title="No Asking Price"
           icon={<FiTrendingUp className="cosmic-pulse" />}
           accent="blue"
           {...(pricingNeeded[0]?.id ? { to: `/dealer/workflow/pricing/${pricingNeeded[0].id}` } : {})}
         >
-          <p className="text-white/70">{pricingNeeded.length} vehicles need pricing review</p>
+          <p className="text-white/70">{pricingNeeded.length} vehicles have no asking price</p>
         </SupernovaCard>
       </div>
 
@@ -314,12 +315,12 @@ export default function DealerDashboard({ brain }: Props) {
         </SupernovaCard>
 
         <SupernovaCard
-          title="Finance Issues"
+          title="Ageing Stock"
           icon={<FiAlertTriangle className="cosmic-pulse" />}
           accent="orange"
-          to="/dealer/workflow/finance"
+          to="/dealer/inventory/list"
         >
-          <p className="text-white/70">{financeIssues.length} vehicles have finance risks</p>
+          <p className="text-white/70">{financeIssues.length} vehicles in stock for 90+ days</p>
         </SupernovaCard>
 
         <SupernovaCard
@@ -414,8 +415,8 @@ export default function DealerDashboard({ brain }: Props) {
         >
           <GoldButton
             onPress={() =>
-              reconNeeded[0]?.id &&
-              navigate(`/dealer/workflow/recon/${reconNeeded[0].id}`)
+              forSale[0]?.id &&
+              navigate(`/dealer/workflow/recon/${forSale[0].id}`)
             }
           >
             Recon Workflow
