@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { enrichVehicleWithAI, prepareStock, prepareVehicle, withSafeDefaults } from "./dealerAI";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { enrichVehicleWithAI, prepareStock, prepareVehicle, withSafeDefaults, withoutRetiredFields } from "./dealerAI";
 import type { Vehicle } from "../../types/Vehicle";
 
 // The stock is read back from a server that stores whatever car it was sent. A
@@ -8,17 +8,35 @@ import type { Vehicle } from "../../types/Vehicle";
 // 'advisories')", and because every car was enriched in one go the whole load
 // failed: the dealer saw a load error and NO cars although the server held them
 // all. Each car is now readied on its own, so one odd record can't hide the rest.
+//
+// HONESTY RELEASE: this file used to pin the "AI" numbers stamped on every car
+// (supernova score 57, flip difficulty 67, valuation confidence 99, a £700
+// "Clutch / Drivetrain" prediction over 90,000 miles, and so on). Those were
+// worked out from a market heat and a risk score that were 0 on every real car,
+// so they were the same guess for every dealer and were shown as if they meant
+// something. They are no longer computed, so the tests below pin the opposite:
+// nothing invented is added to a car, and the values older versions saved are
+// cleared when the car is read. The load-robustness tests are unchanged in what
+// they check.
 
-// The supernova score depends on the current year, so pin the clock.
-beforeEach(() => {
-  vi.useFakeTimers();
-  vi.setSystemTime(new Date("2026-06-15T12:00:00Z"));
-});
 afterEach(() => {
-  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
+const RETIRED = [
+  "marketHeat",
+  "riskScore",
+  "supernovaScore",
+  "flipDifficulty",
+  "valuationConfidence",
+  "photoQuality",
+  "auctionDelta",
+  "buyerPersona",
+  "sellerPsychology",
+  "predictedRepairs",
+] as const;
+
+// A car as an OLDER version saved it: with all ten retired fields filled in.
 const car = (over: Record<string, unknown> = {}): Vehicle =>
   ({
     id: "x",
@@ -30,6 +48,14 @@ const car = (over: Record<string, unknown> = {}): Vehicle =>
     priceTrade: 7000,
     marketHeat: 80,
     riskScore: 20,
+    supernovaScore: 57,
+    flipDifficulty: 67,
+    valuationConfidence: 99,
+    photoQuality: 70,
+    auctionDelta: 9,
+    buyerPersona: ["Budget-Conscious Commuter"],
+    sellerPsychology: ["Quick Turnover Focused"],
+    predictedRepairs: [{ component: "Clutch / Drivetrain", likelihood: 60, cost: 700 }],
     condition: "Good",
     mot: { expiry: "2030-01-01", advisories: [], historyScore: 0, history: [] },
     depreciationCurve: [],
@@ -42,91 +68,78 @@ const car = (over: Record<string, unknown> = {}): Vehicle =>
 // The reviewer's example, exactly: nothing but an id, a make and a model.
 const bare = () => ({ id: "bare", make: "Ford", model: "Fiesta" }) as unknown as Vehicle;
 
-const scores = (v: Vehicle) => ({
-  supernovaScore: v.supernovaScore,
-  flipDifficulty: v.flipDifficulty,
-  valuationConfidence: v.valuationConfidence,
-  photoQuality: v.photoQuality,
-  auctionDelta: v.auctionDelta,
-  buyerPersona: v.buyerPersona,
-  sellerPsychology: v.sellerPsychology,
-  predictedRepairs: v.predictedRepairs,
-});
+const noRetiredFields = (v: Vehicle) => {
+  for (const key of RETIRED) expect(v, key).not.toHaveProperty(key);
+};
 
-const allFinite = (v: Vehicle) =>
-  [v.supernovaScore, v.flipDifficulty, v.valuationConfidence, v.photoQuality, v.auctionDelta].every(
-    n => typeof n === "number" && Number.isFinite(n)
-  );
-
-describe("a well-formed car is enriched exactly as it always was", () => {
-  // Numbers captured from the enrichment BEFORE it was made tolerant.
-  it("an ordinary car", () => {
-    expect(scores(enrichVehicleWithAI(car()))).toEqual({
-      supernovaScore: 57,
-      flipDifficulty: 67,
-      valuationConfidence: 99,
-      photoQuality: 70,
-      auctionDelta: 9,
-      buyerPersona: ["Budget-Conscious Commuter"],
-      sellerPsychology: [],
-      predictedRepairs: [],
-    });
+describe("no invented 'AI' fields are added to a car, and old ones are cleared", () => {
+  it("a car saved by an older version comes back without any of the ten retired fields", () => {
+    const readied = enrichVehicleWithAI(car());
+    noRetiredFields(readied);
   });
 
-  it("a high-mileage car with advisories, in prep", () => {
+  it("everything else about the car is kept exactly as it was", () => {
+    const original = car({ notes: "Two keys", images: ["a.jpg"], reg: "AB12 CDE", sellPrice: 8800 });
+    const readied = enrichVehicleWithAI(original);
+    const kept: Record<string, unknown> = { ...original };
+    for (const key of RETIRED) delete kept[key];
+    expect(readied).toEqual(kept);
+  });
+
+  it("a high-mileage car with advisories gets no predicted repairs, personas or scores", () => {
+    // The old table would have predicted tyres, brakes, engine seals, suspension,
+    // a general wear item and a £700 clutch for this car, from its advisory words
+    // and its mileage alone.
     const flagship = car({
       year: 2021,
       mileage: 95000,
       priceRetail: 31000,
       priceTrade: 24000,
-      marketHeat: 92,
-      riskScore: 60,
       condition: "Excellent",
       status: "In Prep",
+      marketHeat: undefined,
+      riskScore: undefined,
+      supernovaScore: undefined,
+      flipDifficulty: undefined,
+      valuationConfidence: undefined,
+      photoQuality: undefined,
+      auctionDelta: undefined,
+      buyerPersona: undefined,
+      sellerPsychology: undefined,
+      predictedRepairs: undefined,
       mot: {
         expiry: "2030-01-01",
-        advisories: [
-          "Front tyre worn close to legal limit",
-          "Brake pads wearing thin",
-          "Oil leak from sump",
-          "Suspension arm bush deteriorated",
-          "Something else",
-        ],
+        advisories: ["Front tyre worn close to legal limit", "Brake pads wearing thin", "Oil leak from sump"],
         historyScore: 0,
         history: [],
       },
     });
-    expect(scores(enrichVehicleWithAI(flagship))).toEqual({
-      supernovaScore: 46,
-      flipDifficulty: 100,
-      valuationConfidence: 71,
-      photoQuality: 75,
-      auctionDelta: 15,
-      buyerPersona: ["Performance Enthusiast", "Status-Conscious Buyer", "Low-Risk Buyer", "FOMO Buyer"],
-      sellerPsychology: ["Profit Maximiser", "Detail-Oriented Presentation", "Risk Offloader", "Market Timing Strategist"],
-      predictedRepairs: [
-        { component: "Tyres", likelihood: 80, cost: 300 },
-        { component: "Brakes", likelihood: 75, cost: 250 },
-        { component: "Engine Seals / Gaskets", likelihood: 65, cost: 450 },
-        { component: "Suspension Components", likelihood: 70, cost: 500 },
-        { component: "General Wear Item", likelihood: 50, cost: 200 },
-        { component: "Clutch / Drivetrain", likelihood: 60, cost: 700 },
-      ],
-    });
+    const readied = enrichVehicleWithAI(flagship);
+    noRetiredFields(readied);
+    // The real facts, the MOT advisories, are untouched.
+    expect(readied.mot.advisories).toEqual([
+      "Front tyre worn close to legal limit",
+      "Brake pads wearing thin",
+      "Oil leak from sump",
+    ]);
   });
 
-  it("a car with no year or mileage", () => {
-    const fair = car({ condition: "Fair", priceRetail: 16000, priceTrade: 15000, marketHeat: 50, riskScore: 10, year: null, mileage: null });
-    expect(scores(enrichVehicleWithAI(fair))).toEqual({
-      supernovaScore: 0,
-      flipDifficulty: 22,
-      valuationConfidence: 91,
-      photoQuality: 60,
-      auctionDelta: 10,
-      buyerPersona: ["Comfort & Tech Seeker", "DIY Mechanic / Enthusiast"],
-      sellerPsychology: ["Quick Turnover Focused"],
-      predictedRepairs: [],
-    });
+  it("does not stamp a 0 heat or risk on a car that has none (they used to be defaulted to 0)", () => {
+    const readied = enrichVehicleWithAI(car({ marketHeat: undefined, riskScore: null }));
+    expect(readied).not.toHaveProperty("marketHeat");
+    expect(readied).not.toHaveProperty("riskScore");
+    // ...and the safe defaults, on their own, no longer default them to 0 either.
+    expect(withSafeDefaults(bare())).not.toHaveProperty("marketHeat");
+    expect(withSafeDefaults(bare())).not.toHaveProperty("riskScore");
+  });
+
+  it("withoutRetiredFields removes only those fields and does not change the car it was given", () => {
+    const original = car();
+    const before = structuredClone(original);
+    const cleaned = withoutRetiredFields(original);
+    noRetiredFields(cleaned);
+    expect(cleaned).toMatchObject({ id: "x", make: "Ford", priceRetail: 9000, condition: "Good" });
+    expect(original).toEqual(before);
   });
 
   it("filling in what's missing changes nothing on a car that has it all", () => {
@@ -146,7 +159,7 @@ describe("a car missing pieces is readied instead of throwing", () => {
     expect(readied!.mot).toEqual({ expiry: "", advisories: [], historyScore: 0, history: [] });
     expect(readied!.finance).toEqual({ apr: 0, depositMin: 0, lenderTier: "A" });
     expect(readied!.depreciationCurve).toEqual([]);
-    expect(allFinite(readied!)).toBe(true); // real numbers, not NaN
+    noRetiredFields(readied!); // no invented numbers, not even NaN ones
   });
 
   it("a mot that isn't an object counts as missing", () => {
@@ -171,18 +184,17 @@ describe("a car missing pieces is readied instead of throwing", () => {
   it("advisories that aren't a list, or hold things that aren't text, don't throw", () => {
     expect(() => enrichVehicleWithAI(car({ mot: { advisories: "worn tyre" } }))).not.toThrow();
     expect(() => enrichVehicleWithAI(car({ mot: { advisories: { a: 1 } } }))).not.toThrow();
+    expect(enrichVehicleWithAI(car({ mot: { advisories: "worn tyre" } })).mot.advisories).toEqual([]);
 
     const mixed = enrichVehicleWithAI(car({ mot: { advisories: [null, 5, { x: 1 }, "Tyre worn"] } }));
-    expect(mixed.predictedRepairs).toEqual([{ component: "Tyres", likelihood: 80, cost: 300 }]);
+    expect(mixed.mot.advisories).toEqual([null, 5, { x: 1 }, "Tyre worn"]);
+    noRetiredFields(mixed);
   });
 
-  it("a missing finance object or depreciation curve is filled in; missing heat and risk count as 0", () => {
-    const readied = enrichVehicleWithAI(car({ finance: undefined, depreciationCurve: undefined, marketHeat: undefined, riskScore: null }));
+  it("a missing finance object or depreciation curve is filled in", () => {
+    const readied = enrichVehicleWithAI(car({ finance: undefined, depreciationCurve: undefined }));
     expect(readied.finance).toEqual({ apr: 0, depositMin: 0, lenderTier: "A" });
     expect(readied.depreciationCurve).toEqual([]);
-    expect(readied.marketHeat).toBe(0);
-    expect(readied.riskScore).toBe(0);
-    expect(allFinite(readied)).toBe(true);
   });
 
   it("does not change the car it was given", () => {
@@ -194,14 +206,15 @@ describe("a car missing pieces is readied instead of throwing", () => {
 });
 
 describe("readying one car on its own", () => {
-  it("enriches a car normally", () => {
-    expect(scores(prepareVehicle(car()))).toEqual(scores(enrichVehicleWithAI(car())));
+  it("readies a car normally", () => {
+    expect(prepareVehicle(car())).toEqual(enrichVehicleWithAI(car()));
+    noRetiredFields(prepareVehicle(car()));
   });
 
-  it("keeps a car exactly as it is, unscored, if it can't be enriched (and says so)", () => {
+  it("keeps a car exactly as it is if it can't be readied (and says so)", () => {
     const errors = vi.spyOn(console, "error").mockImplementation(() => {});
     const odd = car();
-    // A record the AI layer really can't read: reading its heat throws.
+    // A record this layer really can't read: reading its heat throws.
     Object.defineProperty(odd, "marketHeat", {
       enumerable: true,
       get() {
@@ -211,7 +224,6 @@ describe("readying one car on its own", () => {
 
     const result = prepareVehicle(odd);
     expect(result).toBe(odd); // the very same record, untouched
-    expect(result.supernovaScore).toBeUndefined();
     expect(errors).toHaveBeenCalledTimes(1);
   });
 });
@@ -222,10 +234,10 @@ describe("readying the whole stock", () => {
     const readied = prepareStock([bare(), good]);
     expect(readied.map(v => v.id)).toEqual(["bare", "good"]);
     expect(readied[0]!.mot).toBeDefined();
-    expect(readied[1]).toMatchObject(scores(enrichVehicleWithAI(good)));
+    expect(readied[1]).toEqual(enrichVehicleWithAI(good));
   });
 
-  it("one car that can't be enriched doesn't stop the others being enriched", () => {
+  it("one car that can't be readied doesn't stop the others being readied", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     const odd = car({ id: "odd" });
     Object.defineProperty(odd, "riskScore", {
@@ -238,8 +250,8 @@ describe("readying the whole stock", () => {
 
     expect(readied.map(v => v.id)).toEqual(["a", "odd", "b"]);
     expect(readied[1]).toBe(odd);
-    expect(readied[0]!.supernovaScore).toBeTypeOf("number");
-    expect(readied[2]!.supernovaScore).toBeTypeOf("number");
+    noRetiredFields(readied[0]!);
+    noRetiredFields(readied[2]!);
   });
 
   it("leaves out entries that aren't cars at all, and keeps the order of the rest", () => {

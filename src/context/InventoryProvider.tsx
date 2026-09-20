@@ -308,8 +308,6 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
       priceRetail: 0,
       priceTrade: 0,
 
-      marketHeat: 0,
-      riskScore: 0,
       condition: "Unknown",
 
       mot: {
@@ -328,7 +326,6 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
       },
 
       serviceHistory: [],
-      predictedRepairs: [],
       depreciationCurve: [],
 
       finance: {
@@ -336,14 +333,6 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
         depositMin: 0,
         lenderTier: "A",
       },
-
-      buyerPersona: [],
-      sellerPsychology: [],
-      supernovaScore: 0,
-      flipDifficulty: 0,
-      valuationConfidence: 0,
-      photoQuality: 0,
-      auctionDelta: 0,
 
       notes: null,
       images: null,
@@ -399,8 +388,6 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
       priceRetail: data.sellPrice ?? 0,
       priceTrade: data.buyPrice ?? 0,
 
-      marketHeat: 0,
-      riskScore: 0,
       condition: "Unknown",
 
       mot: {
@@ -419,7 +406,6 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
       },
 
       serviceHistory: [],
-      predictedRepairs: [],
       depreciationCurve: [],
 
       finance: {
@@ -427,14 +413,6 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
         depositMin: 0,
         lenderTier: "A",
       },
-
-      buyerPersona: [],
-      sellerPsychology: [],
-      supernovaScore: 0,
-      flipDifficulty: 0,
-      valuationConfidence: 0,
-      photoQuality: data.images?.length ? 70 : 0,
-      auctionDelta: 0,
 
       notes: data.notes ?? null,
       images: data.images ?? null,

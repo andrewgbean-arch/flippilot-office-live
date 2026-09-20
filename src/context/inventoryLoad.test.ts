@@ -96,6 +96,25 @@ async function open() {
   await settle();
 }
 
+// The "AI" fields older versions computed and saved with every car. They were
+// invented (see dealer/intelligence/dealerAI.ts), so nothing writes them any
+// more and a car read from the server has them removed.
+const RETIRED_FIELDS = [
+  "marketHeat",
+  "riskScore",
+  "supernovaScore",
+  "flipDifficulty",
+  "valuationConfidence",
+  "photoQuality",
+  "auctionDelta",
+  "buyerPersona",
+  "sellerPsychology",
+  "predictedRepairs",
+];
+const expectNoRetiredFields = (car: any) => {
+  for (const key of RETIRED_FIELDS) expect(car, key).not.toHaveProperty(key);
+};
+
 // A car as the shipped screens build it (see buildVehicle in InventoryProvider).
 const goodCar = (id: string) => ({
   id,
@@ -105,14 +124,27 @@ const goodCar = (id: string) => ({
   mileage: 50000,
   priceRetail: 9000,
   priceTrade: 7000,
-  marketHeat: 0,
-  riskScore: 0,
   condition: "Unknown",
   mot: { expiry: "2030-01-01", advisories: [], historyScore: 0, history: [] },
   depreciationCurve: [],
   finance: { apr: 0, depositMin: 0, lenderTier: "A" },
   img: "/placeholder-car.png",
   status: "new",
+});
+
+// A car as an OLDER version saved it, with all ten retired fields filled in.
+const oldCar = (id: string) => ({
+  ...goodCar(id),
+  marketHeat: 0,
+  riskScore: 0,
+  supernovaScore: 41,
+  flipDifficulty: 93,
+  valuationConfidence: 61,
+  photoQuality: 50,
+  auctionDelta: 12,
+  buyerPersona: ["Budget-Conscious Commuter"],
+  sellerPsychology: [],
+  predictedRepairs: [{ component: "Clutch / Drivetrain", likelihood: 60, cost: 700 }],
 });
 
 // The reviewer's example: an id, a make and a model, and nothing else.
@@ -155,15 +187,29 @@ describe("loading the stock when one stored car is odd", () => {
     expect(odd).toMatchObject({ id: "odd", make: "Ford", model: "Focus" });
     expect(odd.mot).toEqual({ expiry: "", advisories: [], historyScore: 0, history: [] });
     expect(odd.depreciationCurve).toEqual([]);
-    expect(Number.isFinite(odd.supernovaScore)).toBe(true);
+    expectNoRetiredFields(odd); // no invented numbers on it either
   });
 
-  it("the good car is enriched as usual", async () => {
+  it("the good car is shown as stored: nothing invented is added to it", async () => {
     stored = [bareCar("odd"), goodCar("good")];
     await open();
     const good = ctx().vehicles.find((v: any) => v.id === "good");
-    expect(good.supernovaScore).toBeTypeOf("number");
-    expect(good.buyerPersona).toEqual(["Budget-Conscious Commuter"]);
+    expect(good).toMatchObject({ make: "Ford", model: "Fiesta", priceRetail: 9000, priceTrade: 7000 });
+    expectNoRetiredFields(good);
+  });
+
+  it("a car an older version saved with the invented scores has them cleared, on screen and in the server's copy after the next save", async () => {
+    stored = [oldCar("old")];
+    await open();
+
+    expectNoRetiredFields(ctx().vehicles[0]);
+    expect(ctx().vehicles[0]).toMatchObject({ id: "old", make: "Ford", priceRetail: 9000 });
+
+    ctx().updateVehicle("old", { notes: "Two keys" });
+    await settle();
+
+    expectNoRetiredFields(stored[0]);
+    expect(stored[0]).toMatchObject({ id: "old", notes: "Two keys", priceRetail: 9000 });
   });
 
   it("entries that aren't cars at all (left in the stored list) don't hide the real ones", async () => {
@@ -187,5 +233,54 @@ describe("loading the stock when one stored car is odd", () => {
     expect(stored.find(c => c.id === "odd")).toMatchObject({ make: "Ford", model: "Focus" });
     expect(ctx().vehicles.map((v: any) => v.id)).toEqual(["odd", "good"]);
     expect(ctx().saveError).toBeNull();
+  });
+});
+
+describe("cars the app creates itself carry none of the invented fields", () => {
+  it("a car added by hand", async () => {
+    await open();
+
+    const added = ctx().addManualVehicle({
+      make: "Ford",
+      model: "Fiesta",
+      year: 2019,
+      mileage: 40000,
+      buyPrice: 5000,
+      sellPrice: 7000,
+      images: ["photo.jpg"],
+    });
+    await settle();
+
+    expectNoRetiredFields(added);
+    expect(stored).toHaveLength(1);
+    expectNoRetiredFields(stored[0]);
+    expect(stored[0]).toMatchObject({ make: "Ford", priceTrade: 5000, priceRetail: 7000, images: ["photo.jpg"] });
+  });
+
+  it("a car created from an MOT lookup", async () => {
+    await open();
+
+    const added = ctx().createVehicleFromMOT({ make: "Ford", model: "Focus", year: 2017, mileage: 60000, expiry: "2030-01-01" });
+    await settle();
+
+    expectNoRetiredFields(added);
+    expect(stored).toHaveLength(1);
+    expectNoRetiredFields(stored[0]);
+    expect(stored[0].mot.expiry).toBe("2030-01-01");
+  });
+
+  it("cars imported in bulk", async () => {
+    await open();
+
+    const built = ctx().importVehicles([
+      { make: "Ford", model: "Ka" },
+      { make: "Vauxhall", model: "Corsa", images: ["a.jpg", "b.jpg"] },
+    ]);
+    await settle();
+
+    expect(built).toHaveLength(2);
+    built.forEach(expectNoRetiredFields);
+    expect(stored).toHaveLength(2);
+    stored.forEach(expectNoRetiredFields);
   });
 });
