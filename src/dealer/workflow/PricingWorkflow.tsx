@@ -1,163 +1,158 @@
 import React from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { Link, useParams, useNavigate } from "react-router-dom";
 
 import { useInventory } from "@/context/InventoryProvider";
-import { useIntelligence } from "@/context/IntelligenceProvider";
 import { useBookkeeping } from "@/bookkeeping/BookkeepingProvider";
+import { registrationOf, vehicleTitle } from "@/dealer/inventory/vehicleListModel";
+import { formatMoney, plural } from "@/dealer/intelligence/stockFacts";
 
-import { SupernovaHeroHeader } from "@/components/supernova/SupernovaHeroHeader";
+import PageHeader from "@/components/PageHeader";
 import { SupernovaGlowCard } from "@/components/supernova/SupernovaGlowCard";
 import { SupernovaSectionDivider } from "@/components/supernova/SupernovaSectionDivider";
-import { SupernovaMetricBar } from "@/components/supernova/SupernovaMetricBar";
 import { SupernovaGlowButton } from "@/components/supernova/SupernovaGlowButton";
+import { computePricingFacts } from "./pricingFacts";
 
+// One row of "label ... value".
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 border-b border-white/10 py-3 last:border-b-0">
+      <dt className="text-white/70">{label}</dt>
+      <dd className="text-right text-white font-semibold">{children}</dd>
+    </div>
+  );
+}
+
+// What this car cost and what it is priced at, from the dealer's own records.
+// The screen used to be an "AI Valuation Engine": a retail value of purchase
+// price x 1.35, a trade value of x 1.15, made-up "market heat", "demand" and
+// "days to sell" bars, and a profit projection built on those values. None of
+// it came from a market, so all of it is gone. It also used to say "Vehicle
+// Not Found" for any car with no Bookkeeping purchase; now it shows what
+// exists and says what is missing.
 export default function PricingWorkflow() {
   const { id } = useParams();
   const vehicleId = id as string;
   const navigate = useNavigate();
 
-  const { vehicles } = useInventory();
-  const { marketIntel } = useIntelligence();
+  const { vehicles, loading } = useInventory();
   const { costs, purchases, sales } = useBookkeeping();
 
   const vehicle = vehicles.find((v) => v.id === vehicleId);
-  const purchase = purchases.find((p) => p.vehicleId === vehicleId);
-  const sale = sales.find((s) => s.vehicleId === vehicleId);
 
-  const vehicleCosts = costs.filter((c) => c.vehicleId === vehicleId);
-  const reconCost = vehicleCosts.reduce((sum, c) => sum + c.amount, 0);
-
-  if (!vehicle || !purchase) {
+  if (!vehicle) {
     return (
-      <div className="p-10 text-white">
-        <h1 className="text-2xl font-bold text-red-400">Vehicle Not Found</h1>
-        <p className="text-white/60 mt-2">
-          This vehicle does not exist in your inventory or bookkeeping records.
-        </p>
+      <div className="px-6 py-10 text-white">
+        {loading ? (
+          <p role="status" className="text-white/60">Loading your stock…</p>
+        ) : (
+          <>
+            <h1 className="text-2xl font-bold text-red-400">Vehicle not found</h1>
+            <p className="text-white/60 mt-2">
+              This vehicle is not in your stock.{" "}
+              <Link to="/dealer/inventory/list" className="text-yellow-300 underline underline-offset-2">
+                Back to the vehicle list
+              </Link>
+              .
+            </p>
+          </>
+        )}
       </div>
     );
   }
 
-  // ⭐ AI Valuation Engine
-  //
-  // marketHeat/demandScore/competitionScore used to be hardcoded literals
-  // (72/81/64) — the exact same 3 numbers on every vehicle in every
-  // dealership, forever. Now real: marketHeat comes from the same
-  // per-vehicle AI enrichment InventoryProvider already runs, and
-  // demand/sentiment/sell-time come from IntelligenceProvider's real
-  // simulateMarketIntel() (same engine AIInsights/MarketTrends use).
-  const retailValuation = purchase.purchasePrice * 1.35;
-  const tradeValuation = purchase.purchasePrice * 1.15;
-  const intel = marketIntel[vehicleId];
-  const marketHeat = vehicle.marketHeat ?? 50;
-  const demandScore = intel?.demandIndex ?? 50;
-  const competitionScore = intel?.sentimentScore ?? 50;
-  const daysToSell = intel?.sellTimeDays ?? Math.max(10, 100 - demandScore);
+  const purchase = purchases.find((p) => p.vehicleId === vehicleId);
+  const sale = sales.find((s) => s.vehicleId === vehicleId);
+  const vehicleCosts = costs.filter((c) => c.vehicleId === vehicleId);
 
-  const expectedProfitRetail = retailValuation - purchase.purchasePrice - reconCost;
-  const expectedProfitTrade = tradeValuation - purchase.purchasePrice - reconCost;
+  const f = computePricingFacts(vehicle, purchase, vehicleCosts, sale, new Date());
+  const reg = registrationOf(vehicle);
 
   return (
     <div className="px-6 py-10 space-y-10 text-white animate-fadeIn">
-
-      <SupernovaHeroHeader
-        title="Pricing Workflow"
-        subtitle={`${vehicle.make} ${vehicle.model}`}
+      <PageHeader
+        title="Pricing workflow"
+        subtitle={`${vehicleTitle(vehicle)}${reg ? ` · ${reg}` : ""}`}
+        actions={
+          <Link to={`/dealer/inventory/${vehicleId}`} className="text-yellow-300 underline underline-offset-2 text-sm">
+            Open the vehicle
+          </Link>
+        }
       />
 
-      {/* AI VALUATION */}
-      <SupernovaSectionDivider label="AI Valuation Engine" />
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <SupernovaGlowCard>
-          <SupernovaMetricBar
-            label="Retail Valuation"
-            value={Math.min(100, retailValuation / 50)}
-            color="#4ade80"
-          />
-          <p className="text-green-300 font-bold mt-2">
-            £{retailValuation.toLocaleString()}
-          </p>
-        </SupernovaGlowCard>
-
-        <SupernovaGlowCard>
-          <SupernovaMetricBar
-            label="Trade Valuation"
-            value={Math.min(100, tradeValuation / 50)}
-            color="#60a5fa"
-          />
-          <p className="text-blue-300 font-bold mt-2">
-            £{tradeValuation.toLocaleString()}
-          </p>
-        </SupernovaGlowCard>
-
-        <SupernovaGlowCard>
-          <SupernovaMetricBar
-            label="Market Heat"
-            value={marketHeat}
-            color="#facc15"
-          />
-        </SupernovaGlowCard>
-      </div>
-
-      {/* MARKET INTELLIGENCE */}
-      <SupernovaSectionDivider label="Market Intelligence" />
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <SupernovaGlowCard>
-          <SupernovaMetricBar
-            label="Demand Score"
-            value={demandScore}
-            color="#4ade80"
-          />
-        </SupernovaGlowCard>
-
-        <SupernovaGlowCard>
-          <SupernovaMetricBar
-            label="Competitiveness"
-            value={competitionScore}
-            color="#60a5fa"
-          />
-        </SupernovaGlowCard>
-
-        <SupernovaGlowCard>
-          <SupernovaMetricBar
-            label="Days to Sell"
-            value={daysToSell}
-            color="#f87171"
-          />
-        </SupernovaGlowCard>
-      </div>
-
-      {/* PROFIT PROJECTION */}
-      <SupernovaSectionDivider label="Profit Projection" />
+      <SupernovaSectionDivider label="Your price and your costs" />
 
       <SupernovaGlowCard>
-        <div className="space-y-4">
-          <div className="text-white font-semibold">
-            Retail Profit:{" "}
-            <span className="text-green-400">
-              £{expectedProfitRetail.toLocaleString()}
-            </span>
-          </div>
+        <dl>
+          <Row label="Your asking price">{f.asking === null ? <span className="text-white/60">Not entered</span> : formatMoney(f.asking)}</Row>
 
-          <div className="text-white font-semibold">
-            Trade Profit:{" "}
-            <span className="text-blue-400">
-              £{expectedProfitTrade.toLocaleString()}
-            </span>
-          </div>
+          <Row label="What it cost">
+            {f.cost === null ? (
+              <span className="text-white/60">
+                Not recorded.{" "}
+                <Link to="/bookkeeping/add-purchase" className="text-yellow-300 underline underline-offset-2">
+                  Add the purchase
+                </Link>
+              </span>
+            ) : (
+              <>
+                {formatMoney(f.cost.amount)}
+                <span className="block text-xs font-normal text-white/50">
+                  {f.cost.source === "purchase" ? "From your Bookkeeping purchase" : "The trade price on the vehicle record (no purchase in Bookkeeping)"}
+                </span>
+              </>
+            )}
+          </Row>
 
-          <div className="text-white/60 text-sm">
-            Recon Cost Impact: £{reconCost.toLocaleString()}
-          </div>
-        </div>
+          <Row label="Costs logged against it">
+            {formatMoney(f.costsLogged)}
+            <span className="block text-xs font-normal text-white/50">
+              {f.costsCount === 0 ? "Nothing logged yet" : `${plural(f.costsCount, "item")} in Bookkeeping`}
+            </span>
+          </Row>
+
+          <Row label="Total cost so far">
+            {f.totalCost === null ? <span className="text-white/60">Needs the buying price</span> : formatMoney(f.totalCost)}
+          </Row>
+
+          <Row label="Margin at your asking price">
+            {f.margin === null ? (
+              <span className="text-white/60">Needs an asking price and a buying price</span>
+            ) : (
+              <>
+                <span className={f.margin < 0 ? "text-red-400" : "text-green-400"}>{formatMoney(f.margin)}</span>
+                {f.marginPercent !== null && (
+                  <span className="block text-xs font-normal text-white/50">{f.marginPercent}% of the asking price</span>
+                )}
+              </>
+            )}
+          </Row>
+
+          {f.daysInStock !== null && (
+            <Row label="In stock for">{plural(f.daysInStock, "day")}</Row>
+          )}
+
+          {f.sale && (
+            <Row label="Sold for">
+              {formatMoney(f.sale.price)}
+              {f.saleProfit !== null && (
+                <span className={`block text-xs font-normal ${f.saleProfit < 0 ? "text-red-400" : "text-green-400"}`}>
+                  Profit {formatMoney(f.saleProfit)} after costs
+                </span>
+              )}
+            </Row>
+          )}
+        </dl>
+
+        <p className="mt-4 text-sm text-white/50">
+          This is arithmetic on the prices and costs you have entered, before VAT and before any cost you have not
+          logged. It is not a valuation: FlipPilot does not know what this car is worth on the market.
+        </p>
       </SupernovaGlowCard>
 
       {/* WORKFLOW BUTTONS */}
       <SupernovaSectionDivider label="Next Steps" />
 
-      <div className="flex gap-4">
+      <div className="flex flex-wrap gap-4">
         <SupernovaGlowButton
           label="Recon Workflow"
           onClick={() => navigate(`/dealer/workflow/recon/${vehicleId}`)}

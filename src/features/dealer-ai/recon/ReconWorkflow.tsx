@@ -11,13 +11,14 @@ import { SupernovaSectionDivider } from "@/components/supernova/SupernovaSection
 import { SupernovaGlowCard } from "@/components/supernova/SupernovaGlowCard";
 import { SupernovaGlowButton } from "@/components/supernova/SupernovaGlowButton";
 import { SupernovaInput } from "@/components/supernova/SupernovaInput";
+import { averageSpendOnSoldCars } from "./reconSpend";
 
 export default function ReconWorkflow() {
   const { id } = useParams();
   const navigate = useNavigate();
 
   const { vehicles } = useInventory();
-  const { costs, addCost, deleteCost } = useBookkeeping();
+  const { costs, sales, addCost, deleteCost } = useBookkeeping();
   const { consumables, recordStockMovement } = useConsumables();
 
   const vehicle = vehicles.find((v) => v.id === id);
@@ -47,6 +48,11 @@ export default function ReconWorkflow() {
   const totalRecon = useMemo(() => {
     return reconItems.reduce((sum, c) => sum + (c.amount ?? 0), 0);
   }, [reconItems]);
+
+  // What the dealer has really spent per car on cars already sold, shown only
+  // once there are enough of them (see reconSpend.ts). Not a hook, so it is
+  // safe above the "vehicle not found" return.
+  const soldSpend = averageSpendOnSoldCars(costs, sales);
 
   if (!vehicle) {
     return (
@@ -186,7 +192,7 @@ const handleRemoveRecon = async (item: (typeof reconItems)[number]) => {
 
       <SupernovaHeroHeader
         title={`Recon Workflow: ${vehicle.make} ${vehicle.model}`}
-        subtitle="Dealer AI • Vehicle Preparation & Costs"
+        subtitle="Vehicle preparation and costs"
       />
 
       <div className="max-w-5xl mx-auto space-y-10">
@@ -209,12 +215,21 @@ const handleRemoveRecon = async (item: (typeof reconItems)[number]) => {
               </p>
             </div>
 
-            <div>
-              <p className="text-white/60 text-sm">AI Recon Estimate</p>
-              <p className="text-white font-bold text-xl">
-                £{Math.max(150, (vehicle.mileage ?? vehicle.mot?.mileage ?? 60000) / 10).toFixed(0)}
-              </p>
-            </div>
+            {/* This used to be an "AI Recon Estimate": the car's mileage
+                divided by ten (62,000 miles read as £6,200). Now it is what
+                the dealer has really spent on cars already sold, and only
+                appears once there are enough of them to average. */}
+            {soldSpend.average !== null && (
+              <div>
+                <p className="text-white/60 text-sm">Your average spend per sold car</p>
+                <p className="text-white font-bold text-xl">
+                  £{Math.round(soldSpend.average).toLocaleString("en-GB")}
+                </p>
+                <p className="text-white/50 text-xs mt-1">
+                  Costs logged against {soldSpend.counted} sold cars.
+                </p>
+              </div>
+            )}
 
             <div>
               <p className="text-white/60 text-sm">Status</p>

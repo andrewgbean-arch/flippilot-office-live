@@ -1,70 +1,33 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { FiChevronDown } from "react-icons/fi";
+import { hudPills, hudSummaryLine, type DealerHudStats, type HudTone } from "@/lib/dealerHudStats";
 
 type HudProps = {
-  aiSync?: "idle" | "syncing" | "error" | "running";
-  marketTrend?: "rising" | "flat" | "falling";
-  riskLevel?: "low" | "medium" | "high";
-  flipScore?: number;
-  motHealth?: "good" | "watch" | "bad";
-  // How many vehicles the figures are averaged over. With none there is
-  // nothing to summarise, so the bar says so instead of showing zeros that
-  // read as real results.
-  // `undefined` while stock is still loading (then the pills show, syncing).
-  vehicleCount?: number | undefined;
+  // True only while the stock is still being fetched for the first time, so
+  // the bar doesn't announce "no vehicles" before the cars have arrived.
+  loading: boolean;
+  stats: DealerHudStats;
 };
 
 const pill =
-  "px-2.5 py-2 sm:py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 border transition hover:brightness-125";
+  "px-2.5 py-2 sm:py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 border transition hover:brightness-125 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300";
 
-// The HUD used to be two full-width cards on every dealer page (a title block
-// with a marketing caption, then a second line repeating the same three
-// numbers), which pushed the page's own content roughly half a screen down.
-// It is now one slim bar: all the pills on a line at desktop widths, and one
-// summary line on a phone that opens to show them.
-export default function SupernovaDealerHUD({
-  aiSync = "idle",
-  marketTrend = "flat",
-  riskLevel = "low",
-  flipScore = 0,
-  motHealth = "good",
-  vehicleCount,
-}: HudProps) {
+const TONES: Record<HudTone, string> = {
+  neutral: "bg-slate-500/20 text-slate-200 border-slate-400/60",
+  good: "bg-emerald-500/20 text-emerald-300 border-emerald-500/60",
+  warn: "bg-amber-500/20 text-amber-300 border-amber-500/60",
+  bad: "bg-red-500/20 text-red-300 border-red-500/60",
+};
+
+// One slim bar of facts counted from the dealer's own stock: all the pills on
+// a line at desktop widths, and one summary line on a phone that opens to show
+// them. (It used to carry a market trend, a FlipScore, a risk level and a
+// "Brain" mode, none of which were measurements; see lib/dealerHudStats.ts.)
+export default function SupernovaDealerHUD({ loading, stats }: HudProps) {
   const [open, setOpen] = useState(false);
 
-  const syncColor =
-    aiSync === "running" || aiSync === "syncing"
-      ? "bg-yellow-400/20 text-yellow-200 border-yellow-400/60 animate-pulse"
-      : aiSync === "error"
-      ? "bg-red-500/20 text-red-300 border-red-500/60"
-      : "bg-green-500/20 text-green-300 border-green-500/60";
-
-  const marketColor =
-    marketTrend === "rising"
-      ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/60"
-      : marketTrend === "falling"
-      ? "bg-red-500/20 text-red-300 border-red-500/60"
-      : "bg-slate-500/20 text-slate-200 border-slate-400/60";
-
-  const riskColor =
-    riskLevel === "high"
-      ? "bg-red-500/20 text-red-300 border-red-500/60"
-      : riskLevel === "medium"
-      ? "bg-amber-500/20 text-amber-300 border-amber-500/60"
-      : "bg-emerald-500/20 text-emerald-300 border-emerald-500/60";
-
-  const motColor =
-    motHealth === "good"
-      ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/60"
-      : motHealth === "bad"
-      ? "bg-red-500/20 text-red-300 border-red-500/60"
-      : "bg-amber-500/20 text-amber-300 border-amber-500/60";
-
-  const syncLabel =
-    aiSync === "error" ? "Insights: problem" : aiSync === "idle" ? "Insights: up to date" : "Insights: updating…";
-
-  const empty = vehicleCount === 0;
+  const empty = !loading && stats.inStock === 0;
 
   return (
     <section
@@ -76,9 +39,17 @@ export default function SupernovaDealerHUD({
           Stock snapshot
         </span>
 
-        {empty ? (
+        {loading ? (
+          <p role="status" className="py-1.5 text-sm text-white/75">
+            Loading your stock…
+          </p>
+        ) : empty ? (
           <p className="py-1.5 text-sm text-white/75">
-            Add vehicles to your stock to switch on the fleet insights.
+            No vehicles in stock right now.{" "}
+            <Link to="/new-flip" className="text-yellow-300 underline underline-offset-2">
+              Add a vehicle
+            </Link>{" "}
+            and its figures will show here.
           </p>
         ) : (
           <>
@@ -90,9 +61,7 @@ export default function SupernovaDealerHUD({
               onClick={() => setOpen((v) => !v)}
               className="sm:hidden flex-1 min-h-[44px] flex items-center justify-between gap-2 text-left text-sm text-white/85"
             >
-              <span>
-                Market {marketTrend} · Risk {riskLevel} · MOT {motHealth}
-              </span>
+              <span>{hudSummaryLine(stats)}</span>
               <FiChevronDown
                 aria-hidden="true"
                 className={`shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
@@ -103,45 +72,11 @@ export default function SupernovaDealerHUD({
               id="hud-pills"
               className={`${open ? "flex" : "hidden"} sm:flex flex-wrap items-center gap-2 pb-2 sm:pb-0`}
             >
-              <div className={`${pill} ${syncColor}`} title="Whether the numbers below are up to date with your stock">
-                <span className="h-2 w-2 rounded-full bg-current" />
-                <span>{syncLabel}</span>
-              </div>
-
-              {/* MARKET: computed from each vehicle's own flip-score-driven
-                  demand estimate, not a live market-data feed (this app has no
-                  market-data API yet), hence "(est.)". */}
-              <Link
-                to="/dealer/intelligence/market"
-                className={`${pill} ${marketColor}`}
-                title="Estimated from each vehicle's flip score. Not a live market-data feed."
-              >
-                Market: {marketTrend} (est.)
-              </Link>
-
-              <Link
-                to="/dealer/intelligence/risk"
-                className={`${pill} ${riskColor}`}
-                title="A rough guide from each car's mileage, age and MOT advisories and failures, averaged across your stock. Low is under 30, medium 30 to 59, high 60 or more."
-              >
-                Risk: {riskLevel}
-              </Link>
-
-              <Link
-                to="/ai-insights"
-                className={`${pill} bg-purple-500/20 text-purple-200 border-purple-400/60`}
-                title="A rough 0 to 100 guide from each car's trade-to-retail price gap and MOT status, averaged across your stock. Market demand isn't fed in yet, so scores run low: compare cars with each other rather than reading it as a grade."
-              >
-                FlipScore: {flipScore}/100
-              </Link>
-
-              <Link
-                to="/dealer/workflow/mot"
-                className={`${pill} ${motColor}`}
-                title="The most urgent MOT status in your stock: bad means at least one has expired, watch means one is due soon, good means none are."
-              >
-                MOT: {motHealth}
-              </Link>
+              {hudPills(stats).map((p) => (
+                <Link key={p.key} to={p.to} className={`${pill} ${TONES[p.tone]}`} title={p.title}>
+                  {p.text}
+                </Link>
+              ))}
             </div>
           </>
         )}

@@ -15,7 +15,6 @@ import {
   FiSettings,
   FiChevronDown,
   FiChevronRight,
-  FiLayers,
   FiGrid,
   FiCheckSquare,
   FiMessageSquare,
@@ -163,12 +162,9 @@ export default function DealerSidebar() {
       label: "Intelligence",
       icon: FiActivity,
       items: [
-        { to: "/dealer/intelligence/market", label: "Market Intelligence" },
         { to: "/dealer/intelligence/motors", label: "Motors Dashboard" },
-        { to: "/dealer/intelligence/pricing", label: "Pricing Brain" },
-        { to: "/dealer/intelligence/crm", label: "CRM Intelligence" },
+        { to: "/dealer/intelligence/crm", label: "Lead Summary" },
         { to: "/dealer/intelligence/risk", label: "Risk Intelligence" },
-        { to: "/dealer/intelligence/brain", label: "Master Brain" },
       ],
     },
 
@@ -207,14 +203,6 @@ export default function DealerSidebar() {
       icon: FiAlertTriangle,
       items: [
         { to: "/dealer/risk", label: "Risk Hub" },
-      ],
-    },
-
-    {
-      label: "AI",
-      icon: FiLayers,
-      items: [
-        { to: "/ai-insights", label: "AI Insights" },
       ],
     },
 

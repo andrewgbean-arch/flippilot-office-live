@@ -99,9 +99,6 @@ import StaffDetail from "@/staff/StaffDetail";
 import RotaPlanner from "@/staff/RotaPlanner";
 import MyRota from "@/staff/MyRota";
 
-/* AI */
-import AIInsights from "@/dealer/AIInsights";
-
 /* ANALYTICS */
 import AnalyticsHub from "@/dealer/analytics/AnalyticsHub";
 import SalesAnalytics from "@/dealer/analytics/SalesAnalytics";
@@ -111,12 +108,9 @@ import StaffAnalytics from "@/dealer/analytics/StaffAnalytics";
 import BranchComparison from "@/dealer/analytics/BranchComparison";
 
 /* INTELLIGENCE */
-import MarketIntelligence from "@/dealer/intelligence/MarketIntelligence";
 import DealerMotorsDashboard from "@/dealer/intelligence/DealerMotorsDashboard";
-import PricingBrain from "@/dealer/intelligence/PricingBrain";
 import DealerCRMIntelligence from "@/dealer/intelligence/DealerCRMIntelligence";
 import DealerRiskHub from "@/dealer/intelligence/DealerRiskHub";
-import MasterBrainRoute from "@/dealer/intelligence/MasterBrainRoute";
 
 /* WORKFLOWS */
 import FinanceWorkflow from "@/dealer/workflow/FinanceWorkflow";
@@ -268,17 +262,16 @@ export default function AnimatedRoutes() {
         {/* RISK */}
         <Route path="dealer/risk" element={<DealerRiskHub />} />
 
-        {/* AI */}
-        <Route path="ai-insights" element={<AIInsights />} />
-
-        {/* INTELLIGENCE */}
-        <Route path="dealer/intelligence" element={<MarketIntelligence />} />
-        <Route path="dealer/intelligence/market" element={<MarketIntelligence />} />
+        {/* INTELLIGENCE. The Market Intelligence, Pricing Brain, Master Brain
+            and AI Insights screens are gone: their figures were the dealer's
+            own prices and fixed constants dressed up as market data. The
+            bare section address now opens Motors, the first screen left in
+            the section, so an old bookmark or the home menu still lands
+            somewhere real. */}
+        <Route path="dealer/intelligence" element={<Navigate to="/dealer/intelligence/motors" replace />} />
         <Route path="dealer/intelligence/motors" element={<DealerMotorsDashboard />} />
-        <Route path="dealer/intelligence/pricing" element={<PricingBrain />} />
         <Route path="dealer/intelligence/crm" element={<DealerCRMIntelligence />} />
         <Route path="dealer/intelligence/risk" element={<DealerRiskHub />} />
-        <Route path="dealer/intelligence/brain" element={<MasterBrainRoute />} />
 
         {/* ANALYTICS */}
         <Route path="dealer/analytics" element={<AnalyticsHub />} />
