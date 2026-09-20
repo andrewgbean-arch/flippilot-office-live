@@ -3,7 +3,6 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { useInventory } from "@/context/InventoryProvider";
 import { useBookkeeping } from "@/bookkeeping/BookkeepingProvider";
-import { useIntelligence } from "@/context/IntelligenceProvider";
 import { fetchEbayCarComps, type EbayCarComps } from "@/lib/ebayCarComps";
 import { fetchGooglePriceGuide, type GoogleCarPriceGuide } from "@/lib/googlePriceGuide";
 
@@ -16,20 +15,11 @@ import PageHeader from "@/components/PageHeader";
 import { SupernovaGlowCard } from "@/components/supernova/SupernovaGlowCard";
 import { SupernovaSectionDivider } from "@/components/supernova/SupernovaSectionDivider";
 
-import { CosmicIdentityBlock } from "@/features/dealer-ai/vehicle/CosmicIdentityBlock";
-import { BuyOrWalkPanel } from "@/features/dealer-ai/buy-or-walk/BuyOrWalkPanel";
-import { FlipScorePanel } from "@/features/dealer-ai/flip-score/FlipScorePanel";
-import { PredictiveMaintenancePanel } from "@/features/dealer-ai/predictive/PredictiveMaintenancePanel";
-import { MarketIntelligencePanel } from "@/features/dealer-ai/market/MarketIntelligencePanel";
-import { DealerNegotiationPanel } from "@/features/dealer-ai/negotiation/DealerNegotiationPanel";
-
-import { motAiEngine } from "@/engines/motAiEngine";
 import { getUlezStatus } from "@/features/vehicles/utils/ulezUtils";
-import { normalizeFlipRecord } from "@/features/vehicles/models/FlipRecord";
-
 
 import type { Vehicle } from "@/types/Vehicle";
 
+import { hasMotRecord } from "./stockFacts";
 import {
   ageBand,
   daysInStock,
@@ -47,10 +37,32 @@ import {
 const TAB_LABELS = {
   overview: "Overview",
   mot: "MOT",
-  "dealer-ai": "AI insights",
+  market: "Market pricing",
   costs: "Costs",
   profit: "Profit",
   edit: "Edit",
+} as const;
+
+// This tab used to be "AI insights": a buy-or-walk verdict, a negotiation plan,
+// a "valuation", a predictive-maintenance cost grid and a market-intelligence
+// panel. All of them were fixed percentages of the dealer's own asking price
+// (the "recommended buy price" was 65% of it, the "walk-away price" 90% of
+// it), so they told a dealer nothing they didn't already know and could not be
+// trusted at the moment of buying or haggling. They are gone; what remains is
+// the one thing here that is real: what similar cars are listed for elsewhere.
+
+const MOT_WORD = {
+  expired: "Expired",
+  soon: "Expiring soon",
+  valid: "Valid",
+  unknown: "No MOT date",
+} as const;
+
+const MOT_CLASS = {
+  expired: "text-red-400",
+  soon: "text-orange-300",
+  valid: "text-green-300",
+  unknown: "text-white/60",
 } as const;
 
 const FACT_TONE = {
@@ -76,7 +88,6 @@ export default function VehicleOverview() {
 
   const { vehicles: invVehicles, loading: stockLoading } = useInventory();
   const { purchases, sales } = useBookkeeping();
-  const { flipScores, marketIntel, motHealth } = useIntelligence();
 
   const vehicle = invVehicles.find((v: Vehicle) => String(v.id) === vehicleId);
 
@@ -84,24 +95,30 @@ export default function VehicleOverview() {
   const sale = sales.find((s) => s.vehicleId === vehicleId);
 
   const [tab, setTab] = useState<
-    "overview" | "mot" | "dealer-ai" | "costs" | "profit" | "edit"
+    "overview" | "mot" | "market" | "costs" | "profit" | "edit"
   >("overview");
 
   // Real dealer-only, same-year, mileage-comparable eBay listings for
   // this exact vehicle (see backend/src/ebayCarMarket.ts) — fetched
   // once per vehicle rather than blocking the tab on it, since it's an
   // external API call. Starts null (not yet fetched / still loading);
-  // stays null forever when eBay isn't configured or no comparable
-  // dealer listings exist, in which case every panel below just keeps
-  // using the existing simulated estimate — never blocks, never fakes
-  // a result. Has to live above the `!vehicle` guard below along with
+  // stays null when eBay isn't configured or no comparable dealer
+  // listings exist, in which case the card says there is nothing to
+  // compare rather than showing an estimate made up from the dealer's
+  // own prices (`ebayChecked` tells "still checking" from "nothing
+  // found"). Has to live above the `!vehicle` guard below along with
   // every other hook in this component — a hook called only when
   // `vehicle` exists would violate the Rules of Hooks the instant a
   // vehicle id stops resolving between renders.
   const [ebayComps, setEbayComps] = useState<EbayCarComps | null>(null);
+  const [ebayChecked, setEbayChecked] = useState(false);
   useEffect(() => {
     setEbayComps(null);
-    if (!vehicle?.make || !vehicle?.model) return;
+    setEbayChecked(false);
+    if (!vehicle?.make || !vehicle?.model) {
+      setEbayChecked(true);
+      return;
+    }
     let cancelled = false;
     fetchEbayCarComps(
       vehicle.make,
@@ -112,7 +129,10 @@ export default function VehicleOverview() {
       .then((res) => {
         if (!cancelled && res.available && res.comps) setEbayComps(res.comps);
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setEbayChecked(true);
+      });
     return () => {
       cancelled = true;
     };
@@ -164,7 +184,6 @@ export default function VehicleOverview() {
   }
 
   const mot = vehicle.mot;
-  const ai = mot ? motAiEngine(mot, mot.history ?? []) : null;
   const ulez = getUlezStatus(mot?.fuelType, mot?.euroStatus);
 
   async function handleCheckGooglePrices() {
@@ -185,15 +204,6 @@ export default function VehicleOverview() {
     }
   }
 
-  const motStatus = (() => {
-    if (!mot?.expiry) return "Unknown";
-    const exp = new Date(mot.expiry);
-    const now = new Date();
-    if (exp < now) return "Expired";
-    const days = (exp.getTime() - now.getTime()) / 86400000;
-    return days < 30 ? "Expiring Soon" : "Valid";
-  })();
-
   const failures = mot?.history
     ? mot.history
         .filter((h) => h.result?.toUpperCase() === "FAIL")
@@ -201,77 +211,6 @@ export default function VehicleOverview() {
     : [];
 
   const advisories = mot?.advisories ?? [];
-
-  // The Dealer AI tab's panels (Buy-or-Walk, Flip Score, Predictive
-  // Maintenance, Market Intelligence, Negotiation) all read a
-  // FlipRecord-shaped `vehicle` prop expecting real make/model/mileage/
-  // mot/flipScore/market/aiValuation/aiPrice fields — this object used
-  // to supply only id/title/buyPrice/sellPrice/timestamp/
-  // valuationHistory, so every one of those reads silently fell back to
-  // its default (0 mileage, 0 MOT failures regardless of the real
-  // vehicle, £0 valuation) and every vehicle showed the exact same
-  // "WALK AWAY" verdict. Real per-vehicle intelligence already exists
-  // via useIntelligence() (same source the dashboard HUD and AI
-  // Insights use) — wired in here instead of leaving it all undefined.
-  // normalizeFlipRecord fills in any field this doesn't set with a
-  // real (null, not fabricated) default rather than crashing on a
-  // missing nested object.
-  const vehicleIntel = marketIntel[vehicleId] as
-    | { marketAvg?: number; demandIndex?: number; competitorCount?: number }
-    | undefined;
-  const marketAvg = vehicleIntel?.marketAvg ?? vehicle.priceRetail ?? vehicle.priceTrade ?? undefined;
-
-  const dealerAIVehicle = normalizeFlipRecord({
-    id: vehicle.id,
-    title: `${vehicle.make} ${vehicle.model}`,
-    make: vehicle.make,
-    model: vehicle.model,
-    buyPrice: purchase?.purchasePrice ?? vehicle.priceTrade ?? 0,
-    sellPrice: sale?.salePrice ?? vehicle.priceRetail ?? 0,
-    price: vehicle.priceRetail ?? vehicle.priceTrade ?? null,
-    valuation: vehicle.priceRetail ?? vehicle.priceTrade ?? null,
-    mileage: vehicle.mileage ?? mot?.mileage ?? null,
-    timestamp: purchase?.date ?? "",
-    valuationHistory: vehicle.depreciationCurve.map((value, index) => ({
-      date: `${2020 + index}-01-01`,
-      value,
-    })),
-    flipScore: flipScores[vehicleId] ?? vehicle.flipDifficulty ?? null,
-    ai: { conditionScore: (motHealth[vehicleId] ?? ai)?.healthScore ?? null },
-    mot: {
-      year: mot?.year ?? null,
-      mileage: mot?.mileage ?? vehicle.mileage ?? null,
-      failures,
-      advisories,
-    },
-    // Real eBay comps (dealer-only, same year, mileage-comparable) take
-    // priority over the simulated estimate whenever they're available —
-    // same "prefer the real signal when we have one, keep the honest
-    // simulated fallback when we don't" shape as the rest of this app.
-    market: ebayComps
-      ? {
-          demandScore: ebayComps.demandScore,
-          lowest: ebayComps.lowest,
-          highest: ebayComps.highest,
-          average: ebayComps.average,
-          soldCount: ebayComps.soldCount,
-        }
-      : {
-          demandScore: vehicleIntel?.demandIndex ?? null,
-          lowest: marketAvg != null ? Math.round(marketAvg * 0.85) : null,
-          highest: marketAvg != null ? Math.round(marketAvg * 1.15) : null,
-          average: marketAvg ?? null,
-          soldCount: vehicleIntel?.competitorCount ?? null,
-        },
-    aiValuation: {
-      estimatedValue: vehicle.priceRetail ?? vehicle.priceTrade ?? null,
-      confidence: vehicle.valuationConfidence ?? null,
-    },
-    aiPrice: {
-      recommendedSellPrice: vehicle.priceRetail ?? null,
-      riskLevel: (motHealth[vehicleId] ?? ai)?.riskLevel ?? null,
-    },
-  });
 
   // What a dealer wants the moment they open a car: its plate, price, how long
   // it has been here and where its MOT stands. (The header used to read
@@ -290,6 +229,14 @@ export default function VehicleOverview() {
     hdrMot.kind === "unknown"
       ? "No MOT date"
       : `${hdrMot.label.slice(4, 5).toUpperCase()}${hdrMot.label.slice(5)} · ${hdrMot.date}`;
+
+  // Has anyone looked this car's MOT up? Without a record there are no
+  // advisories or failures to count, and printing "0" would read as a clean MOT.
+  const hasMot = hasMotRecord(vehicle);
+  // 0 and missing both mean "not set" (formatPrice and the Profit tab treat them
+  // that way), so an unpriced car shows "Not set" rather than £0.
+  const purchasePrice = purchase?.purchasePrice ?? vehicle.priceTrade ?? null;
+  const salePrice = sale?.salePrice ?? vehicle.priceRetail ?? null;
 
   return (
     <div className="animate-fadeIn text-white">
@@ -408,48 +355,20 @@ export default function VehicleOverview() {
             <p><span className="text-white/60">Model:</span> {vehicle.model}</p>
             <p><span className="text-white/60">Year:</span> {vehicle.year ?? "N/A"}</p>
             <p><span className="text-white/60">Mileage:</span> {vehicle.mileage ?? "N/A"}</p>
-            <p><span className="text-white/60">Market Heat:</span> {vehicle.marketHeat}</p>
-            <p><span className="text-white/60">Risk Score:</span> {vehicle.riskScore}</p>
-
-            {/* ⭐ MOT SUMMARY */}
-            {mot && (
+            {/* MOT SUMMARY: only what the MOT record says. It used to add a
+                "MOT Health Score" percentage, which read 99% for a car with no
+                MOT data at all; that score is gone. */}
+            {hasMot ? (
               <>
                 <p>
                   <span className="text-white/60">MOT Status:</span>{" "}
-                  <span
-                    className={
-                      motStatus === "Expired"
-                        ? "text-red-400"
-                        : motStatus === "Expiring Soon"
-                        ? "text-orange-300"
-                        : "text-green-300"
-                    }
-                  >
-                    {motStatus}
-                  </span>
+                  <span className={MOT_CLASS[hdrMot.kind]}>{MOT_WORD[hdrMot.kind]}</span>
                 </p>
 
                 <p>
                   <span className="text-white/60">MOT Expiry:</span>{" "}
-                  {mot.expiry ?? "Unknown"}
+                  {hdrMot.date ?? "Unknown"}
                 </p>
-
-                {ai && (
-                  <p>
-                    <span className="text-white/60">MOT Health Score:</span>{" "}
-                    <span
-                      className={
-                        ai.riskLevel === "low"
-                          ? "text-green-300"
-                          : ai.riskLevel === "medium"
-                          ? "text-yellow-300"
-                          : "text-red-400"
-                      }
-                    >
-                      {ai.healthScore}%
-                    </span>
-                  </p>
-                )}
 
                 <p>
                   <span className="text-white/60">Advisories:</span>{" "}
@@ -457,37 +376,47 @@ export default function VehicleOverview() {
                 </p>
 
                 <p>
-                  <span className="text-white/60">Failures:</span>{" "}
+                  <span className="text-white/60">Failure items in test history:</span>{" "}
                   {failures.length}
                 </p>
-
-                <p>
-                  <span className="text-white/60">ULEZ/CAZ:</span>{" "}
-                  <span
-                    className={
-                      ulez.status === "compliant"
-                        ? "text-green-300"
-                        : ulez.status === "non-compliant"
-                        ? "text-red-400"
-                        : "text-white/40"
-                    }
-                  >
-                    {ulez.label}
-                  </span>
-                </p>
               </>
+            ) : (
+              <p>
+                <span className="text-white/60">MOT:</span> No MOT data yet.{" "}
+                <Link
+                  to="/dealer/inventory/mot-lookup"
+                  className="text-yellow-300 underline hover:text-yellow-200"
+                >
+                  Run an MOT lookup
+                </Link>
+              </p>
             )}
+
+            <p>
+              <span className="text-white/60">ULEZ/CAZ:</span>{" "}
+              <span
+                className={
+                  ulez.status === "compliant"
+                    ? "text-green-300"
+                    : ulez.status === "non-compliant"
+                    ? "text-red-400"
+                    : "text-white/40"
+                }
+              >
+                {ulez.label}
+              </span>
+            </p>
           </SupernovaGlowCard>
 
           <SupernovaGlowCard>
             <SupernovaSectionDivider label="Purchase / Sale" />
             <p>
               <span className="text-white/60">Purchase Price:</span>{" "}
-              £{(purchase?.purchasePrice ?? vehicle.priceTrade ?? 0).toLocaleString()}
+              {formatPrice(purchasePrice) ?? "Not set"}
             </p>
             <p>
-              <span className="text-white/60">Expected Sale:</span>{" "}
-              £{(sale?.salePrice ?? vehicle.priceRetail ?? 0).toLocaleString()}
+              <span className="text-white/60">{sale ? "Sale Price" : "Asking Price"}:</span>{" "}
+              {formatPrice(salePrice) ?? "Not set"}
             </p>
           </SupernovaGlowCard>
 
@@ -512,11 +441,9 @@ export default function VehicleOverview() {
       {/* MOT TAB */}
       {tab === "mot" && <MOTWorkflow />}
 
-      {/* DEALER AI TAB */}
-      {tab === "dealer-ai" && (
+      {/* MARKET PRICING TAB (was "AI insights", see TAB_LABELS above) */}
+      {tab === "market" && (
         <div className="space-y-10">
-          <CosmicIdentityBlock vehicle={dealerAIVehicle} />
-
           {/* Market Pricing — the eBay guide price and Google
               cross-reference used to sit here as two separate banners;
               combined into one card since they're answering the same
@@ -546,7 +473,9 @@ export default function VehicleOverview() {
                             : `Guide price £${ebayComps.lowest.toLocaleString()} – £${ebayComps.highest.toLocaleString()} (avg £${ebayComps.average.toLocaleString()})`;
                         return `${priceText} — from ${ebayComps.soldCount} real eBay dealer listing${ebayComps.soldCount === 1 ? " (a single comp — treat as a rough steer, not a confident range)" : "s"}${qualifiers.length ? ` (${qualifiers.join(", ")})` : " (year/mileage unconfirmed from listing titles)"}. These are asking prices a seller set to sell quickly, not confirmed sale prices — real retail value may run higher.`;
                       })()
-                    : "Simulated estimate — no comparable eBay dealer listings found for this exact year/model yet."}
+                    : ebayChecked
+                    ? "No eBay dealer price comparison is available for this car: no comparable dealer listings were found for this year and model."
+                    : "Checking eBay dealer listings…"}
                 </p>
               </div>
 
@@ -579,12 +508,6 @@ export default function VehicleOverview() {
               </div>
             </div>
           </SupernovaGlowCard>
-
-          <BuyOrWalkPanel vehicle={dealerAIVehicle} />
-          <FlipScorePanel vehicle={dealerAIVehicle} />
-          <PredictiveMaintenancePanel vehicle={dealerAIVehicle} />
-          <MarketIntelligencePanel vehicle={dealerAIVehicle} />
-          <DealerNegotiationPanel vehicle={dealerAIVehicle} />
         </div>
       )}
 
@@ -595,8 +518,8 @@ export default function VehicleOverview() {
       {tab === "profit" && (
         <ProfitTab
           vehicleId={vehicleId}
-          purchasePrice={purchase?.purchasePrice ?? vehicle.priceTrade ?? 0}
-          expectedSale={sale?.salePrice ?? vehicle.priceRetail ?? 0}
+          purchasePrice={purchasePrice}
+          expectedSale={salePrice}
         />
       )}
 
