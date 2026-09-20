@@ -97,7 +97,7 @@ export function sameValue(a: unknown, b: unknown): boolean {
   const definedKeys = (record: object) => Object.keys(record).filter(key => field(record, key) !== undefined);
   const aKeys = definedKeys(a);
   if (aKeys.length !== definedKeys(b).length) return false;
-  return aKeys.every(key => hasOwn(b, key) && sameValue(field(a, key), field(b, key)));
+  return aKeys.every(key => sameValue(field(a, key), field(b, key)));
 }
 
 // What the server holds for a car, compared with another copy of it. Like
@@ -179,7 +179,7 @@ export function mergeEdit(pending: FieldEdit | undefined, newer: FieldEdit): Fie
 export function subtractSent(pending: FieldEdit, sent: FieldEdit): FieldEdit | null {
   const set: Record<string, unknown> = { ...pending.set };
   for (const key of Object.keys(sent.set)) {
-    if (hasOwn(set, key) && sameValue(set[key], sent.set[key])) delete set[key];
+    if (sameValue(set[key], sent.set[key])) delete set[key];
   }
   const unset = new Set<string>(pending.unset);
   for (const key of sent.unset) unset.delete(key);

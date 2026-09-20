@@ -196,13 +196,27 @@ describe("what is sent", () => {
 
       await edit(h, "a", { priceRetail: 5000 }); // the same value, in a new object
       await edit(h, "a", { notes: undefined }); // undefined is absent
+      const shownBefore = h.shown.length;
       await h.saver.change(h.screen()); // the very same list
       await h.saver.change([...h.screen()]); // the same cars in a new list
+      expect(h.shown).toHaveLength(shownBefore); // the screen isn't told about a list that is the same one
 
       expect(h.calls).toHaveLength(0);
       expect(h.saver.hasUnsaved()).toBe(false);
       expect(h.saver.stamp().version).toBe(version); // an edit that didn't happen doesn't count as one
       expect(h.statuses).toHaveLength(updates); // nothing to report
+    });
+
+    it("to a car still waiting to be created sends nothing either", async () => {
+      const h = harness();
+      h.saver.loaded([car("a")]);
+      void add(h, car("n", { priceRetail: 1 }));
+      await h.calls[0]!.respond(failed());
+      const version = h.saver.stamp().version;
+
+      await edit(h, "n", { priceRetail: 1 }); // the same value again
+      expect(h.calls).toHaveLength(1);
+      expect(h.saver.stamp().version).toBe(version);
     });
 
     it("doesn't cause a follow-up request when a save is already on its way", async () => {
@@ -703,6 +717,20 @@ describe("taking in the server's answer", () => {
     void add(h, car("n")); // created meanwhile
     await h.calls[0]!.respond(ok([car("a", { priceRetail: 1 }), car("c")]));
     expect(ids(h.screen())).toEqual(["a", "c", "n"]);
+    expect(h.calls[1]!.payload.items.map(v => v.id)).toEqual(["n"]);
+  });
+
+  it("a car created here that the answer already lists keeps the version the user has, and is still sent", async () => {
+    const h = harness();
+    h.saver.loaded([car("a")]);
+    void edit(h, "a", { priceRetail: 1 }); // in flight
+    void add(h, car("n", { priceRetail: 7 })); // created meanwhile: not part of that request
+    const mine = byId(h.screen(), "n");
+
+    // The answer happens to list a car with that id too (an older copy).
+    await h.calls[0]!.respond(ok([car("a", { priceRetail: 1 }), car("n", { priceRetail: 2 })]));
+    expect(byId(h.screen(), "n")).toBe(mine);
+    expect(byId(h.screen(), "n")).toMatchObject({ priceRetail: 7 });
     expect(h.calls[1]!.payload.items.map(v => v.id)).toEqual(["n"]);
   });
 
