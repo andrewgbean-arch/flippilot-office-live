@@ -1,4 +1,5 @@
 import { formatMoney } from "@/lib/formatMoney";
+import { formatDate } from "@/dealer/inventory/vehicleListModel";
 import { FiChevronRight } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 import { useBookkeeping } from "./BookkeepingProvider";
@@ -40,9 +41,12 @@ export default function BookkeepingTable({ vehicleId }: BookkeepingTableProps) {
       vehicle: vehicle ? `${vehicle.make} ${vehicle.model}` : "Unknown vehicle",
       purchase: p.purchasePrice,
       totalCost,
-      expectedSale: sale?.salePrice ?? 0,
-      profit: profitSummary?.profit ?? 0,
-      margin: profitSummary?.margin ?? 0,
+      // Not sold yet (or sold with no purchase on record) means UNKNOWN, not zero:
+      // the ledger used to print "Sale £0, Profit £0, Margin 0.0%" for a car that
+      // simply hasn't sold, which reads as a car sold for nothing.
+      expectedSale: sale?.salePrice ?? null,
+      profit: profitSummary?.profit ?? null,
+      margin: profitSummary?.margin ?? null,
       source: p.source ?? "Unknown",
       date: p.date,
       vatDue: sale?.vatAmount,
@@ -54,7 +58,7 @@ export default function BookkeepingTable({ vehicleId }: BookkeepingTableProps) {
     <div className="bg-black/40 border border-white/10 rounded-xl shadow-xl overflow-hidden">
       <div className="p-4 border-b border-white/10">
         <h3 className="text-lg font-semibold text-white/80">
-          Acquisition Ledger — {vehicleId ? `Vehicle ID: ${vehicleId}` : "All Vehicles"}
+          Acquisition Ledger — {vehicleId ? (ledger[0]?.vehicle ?? "This vehicle") : "All Vehicles"}
         </h3>
       </div>
 
@@ -85,8 +89,8 @@ export default function BookkeepingTable({ vehicleId }: BookkeepingTableProps) {
               <td className="p-3">{formatMoney(row.purchase)}</td>
               <td className="p-3">{formatMoney(row.totalCost)}</td>
               <td className="p-3">{formatMoney(row.expectedSale)}</td>
-              <td className={`p-3 ${row.profit < 0 ? "text-red-300" : "text-green-300"}`}>{formatMoney(row.profit)}</td>
-              <td className="p-3">{row.margin.toFixed(1)}%</td>
+              <td className={`p-3 ${row.profit === null ? "text-white/60" : row.profit < 0 ? "text-red-300" : "text-green-300"}`}>{formatMoney(row.profit)}</td>
+              <td className="p-3">{row.margin === null ? "—" : `${row.margin.toFixed(1)}%`}</td>
               <td className="p-3">
                 {row.vatDue != null ? (
                   <>
@@ -106,7 +110,7 @@ export default function BookkeepingTable({ vehicleId }: BookkeepingTableProps) {
                 )}
               </td>
               <td className="p-3">{row.source}</td>
-              <td className="p-3">{row.date}</td>
+              <td className="p-3">{formatDate(row.date) ?? row.date}</td>
               <td className="p-3">
                 <FiChevronRight className="text-white/40 hover:text-yellow-300 transition" />
               </td>
