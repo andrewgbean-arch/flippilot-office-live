@@ -1,130 +1,127 @@
 import React from "react";
+import { Link } from "react-router-dom";
 import SupernovaCard from "@/components/SupernovaCard";
-import { SupernovaSectionDivider } from "@/components/supernova/SupernovaSectionDivider";
+import PageHeader from "@/components/PageHeader";
 
-import {
-  FiAlertTriangle,
-  FiTrendingUp,
-  FiActivity,
-  FiPieChart,
-} from "react-icons/fi";
+import { FiAlertTriangle, FiClock, FiHelpCircle, FiList, FiCalendar } from "react-icons/fi";
 
 import { useInventory } from "@/context/InventoryProvider";
-import { useIntelligence } from "@/context/IntelligenceProvider";
-import { marketVolatility, buyingConfidence } from "@/engines/RiskEngine";
+import { computeRiskModel, MANY_ADVISORIES } from "./riskModel";
+import { plural } from "./stockFacts";
 
-const VOLATILITY_SCORE: Record<"low" | "medium" | "high", number> = {
-  low: 20,
-  medium: 50,
-  high: 80,
-};
+// How many flagged cars to list before saying "and N more".
+const ROWS_SHOWN = 25;
 
-function average(values: number[]): number {
-  return values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0;
-}
-
-// Every number on this page used to be a hardcoded literal ("32%",
-// "12%", etc) regardless of what was actually in stock. All four are
-// now real, computed from the same per-vehicle risk/market/MOT scoring
-// IntelligenceProvider already runs for AI Insights and the dealer HUD.
+// Every figure here is a number of cars, worked out from the MOT dates,
+// advisories and dates added the dealer's records hold. It used to show
+// percentages ("Overall Risk", "MOT Risk", "Market Volatility", "Stock
+// Stability"): Market Volatility was 50% for every dealer because it read a
+// demand figure no car carries, and Stock Stability was just 100 minus
+// Overall Risk.
 export default function DealerRiskHub() {
-  const { vehicles, loading: inventoryLoading } = useInventory();
-  const { riskScores, motHealth, loading: intelLoading } = useIntelligence();
+  const { vehicles, loading } = useInventory();
 
-  const inStock = vehicles.filter((v) => v.status !== "sold");
+  const m = computeRiskModel(vehicles, new Date());
 
-  const overallRisk = Math.round(average(inStock.map((v) => riskScores[v.id] ?? 0)));
-  const marketVolatilityPct = Math.round(
-    average(inStock.map((v) => VOLATILITY_SCORE[marketVolatility(v)]))
-  );
-  const motRisk = Math.round(
-    average(inStock.map((v) => 100 - (motHealth[v.id]?.healthScore ?? 100)))
-  );
-  const stockStability = Math.round(
-    average(inStock.map((v) => buyingConfidence(v)))
-  );
-
-  const mot30Days = inStock.filter((v) => {
-    if (!v.mot?.expiry) return false;
-    const days = (new Date(v.mot.expiry).getTime() - Date.now()) / 86400000;
-    return days >= 0 && days <= 30;
-  }).length;
-  const highAdvisoryCount = inStock.filter(
-    (v) => (v.mot?.advisories?.length ?? 0) >= 3
-  ).length;
-  const highRiskCount = inStock.filter((v) => (riskScores[v.id] ?? 0) >= 60).length;
-
-  const loading = inventoryLoading || intelLoading;
+  // "Loading" is only for the first fetch. A dealer with no cars used to be
+  // stuck on it for ever, because the risk figures waited on a flag that
+  // never cleared when there was nothing to score.
+  const firstLoad = loading && vehicles.length === 0;
 
   return (
     <div className="px-6 py-8 max-w-6xl mx-auto animate-fadeIn">
+      <PageHeader
+        title="Risk hub"
+        subtitle={`What could hold your stock back, counted from your ${plural(m.inStock, "unsold vehicle")}: MOT dates, MOT advisories and how long each car has been here. Each figure is a number of cars, not a score.`}
+      />
 
-      <SupernovaSectionDivider label="Risk Intelligence Hub" />
-
-      <p className="text-white/60 mb-6">
-        AI‑powered dealership risk scoring, MOT risk signals, and market
-        stability — computed from your {inStock.length} in-stock vehicle{inStock.length === 1 ? "" : "s"}.
-      </p>
-
-      {loading || inStock.length === 0 ? (
-        <SupernovaCard title="Dealership Risk Overview" accent="red">
+      {firstLoad ? (
+        <p role="status" className="text-white/60">Loading your stock…</p>
+      ) : m.inStock === 0 ? (
+        <SupernovaCard title="Nothing to check yet" accent="red">
           <p className="text-white/60">
-            {loading ? "Loading…" : "Add vehicles to your inventory to see risk scoring."}
+            You have no unsold vehicles. Add one and its MOT position, advisories and time in stock will be counted here.
           </p>
         </SupernovaCard>
       ) : (
         <>
-          <SupernovaCard title="Dealership Risk Overview" accent="red">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 text-white/70">
+          <SupernovaCard title="MOT position" subtitle="From the expiry date recorded on each unsold car." accent="red">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-white/70">
               <div>
                 <div className="flex items-center gap-2 text-red-400 font-semibold">
-                  <FiAlertTriangle /> Overall Risk
+                  <FiAlertTriangle aria-hidden="true" /> MOT expired
                 </div>
-                <p className="mt-1">{overallRisk}%</p>
+                <p className="mt-1 text-2xl text-white">{m.mot.expired}</p>
+              </div>
+
+              <div>
+                <div className="flex items-center gap-2 text-amber-300 font-semibold">
+                  <FiClock aria-hidden="true" /> Due within 30 days
+                </div>
+                <p className="mt-1 text-2xl text-white">{m.mot.dueSoon}</p>
+              </div>
+
+              <div>
+                <div className="flex items-center gap-2 text-blue-300 font-semibold">
+                  <FiHelpCircle aria-hidden="true" /> No MOT date recorded
+                </div>
+                <p className="mt-1 text-2xl text-white">{m.mot.noDate}</p>
+                <p className="text-white/50 text-xs mt-1">Their MOT position is unknown.</p>
+              </div>
+            </div>
+          </SupernovaCard>
+
+          <SupernovaCard title="Other things to watch" accent="gold">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-white/70">
+              <div>
+                <div className="flex items-center gap-2 text-yellow-400 font-semibold">
+                  <FiList aria-hidden="true" /> {MANY_ADVISORIES} or more MOT advisories
+                </div>
+                <p className="mt-1 text-2xl text-white">{m.manyAdvisories}</p>
+                <p className="text-white/50 text-xs mt-1">Advisories on each car&apos;s current MOT.</p>
               </div>
 
               <div>
                 <div className="flex items-center gap-2 text-yellow-400 font-semibold">
-                  <FiTrendingUp /> Market Volatility
+                  <FiCalendar aria-hidden="true" /> In stock 90 days or more
                 </div>
-                <p className="mt-1">{marketVolatilityPct}%</p>
-              </div>
-
-              <div>
-                <div className="flex items-center gap-2 text-blue-400 font-semibold">
-                  <FiActivity /> MOT Risk
-                </div>
-                <p className="mt-1">{motRisk}%</p>
-              </div>
-
-              <div>
-                <div className="flex items-center gap-2 text-green-400 font-semibold">
-                  <FiPieChart /> Stock Stability
-                </div>
-                <p className="mt-1">{stockStability}%</p>
+                <p className="mt-1 text-2xl text-white">{m.ageing}</p>
+                <p className="text-white/50 text-xs mt-1">
+                  {m.ageUnknown === 0
+                    ? "From the date each car was added."
+                    : `From the date each car was added. ${plural(m.ageUnknown, "car")} with no date added ${m.ageUnknown === 1 ? "is" : "are"} not counted.`}
+                </p>
               </div>
             </div>
           </SupernovaCard>
 
           <SupernovaCard
-            title="AI Risk Insights"
-            subtitle="Patterns detected across your real MOT, stock, and risk data."
-            accent="gold"
+            title="Cars to look at"
+            subtitle="Every unsold car with at least one of the flags above, most urgent first."
+            accent="blue"
           >
-            {mot30Days === 0 && highAdvisoryCount === 0 && highRiskCount === 0 ? (
-              <p className="text-white/60">No elevated risk signals detected right now.</p>
+            {m.rows.length === 0 ? (
+              <p className="text-white/60">No car is flagged right now.</p>
             ) : (
-              <ul className="list-disc pl-6 text-white/70 space-y-2">
-                {mot30Days > 0 && (
-                  <li>{mot30Days} vehicle{mot30Days === 1 ? "" : "s"} have an MOT due within 30 days.</li>
-                )}
-                {highAdvisoryCount > 0 && (
-                  <li>{highAdvisoryCount} vehicle{highAdvisoryCount === 1 ? "" : "s"} have 3+ MOT advisories, which tends to reduce buyer confidence.</li>
-                )}
-                {highRiskCount > 0 && (
-                  <li>{highRiskCount} vehicle{highRiskCount === 1 ? "" : "s"} are scoring 60+ on overall risk.</li>
-                )}
+              <ul className="space-y-3">
+                {m.rows.slice(0, ROWS_SHOWN).map((row) => (
+                  <li
+                    key={row.id}
+                    className="p-4 rounded-lg bg-black/40 border border-yellow-500 hover:bg-black/60 transition"
+                  >
+                    <div className="text-yellow-400 font-semibold text-lg">
+                      <Link to={`/dealer/inventory/${row.id}`} className="hover:underline">
+                        {row.title}
+                      </Link>
+                      {row.reg && <span className="text-white/60 font-normal text-sm"> · {row.reg}</span>}
+                    </div>
+                    <p className="text-white/70 text-sm mt-1">{row.flags.join(" · ")}</p>
+                  </li>
+                ))}
               </ul>
+            )}
+            {m.rows.length > ROWS_SHOWN && (
+              <p className="text-white/60 text-sm">and {m.rows.length - ROWS_SHOWN} more</p>
             )}
           </SupernovaCard>
         </>
