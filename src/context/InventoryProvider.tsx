@@ -26,6 +26,11 @@ interface InventoryContextType {
   saveError: string | null;
   isSaving: boolean;
   retrySave: () => void;
+  // A plain-words heads-up to show until it's dismissed: an edit of theirs was
+  // dropped because someone else deleted that car. Not an error, and not
+  // cleared by a later successful save (so it gets read).
+  saveNotice: string | null;
+  dismissSaveNotice: () => void;
 
   updateVehicleMOT: (vehicleId: string, motData: Vehicle["mot"]) => void;
   updateVehicleSale: (vehicleId: string, sellPrice: number) => void;
@@ -68,7 +73,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
-  const [saveStatus, setSaveStatus] = useState<SaverStatus>({ saving: false, error: null, unsaved: false });
+  const [saveStatus, setSaveStatus] = useState<SaverStatus>({ saving: false, error: null, unsaved: false, notice: null });
   const { addNotification } = useDealerNotifications();
   const { user } = useAuth();
   const motWarnedIds = useRef<Set<string>>(new Set());
@@ -77,8 +82,11 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
   // holds the list and knows whether it is THIS login's real stock, i.e. a
   // load has succeeded for it — saving from any other state (before the
   // first load lands, after a failed one, or while holding the previous
-  // login's cars) would write the wrong thing. It remembers which cars the
-  // user has deleted that the server hasn't confirmed yet, saves one request
+  // login's cars) would write the wrong thing. The mutators below still hand
+  // it whole lists; it works out what the user actually changed (which fields
+  // of which cars, which cars are new, which were deleted) and sends only
+  // that, so a stale screen can never put back what someone else changed. It
+  // remembers everything the server hasn't confirmed yet, saves one request
   // at a time, keeps everything if a save fails, and takes in the server's
   // answer without discarding edits made while the save was in flight.
   // Created once; it only ever calls React's stable setters.
@@ -475,6 +483,10 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
         isSaving: saveStatus.saving,
         retrySave: () => {
           void saver.retry();
+        },
+        saveNotice: saveStatus.notice,
+        dismissSaveNotice: () => {
+          saver.dismissNotice();
         },
         updateVehicleMOT,
         updateVehicleSale,

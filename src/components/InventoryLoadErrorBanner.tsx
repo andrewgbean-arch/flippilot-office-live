@@ -1,7 +1,7 @@
 import { useInventory } from "@/context/InventoryProvider";
 
-// Two things can go wrong with the dealer's stock, and this says so plainly
-// (and offers a retry) rather than showing invented cars or failing silently:
+// Three things can be worth telling the dealer about their stock, and this says
+// so plainly rather than showing invented cars or failing silently:
 //
 //  - It couldn't be LOADED. The list is empty in that state and nothing is
 //    saved (a save would replace their real stock with the empty list).
@@ -9,10 +9,15 @@ import { useInventory } from "@/context/InventoryProvider";
 //    connection...). The change is still on screen, kept for another try, but
 //    the server doesn't have it yet. Not blocking: they can keep working, and
 //    every further edit tries the save again.
+//  - A change WAS dropped on purpose: they edited a car that someone else had
+//    deleted in the meantime, so there was nothing to save the edit to. Not an
+//    error (amber, not red) and nothing to retry, but they must get to read it,
+//    so it stays until they press OK.
 export default function InventoryLoadErrorBanner() {
-  const { loadError, loading, refreshInventory, saveError, isSaving, retrySave } = useInventory();
+  const { loadError, loading, refreshInventory, saveError, isSaving, retrySave, saveNotice, dismissSaveNotice } =
+    useInventory();
 
-  if (!loadError && !saveError) return null;
+  if (!loadError && !saveError && !saveNotice) return null;
 
   return (
     <>
@@ -43,6 +48,17 @@ export default function InventoryLoadErrorBanner() {
             className="underline font-semibold disabled:opacity-60"
           >
             {isSaving ? "Saving…" : "Try again"}
+          </button>
+        </div>
+      )}
+      {saveNotice && (
+        <div
+          role="status"
+          className="px-10 py-2 text-sm text-center bg-amber-500/20 text-amber-100 border-b border-amber-500/40"
+        >
+          {saveNotice}{" "}
+          <button onClick={() => dismissSaveNotice()} className="underline font-semibold">
+            OK
           </button>
         </div>
       )}
