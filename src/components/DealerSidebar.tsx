@@ -256,9 +256,10 @@ export default function DealerSidebar() {
 
       {!isHome && (
         <div className="mb-10">
-          <h1 className="text-2xl font-bold text-yellow-300 tracking-wide drop-shadow-lg">
+          {/* The app name, not a heading: each page carries its own h1. */}
+          <p className="text-2xl font-bold text-yellow-300 tracking-wide drop-shadow-lg">
             Dealer OS
-          </h1>
+          </p>
         </div>
       )}
 
