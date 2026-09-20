@@ -27,7 +27,7 @@ export const APP_MAP: AppMapSection[] = [
   { section: "Vehicles", items: ["Inventory Hub", "Import from CSV"] },
   {
     section: "Sales",
-    items: ["Sales Hub", "Add Lead", "Leads Dashboard", "Sales Pipeline", "Viewing & Test Drive Requests"],
+    items: ["Sales Hub", "Add Lead", "Leads Dashboard", "Sales Pipeline", "Viewing & Test Drive Requests", "Wanted Cars"],
   },
   {
     section: "Finance Suite",

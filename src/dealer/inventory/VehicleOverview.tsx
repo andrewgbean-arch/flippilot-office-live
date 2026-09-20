@@ -21,6 +21,7 @@ import type { Vehicle } from "@/types/Vehicle";
 
 import { hasMotRecord } from "./stockFacts";
 import PassportTab from "./PassportTab";
+import WantedForThisCar from "./WantedForThisCar";
 import {
   ageBand,
   daysInStock,
@@ -312,6 +313,7 @@ export default function VehicleOverview() {
       {/* OVERVIEW TAB */}
       {tab === "overview" && (
         <div className="space-y-10">
+          <WantedForThisCar vehicleId={vehicleId} />
           <SupernovaGlowCard>
             <SupernovaSectionDivider label="Photos" />
             {vehicle.images && vehicle.images.length > 0 ? (

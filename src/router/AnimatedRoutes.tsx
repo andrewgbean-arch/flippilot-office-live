@@ -56,6 +56,7 @@ import PartsLabourLog from "@/dealer/inventory/PartsLabourLog";
 
 /* SALES */
 import SalesHub from "@/dealer/sales/SalesHub";
+import WantedBoard from "@/dealer/sales/WantedBoard";
 import SalesPipeline from "@/dealer/leads/SalesPipeline";
 import LeadsDashboard from "@/dealer/leads/LeadsDashboard";
 import AddLead from "@/dealer/leads/AddLead";
@@ -201,6 +202,7 @@ export default function AnimatedRoutes() {
         <Route path="dealer/sales/add" element={<AddLead />} />
         <Route path="dealer/sales/pipeline" element={<SalesPipeline />} />
         <Route path="dealer/sales/crm" element={<DealerCRMIntelligence />} />
+        <Route path="dealer/sales/wanted" element={<WantedBoard />} />
         <Route path="dealer/sales/leads" element={<LeadsDashboard />} />
         <Route path="dealer/sales/leads/:id" element={<LeadDetails />} />
 

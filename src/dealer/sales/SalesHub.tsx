@@ -48,6 +48,9 @@ export default function SalesHub() {
             <button className="sn-btn sn-btn--ghost" onClick={() => navigate("/dealer/sales/pipeline")}>
               Sales Pipeline
             </button>
+            <button className="sn-btn sn-btn--ghost" onClick={() => navigate("/dealer/sales/wanted")}>
+              Wanted Cars
+            </button>
           </div>
         </section>
 

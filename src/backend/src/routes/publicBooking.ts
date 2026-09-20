@@ -8,6 +8,7 @@ import { publishedVehicleIds } from "./carPassport";
 import { bookedStatus, leadUpdateForBooking } from "../engines/leadBookingStatus";
 import { DEFAULT_BOOKING_SETTINGS, type BookingSettings, type WeekDay } from "./bookingSettings";
 import { toSingleLine, toMultiLine } from "../untrustedText";
+import { MAX_NAME_CHARS, MAX_NOTES_CHARS, cleanEmail, cleanPhone } from "../publicContact";
 
 export type AppointmentType = "viewing" | "test_drive" | "mot";
 export type AppointmentStatus = "pending" | "confirmed" | "declined" | "completed";
@@ -41,7 +42,7 @@ export interface Appointment {
   createdAt: string;
 }
 
-interface PublicVehicle {
+export interface PublicVehicle {
   id: string;
   // True when the dealer has published this car's Car Passport page.
   hasPassport?: boolean;
@@ -95,60 +96,6 @@ const publicReadLimiter = rateLimit({
   message: { ok: false, error: "Too many requests — please try again shortly." },
 });
 
-// What a stranger may type into the booking form is stored, shown to staff and
-// (the name) read by Pilot Brain, so every free-text field has a limit and is
-// cleaned before it is kept — see untrustedText.ts.
-const MAX_NAME_CHARS = 80;
-const MAX_NOTES_CHARS = 500;
-const MAX_EMAIL_CHARS = 254; // the longest an email address can legitimately be
-const MAX_PHONE_CHARS = 40; // room for a mobile and a landline, or a number with an extension
-
-// One address: something, one "@", something. Neither side may hold a space or
-// a character that means something in a mailto: link or a web address (? & = %
-// # /), so a stored address can never add a cc, a bcc or a subject to the email
-// staff send from the "Email Customer" button, or carry a %-escape. Apostrophes
-// (O'Brien@example.co.uk is a real address), plus-addressing, dots, hyphens and
-// letters of any alphabet are all fine.
-const EMAIL_PATTERN = /^[^\s@<>()[\]\\,;:"?&=%#\/]+@[^\s@<>()[\]\\,;:"?&=%#\/]+$/;
-
-// What people type into a contact box they would rather leave empty. It counts
-// as nothing at all, so one placeholder cannot lose a booking that has a good
-// phone number or email (a booking still needs at least one of the two).
-const PLACEHOLDER_CONTACT = /^(?:(?:n\/?a|n\.a|not applicable|none|nil|no|no e-?mail|no phone|x+)\.?|[-?.]+)$/i;
-
-// What the customer is told, on the booking page, when a contact detail is refused.
-const PHONE_ADVICE = `Please give one phone number (at least 5 digits, up to ${MAX_PHONE_CHARS} characters), or leave it blank and give an email instead.`;
-const EMAIL_ADVICE = "Please give one email address in the form name@example.com, or leave it blank and give a phone number instead.";
-
-// What a contact box came to: a cleaned value, nothing at all (not given, or
-// only a placeholder), or something refused, with the advice to show the customer.
-type Contact = { value: string | undefined } | { refused: string };
-
-// undefined: nothing usable given. null: not text, or too long. Otherwise the tidied text.
-function readContact(raw: unknown, max: number): string | null | undefined {
-  if (raw === undefined || raw === null) return undefined;
-  if (typeof raw !== "string") return null;
-  // Tidied with a limit far above `max`, so that nothing is cut off here: the
-  // length is judged on all of what was typed. (Cutting first and measuring
-  // after let a value slip through, or lose its second half, depending on
-  // where a space fell.)
-  const value = toSingleLine(raw, max * 4);
-  if (!value || PLACEHOLDER_CONTACT.test(value)) return undefined;
-  return Array.from(value).length > max ? null : value;
-}
-
-function cleanEmail(raw: unknown): Contact {
-  const value = readContact(raw, MAX_EMAIL_CHARS);
-  if (value === undefined) return { value: undefined };
-  return value !== null && EMAIL_PATTERN.test(value) ? { value } : { refused: EMAIL_ADVICE };
-}
-
-function cleanPhone(raw: unknown): Contact {
-  const value = readContact(raw, MAX_PHONE_CHARS);
-  if (value === undefined) return { value: undefined };
-  return value !== null && (value.match(/\d/g) ?? []).length >= 5 ? { value } : { refused: PHONE_ADVICE };
-}
-
 // Today's date (yyyy-mm-dd) on a clock in the UK, where these dealers trade —
 // a booking is "in the past" by UK dates, not by the server's own time zone.
 export function londonToday(now: number = Date.now()): string {
@@ -164,6 +111,27 @@ export function londonToday(now: number = Date.now()): string {
 
 function findDealership(dealershipId: string): Dealership | undefined {
   return readCollection<Dealership>("dealerships").find(d => d.id === dealershipId);
+}
+
+// The cars a stranger may see: in stock (not sold) and never a demo car. Used by
+// the store page and by the "we have one right now" answer to a wanted request,
+// so the two can never disagree about what is for sale.
+export function publicVehiclesFor(dealershipId: string): PublicVehicle[] {
+  const vehicles = readTenantCollection<any>(dealershipId, "vehicles")
+    .filter(v => String(v.status ?? "").toLowerCase() !== "sold")
+    .filter(v => !isSampleVehicleId(v.id));
+  const passports = publishedVehicleIds(dealershipId);
+  return vehicles.map(v => ({
+    id: v.id,
+    ...(passports.has(v.id) ? { hasPassport: true } : {}),
+    ...(v.reg ? { reg: v.reg } : {}),
+    make: v.make,
+    model: v.model,
+    year: v.year ?? null,
+    mileage: v.mileage ?? null,
+    ...(v.colour ? { colour: v.colour } : {}),
+    priceRetail: publicAskingPrice(v.priceRetail),
+  }));
 }
 
 const WEEKDAY_BY_GETDAY: WeekDay[] = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
@@ -258,21 +226,7 @@ export default function registerPublicBookingRoute(app: Express) {
     // public /store/:dealershipId page — showing an anonymous visitor
     // a car that's already sold is a real, visible mistake there, not
     // a cosmetic one.
-    const vehicles = readTenantCollection<any>(dealershipId, "vehicles")
-      .filter(v => String(v.status ?? "").toLowerCase() !== "sold")
-      .filter(v => !isSampleVehicleId(v.id));
-    const passports = publishedVehicleIds(dealershipId);
-    const publicVehicles: PublicVehicle[] = vehicles.map(v => ({
-      id: v.id,
-      ...(passports.has(v.id) ? { hasPassport: true } : {}),
-      ...(v.reg ? { reg: v.reg } : {}),
-      make: v.make,
-      model: v.model,
-      year: v.year ?? null,
-      mileage: v.mileage ?? null,
-      ...(v.colour ? { colour: v.colour } : {}),
-      priceRetail: publicAskingPrice(v.priceRetail),
-    }));
+    const publicVehicles = publicVehiclesFor(dealershipId);
     res.json({ ok: true, items: publicVehicles });
   });
 

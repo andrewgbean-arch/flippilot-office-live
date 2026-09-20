@@ -61,7 +61,7 @@ describe("appMapPromptSection", () => {
 
   it("names each section with its links, exactly as written on screen", () => {
     expect(text).toContain("Pilot Brain: Talk to Pilot Brain, Operations (Approvals), Strategy (Goals & Briefing)");
-    expect(text).toContain("Sales: Sales Hub, Add Lead, Leads Dashboard, Sales Pipeline, Viewing & Test Drive Requests");
+    expect(text).toContain("Sales: Sales Hub, Add Lead, Leads Dashboard, Sales Pipeline, Viewing & Test Drive Requests, Wanted Cars");
     expect(text).toContain("Bookkeeping: Bookkeeping Hub");
   });
 

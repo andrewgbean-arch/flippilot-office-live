@@ -10,6 +10,7 @@ import {
   type PublicDealerInfo,
   type PublicVehicle,
 } from "./publicBookingApi";
+import WantedSection from "./WantedForm";
 
 const WEEK_DAYS: { key: string; label: string }[] = [
   { key: "mon", label: "Monday" },
@@ -174,6 +175,10 @@ export default function PublicDealerPage({ dealershipIdOverride }: { dealershipI
           })
         )}
       </section>
+
+      {/* On the dealer's own /marketplace preview the form is shown but switched
+          off, so testing their page never creates a real customer's request. */}
+      <WantedSection dealershipId={dealershipId} dealerName={info.name} dealerPhone={phone ?? undefined} preview={dealershipIdOverride !== undefined} />
 
       {bookingSettings && (
         <section aria-labelledby="opening-hours">

@@ -128,6 +128,7 @@ export default function DealerSidebar() {
         { to: "/dealer/sales/leads", label: "Leads Dashboard" },
         { to: "/dealer/sales/pipeline", label: "Sales Pipeline" },
         { to: "/appointments", label: "Viewing & Test Drive Requests" },
+        { to: "/dealer/sales/wanted", label: "Wanted Cars" },
       ],
     },
 

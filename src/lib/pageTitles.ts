@@ -41,6 +41,7 @@ export const PAGE_TITLES: Record<string, string> = {
   "/dealer/sales/add": "Add a lead",
   "/dealer/sales/pipeline": "Sales pipeline",
   "/dealer/sales/crm": "Lead summary",
+  "/dealer/sales/wanted": "Wanted cars",
   "/dealer/sales/leads": "Leads",
   "/dealer/sales/leads/:id": "Lead",
 

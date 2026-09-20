@@ -129,6 +129,9 @@ describe("unauthenticated access is blocked on real data routes", () => {
     ["GET", "/appointments"],
     ["GET", "/car-passports/any-car"],
     ["PUT", "/car-passports/any-car"],
+    ["GET", "/wanted"],
+    ["PUT", "/wanted/any-request"],
+    ["DELETE", "/wanted/any-request"],
   ])("%s %s returns 401 with no token", async (method, url) => {
     const res = await (request(app) as any)[method.toLowerCase()](url);
     expect(res.status).toBe(401);
@@ -2112,7 +2115,7 @@ describe("Pilot Brain snapshot — lead sources and per-car profit", () => {
     // the left sidebar, as Boss sees it
     expect(prompt).toContain("WHERE THINGS LIVE IN FLIPPILOT");
     expect(prompt).toContain("Pilot Brain: Talk to Pilot Brain, Operations (Approvals), Strategy (Goals & Briefing)");
-    expect(prompt).toContain("Sales: Sales Hub, Add Lead, Leads Dashboard, Sales Pipeline, Viewing & Test Drive Requests");
+    expect(prompt).toContain("Sales: Sales Hub, Add Lead, Leads Dashboard, Sales Pipeline, Viewing & Test Drive Requests, Wanted Cars");
     // the right sidebar
     expect(prompt).toContain("Open Jobs, Pending Bookings, MOT Attention");
 
@@ -4762,5 +4765,383 @@ describe("Pilot Brain web access", () => {
 
     const list = await request(app).get("/pilot-brain/voices").set(asOwner());
     expect(list.body.voices.map((v: { id: string }) => v.id)).toEqual(["alloy", "echo", "fable", "onyx", "nova", "shimmer"]);
+  });
+});
+
+describe("Wanted requests — a stranger asks a dealer to watch for a car", () => {
+  const auth = (token: string) => ({ Authorization: `Bearer ${token}` });
+  const DAY = 86400000;
+
+  function seedStock(dealershipId: string) {
+    writeTenantCollection(dealershipId, "vehicles", [
+      { id: "v1", reg: "AB12CDE", year: 2019, make: "Ford", model: "Fiesta", mileage: 42000, colour: "Blue", status: "in stock", priceRetail: 8495, buyPrice: 777777, notes: "SECRET-NOTE", vin: "SECRET-VIN" },
+      { id: "v2", make: "Audi", model: "A3", year: 2018, status: "sold", priceRetail: 12000 },
+      { id: "v3", make: "Ford", model: "Focus", year: 2017, status: "in stock", priceRetail: 9500 },
+      { id: "DM-001", make: "Ford", model: "Fiesta", status: "in stock", priceRetail: 5000 },
+    ]);
+  }
+
+  async function setup(label: string) {
+    const owner = await signup(label);
+    seedStock(owner.user.dealershipId);
+    return { owner, id: owner.user.dealershipId as string };
+  }
+
+  const body = (over: Record<string, unknown> = {}) => ({
+    consent: true,
+    name: "Priya Shah",
+    email: "priya.shah@example.co.uk",
+    make: "Ford",
+    model: "Fiesta",
+    maxPrice: 9000,
+    ...over,
+  });
+  const ask = (dealershipId: string, over: Record<string, unknown> = {}) => request(app).post(`/public/${dealershipId}/wanted`).send(body(over));
+  const list = (token: string) => request(app).get("/wanted").set(auth(token));
+
+  describe("the form", () => {
+    it("is told, with no login, the exact words the person agrees to, naming the dealership", async () => {
+      const { id } = await setup("wanted-wording");
+      const res = await request(app).get(`/public/${id}/wanted`);
+      expect(res.status).toBe(200);
+      expect(res.body.accepting).toBe(true);
+      expect(res.body.consentWording).toContain("Integration Test Dealership wanted-wording");
+      expect(res.body.consentWording).toContain("12 months");
+      expect(Object.keys(res.body).sort()).toEqual(["accepting", "consentWording", "ok"]);
+    });
+
+    it("has nothing to say about a dealership that doesn't exist", async () => {
+      expect((await request(app).get("/public/no-such-dealer/wanted")).status).toBe(404);
+      expect((await ask("no-such-dealer")).status).toBe(404);
+    });
+  });
+
+  describe("asking", () => {
+    it("works with no account, and the dealer sees who asked, what for, and the words they agreed to", async () => {
+      const { owner, id } = await setup("wanted-ask");
+      const res = await ask(id, { phone: "07700 900123", note: "Automatic if possible" });
+      expect(res.status).toBe(200);
+      expect(res.body.ok).toBe(true);
+
+      const seen = await list(owner.token);
+      expect(seen.status).toBe(200);
+      expect(seen.body.retentionDays).toBe(365);
+      expect(seen.body.items).toHaveLength(1);
+      expect(seen.body.items[0]).toMatchObject({
+        name: "Priya Shah",
+        email: "priya.shah@example.co.uk",
+        phone: "07700 900123",
+        make: "Ford",
+        model: "Fiesta",
+        maxPrice: 9000,
+        note: "Automatic if possible",
+        status: "waiting",
+      });
+      expect(seen.body.items[0].consent.wording).toContain("Integration Test Dealership wanted-ask");
+      expect(Date.parse(seen.body.items[0].consent.at)).not.toBeNaN();
+    });
+
+    it("keeps nothing, and says why, when a required thing is missing or wrong", async () => {
+      const { owner, id } = await setup("wanted-refuse");
+      for (const over of [
+        { consent: false },
+        { consent: undefined },
+        { name: "" },
+        { email: undefined },
+        { email: "nope" },
+        { make: undefined, model: undefined, note: undefined },
+        { make: undefined },
+        { maxPrice: 50 },
+      ]) {
+        const res = await ask(id, over);
+        expect(res.status, JSON.stringify(over)).toBe(400);
+        expect(res.body.ok).toBe(false);
+        expect(typeof res.body.error).toBe("string");
+      }
+      expect((await list(owner.token)).body.items).toEqual([]);
+    });
+
+    it("tells a script it worked, and keeps nothing, when the hidden box was filled in", async () => {
+      const { owner, id } = await setup("wanted-trap");
+      const res = await ask(id, { website: "http://spam.example" });
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ ok: true, inStockNow: [] });
+      expect((await list(owner.token)).body.items).toEqual([]);
+    });
+
+    it("cleans what's typed: line breaks flattened, markup left as plain text", async () => {
+      const { owner, id } = await setup("wanted-clean");
+      await ask(id, { name: "Priya\nShah", note: "<img src=x onerror=alert(1)>\nplease" });
+      const item = (await list(owner.token)).body.items[0];
+      expect(item.name).toBe("Priya Shah");
+      expect(item.note).toBe("<img src=x onerror=alert(1)> please");
+    });
+
+    it("answers straight away with cars in stock that fit, showing only what the store page shows", async () => {
+      const { id } = await setup("wanted-instant");
+      const res = await ask(id);
+      expect(res.body.inStockNow).toHaveLength(1);
+      expect(res.body.inStockNow[0]).toMatchObject({ id: "v1", make: "Ford", model: "Fiesta", priceRetail: 8495 });
+      const text = JSON.stringify(res.body);
+      for (const secret of ["SECRET-NOTE", "SECRET-VIN", "777777"]) expect(text).not.toContain(secret);
+    });
+
+    it("doesn't offer a car over their budget, a sold car, or a demo car", async () => {
+      const { id } = await setup("wanted-instant-fit");
+      expect((await ask(id, { maxPrice: 5000 })).body.inStockNow).toEqual([]); // v1 is £8,495
+      expect((await ask(id, { make: "Audi", model: "A3", email: "audi@example.co.uk" })).body.inStockNow).toEqual([]); // sold
+      const noBudget = await ask(id, { model: undefined, maxPrice: undefined, email: "any@example.co.uk" });
+      expect(noBudget.body.inStockNow.map((v: any) => v.id).sort()).toEqual(["v1", "v3"]); // never DM-001
+    });
+
+    it("offers no more than three cars", async () => {
+      const { id } = await setup("wanted-instant-cap");
+      writeTenantCollection(id, "vehicles", Array.from({ length: 6 }, (_, i) => ({ id: `c${i}`, make: "Ford", model: "Ka", status: "in stock", priceRetail: 3000 })));
+      expect((await ask(id, { model: "Ka", maxPrice: undefined })).body.inStockNow).toHaveLength(3);
+    });
+  });
+
+  describe("the same person asking again", () => {
+    it("keeps one request, with their latest wording and a fresh retention period", async () => {
+      const { owner, id } = await setup("wanted-repeat");
+      await ask(id, { note: "first" });
+      const first = (await list(owner.token)).body.items[0];
+      await new Promise(r => setTimeout(r, 5));
+      await ask(id, { email: "PRIYA.SHAH@example.co.uk", maxPrice: 7000, note: "second" });
+
+      const items = (await list(owner.token)).body.items;
+      expect(items).toHaveLength(1);
+      expect(items[0]).toMatchObject({ id: first.id, maxPrice: 7000, note: "second", createdAt: first.createdAt });
+      expect(Date.parse(items[0].askedAt)).toBeGreaterThan(Date.parse(first.askedAt));
+    });
+
+    it("adds a second request for a different car, and for a different person", async () => {
+      const { owner, id } = await setup("wanted-repeat-diff");
+      await ask(id);
+      await ask(id, { model: "Focus" });
+      await ask(id, { email: "someone.else@example.co.uk" });
+      expect((await list(owner.token)).body.items).toHaveLength(3);
+    });
+
+    it("starts a new request once the old one has been closed", async () => {
+      const { owner, id } = await setup("wanted-repeat-closed");
+      await ask(id);
+      const first = (await list(owner.token)).body.items[0];
+      await request(app).put(`/wanted/${first.id}`).set(auth(owner.token)).send({ status: "closed" });
+      await ask(id);
+      expect((await list(owner.token)).body.items).toHaveLength(2);
+    });
+  });
+
+  describe("telling the dealer's team", () => {
+    const inbox = async (token: string) => (await request(app).get("/notifications").set(auth(token))).body.items as any[];
+
+    it("notifies the owner, managers and sales, once, and never says who is asking", async () => {
+      const { owner, id } = await setup("wanted-notify");
+      const manager = await joinStaff(owner.token, "manager");
+      const sales = await joinStaff(owner.token, "sales");
+      const finance = await joinStaff(owner.token, "finance");
+      const general = await joinStaff(owner.token, "general");
+
+      await ask(id, { phone: "07700 900123" });
+      await ask(id); // the same person again: no second notification
+
+      for (const who of [owner, manager, sales]) {
+        const mine = (await inbox(who.token)).filter(n => n.title?.includes("car"));
+        expect(mine, who.email).toHaveLength(1);
+        expect(mine[0].title).toBe("Someone wants a car you have in stock"); // v1 fits
+        expect(mine[0].message).toBe("Ford Fiesta, up to £9,000");
+        expect(JSON.stringify(mine[0])).not.toMatch(/Priya|priya|07700/);
+      }
+      for (const who of [finance, general]) {
+        expect((await inbox(who.token)).filter(n => n.title?.includes("car")), who.email).toHaveLength(0);
+      }
+    });
+
+    it("says so plainly when nothing in stock fits", async () => {
+      const { owner, id } = await setup("wanted-notify-nomatch");
+      await ask(id, { make: "Porsche", model: "911", maxPrice: undefined });
+      const mine = (await inbox(owner.token)).filter(n => n.title?.includes("car"));
+      expect(mine[0].title).toBe("Someone is looking for a car");
+    });
+  });
+
+  describe("what the dealer sees", () => {
+    it("ranks people waiting for a car you have first, and shows which cars", async () => {
+      const { owner, id } = await setup("wanted-order");
+      await ask(id, { make: "Porsche", model: "911", maxPrice: undefined, email: "porsche@example.co.uk" });
+      await ask(id, { model: "Focus", maxPrice: 8000, email: "focus@example.co.uk" });
+      const items = (await list(owner.token)).body.items;
+      expect(items.map((i: any) => i.model)).toEqual(["Focus", "911"]);
+      expect(items[0].matches).toEqual([{ vehicleId: "v3", label: "2017 Ford Focus", price: 9500, overBudgetBy: 1500 }]);
+      expect(items[1].matches).toEqual([]);
+    });
+
+    it("never matches a sold car or a demo car", async () => {
+      const { owner, id } = await setup("wanted-order-sold");
+      await ask(id, { make: "Audi", model: "A3", maxPrice: undefined });
+      await ask(id, { email: "fiesta@example.co.uk", maxPrice: undefined });
+      const items = (await list(owner.token)).body.items;
+      const audi = items.find((i: any) => i.make === "Audi");
+      const fiesta = items.find((i: any) => i.make === "Ford");
+      expect(audi.matches).toEqual([]);
+      expect(fiesta.matches.map((m: any) => m.vehicleId)).toEqual(["v1"]);
+    });
+
+    it("recomputes matches from the stock as it is now", async () => {
+      const { owner, id } = await setup("wanted-live");
+      await ask(id, { make: "Porsche", model: "911", maxPrice: undefined });
+      expect((await list(owner.token)).body.items[0].matches).toEqual([]);
+      writeTenantCollection(id, "vehicles", [{ id: "p1", make: "Porsche", model: "911 Carrera", year: 2015, status: "in stock", priceRetail: 42000 }]);
+      expect((await list(owner.token)).body.items[0].matches.map((m: any) => m.vehicleId)).toEqual(["p1"]);
+    });
+  });
+
+  describe("who can see and change them", () => {
+    it("lets sales, managers and the owner in, and keeps finance and general staff out", async () => {
+      const { owner, id } = await setup("wanted-roles");
+      await ask(id);
+      const item = (await list(owner.token)).body.items[0];
+      const manager = await joinStaff(owner.token, "manager");
+      const sales = await joinStaff(owner.token, "sales");
+      const finance = await joinStaff(owner.token, "finance");
+      const general = await joinStaff(owner.token, "general");
+
+      for (const who of [manager, sales]) {
+        expect((await list(who.token)).status).toBe(200);
+      }
+      for (const who of [finance, general]) {
+        expect((await list(who.token)).status).toBe(403);
+        expect((await request(app).put(`/wanted/${item.id}`).set(auth(who.token)).send({ status: "closed" })).status).toBe(403);
+        expect((await request(app).delete(`/wanted/${item.id}`).set(auth(who.token))).status).toBe(403);
+      }
+      expect((await list(owner.token)).body.items[0].status).toBe("waiting"); // nothing changed
+    });
+
+    it("keeps each dealership's requests to itself", async () => {
+      const a = await setup("wanted-iso-a");
+      const b = await setup("wanted-iso-b");
+      await ask(a.id);
+      const mine = (await list(a.owner.token)).body.items[0];
+
+      expect((await list(b.owner.token)).body.items).toEqual([]);
+      expect((await request(app).put(`/wanted/${mine.id}`).set(auth(b.owner.token)).send({ status: "closed" })).status).toBe(404);
+      expect((await request(app).delete(`/wanted/${mine.id}`).set(auth(b.owner.token))).status).toBe(404);
+      expect((await list(a.owner.token)).body.items).toHaveLength(1);
+    });
+
+    it("is never handed to Pilot Brain, which reads a dealership's business summary", async () => {
+      const { id } = await setup("wanted-brain");
+      await ask(id, { name: "Zed Unmistakable", email: "zed.unmistakable@example.co.uk", phone: "07700 900555", note: "UNMISTAKABLE-NOTE" });
+      const summary = JSON.stringify(buildBusinessSummary(id));
+      for (const secret of ["Zed", "Unmistakable", "UNMISTAKABLE", "07700 900555", "zed."]) expect(summary).not.toContain(secret);
+    });
+  });
+
+  describe("updating and forgetting", () => {
+    it("moves a request from waiting to contacted to closed and back, recording when", async () => {
+      const { owner, id } = await setup("wanted-status");
+      await ask(id);
+      const item = (await list(owner.token)).body.items[0];
+      for (const status of ["contacted", "closed", "waiting"]) {
+        const res = await request(app).put(`/wanted/${item.id}`).set(auth(owner.token)).send({ status });
+        expect(res.status).toBe(200);
+        expect(res.body.item).toMatchObject({ id: item.id, status });
+        expect(Date.parse(res.body.item.statusChangedAt)).not.toBeNaN();
+      }
+      expect((await list(owner.token)).body.items[0].status).toBe("waiting");
+    });
+
+    it("refuses a status it doesn't know, and a request that isn't there", async () => {
+      const { owner, id } = await setup("wanted-status-bad");
+      await ask(id);
+      const item = (await list(owner.token)).body.items[0];
+      for (const status of ["done", "", undefined, 1, null]) {
+        expect((await request(app).put(`/wanted/${item.id}`).set(auth(owner.token)).send({ status })).status, String(status)).toBe(400);
+      }
+      expect((await request(app).put("/wanted/nope").set(auth(owner.token)).send({ status: "closed" })).status).toBe(404);
+      expect((await list(owner.token)).body.items[0].status).toBe("waiting");
+    });
+
+    it("forgets a person entirely when deleted: the stored list no longer holds them", async () => {
+      const { owner, id } = await setup("wanted-delete");
+      await ask(id, { phone: "07700 900123" });
+      await ask(id, { email: "second@example.co.uk" });
+      const items = (await list(owner.token)).body.items;
+
+      expect((await request(app).delete(`/wanted/${items[0].id}`).set(auth(owner.token))).status).toBe(200);
+      expect((await request(app).delete(`/wanted/${items[0].id}`).set(auth(owner.token))).status).toBe(404);
+      expect((await list(owner.token)).body.items).toHaveLength(1);
+      expect(JSON.stringify(readTenantCollection<any>(id, "wantedRequests"))).not.toContain(items[0].email);
+    });
+  });
+
+  describe("how long they're kept", () => {
+    const stored = (over: Record<string, unknown>) => ({
+      id: "old-1",
+      name: "Old Request",
+      email: "old@example.co.uk",
+      make: "Ford",
+      status: "waiting",
+      consent: { at: "2020-01-01T00:00:00.000Z", wording: "yes" },
+      createdAt: "2020-01-01T00:00:00.000Z",
+      askedAt: "2020-01-01T00:00:00.000Z",
+      ...over,
+    });
+
+    it("hides a request a year after the person last asked, and drops it from storage the next time anyone asks", async () => {
+      const { owner, id } = await setup("wanted-retention");
+      const dayAgo = (n: number) => new Date(Date.now() - n * DAY).toISOString();
+      writeTenantCollection(id, "wantedRequests", [
+        stored({ id: "expired", askedAt: dayAgo(366), createdAt: dayAgo(366) }),
+        stored({ id: "recent", name: "Recent", email: "recent@example.co.uk", askedAt: dayAgo(364), createdAt: dayAgo(400) }),
+      ]);
+      expect((await list(owner.token)).body.items.map((i: any) => i.id)).toEqual(["recent"]);
+      expect(readTenantCollection<any>(id, "wantedRequests")).toHaveLength(2); // reading deletes nothing
+
+      await ask(id, { email: "new@example.co.uk" });
+      expect(readTenantCollection<any>(id, "wantedRequests").map(r => r.id)).not.toContain("expired");
+    });
+
+    it("counts a repeat ask as a fresh start, so a person still waiting is not forgotten", async () => {
+      const { owner, id } = await setup("wanted-retention-repeat");
+      const longAgo = new Date(Date.now() - 360 * DAY).toISOString();
+      writeTenantCollection(id, "wantedRequests", [stored({ id: "keep", email: "priya.shah@example.co.uk", model: "Fiesta", askedAt: longAgo, createdAt: longAgo })]);
+      await ask(id);
+      const items = (await list(owner.token)).body.items;
+      expect(items).toHaveLength(1);
+      expect(items[0].id).toBe("keep");
+      expect(Date.now() - Date.parse(items[0].askedAt)).toBeLessThan(DAY);
+    });
+  });
+
+  describe("a full list", () => {
+    it("stops taking new people at the limit, says so on the form, and still lets someone already on it ask again", async () => {
+      const { owner, id } = await setup("wanted-full");
+      const now = new Date().toISOString();
+      writeTenantCollection(
+        id,
+        "wantedRequests",
+        Array.from({ length: 300 }, (_, i) => ({ id: `r${i}`, name: `P${i}`, email: `p${i}@example.co.uk`, make: "Ford", status: "waiting", consent: { at: now, wording: "yes" }, createdAt: now, askedAt: now }))
+      );
+      expect((await request(app).get(`/public/${id}/wanted`)).body.accepting).toBe(false);
+
+      const refused = await ask(id, { email: "one.more@example.co.uk" });
+      expect(refused.status).toBe(503);
+      expect(refused.body.error).toContain("call");
+      expect((await list(owner.token)).body.items).toHaveLength(300);
+
+      expect((await ask(id, { email: "p7@example.co.uk", model: undefined, maxPrice: undefined })).status).toBe(200);
+      expect((await list(owner.token)).body.items).toHaveLength(300);
+    });
+  });
+
+  it("copes with junk in the stored list rather than failing for the whole dealership", async () => {
+    const { owner, id } = await setup("wanted-junk");
+    writeTenantCollection(id, "wantedRequests", [null, 5, "text", { id: 7 }, { id: "no-date" }, { id: "bad-date", askedAt: "soon" }] as any);
+    const res = await list(owner.token);
+    expect(res.status).toBe(200);
+    expect(res.body.items).toEqual([]);
+    expect((await ask(id)).status).toBe(200);
   });
 });
