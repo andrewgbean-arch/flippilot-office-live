@@ -240,6 +240,20 @@ describe("a sale with no usable price is never billed as £0.00", () => {
     expect(visible(html)).not.toContain("VAT Rate Not Valid");
   });
 
+  it("a margin sale whose VAT due is not worked out (no purchase price yet) is still billed at its price, with no VAT line", () => {
+    const sale = { ...storedSale({ price: 6000, scheme: "margin" }), vatAmount: null, netAmount: null } as SaleEntry;
+    delete (sale as { marginPurchasePrice?: number }).marginPurchasePrice;
+    const html = render(sale);
+    const text = visible(html);
+    expect(text).toContain("Total Due");
+    expect(text).toContain("£6,000.00");
+    expect(text).toContain("VAT Margin Scheme");
+    expect(text).not.toContain("Net");
+    expect(text).not.toContain("VAT (");
+    expect(text).not.toContain("NaN");
+    expect(text).not.toContain("null");
+  });
+
   it("a margin sale never needs a VAT rate, so a bad one does not stop it being billed", () => {
     const html = render({ ...storedSale({ price: 6000, scheme: "margin" }), vatRate: NaN });
     expect(visible(html)).toContain("Total Due");
