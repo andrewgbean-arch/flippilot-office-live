@@ -2523,6 +2523,43 @@ describe("Pilot Brain — looking inside the tabs", () => {
     // her standing roadmap is still there, and still true without the tool
     expect(calls[1].system).toContain("PARTLY BUILT");
   });
+
+// A brand-new dealership: Pilot Brain is told so plainly, and told how to
+// welcome Boss instead of describing an empty board. The verdict clears the
+// moment a sale or a booking outcome exists, and the four counts she is given
+// are the same four the Dashboard's "Getting started" card ticks off.
+describe("Pilot Brain and a brand-new dealership", () => {
+  it("is told the dealership is brand new, and how to welcome Boss, until a sale or a booking outcome exists", async () => {
+    const owner = await signup("getting-started-owner");
+    const calls = stubAnthropic(() => ({ body: final("Welcome, Boss.") }));
+    await chat(owner.token);
+
+    expect(calls[0].system).toContain("GETTING STARTED (brand-new dealerships)");
+    expect(calls[0].system).toContain('"Getting started" card on the Dashboard');
+    const snapshot = buildBusinessSummary(owner.user.dealershipId);
+    expect(snapshot).toContain("Starting state: BRAND NEW");
+    expect(snapshot).toContain("Sales recorded in Bookkeeping (all time): 0");
+    expect(snapshot).toContain("Booking outcomes recorded (all time): 0; past bookings still to mark: 0");
+    expect(snapshot).not.toContain("no MOT expiry date"); // nothing in stock, so no car line
+
+    writeTenantCollection(owner.user.dealershipId, "vehicles", [
+      { id: "v1", make: "Ford", model: "Fiesta", status: "in_stock", images: [], mot: { expiry: "" } },
+      { id: "v2", make: "Ford", model: "Focus", status: "in_stock", images: ["a.jpg"], mot: { expiry: "2027-06-01" } },
+    ]);
+    const withCars = buildBusinessSummary(owner.user.dealershipId);
+    expect(withCars).toContain("Starting state: BRAND NEW");
+    expect(withCars).toContain("Vehicles in stock with no MOT expiry date: 1 of 2");
+
+    const past = new Date(Date.now() - 3 * 86400000).toISOString().slice(0, 10);
+    writeTenantCollection(owner.user.dealershipId, "appointments", [
+      { id: "a1", type: "viewing", status: "confirmed", requestedDate: past, requestedTime: "10:00" },
+      { id: "a2", type: "viewing", status: "completed", requestedDate: past, requestedTime: "11:00", outcome: "showed", outcomeAt: new Date().toISOString() },
+    ]);
+    const afterOutcome = buildBusinessSummary(owner.user.dealershipId);
+    expect(afterOutcome).not.toContain("Starting state: BRAND NEW");
+    expect(afterOutcome).toContain("Booking outcomes recorded (all time): 1; past bookings still to mark: 1");
+  });
+});
 });
 
 // Pilot Brain can PREPARE a small change; it can never make one. These run the

@@ -19,6 +19,7 @@ import DealerModeToggle from "@/components/supernova/DealerModeToggle";
 import PilotBrainWatcherCard from "@/pilotbrain/PilotBrainWatcherCard";
 import PilotBrainMarketCard from "@/pilotbrain/PilotBrainMarketCard";
 import InstallHint from "@/pwa/InstallHint";
+import GettingStartedCard from "./GettingStartedCard";
 
 import {
   FiTool,
@@ -220,6 +221,10 @@ export default function DealerDashboard({ brain }: Props) {
           {dealer?.name ?? "Your dealership"} — here's where things stand today.
         </p>
       </div>
+
+      {/* GETTING STARTED — the four things that make Pilot Brain useful,
+          ticked off from the real records; gone once they are all done. */}
+      <GettingStartedCard />
 
       {/* HEADLINE NUMBERS */}
       {/* On a phone the five tiles sit two to a row; the odd one out spans the

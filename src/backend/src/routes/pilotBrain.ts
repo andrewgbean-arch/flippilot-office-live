@@ -307,7 +307,27 @@ export function buildBusinessSummary(dealershipId: string): string {
   // are never given to Pilot Brain, which can't look at images.)
   const withoutPhotos = inStock.filter(v => !(Array.isArray(v.images) && v.images.length > 0)).length;
 
+  // The same four things the Dashboard's "Getting started" card ticks off,
+  // counted the same way, so what she says matches what Boss sees there. A
+  // dealership with no sale and no booking outcome recorded is brand new to
+  // her, whatever its stock: she is told so plainly instead of being left to
+  // describe an empty board.
+  const salesRecorded = (Array.isArray(bookkeeping.sales) ? bookkeeping.sales : []).length;
+  const outcomesRecorded = appointments.filter((a: any) => a && a.outcome).length;
+  const todayKey = new Date(now).toISOString().slice(0, 10);
+  const bookingsToMark = appointments.filter(
+    (a: any) => a && !a.outcome && (a.status === "confirmed" || a.status === "completed") && typeof a.requestedDate === "string" && a.requestedDate < todayKey
+  ).length;
+  const withoutMotDate = inStock.filter(v => !(v && v.mot && v.mot.expiry)).length;
+  const brandNew = salesRecorded === 0 && outcomesRecorded === 0;
+
   return [
+    ...(brandNew
+      ? [`Starting state: BRAND NEW — no sale and no booking outcome has been recorded yet, so follow the GETTING STARTED guidance.`]
+      : []),
+    `Sales recorded in Bookkeeping (all time): ${salesRecorded}`,
+    `Booking outcomes recorded (all time): ${outcomesRecorded}; past bookings still to mark: ${bookingsToMark}`,
+    ...(inStock.length > 0 ? [`Vehicles in stock with no MOT expiry date: ${withoutMotDate} of ${inStock.length}`] : []),
     `Vehicles in stock: ${inStock.length}`,
     ...(inStock.length > 0 ? [`Vehicles in stock with no photos: ${withoutPhotos} of ${inStock.length}`] : []),
     `Total stock value: £${totalValue.toLocaleString()}`,
@@ -401,6 +421,7 @@ function buildSystemPrompt(
     `Still explicitly out of scope beyond what's listed above — say so honestly if Boss asks: regional/local market comparisons (these need live web access, which only a live chat with Boss can use, and only when the owner has switched it on), tracking specific named competitors, any cross-dealer "platform-wide" trend (not enough real dealers on FlipPilot yet), sending any real email/SMS (no send provider is connected yet). You do NOT take autonomous action of any kind beyond V6's prepare-then-approve flow — no automatically changing prices, records, or inventory, no sending anything on your own. You advise, prepare and partner; Boss decides and approves.`,
     `When asked a "why" question about the business, use the Investigation evidence, combined with Market evidence when a specific vehicle's involved, and Opportunity/Priority evidence when relevant. When asked "what should I focus on / where should we go next / what's our biggest opportunity or risk", use Today's Priorities, Opportunity Scores, and the Strategic evidence below directly — don't just repeat the raw business snapshot.`,
     `When you notice something Boss has genuinely improved, say so like a coach would — specific and encouraging, not generic praise. Recommendations should always be concrete and actionable.`,
+    `GETTING STARTED (brand-new dealerships): when the snapshot below says the dealership is BRAND NEW, do not describe the board as empty or list what is missing as a complaint. Welcome Boss, say what you can already see, and point them to the "Getting started" card on the Dashboard, which ticks off four things as they happen: record a sale (Bookkeeping → Add Sale), mark how each booking went — showed, bought or no-show (Sales → Viewing & Test Drive Requests), get a photo and an MOT date on every car (Vehicles → Vehicle List), and, for owners and managers, write one decision down (Pilot Brain → Decision Journal). Say plainly that you become more useful with each one, and offer to help with whichever they want to start on. Once a sale or a booking outcome exists, the snapshot stops saying BRAND NEW and you simply work from the records as usual.`,
     `Every conclusion — market, investigation, forecast, causal, or strategic — must state a confidence level (high/medium/low/unknown), exactly as given in the evidence below, never invented on the spot.`,
     ``,
     securityPromptSection(),
