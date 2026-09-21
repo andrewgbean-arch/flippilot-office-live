@@ -5,14 +5,17 @@ import { readCollection, readTenantCollection, writeTenantCollection } from "../
 import { requireStaffRole, type AuthUser, type Dealership, type StoredUser } from "../auth";
 import { publicVehiclesFor } from "./publicBooking";
 import {
+  MAX_ANNOUNCED_PER_REQUEST,
   MAX_LIVE_REQUESTS,
   RETENTION_DAYS,
   WANTED_STATUSES,
+  arrivalNotices,
   consentWording,
   findRepeat,
   matchesFor,
   orderForStaff,
   parseWantedInput,
+  planArrivals,
   wantedSummary,
   withoutExpired,
   type WantedForStaff,
@@ -56,6 +59,40 @@ const wantedReadLimiter = rateLimit({
 
 const sane = (v: unknown): v is string => typeof v === "string" && v.length > 0 && v.length <= 100;
 
+// The people who would act on a wanted car: the owner, managers and sales.
+function staffWhoSell(dealershipId: string): StoredUser[] {
+  return readCollection<StoredUser>("users").filter(
+    u => u.dealershipId === dealershipId && (u.role === "owner" || u.staffRole === "manager" || u.staffRole === "sales")
+  );
+}
+
+// Called after the stock has been saved. Tells the team when a car in stock has
+// just become a match for people who are still waiting, once per car per request.
+// It can never get in the way of saving the stock: any trouble is logged and
+// left, and the stock save has already succeeded.
+export function announceWantedArrivals(dealershipId: string): void {
+  try {
+    const stored = readRequests(dealershipId);
+    if (stored.length === 0) return;
+
+    const plan = planArrivals(withoutExpired(stored), publicVehiclesFor(dealershipId));
+    if (!plan.changed) return;
+    writeTenantCollection(dealershipId, COLLECTION, plan.requests);
+    if (plan.arrivals.length === 0) return;
+
+    const now = new Date().toISOString();
+    const notices = arrivalNotices(plan.arrivals);
+    const fresh = staffWhoSell(dealershipId).flatMap(staff =>
+      notices.map(n => ({ id: randomUUID(), userId: staff.id, title: n.title, message: n.message, type: "info" as const, createdAt: now, readAt: null }))
+    );
+    if (fresh.length === 0) return;
+    const notifications = readTenantCollection<unknown>(dealershipId, "notifications");
+    writeTenantCollection(dealershipId, "notifications", [...notifications, ...fresh]);
+  } catch (err) {
+    console.error("announceWantedArrivals: could not check waiting customers against the stock", err);
+  }
+}
+
 export default function registerWantedRoute(app: Express) {
   // What the form needs before it can be shown: the exact words the person is
   // agreeing to. No wording, no form.
@@ -92,6 +129,12 @@ export default function registerWantedRoute(app: Express) {
     const live = withoutExpired(readRequests(dealershipId));
     const repeat = findRepeat(live, input);
 
+    // What already fits is what the customer is shown below, and is not news to
+    // the team later: it is recorded as announced so it never is.
+    const inStock = publicVehiclesFor(dealershipId);
+    const fits = matchesFor(input, inStock).filter(m => m.overBudgetBy === undefined);
+    const fitIds = fits.map(m => m.vehicleId);
+
     let created: WantedRequest | undefined;
     let next: WantedRequest[];
     if (repeat) {
@@ -109,6 +152,7 @@ export default function registerWantedRoute(app: Express) {
               ...(input.email !== undefined ? { email: input.email } : {}),
               consent: { at: now, wording: consentWording(dealership.name) },
               askedAt: now,
+              announcedVehicleIds: [...new Set([...(r.announcedVehicleIds ?? []), ...fitIds])].slice(-MAX_ANNOUNCED_PER_REQUEST),
             }
       );
     } else {
@@ -122,13 +166,12 @@ export default function registerWantedRoute(app: Express) {
         consent: { at: now, wording: consentWording(dealership.name) },
         createdAt: now,
         askedAt: now,
+        announcedVehicleIds: fitIds.slice(-MAX_ANNOUNCED_PER_REQUEST),
       };
       next = [...live, created];
     }
     writeTenantCollection(dealershipId, COLLECTION, next);
 
-    const inStock = publicVehiclesFor(dealershipId);
-    const fits = matchesFor(input, inStock).filter(m => m.overBudgetBy === undefined);
     const inStockNow = fits
       .slice(0, MAX_SHOWN_TO_CUSTOMER)
       .map(m => inStock.find(v => v.id === m.vehicleId))
@@ -137,9 +180,7 @@ export default function registerWantedRoute(app: Express) {
     // Tell the people who would act on it, but only once per request, and never
     // who is asking: that is one click away on the Wanted page.
     if (created) {
-      const staffToNotify = readCollection<StoredUser>("users").filter(
-        u => u.dealershipId === dealershipId && (u.role === "owner" || u.staffRole === "manager" || u.staffRole === "sales")
-      );
+      const staffToNotify = staffWhoSell(dealershipId);
       const notifications = readTenantCollection<unknown>(dealershipId, "notifications");
       const title = fits.length > 0 ? "Someone wants a car you have in stock" : "Someone is looking for a car";
       const fresh = staffToNotify.map(staff => ({
@@ -163,7 +204,7 @@ export default function registerWantedRoute(app: Express) {
   app.get("/wanted", requireStaffRole("sales", "manager"), (req, res) => {
     const dealershipId = authUser(req).dealershipId;
     const stock = publicVehiclesFor(dealershipId);
-    const items: WantedForStaff[] = withoutExpired(readRequests(dealershipId)).map(r => ({ ...r, matches: matchesFor(r, stock) }));
+    const items: WantedForStaff[] = withoutExpired(readRequests(dealershipId)).map(({ announcedVehicleIds: _kept, ...r }) => ({ ...r, matches: matchesFor(r, stock) }));
     res.json({ ok: true, items: orderForStaff(items), retentionDays: RETENTION_DAYS });
   });
 

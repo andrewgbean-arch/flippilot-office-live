@@ -48,6 +48,10 @@ export interface WantedRequest {
   askedAt: string;
   // When staff last changed the status.
   statusChangedAt?: string;
+  // Cars the team has already been told fit this request (or that already fitted
+  // when it arrived), so a car is announced once per request and never again.
+  // Absent until the request has first been checked against the stock.
+  announcedVehicleIds?: string[];
 }
 
 // What a stranger's form is boiled down to once it has been checked.
@@ -187,6 +191,88 @@ export function matchesFor(request: Pick<WantedRequest, "make" | "model" | "maxP
     });
   }
   return out;
+}
+
+// ---- telling the team when a car arrives ----
+
+// The most cars remembered as announced for one request: the newest are kept.
+export const MAX_ANNOUNCED_PER_REQUEST = 200;
+// The most separate notices one stock save can send each person; more than this
+// are rolled into one last line, so importing a whole list of cars never floods anyone.
+export const MAX_ARRIVAL_NOTICES = 5;
+
+export interface Arrival {
+  vehicleId: string;
+  label: string;
+  price: number | null;
+  // How many people are waiting for a car like this one.
+  waiting: number;
+}
+
+export interface ArrivalPlan {
+  // The requests to keep: the very same list, untouched, when nothing changed.
+  requests: WantedRequest[];
+  arrivals: Arrival[];
+  changed: boolean;
+}
+
+const keepNewest = (ids: readonly string[]): string[] => ids.slice(-MAX_ANNOUNCED_PER_REQUEST);
+
+// Which cars in stock have just become a match for somebody still waiting.
+//
+// Only people who are still waiting are looked at (someone already contacted or
+// closed is not told about again), and only cars within their budget: a car over
+// budget is announced later if its price comes down. A car is announced once for
+// a request. The first time a request is looked at, whatever already fits is
+// recorded without a word, because that is not news.
+export function planArrivals(requests: readonly WantedRequest[], cars: readonly StockCar[]): ArrivalPlan {
+  const byCar = new Map<string, Arrival>();
+  let changed = false;
+
+  const next = requests.map(r => {
+    if (r.status !== "waiting") return r;
+    const fits = matchesFor(r, cars).filter(m => m.overBudgetBy === undefined);
+
+    if (r.announcedVehicleIds === undefined) {
+      changed = true;
+      return { ...r, announcedVehicleIds: keepNewest(fits.map(m => m.vehicleId)) };
+    }
+
+    const known = new Set(r.announcedVehicleIds);
+    const fresh = fits.filter(m => !known.has(m.vehicleId));
+    if (fresh.length === 0) return r;
+
+    changed = true;
+    for (const m of fresh) {
+      const seen = byCar.get(m.vehicleId);
+      if (seen) seen.waiting += 1;
+      else byCar.set(m.vehicleId, { vehicleId: m.vehicleId, label: m.label, price: m.price, waiting: 1 });
+    }
+    return { ...r, announcedVehicleIds: keepNewest([...r.announcedVehicleIds, ...fresh.map(m => m.vehicleId)]) };
+  });
+
+  const arrivals = [...byCar.values()].sort((a, b) => b.waiting - a.waiting || a.label.localeCompare(b.label));
+  return { requests: changed ? next : [...requests], arrivals, changed };
+}
+
+export interface ArrivalNotice {
+  title: string;
+  message: string;
+}
+
+export const ARRIVAL_TITLE = "A car matches people who are waiting";
+
+// What each person on the team is told: the car and how many people are waiting
+// for one like it, never who they are (that is one click away on Wanted Cars).
+export function arrivalNotices(arrivals: readonly Arrival[]): ArrivalNotice[] {
+  const line = (a: Arrival): ArrivalNotice => ({
+    title: ARRIVAL_TITLE,
+    message: `${a.label}${a.price !== null ? `, £${a.price.toLocaleString("en-GB")}` : ""}: ${a.waiting} ${a.waiting === 1 ? "person is" : "people are"} waiting for one like it.`,
+  });
+  if (arrivals.length <= MAX_ARRIVAL_NOTICES) return arrivals.map(line);
+  const shown = arrivals.slice(0, MAX_ARRIVAL_NOTICES - 1);
+  const rest = arrivals.length - shown.length;
+  return [...shown.map(line), { title: ARRIVAL_TITLE, message: `And ${rest} more cars that people are waiting for. See Sales, then Wanted Cars.` }];
 }
 
 // ---- keeping the list ----

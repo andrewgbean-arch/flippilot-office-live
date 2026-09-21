@@ -3,6 +3,7 @@ import { deleteVehiclePhotosFor, readTenantCollection, writeTenantCollection } f
 import type { AuthUser } from "../auth";
 import { applyVehicleChanges, mergeVehicleSave, parseChanges, parseDeletedIds, vehicleId } from "../inventoryMerge";
 import { keepHostedPhotos, publicOrigin } from "./photos";
+import { announceWantedArrivals } from "./wanted";
 
 function dealershipId(req: Request): string {
   return (req as Request & { user: AuthUser }).user.dealershipId;
@@ -89,6 +90,9 @@ export default function registerInventoryRoute(app: Express) {
     // finishes the job.
     writeTenantCollection(id, "vehicles", cars);
     deleteVehiclePhotosFor(id, deleted.ids);
+    // Tell the team if a car has just arrived that people are waiting for. The
+    // stock is already saved, and this can never make the save fail.
+    announceWantedArrivals(id);
     res.json({ ok: true, items: cars, changed: applied.changed, notFound: applied.notFound });
   });
 }

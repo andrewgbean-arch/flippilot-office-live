@@ -22,6 +22,7 @@ import {
   readTenantDoc,
 } from "./db.js";
 import { buildBusinessSummary } from "./routes/pilotBrain.js";
+import { announceWantedArrivals } from "./routes/wanted.js";
 import { PROMPT_HEADERS } from "./pilotBrainShield.js";
 import { systemText, withSystemText } from "./pilotBrainPrompt.js";
 
@@ -5289,5 +5290,187 @@ describe("Wanted requests — a stranger asks a dealer to watch for a car", () =
     expect(res.status).toBe(200);
     expect(res.body.items).toEqual([]);
     expect((await ask(id)).status).toBe(200);
+  });
+});
+
+describe("Wanted requests — the team hears when a matching car arrives", () => {
+  const auth = (token: string) => ({ Authorization: `Bearer ${token}` });
+  const NOTICE = "A car matches people who are waiting";
+  const DAY = 86400000;
+
+  const notices = async (token: string) =>
+    ((await request(app).get("/notifications").set(auth(token))).body.items as any[]).filter(n => n.title === NOTICE).map(n => n.message as string);
+
+  async function setup(label: string) {
+    const owner = await signup(label);
+    return { owner, id: owner.user.dealershipId as string };
+  }
+  const ask = (dealershipId: string, over: Record<string, unknown> = {}) =>
+    request(app).post(`/public/${dealershipId}/wanted`).send({
+      consent: true,
+      name: "Priya Shah",
+      email: "priya.shah@example.co.uk",
+      make: "Ford",
+      model: "Fiesta",
+      maxPrice: 9000,
+      ...over,
+    });
+  const car = (id: string, over: Record<string, unknown> = {}) => ({ id, make: "Ford", model: "Fiesta", year: 2019, status: "in stock", priceRetail: 8495, ...over });
+  const addCars = (token: string, ...cars: object[]) => request(app).put("/inventory").set(auth(token)).send({ items: cars });
+  const change = (token: string, id: string, set: object) => request(app).put("/inventory").set(auth(token)).send({ items: [], changes: [{ id, set }] });
+
+  it("tells the owner, managers and sales when a car arrives that someone is waiting for, once, and never who", async () => {
+    const { owner, id } = await setup("arrive-notify");
+    const manager = await joinStaff(owner.token, "manager");
+    const sales = await joinStaff(owner.token, "sales");
+    const finance = await joinStaff(owner.token, "finance");
+    const general = await joinStaff(owner.token, "general");
+    await ask(id);
+
+    expect((await addCars(owner.token, car("v1"))).status).toBe(200);
+    for (const who of [owner, manager, sales]) {
+      expect(await notices(who.token), who.email).toEqual(["2019 Ford Fiesta, £8,495: 1 person is waiting for one like it."]);
+    }
+    for (const who of [finance, general]) expect(await notices(who.token), who.email).toEqual([]);
+
+    // saving the same stock again says nothing more
+    await addCars(owner.token, car("v1"));
+    await change(owner.token, "v1", { colour: "Blue" });
+    expect(await notices(owner.token)).toHaveLength(1);
+    expect(JSON.stringify(await notices(owner.token))).not.toMatch(/Priya|priya|example/);
+  });
+
+  it("counts everyone waiting for the car", async () => {
+    const { owner, id } = await setup("arrive-count");
+    await ask(id);
+    await ask(id, { email: "second.person@example.co.uk", name: "Second Person" });
+    await addCars(owner.token, car("v1"));
+    expect(await notices(owner.token)).toEqual(["2019 Ford Fiesta, £8,495: 2 people are waiting for one like it."]);
+  });
+
+  it("says nothing about a car nobody is waiting for", async () => {
+    const { owner, id } = await setup("arrive-nofit");
+    await ask(id);
+    await addCars(owner.token, car("a1", { make: "Audi", model: "A3" }), car("f1", { model: "Focus" }));
+    expect(await notices(owner.token)).toEqual([]);
+  });
+
+  it("does not announce cars that were already in stock when the person asked, only ones that come after", async () => {
+    const { owner, id } = await setup("arrive-existing");
+    await addCars(owner.token, car("old1"));
+    const answer = await ask(id);
+    expect(answer.body.inStockNow.map((v: any) => v.id)).toEqual(["old1"]); // they were shown it straight away
+
+    await addCars(owner.token, car("other", { make: "Audi", model: "A3" }));
+    expect(await notices(owner.token)).toEqual([]);
+    await addCars(owner.token, car("new1", { priceRetail: 7250 }));
+    expect(await notices(owner.token)).toEqual(["2019 Ford Fiesta, £7,250: 1 person is waiting for one like it."]);
+  });
+
+  it("does not tell the team twice about a car when the same person asks again", async () => {
+    const { owner, id } = await setup("arrive-again");
+    await ask(id, { maxPrice: 9000 });
+    await addCars(owner.token, car("v1", { priceRetail: 8495 }));
+    expect(await notices(owner.token)).toHaveLength(1);
+
+    await ask(id, { maxPrice: 7000 }); // the same person, with a lower budget this time
+    await change(owner.token, "v1", { priceRetail: 6000 }); // now it is within that budget
+    expect(await notices(owner.token)).toHaveLength(1); // still just the one, from when it first arrived
+  });
+
+  it("waits for a car over their budget to be priced within it", async () => {
+    const { owner, id } = await setup("arrive-budget");
+    await ask(id, { maxPrice: 7000 });
+    await addCars(owner.token, car("v1", { priceRetail: 8495 }));
+    expect(await notices(owner.token)).toEqual([]);
+
+    expect((await change(owner.token, "v1", { priceRetail: 6995 })).status).toBe(200);
+    expect(await notices(owner.token)).toEqual(["2019 Ford Fiesta, £6,995: 1 person is waiting for one like it."]);
+  });
+
+  it("ignores a sold car, and announces it if it comes back into stock", async () => {
+    const { owner, id } = await setup("arrive-sold");
+    await ask(id);
+    await addCars(owner.token, car("v1", { status: "sold" }));
+    expect(await notices(owner.token)).toEqual([]);
+    await change(owner.token, "v1", { status: "in stock" });
+    expect(await notices(owner.token)).toHaveLength(1);
+  });
+
+  it("does not tell anyone about people already contacted, closed or forgotten", async () => {
+    const { owner, id } = await setup("arrive-status");
+    await ask(id, { email: "contacted@example.co.uk" });
+    await ask(id, { email: "closed@example.co.uk" });
+    await ask(id, { email: "forgotten@example.co.uk" });
+    const list = (await request(app).get("/wanted").set(auth(owner.token))).body.items as any[];
+    const idOf = (email: string) => list.find(i => i.email === email).id as string;
+    await request(app).put(`/wanted/${idOf("contacted@example.co.uk")}`).set(auth(owner.token)).send({ status: "contacted" });
+    await request(app).put(`/wanted/${idOf("closed@example.co.uk")}`).set(auth(owner.token)).send({ status: "closed" });
+    await request(app).delete(`/wanted/${idOf("forgotten@example.co.uk")}`).set(auth(owner.token));
+
+    await addCars(owner.token, car("v1"));
+    expect(await notices(owner.token)).toEqual([]);
+  });
+
+  it("ignores a request whose 12 months are up", async () => {
+    const { owner, id } = await setup("arrive-expired");
+    const long = new Date(Date.now() - 400 * DAY).toISOString();
+    writeTenantCollection(id, "wantedRequests", [
+      { id: "old", name: "Old Ask", email: "old@example.co.uk", make: "Ford", model: "Fiesta", status: "waiting", consent: { at: long, wording: "yes" }, createdAt: long, askedAt: long, announcedVehicleIds: [] },
+    ]);
+    await addCars(owner.token, car("v1"));
+    expect(await notices(owner.token)).toEqual([]);
+  });
+
+  it("treats a request saved before this existed quietly the first time, then announces what comes after", async () => {
+    const { owner, id } = await setup("arrive-legacy");
+    const now = new Date().toISOString();
+    writeTenantCollection(id, "vehicles", [car("already")]); // in stock before any check was made
+    writeTenantCollection(id, "wantedRequests", [
+      { id: "legacy", name: "Legacy Ask", email: "legacy@example.co.uk", make: "Ford", model: "Fiesta", status: "waiting", consent: { at: now, wording: "yes" }, createdAt: now, askedAt: now },
+    ]);
+
+    await addCars(owner.token, car("unrelated", { make: "Audi", model: "A3" })); // the first stock save after the upgrade
+    expect(await notices(owner.token)).toEqual([]);
+    expect(readTenantCollection<any>(id, "wantedRequests")[0].announcedVehicleIds).toEqual(["already"]);
+
+    await addCars(owner.token, car("fresh", { priceRetail: 5000 }));
+    expect(await notices(owner.token)).toEqual(["2019 Ford Fiesta, £5,000: 1 person is waiting for one like it."]);
+  });
+
+  it("never floods: a big import of matching cars becomes five notices, the last rolling up the rest", async () => {
+    const { owner, id } = await setup("arrive-flood");
+    const makes = Array.from({ length: 8 }, (_, i) => `Make${i}`);
+    for (const [i, make] of makes.entries()) await ask(id, { make, model: undefined, maxPrice: undefined, email: `person${i}@example.co.uk` });
+
+    await addCars(owner.token, ...makes.map((make, i) => car(`bulk${i}`, { make, model: "Model" })));
+    const got = await notices(owner.token);
+    expect(got).toHaveLength(5);
+    expect(got[4]).toBe("And 4 more cars that people are waiting for. See Sales, then Wanted Cars.");
+  });
+
+  it("keeps the announcing bookkeeping out of what the Wanted Cars page receives", async () => {
+    const { owner, id } = await setup("arrive-hidden");
+    await ask(id);
+    await addCars(owner.token, car("v1"));
+    const item = (await request(app).get("/wanted").set(auth(owner.token))).body.items[0];
+    expect(item).not.toHaveProperty("announcedVehicleIds");
+    expect(item.matches.map((m: any) => m.vehicleId)).toEqual(["v1"]);
+  });
+
+  it("can never stop stock being saved: trouble while announcing is caught", async () => {
+    const { id } = await setup("arrive-safe");
+    const now = new Date().toISOString();
+    writeTenantCollection(id, "wantedRequests", [
+      { id: "r", name: "A", email: "a@example.co.uk", make: "Ford", status: "waiting", consent: { at: now, wording: "yes" }, createdAt: now, askedAt: now, announcedVehicleIds: [] },
+    ]);
+    writeTenantCollection(id, "vehicles", [null] as any); // a stock list the announcer cannot read
+    const quiet = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      expect(() => announceWantedArrivals(id)).not.toThrow();
+      expect(quiet).toHaveBeenCalled();
+    } finally {
+      quiet.mockRestore();
+    }
   });
 });

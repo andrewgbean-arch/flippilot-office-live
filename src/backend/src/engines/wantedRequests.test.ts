@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
+  ARRIVAL_TITLE,
+  MAX_ANNOUNCED_PER_REQUEST,
+  MAX_ARRIVAL_NOTICES,
   MAX_BUDGET,
   MAX_MAKE_CHARS,
   MAX_WANTED_NOTE_CHARS,
@@ -9,9 +12,12 @@ import {
   findRepeat,
   matchesFor,
   orderForStaff,
+  arrivalNotices,
   parseWantedInput,
+  planArrivals,
   wantedSummary,
   withoutExpired,
+  type Arrival,
   type WantedRequest,
 } from "./wantedRequests";
 
@@ -325,5 +331,133 @@ describe("the order the dealer sees them in", () => {
     const copy = [...list];
     expect(orderForStaff(list).map(i => i.id)).toEqual(["new", "old"]);
     expect(list).toEqual(copy);
+  });
+});
+
+describe("telling the team when a car arrives", () => {
+  const stock = [car("fiesta", "Ford", "Fiesta", 7995), car("focus", "Ford", "Focus", 9500), car("golf", "Volkswagen", "Golf", 12000)];
+  const waiting = (over: Partial<Record<keyof WantedRequest, unknown>> = {}) => request({ status: "waiting", announcedVehicleIds: [], ...over });
+
+  it("announces a car that newly fits, with how many people are waiting, and records it", () => {
+    const plan = planArrivals([waiting()], stock);
+    expect(plan.changed).toBe(true);
+    expect(plan.arrivals).toEqual([{ vehicleId: "fiesta", label: "2019 Ford Fiesta", price: 7995, waiting: 1 }]);
+    expect(plan.requests[0]?.announcedVehicleIds).toEqual(["fiesta"]);
+  });
+
+  it("counts everyone waiting for the same car, and puts the most wanted first", () => {
+    const plan = planArrivals(
+      [
+        waiting({ id: "a", model: "Focus" }),
+        waiting({ id: "b", email: "b@example.co.uk", model: "Focus" }),
+        waiting({ id: "c", email: "c@example.co.uk", model: "Fiesta" }),
+      ],
+      stock
+    );
+    // the Focus has two people waiting so it comes first, although "Fiesta" comes first alphabetically
+    expect(plan.arrivals.map(a => [a.vehicleId, a.waiting])).toEqual([["focus", 2], ["fiesta", 1]]);
+  });
+
+  it("says nothing more about a car it has already announced", () => {
+    const first = planArrivals([waiting()], stock);
+    const again = planArrivals(first.requests, stock);
+    expect(again.arrivals).toEqual([]);
+    expect(again.changed).toBe(false);
+    expect(again.requests).toEqual(first.requests);
+  });
+
+  it("does not announce what already fitted the first time a request is looked at, only remembers it", () => {
+    const plan = planArrivals([request({ status: "waiting" })], stock); // no list of announced cars yet
+    expect(plan.arrivals).toEqual([]);
+    expect(plan.requests[0]?.announcedVehicleIds).toEqual(["fiesta"]);
+    expect(plan.changed).toBe(true);
+    // ...and a car that arrives after that is news
+    const later = planArrivals(plan.requests, [...stock, car("fiesta2", "Ford", "Fiesta", 6500)]);
+    expect(later.arrivals.map(a => a.vehicleId)).toEqual(["fiesta2"]);
+  });
+
+  it("only looks at people still waiting: someone already contacted or closed is left alone", () => {
+    for (const status of ["contacted", "closed"]) {
+      const plan = planArrivals([request({ status })], stock);
+      expect(plan.arrivals, status).toEqual([]);
+      expect(plan.changed, status).toBe(false);
+      expect(plan.requests[0]?.announcedVehicleIds, status).toBeUndefined();
+    }
+  });
+
+  it("waits for a car over their budget to come within it", () => {
+    const tight = waiting({ maxPrice: 7000 });
+    const over = planArrivals([tight], stock);
+    expect(over.arrivals).toEqual([]);
+    expect(over.changed).toBe(false);
+    const cheaper = planArrivals(over.requests, [car("fiesta", "Ford", "Fiesta", 6995)]);
+    expect(cheaper.arrivals.map(a => a.vehicleId)).toEqual(["fiesta"]);
+    expect(planArrivals([waiting({ maxPrice: 7995 })], stock).arrivals.map(a => a.vehicleId)).toEqual(["fiesta"]); // exactly on budget fits
+  });
+
+  it("announces a car with no price yet, since it cannot be judged against a budget", () => {
+    const plan = planArrivals([waiting({ maxPrice: 1000 })], [car("x", "Ford", "Fiesta", null)]);
+    expect(plan.arrivals).toEqual([{ vehicleId: "x", label: "2019 Ford Fiesta", price: null, waiting: 1 }]);
+  });
+
+  it("never announces for a request that named no make: the dealer reads those", () => {
+    const plan = planArrivals([waiting({ make: undefined, model: undefined, note: "a small automatic" })], stock);
+    expect(plan.arrivals).toEqual([]);
+    expect(plan.changed).toBe(false);
+  });
+
+  it("does not announce a car that has left the stock, and does not forget it was announced", () => {
+    const plan = planArrivals([waiting({ announcedVehicleIds: ["fiesta"] })], [car("focus", "Ford", "Focus", 9500)]);
+    expect(plan.arrivals).toEqual([]);
+    expect(plan.changed).toBe(false);
+    expect(plan.requests[0]?.announcedVehicleIds).toEqual(["fiesta"]);
+  });
+
+  it("remembers only the newest announced cars, so the list can never grow without limit", () => {
+    const old = Array.from({ length: MAX_ANNOUNCED_PER_REQUEST }, (_, i) => `old${i}`);
+    const plan = planArrivals([waiting({ announcedVehicleIds: old })], stock);
+    const kept = plan.requests[0]?.announcedVehicleIds ?? [];
+    expect(MAX_ANNOUNCED_PER_REQUEST).toBe(200);
+    expect(kept).toHaveLength(200);
+    expect(kept.at(-1)).toBe("fiesta");
+    expect(kept[0]).toBe("old1");
+  });
+
+  it("gives back the same list, untouched, when there is nothing to do", () => {
+    const list = [waiting({ announcedVehicleIds: ["fiesta"] })];
+    const plan = planArrivals(list, stock);
+    expect(plan.changed).toBe(false);
+    expect(plan.requests).toEqual(list);
+    expect(plan.requests[0]).toBe(list[0]); // the very same record
+    expect(planArrivals([], stock)).toEqual({ requests: [], arrivals: [], changed: false });
+  });
+});
+
+describe("what the team is told about an arrival", () => {
+  const arrival = (over: Partial<Arrival> = {}): Arrival => ({ vehicleId: "v1", label: "2019 Ford Fiesta", price: 7995, waiting: 2, ...over });
+
+  it("names the car, its price and how many are waiting, with the grammar right", () => {
+    expect(arrivalNotices([arrival()])).toEqual([{ title: ARRIVAL_TITLE, message: "2019 Ford Fiesta, £7,995: 2 people are waiting for one like it." }]);
+    expect(arrivalNotices([arrival({ waiting: 1 })])[0]?.message).toBe("2019 Ford Fiesta, £7,995: 1 person is waiting for one like it.");
+  });
+
+  it("leaves the price out when the car has none, and never says who is waiting", () => {
+    const message = arrivalNotices([arrival({ price: null })])[0]?.message ?? "";
+    expect(message).toBe("2019 Ford Fiesta: 2 people are waiting for one like it.");
+    expect(message).not.toContain("£");
+    expect(request().name).toBe("Priya Shah");
+    expect(JSON.stringify(arrivalNotices([arrival()]))).not.toMatch(/Priya|priya|example/);
+  });
+
+  it("gives up to five separate notices, then rolls the rest into one last line", () => {
+    const many = (n: number) => Array.from({ length: n }, (_, i) => arrival({ vehicleId: `v${i}`, label: `Car ${i}` }));
+    expect(arrivalNotices(many(5))).toHaveLength(MAX_ARRIVAL_NOTICES);
+    expect(arrivalNotices(many(5)).every(n => n.message.startsWith("Car "))).toBe(true);
+    const six = arrivalNotices(many(6));
+    expect(six).toHaveLength(MAX_ARRIVAL_NOTICES);
+    expect(six.slice(0, 4).map(n => n.message.slice(0, 5))).toEqual(["Car 0", "Car 1", "Car 2", "Car 3"]);
+    expect(six[4]?.message).toBe("And 2 more cars that people are waiting for. See Sales, then Wanted Cars.");
+    expect(arrivalNotices(many(40))[4]?.message).toContain("And 36 more cars");
+    expect(arrivalNotices([])).toEqual([]);
   });
 });

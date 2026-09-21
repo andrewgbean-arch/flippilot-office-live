@@ -56,8 +56,8 @@ export default function WantedBoard() {
         <section className="sn-panel sn-panel--full">
           <h2 className="sn-panel__title">How this works</h2>
           <p className="sn-timeclock__subtitle">
-            When a customer can&apos;t see the car they want, your store page lets them tell you what they&apos;re after. It lands here, and your sales team
-            and managers get a notification. When you get a car that fits, it shows up below with a ready-to-send message.{" "}
+            When a customer can&apos;t see the car they want, your store page lets them tell you what they&apos;re after. It lands here, and your owner, managers
+            and sales team get a notification. When a car that fits arrives in your stock they are told again, and it shows up below with a ready-to-send message.{" "}
             <strong>Nothing is sent for you</strong>: you choose who to contact and how. Each person agreed to be contacted about this, and their details are
             forgotten {load.kind === "ready" ? Math.round(load.retentionDays / 30.4) : 12} months after they last asked.
           </p>
