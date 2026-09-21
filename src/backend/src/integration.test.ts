@@ -2133,6 +2133,14 @@ describe("Pilot Brain snapshot — lead sources and per-car profit", () => {
     expect(prompt).toContain("Decision Journal (owners and managers)");
     expect(prompt).not.toContain("no real decision-outcome history exists yet to learn from");
 
+    // she knows WHICH version she is (she used to introduce herself as V7 while the roadmap
+    // said V8 was built) and where V8 lives in the app, in the app's own words
+    expect(prompt).toContain("This is V8 (Digital Twin, first version)");
+    expect(prompt).not.toContain("This is V7");
+    expect(prompt).toContain("If Boss asks what version you are, or what is new, say you are V8");
+    expect(prompt).toContain('the "Decision Journal" button next to Today\'s Priorities on the Talk to Pilot Brain page');
+    expect(prompt).toContain("Pilot's view");
+
     // the privacy promise is untouched
     expect(prompt).toContain("WHAT YOU DELIBERATELY DO NOT HAVE ACCESS TO");
     expect(prompt).toContain("anyone's pay or wage information");

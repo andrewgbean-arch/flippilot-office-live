@@ -9,7 +9,7 @@ import {
   roadmapPromptSection,
   V8_NOT_BUILT,
 } from "./pilotBrainGuide";
-import { CONFIDENCE_LEVELS, DEFAULT_REVIEW_DAYS, FIGURE_KINDS } from "./decisionTypes";
+import { CONFIDENCE_LEVELS, DEFAULT_REVIEW_DAYS, FIGURE_KINDS, MAX_SIMULATIONS } from "./decisionTypes";
 import { lookInsidePromptSection, lookInsideToolDefinition, tabsFor } from "./pilotBrainTabs";
 
 // The tests below read the REAL sidebar files, so the map Pilot Brain gives
@@ -197,6 +197,42 @@ describe("the roadmap and the look-inside tabs tell the same story", () => {
     expect(def.name).toBe("look_inside");
     expect(def.description).toContain("Read-only");
     expect(lookInsidePromptSection(asker("owner"))).toContain("you cannot create, change, decide or review anything in it");
+  });
+
+  it("tells her where V8 lives in the app, in words that are really on the screens (the Decisions page is not in the sidebar)", () => {
+    const screens = path.join(__dirname, "..", "..", "pilotbrain");
+    const chat = fs.readFileSync(path.join(screens, "PilotBrainChat.tsx"), "utf8").replace(/\r/g, "");
+    const strategy = fs.readFileSync(path.join(screens, "PilotBrainStrategy.tsx"), "utf8").replace(/\r/g, "");
+    const page = fs.readFileSync(path.join(screens, "PilotBrainDecisions.tsx"), "utf8").replace(/\r/g, "");
+    const detail = fs.readFileSync(path.join(screens, "decisions", "DecisionDetailView.tsx"), "utf8").replace(/\r/g, "");
+    const analysis = fs.readFileSync(path.join(screens, "decisions", "AnalysisControls.tsx"), "utf8").replace(/\r/g, "");
+    const simulator = fs.readFileSync(path.join(screens, "decisions", "SimulatorPanel.tsx"), "utf8").replace(/\r/g, "");
+
+    // the two ways in, exactly as the screens spell them
+    expect(chat).toMatch(/to="\/pilot-brain\/decisions"[^>]*>\s*Decision Journal\s*</);
+    expect(strategy).toMatch(/to="\/pilot-brain\/decisions"[\s\S]{0,300}Decision Journal \(owners and managers\)/);
+    expect(chat).toContain("Today's Priorities");
+    expect(text).toContain('"Decision Journal" button next to Today\'s Priorities on the Talk to Pilot Brain page');
+    expect(text).toContain('"Decision Journal (owners and managers)" link at the top of the Strategy (Goals & Briefing) page');
+    // the list she says decisions are opened from, and the two things inside a decision she names
+    expect(page).toContain("Your decisions");
+    expect(text).toContain('"Your decisions" list');
+    expect(analysis + detail).toContain("Pilot's view");
+    expect(text).toContain("Pilot's view");
+    expect(analysis + detail + simulator).toContain("Simulator");
+
+    // the way in really is missing from the sidebar, which is why the roadmap has to say it
+    const inSidebar = APP_MAP.flatMap(s => s.items).join(" | ");
+    expect(inSidebar).not.toMatch(/decision/i);
+    // and the sidebar names she quotes in that sentence are real ones
+    const pilotBrain = APP_MAP.find(s => s.section === "Pilot Brain")!.items;
+    expect(pilotBrain).toContain("Talk to Pilot Brain");
+    expect(pilotBrain).toContain("Strategy (Goals & Briefing)");
+  });
+
+  it("says how many simulations a decision can keep, and that is the real limit", () => {
+    expect(MAX_SIMULATIONS).toBe(3);
+    expect(text).toContain("up to three simulations can be kept with a decision and compared side by side");
   });
 
   it("does not promise her a tab she never opens: the customer database, diary, messages, pay and billing stay closed", () => {
