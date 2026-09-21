@@ -1,0 +1,70 @@
+# Automatic checks on every push to main and on every pull request.
+#
+# They run the same things a deploy runs, on Linux (the system Render builds on),
+# so a red cross on a commit means "do not trust this yet":
+#   - the website: `npm run build` is `tsc -b && vite build`, and ANY type error,
+#     even inside a test file, fails it, while the backend still looks healthy.
+#     That is exactly how the website stopped updating once without anyone noticing.
+#   - the two test suites (the website's and the backend's).
+#
+# No secrets are needed: the backend tests build their own private database and
+# blank every outside service (see src/backend/vitest.config.ts), and this file
+# never uses a token beyond read-only access to the code.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer push cancels the older run of the same branch instead of queueing behind it.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  website:
+    name: Website (types, tests, build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Type check the whole project, test files included
+        run: npx tsc --noEmit -p .
+      # Tests come BEFORE the build: the build writes a dist folder that the test
+      # runner would otherwise find and count twice.
+      - name: Tests
+        run: npx vitest run
+      - name: Production build (the exact command the website deploy runs)
+        run: npm run build
+
+  backend:
+    name: Backend (types, tests, build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: src/backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: src/backend/.node-version
+          cache: npm
+          cache-dependency-path: src/backend/package-lock.json
+      - run: npm ci
+      - name: Type check
+        run: npx tsc --noEmit
+      - name: Tests
+        run: npx vitest run
+      - name: Production build (what the backend deploy runs)
+        run: npm run build
