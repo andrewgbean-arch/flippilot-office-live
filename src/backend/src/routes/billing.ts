@@ -2,8 +2,8 @@ import { Express, Request, Response } from "express";
 import Stripe from "stripe";
 import { readCollection, writeCollection } from "../db";
 import { requireAuth, requireOwner, type AuthUser, type Dealership } from "../auth";
+import { appLink } from "../appUrl";
 
-const FRONTEND_URL = "http://localhost:5173";
 
 // Read at call time, not module load — same dotenv-ordering reasoning
 // as getJwtSecret() in auth.ts.
@@ -156,8 +156,8 @@ export default function registerBillingRoute(app: Express) {
           : { customer_email: user.email }),
         metadata: { dealershipId: dealership.id },
         subscription_data: { metadata: { dealershipId: dealership.id } },
-        success_url: `${FRONTEND_URL}/billing?success=true`,
-        cancel_url: `${FRONTEND_URL}/billing?canceled=true`,
+        success_url: appLink("/billing?success=true"),
+        cancel_url: appLink("/billing?canceled=true"),
       });
 
       res.json({ ok: true, url: session.url });
@@ -179,7 +179,7 @@ export default function registerBillingRoute(app: Express) {
 
       const session = await getStripe().billingPortal.sessions.create({
         customer: dealership.stripeCustomerId,
-        return_url: `${FRONTEND_URL}/billing`,
+        return_url: appLink("/billing"),
       });
 
       res.json({ ok: true, url: session.url });
