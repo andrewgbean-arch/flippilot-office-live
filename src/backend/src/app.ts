@@ -270,6 +270,26 @@ registerWantedRoute(app);
 registerDVLA(app);
 registerSyndicationRoute(app);
 
+// TEMPORARY DIAGNOSTIC — removed again in the very next commit. The live
+// rate limiters were measured spreading one visitor across several buckets, so
+// the `trust proxy` hop count above is too low, but nothing in the app shows
+// what Render actually delivers. This hands the caller back the forwarding
+// headers of THEIR OWN request (nothing about anyone else, nothing from the
+// server), so the right count can be read off real data instead of guessed.
+app.get("/diag/client-ip", (req, res) => {
+  res.set("Cache-Control", "no-store");
+  res.json({
+    trustProxy: app.get("trust proxy"),
+    ip: req.ip,
+    ips: req.ips,
+    xForwardedFor: req.headers["x-forwarded-for"] ?? null,
+    cfConnectingIp: req.headers["cf-connecting-ip"] ?? null,
+    trueClientIp: req.headers["true-client-ip"] ?? null,
+    forwarded: req.headers["forwarded"] ?? null,
+    xForwardedProto: req.headers["x-forwarded-proto"] ?? null,
+  });
+});
+
 // The last stop for anything a route throws or rejects (asyncErrors.ts makes a
 // rejected async handler arrive here instead of killing the process). Answer in JSON
 // and keep serving. An error that carries its own 4xx status (a malformed or oversized
