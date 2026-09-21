@@ -313,7 +313,11 @@ describe("the Record Sale form never works margin VAT from a purchase that is no
     const stored = state.doc.sales![0];
     expect(stored).toMatchObject({ vatScheme: "margin", salePrice: 6000, vatAmount: null, netAmount: null });
     expect(stored).not.toHaveProperty("marginPurchasePrice");
-    expect(JSON.stringify(stored)).not.toMatch(/1000|833/);
+    // No invented VAT figure anywhere in the stored sale (£1,000 is the whole price as a
+    // margin, £833 the same taken from a £5,000 car). Only the NUMBERS are checked: the
+    // sale's random id can contain "833" as text, which used to fail this test at random.
+    const numbers = Object.values(stored).filter((v): v is number => typeof v === "number");
+    expect(numbers.some((n) => Math.round(n) === 1000 || Math.round(n) === 833)).toBe(false);
     expect(closed).toBe(1);
     expect(state.markedSold).toEqual([{ id: "v1", price: 6000 }]); // the sale itself is not blocked
   });
