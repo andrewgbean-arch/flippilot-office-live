@@ -14,6 +14,7 @@ import {
 import { runWatcher } from "../engines/watcherEngine";
 import { investigate, findOpportunities } from "../engines/advisorEngine";
 import { getStoredMarketData } from "./marketIntelligence";
+import { recordedPrice } from "../engines/recordedPrice";
 import { scoreOpportunities, runCrossModuleInvestigation, getTodaysPriorities } from "../engines/superBrainEngine";
 
 const GOALS_COLLECTION = "pilotBrainGoals";
@@ -66,7 +67,13 @@ function computeCurrentMetricValue(
     const purchase = bookkeeping.purchases.find(p => p.vehicleId === s.vehicleId);
     const costs = bookkeeping.costs.filter(c => c.vehicleId === s.vehicleId).reduce((a, c) => a + c.amount, 0);
     if (!purchase) return sum;
-    return sum + (s.salePrice - purchase.purchasePrice - costs);
+    // Only a car whose purchase AND sale prices are real amounts above zero has a
+    // profit that can be worked out (engines/recordedPrice.ts): otherwise it is
+    // left out, as on the Bookkeeping hub, never counted against a cost of 0.
+    const bought = recordedPrice(purchase.purchasePrice);
+    const sold = recordedPrice(s.salePrice);
+    if (bought === null || sold === null) return sum;
+    return sum + (sold - bought - costs);
   }, 0);
 }
 

@@ -2,7 +2,8 @@ import { useMemo, useState } from "react";
 import { useInventory } from "@/context/InventoryProvider";
 import { useConsumables } from "@/context/ConsumablesContext";
 import { useBookkeeping } from "@/bookkeeping/BookkeepingProvider";
-import { parseCSVWithHeaders, guessColumn } from "@/lib/csv";
+import { parseCSVWithHeaders, guessColumn, readCsvFile } from "@/lib/csv";
+import { readImportPrices, readImportCounts, unreadablePriceSummary, unreadableCountSummary } from "./importPrices";
 
 type ImportType = "vehicles" | "consumables";
 
@@ -42,7 +43,7 @@ const CONSUMABLE_FIELDS: FieldSpec[] = [
 export default function ImportScreen() {
   const { importVehicles } = useInventory();
   const { importConsumables } = useConsumables();
-  const { addPurchase } = useBookkeeping();
+  const { addPurchases } = useBookkeeping();
 
   const [type, setType] = useState<ImportType>("vehicles");
   const [fileName, setFileName] = useState<string | null>(null);
@@ -50,7 +51,15 @@ export default function ImportScreen() {
   const [rows, setRows] = useState<string[][]>([]);
   const [mapping, setMapping] = useState<Record<string, string>>({});
   const [importing, setImporting] = useState(false);
-  const [result, setResult] = useState<{ imported: number; skipped: number } | null>(null);
+  const [result, setResult] = useState<{
+    imported: number;
+    skipped: number;
+    unreadablePrices: number;
+    unreadableCounts: number;
+    // Cars that were imported with a buy price whose purchase record could NOT be
+    // saved to the books.
+    purchasesNotSaved: number;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(false);
 
@@ -73,7 +82,9 @@ export default function ImportScreen() {
   async function handleFile(file: File) {
     setResult(null);
     setError(null);
-    const text = await file.text();
+    // Read as bytes, not file.text(): Excel's default CSV is Windows-1252, and a
+    // UTF-8-only read turns its pound signs into unreadable characters.
+    const text = await readCsvFile(file);
     const parsed = parseCSVWithHeaders(text);
     if (parsed.headers.length === 0 || parsed.rows.length === 0) {
       setError("Couldn't find any rows in that file — check it's a real CSV with a header row.");
@@ -107,9 +118,14 @@ export default function ImportScreen() {
         values[f.key] = idx >= 0 ? (row[idx] ?? "").trim() : "";
       }
       const missingRequired = fields.filter((f) => f.required && !values[f.key]);
-      return { values, valid: missingRequired.length === 0, missingRequired };
+      // Prices, a year or a mileage typed in the file that cannot be read ("£5,00",
+      // "abc", "45k"): the import leaves them blank, and says so, rather than
+      // dropping them silently.
+      const unreadablePrices =
+        type === "vehicles" ? [...readImportPrices(values).unreadable, ...readImportCounts(values).unreadable] : [];
+      return { values, valid: missingRequired.length === 0, missingRequired, unreadablePrices };
     });
-  }, [rows, headers, mapping, fields]);
+  }, [rows, headers, mapping, fields, type]);
 
   const validCount = builtRows.filter((r) => r.valid).length;
 
@@ -119,18 +135,31 @@ export default function ImportScreen() {
     try {
       const usable = builtRows.filter((r) => r.valid);
 
+      let unreadablePrices = 0;
+      let unreadableCounts = 0;
+      let purchasesNotSaved = 0;
+
       if (type === "vehicles") {
-        const payload = usable.map((r) => ({
-          make: r.values.make ?? "",
-          model: r.values.model ?? "",
-          ...(r.values.reg ? { reg: r.values.reg } : {}),
-          year: r.values.year ? Number(r.values.year) || null : null,
-          mileage: r.values.mileage ? Number(r.values.mileage) || null : null,
-          ...(r.values.colour ? { colour: r.values.colour } : {}),
-          buyPrice: r.values.buyPrice ? Number(r.values.buyPrice) || null : null,
-          sellPrice: r.values.sellPrice ? Number(r.values.sellPrice) || null : null,
-          notes: r.values.notes || null,
-        }));
+        const payload = usable.map((r) => {
+          // A price that reads ("£5,000", "5,000") is kept; blank stays unset;
+          // one that is typed but unreadable is left unset and COUNTED. A year or
+          // mileage is read the same way ("45,000" reads; "45k" is counted).
+          const prices = readImportPrices(r.values);
+          const counts = readImportCounts(r.values);
+          if (prices.unreadable.length > 0) unreadablePrices += 1;
+          if (counts.unreadable.length > 0) unreadableCounts += 1;
+          return {
+            make: r.values.make ?? "",
+            model: r.values.model ?? "",
+            ...(r.values.reg ? { reg: r.values.reg } : {}),
+            year: counts.year,
+            mileage: counts.mileage,
+            ...(r.values.colour ? { colour: r.values.colour } : {}),
+            buyPrice: prices.buyPrice,
+            sellPrice: prices.sellPrice,
+            notes: r.values.notes || null,
+          };
+        });
         const created = importVehicles(payload);
         // Without this, an imported vehicle's buyPrice sits only on the
         // Vehicle record — Pricing Workflow (and anything else keyed off
@@ -140,21 +169,26 @@ export default function ImportScreen() {
         // Mirrors NewVehicle.tsx's manual add-vehicle flow. VAT is left
         // at 0/not-included since the CSV carries no VAT information —
         // better to under-claim than fabricate a reclaim that isn't real.
-        created.forEach((vehicle) => {
-          if (vehicle.buyPrice != null) {
-            addPurchase({
-              id: crypto.randomUUID(),
-              vehicleId: vehicle.id,
-              purchasePrice: vehicle.buyPrice,
-              source: "CSV Import",
-              date: new Date().toISOString(),
-              vatRate: 0,
-              vatIncluded: false,
-              vatAmount: 0,
-              netAmount: vehicle.buyPrice,
-            });
-          }
-        });
+        //
+        // ALL the purchases go in as ONE batch. They used to be added one at a
+        // time in a loop, and each call built its new list from the same
+        // out-of-date copy of the books, so of N priced cars only the last
+        // purchase survived while the screen said "Imported N vehicles".
+        const purchases = created
+          .filter((vehicle) => vehicle.buyPrice != null)
+          .map((vehicle) => ({
+            id: crypto.randomUUID(),
+            vehicleId: vehicle.id,
+            purchasePrice: vehicle.buyPrice as number,
+            source: "CSV Import",
+            date: new Date().toISOString(),
+            vatRate: 0,
+            vatIncluded: false,
+            vatAmount: 0,
+            netAmount: vehicle.buyPrice as number,
+          }));
+        // Say so when the books could not take them, rather than reporting success.
+        if (purchases.length > 0) purchasesNotSaved = purchases.length - addPurchases(purchases);
       } else {
         const payload = usable.map((r) => ({
           name: r.values.name ?? "",
@@ -171,7 +205,13 @@ export default function ImportScreen() {
         await importConsumables(payload);
       }
 
-      setResult({ imported: usable.length, skipped: builtRows.length - usable.length });
+      setResult({
+        imported: usable.length,
+        skipped: builtRows.length - usable.length,
+        unreadablePrices,
+        unreadableCounts,
+        purchasesNotSaved,
+      });
     } catch (err) {
       setError("Import failed — check the backend is reachable and try again.");
       console.error(err);
@@ -334,7 +374,13 @@ export default function ImportScreen() {
                     {fields.map((f) => <td key={f.key} className="pr-4 py-1 text-white/80">{r.values[f.key] || "—"}</td>)}
                     <td className="py-1">
                       {r.valid ? (
-                        <span className="text-green-400">Ready</span>
+                        r.unreadablePrices.length > 0 ? (
+                          <span className="text-yellow-300">
+                            Ready, but {r.unreadablePrices.join(" and ")} can't be read and will be left blank
+                          </span>
+                        ) : (
+                          <span className="text-green-400">Ready</span>
+                        )
                       ) : (
                         <span className="text-red-400">Missing {r.missingRequired.map((f) => f.label).join(", ")}</span>
                       )}
@@ -352,6 +398,25 @@ export default function ImportScreen() {
                 Imported {result.imported} {type === "vehicles" ? "vehicle" : "item"}{result.imported === 1 ? "" : "s"}.
                 {result.skipped > 0 && ` Skipped ${result.skipped} row${result.skipped === 1 ? "" : "s"} missing required fields.`}
               </p>
+              {unreadablePriceSummary(result.unreadablePrices) && (
+                <p role="status" className="text-yellow-300 text-sm mt-2">
+                  {unreadablePriceSummary(result.unreadablePrices)}
+                </p>
+              )}
+              {unreadableCountSummary(result.unreadableCounts) && (
+                <p role="status" className="text-yellow-300 text-sm mt-2">
+                  {unreadableCountSummary(result.unreadableCounts)}
+                </p>
+              )}
+              {result.purchasesNotSaved > 0 && (
+                <p role="alert" className="text-red-300 text-sm mt-2">
+                  {result.purchasesNotSaved} of the imported cars had a buy price, but{" "}
+                  {result.purchasesNotSaved === 1 ? "its purchase record" : "their purchase records"} could not be
+                  saved to your books, so {result.purchasesNotSaved === 1 ? "it has" : "they have"} no purchase
+                  in Bookkeeping and profit cannot be worked out for {result.purchasesNotSaved === 1 ? "it" : "them"}{" "}
+                  yet. Check your connection and your role's access to the books.
+                </p>
+              )}
               <button onClick={resetFile} className="mt-3 px-4 py-2 rounded bg-white/10 text-white/70 hover:bg-white/20">
                 Import Another File
               </button>

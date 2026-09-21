@@ -72,6 +72,12 @@ export interface PurchaseEntry {
   source?: string;
   date: string;
 
+  // The VAT scheme the car was bought under. Optional because purchases saved
+  // before this field existed do not carry it (see purchaseVat.ts, which reads it
+  // from the car instead). Under "margin" there is no VAT invoice on the
+  // purchase, so vatRate is 0, vatIncluded false and vatAmount 0.
+  vatScheme?: "margin" | "standard";
+
   vatRate: number;
   vatIncluded: boolean;
   vatAmount: number;
@@ -104,8 +110,11 @@ export interface SaleEntry {
 
   vatRate: number;
   vatIncluded: boolean;
-  vatAmount: number;
-  netAmount: number;
+  // null = not worked out. A Margin Scheme sale needs the car's purchase price to
+  // work out its VAT; with no real purchase price on record there is no figure, and
+  // none is made up (see saleVat.ts). Never a stand-in 0.
+  vatAmount: number | null;
+  netAmount: number | null;
 
   // Only meaningful when vatScheme is "margin" — the purchase price
   // used to compute the margin, kept alongside the result so the
@@ -157,7 +166,8 @@ export interface ProfitSummary {
   totalCosts: number;
   salePrice: number;
   profit: number;
-  margin: number;
+  // null when the sale price is not above zero (no margin on a sale of nothing).
+  margin: number | null;
 }
 
 

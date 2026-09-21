@@ -313,8 +313,9 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
       mileage: mot.mileage ?? null,
       colour: mot.colour ?? null,
 
-      priceRetail: 0,
-      priceTrade: 0,
+      // Not priced yet: unset (null), never £0.
+      priceRetail: null,
+      priceTrade: null,
 
       condition: "Unknown",
 
@@ -393,8 +394,10 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
 
       buyPrice: data.buyPrice ?? null,
       sellPrice: data.sellPrice ?? null,
-      priceRetail: data.sellPrice ?? 0,
-      priceTrade: data.buyPrice ?? 0,
+      // No price given is UNSET (null), never £0: a car with no asking price
+      // used to be stored as priced at £0.
+      priceRetail: data.sellPrice ?? null,
+      priceTrade: data.buyPrice ?? null,
 
       condition: "Unknown",
 

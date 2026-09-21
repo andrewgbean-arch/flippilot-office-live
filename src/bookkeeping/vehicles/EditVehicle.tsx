@@ -18,6 +18,7 @@ import { generateVehicleDescription } from "@/lib/aiDescription";
 import PhotoEditorModal from "@/lib/PhotoEditorModal";
 import { deleteVehiclePhoto, hostedPhotoId } from "@/lib/vehiclePhotosApi";
 import { createUndoableAction, type UndoableAction } from "@/lib/undoableAction";
+import { readOptionalMoney } from "@/lib/parseMoney";
 
 interface EditVehicleProps {
   vehicleId: string;
@@ -80,8 +81,6 @@ export default function EditVehicle({ vehicleId }: EditVehicleProps) {
   const [reg, setReg] = useState(vehicle?.mot?.reg || "");
   const [colour, setColour] = useState(vehicle?.mot?.colour || "");
 
-  const [profit, setProfit] = useState<number | null>(null);
-
   // delete flow
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showUndoToast, setShowUndoToast] = useState(false);
@@ -114,13 +113,22 @@ export default function EditVehicle({ vehicleId }: EditVehicleProps) {
   useEffect(() => () => deleteAction.current?.flush(), [vehicleId]);
 
   /* ============================================================
-     ⭐ Profit Calculation
+     ⭐ Prices
+     Both are OPTIONAL: blank (or 0) is stored as unset (null), never as
+     £0, but something typed that can't be read ("4,5", "abc") is refused
+     rather than quietly dropped. "£4,500" and "4,500" are fine.
   ============================================================ */
-  useEffect(() => {
-    const buy = Number(priceTrade);
-    const sell = Number(priceRetail);
-    setProfit(!isNaN(buy) && !isNaN(sell) ? sell - buy : null);
-  }, [priceTrade, priceRetail]);
+  const tradeRead = readOptionalMoney(priceTrade);
+  const retailRead = readOptionalMoney(priceRetail);
+  const tradeError = tradeRead.ok ? null : tradeRead.message;
+  const retailError = retailRead.ok ? null : retailRead.message;
+
+  // Live profit needs BOTH prices to be set and readable. Blank or unreadable is
+  // unknown, never "£0 profit".
+  const profit: number | null =
+    tradeRead.ok && retailRead.ok && tradeRead.value !== null && retailRead.value !== null
+      ? retailRead.value - tradeRead.value
+      : null;
 
   if (!vehicle) {
     return (
@@ -198,7 +206,7 @@ export default function EditVehicle({ vehicleId }: EditVehicleProps) {
       condition: vehicle.condition,
       motStatus: vehicle.mot?.motStatus ?? null,
       motExpiry: vehicle.mot?.expiry ?? null,
-      priceRetail: priceRetail ? Number(priceRetail) : null,
+      priceRetail: retailRead.ok ? retailRead.value : null,
       notes: notes || null,
     });
 
@@ -215,6 +223,14 @@ export default function EditVehicle({ vehicleId }: EditVehicleProps) {
   ============================================================ */
   const saveVehicle = async () => {
     if (saving) return;
+    if (!tradeRead.ok) {
+      setSaveError(`Trade Price: ${tradeRead.message}`);
+      return;
+    }
+    if (!retailRead.ok) {
+      setSaveError(`Retail Price: ${retailRead.message}`);
+      return;
+    }
     setSaving(true);
     setSaveError(null);
 
@@ -237,8 +253,14 @@ export default function EditVehicle({ vehicleId }: EditVehicleProps) {
       year: year ? Number(year) : null,
       mileage: mileage ? Number(mileage) : null,
 
-      priceTrade: priceTrade ? Number(priceTrade) : null,
-      priceRetail: priceRetail ? Number(priceRetail) : null,
+      priceTrade: tradeRead.value,
+      priceRetail: retailRead.value,
+      // New Vehicle and the CSV import write the asking price to BOTH priceRetail and
+      // sellPrice. Until the car is sold, sellPrice is just that same asking price, so
+      // it moves with it: a price cleared here must not survive in sellPrice (it was
+      // being advertised to the public from there). Once the car is sold, sellPrice is
+      // the real sale price and is never touched by editing the asking price.
+      ...(String(vehicle.status ?? "").toLowerCase() !== "sold" ? { sellPrice: retailRead.value } : {}),
       vatScheme,
 
       notes: notes || null,
@@ -310,9 +332,19 @@ export default function EditVehicle({ vehicleId }: EditVehicleProps) {
 
         <SupernovaGlowCard>
           <div className="grid grid-cols-2 gap-4">
-            <SupernovaInput label="Trade Price (£)" value={priceTrade} onChange={setPriceTrade} type="number" />
-            <SupernovaInput label="Retail Price (£)" value={priceRetail} onChange={setPriceRetail} type="number" />
+            <SupernovaInput label="Trade Price (£)" value={priceTrade} onChange={setPriceTrade} inputMode="decimal" placeholder="Leave blank if not priced" />
+            <SupernovaInput label="Retail Price (£)" value={priceRetail} onChange={setPriceRetail} inputMode="decimal" placeholder="Leave blank if not priced" />
           </div>
+          {tradeError && (
+            <p role="alert" className="text-red-400 text-sm mt-2">
+              Trade Price: {tradeError}
+            </p>
+          )}
+          {retailError && (
+            <p role="alert" className="text-red-400 text-sm mt-2">
+              Retail Price: {retailError}
+            </p>
+          )}
 
           <div className="mt-4">
             <label htmlFor="editvehicle-vat-scheme-for-when-this-vehicle-is-sold" className="text-white/70 text-sm mb-1 block">VAT Scheme (for when this vehicle is sold)</label>

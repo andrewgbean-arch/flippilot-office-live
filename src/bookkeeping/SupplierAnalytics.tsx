@@ -2,7 +2,7 @@ import { formatMoney } from "@/lib/formatMoney";
 import React, { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { useBookkeeping } from "@/bookkeeping/BookkeepingProvider";
+import { useLedgerPurchases } from "@/bookkeeping/useLedgerPurchases";
 import { useInventory } from "@/context/InventoryProvider";
 
 import { SupernovaHeroHeader } from "@/components/supernova/SupernovaHeroHeader";
@@ -11,7 +11,9 @@ import { SupernovaGlowCard } from "@/components/supernova/SupernovaGlowCard";
 
 export default function SupplierAnalytics() {
   const navigate = useNavigate();
-  const { purchases } = useBookkeeping();
+  // Margin-scheme purchases carry no VAT, so "VAT Impact" never counts VAT that
+  // does not exist (older purchases were saved with phantom VAT: see purchaseVat.ts).
+  const purchases = useLedgerPurchases();
   const { vehicles } = useInventory();
 
   /* -------------------------------------------------------

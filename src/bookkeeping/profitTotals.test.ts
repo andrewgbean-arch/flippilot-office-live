@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { hubTotals } from "./profitTotals";
+import { hubTotals, leftOutNote } from "./profitTotals";
 import type { CostEntry, PurchaseEntry, SaleEntry } from "./types";
 
 const buy = (vehicleId: string, purchasePrice: number) => ({ id: `p-${vehicleId}`, vehicleId, purchasePrice }) as PurchaseEntry;
@@ -75,6 +75,7 @@ describe("the bookkeeping hub's figures", () => {
       marginPercent: null,
       soldCounted: 0,
       soldWithoutPurchase: 0,
+      soldWithoutPrice: 0,
       boughtNotSold: 0,
     });
   });
@@ -97,5 +98,29 @@ describe("the bookkeeping hub's figures", () => {
     const before = JSON.stringify([purchases, sales, costs]);
     hubTotals(purchases, sales, costs);
     expect(JSON.stringify([purchases, sales, costs])).toBe(before);
+  });
+});
+
+// The line under "Profit on sold cars" says which sales were left out, and why.
+describe("leftOutNote", () => {
+  const note = (soldWithoutPurchase: number, soldWithoutPrice: number) => leftOutNote({ soldWithoutPurchase, soldWithoutPrice });
+
+  it("says nothing when no sale was left out", () => {
+    expect(note(0, 0)).toBeNull();
+  });
+
+  it("purchase only: the wording the hub has always used", () => {
+    expect(note(1, 0)).toBe("1 sale has no purchase recorded and is left out");
+    expect(note(3, 0)).toBe("3 sales have no purchase recorded and are left out");
+  });
+
+  it("sale price only: says the SALE price is what is missing", () => {
+    expect(note(0, 1)).toBe("1 sale has no sale price recorded and is left out");
+    expect(note(0, 2)).toBe("2 sales have no sale price recorded and are left out");
+  });
+
+  it("both: says both, and that all of them are left out", () => {
+    expect(note(1, 1)).toBe("1 sale has no purchase recorded and 1 sale has no sale price recorded, so both are left out");
+    expect(note(2, 1)).toBe("2 sales have no purchase recorded and 1 sale has no sale price recorded, so all of them are left out");
   });
 });

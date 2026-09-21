@@ -4,6 +4,7 @@ import { useBookkeeping } from "./BookkeepingProvider";
 import { useInventory } from "@/context/InventoryProvider";
 import { useDealer } from "@/context/DealerContext";
 import { mailtoHref } from "@/lib/mailto";
+import { invoiceFigures } from "./invoiceUtils";
 import "@/staff/StaffDashboard.css";
 
 // Pulls everything from the real records already in the system — the
@@ -32,13 +33,41 @@ export default function Invoice() {
     );
   }
 
+  // What the customer pays and the lines to print come from ONE function
+  // (invoiceUtils.ts), used by the page below and by the email, so they cannot
+  // disagree. The sale price alone is NOT the total: for a sale entered as
+  // "VAT added on top" it is the net figure, and the VAT is on top of it.
+  const figures = invoiceFigures(sale);
+  const totalDue = figures.totalDue;
+  if (totalDue === null) {
+    // A sale saved with a blank or unreadable price has nothing honest to bill.
+    // Printing £0.00 as if that were the price is exactly what must not happen. A
+    // VAT rate that is not a rate (200%, negative, nothing) is a different fault with
+    // a different fix, so it gets its own message rather than "no usable sale price".
+    const badRate = figures.problem === "bad-rate";
+    return (
+      <div className="sn-panel sn-panel--full" style={{ margin: 24 }}>
+        <h2 className="sn-panel__title">{badRate ? "VAT Rate Not Valid" : "No Price Recorded"}</h2>
+        <p className="sn-empty">
+          {badRate
+            ? `Invoice ${sale.invoiceNumber} has no usable VAT rate, so the VAT and the total can't be worked out. Edit the sale and enter the VAT rate that applies (for example 20), then come back to print this invoice.`
+            : `Invoice ${sale.invoiceNumber} has no usable sale price, so there is nothing to bill. Edit the sale and enter the price the car sold for, then come back to print this invoice.`}
+        </p>
+        <button className="sn-btn sn-btn--ghost" onClick={() => navigate(-1)}>
+          Back
+        </button>
+      </div>
+    );
+  }
+  const money = (amount: number) => formatMoney(amount, { pence: true });
+
   // Under the UK VAT Margin Scheme (HMRC Notice 718), the invoice must
   // NOT show VAT separately at all — only the total price, with a
   // statement that it's a margin scheme supply. Showing a VAT
   // breakdown on a margin scheme invoice is a real, common compliance
   // mistake, not just a cosmetic choice — this branches on the sale's
   // actual scheme rather than always printing a VAT line.
-  const isMargin = sale.vatScheme === "margin";
+  const isMargin = figures.scheme === "margin";
   const invoiceTitle = isMargin ? "Invoice" : dealer?.vatNumber ? "VAT Invoice" : "Invoice";
   const invoiceDate = new Date(sale.date).toLocaleDateString("en-GB");
 
@@ -59,7 +88,12 @@ export default function Invoice() {
           "",
           `Invoice Number: ${sale.invoiceNumber}`,
           `Date: ${invoiceDate}`,
-          `Total: ${formatMoney(sale.salePrice, { pence: true })}`,
+          // The same lines the printed invoice shows. A margin-scheme invoice
+          // has no VAT lines at all.
+          ...(figures.vatLines
+            ? [`Net: ${money(figures.vatLines.net)}`, `VAT (${figures.vatLines.ratePercent}%): ${money(figures.vatLines.vat)}`]
+            : []),
+          `Total: ${money(totalDue)}`,
           "",
           "Thank you for your business.",
           dealer?.name ?? "",
@@ -130,7 +164,7 @@ export default function Invoice() {
                 {vehicle.year ? `, ${vehicle.year}` : ""}
                 {vehicle.mileage != null ? `, ${vehicle.mileage.toLocaleString()} miles` : ""}
               </td>
-              <td style={{ textAlign: "right", padding: "6px 4px" }}>{formatMoney(sale.salePrice, { pence: true })}</td>
+              <td style={{ textAlign: "right", padding: "6px 4px" }}>{money(figures.itemAmount ?? totalDue)}</td>
             </tr>
           </tbody>
         </table>
@@ -140,24 +174,24 @@ export default function Invoice() {
             <p style={{ margin: "2px 0" }}>This vehicle is sold under the VAT Margin Scheme (HMRC Notice 718).</p>
             <p style={{ margin: "2px 0" }}>No VAT is separately identified on this invoice.</p>
           </div>
-        ) : (
+        ) : figures.vatLines ? (
           <div style={{ marginTop: 12 }}>
             <div style={{ display: "flex", justifyContent: "space-between", padding: "2px 0" }}>
               <span>Net</span>
-              <span>{formatMoney(sale.netAmount, { pence: true })}</span>
+              <span>{money(figures.vatLines.net)}</span>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", padding: "2px 0" }}>
-              <span>VAT ({(sale.vatRate * 100).toFixed(0)}%)</span>
-              <span>{formatMoney(sale.vatAmount, { pence: true })}</span>
+              <span>VAT ({figures.vatLines.ratePercent}%)</span>
+              <span>{money(figures.vatLines.vat)}</span>
             </div>
           </div>
-        )}
+        ) : null}
 
         <hr />
 
         <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: 16 }}>
           <span>Total Due</span>
-          <span>{formatMoney(sale.salePrice, { pence: true })}</span>
+          <span>{money(totalDue)}</span>
         </div>
 
         <p style={{ marginTop: 20, fontSize: 12, color: "#555" }}>

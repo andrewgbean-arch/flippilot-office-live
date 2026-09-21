@@ -35,6 +35,7 @@ import {
 } from "../decisionTypes";
 import { MARGIN_WINDOW_DAYS } from "./vehicleMargins";
 import { LEAD_WINDOW_DAYS, MOT_BOOKING_STATUS } from "./leadSources";
+import { recordedPrice } from "./recordedPrice";
 
 const DAY_MS = 86400000;
 const MONTH_DAYS = 30;
@@ -229,8 +230,10 @@ function measure(inputs: SimulationInputs): Measures {
     sold += 1;
 
     const purchase = purchases.get(vehicleId);
-    const salePrice = num(sale.salePrice);
-    const purchasePrice = num(purchase?.purchasePrice);
+    // A price counts only when it is a real amount above zero (recordedPrice.ts), the
+    // same rule as the Bookkeeping hub and vehicleMargins.ts.
+    const salePrice = recordedPrice(sale.salePrice);
+    const purchasePrice = recordedPrice(purchase?.purchasePrice);
     const amounts = (costsByCar.get(vehicleId) ?? []).map(c => num(c.amount));
     // A cost that is not a real number means the total cannot be trusted.
     const costs = amounts.some(a => a === null) ? null : amounts.reduce<number>((sum, a) => sum + (a ?? 0), 0);
@@ -254,8 +257,8 @@ function measure(inputs: SimulationInputs): Measures {
   const stockAges: StockAge[] = [];
   for (const v of stock) {
     const purchase = typeof v.id === "string" ? purchases.get(v.id) : undefined;
-    const price = num(purchase?.purchasePrice);
-    if (price !== null) stockPrices.push(price);
+    const boughtFor = recordedPrice(purchase?.purchasePrice);
+    if (boughtFor !== null) stockPrices.push(boughtFor);
 
     // Age: from the purchase date if the ledger has a real one, else from the
     // date the car was added to the stock list.

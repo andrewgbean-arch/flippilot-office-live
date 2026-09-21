@@ -665,10 +665,14 @@ describe("a missing figure stays UNKNOWN: never guessed, never 0", () => {
     expect(f.avgProfit.value).toBe(1000);
   });
 
-  it("an average purchase price of £0 cannot be divided by, so the number of extra cars stays unknown", () => {
+  it("purchases saved at £0 are not prices, so the average price paid is unknown and the number of extra cars stays unknown", () => {
+    // A purchase price of 0 is what an older form saved for a blank (recordedPrice.ts):
+    // the Bookkeeping hub reports that car's profit as unknown, and so does this.
     const sim = runSimulation(salesData(6, 6, 0), stock(10000));
     expect(fig(scenario(sim, "add_sales_flat"), "Extra cars bought")).toMatchObject({ value: null, kind: "unknown" });
-    expect(fig(scenario(sim, "add_sales_flat"), "Extra cars bought").basis).toContain("£0 or less");
+    expect(fig(scenario(sim, "add_sales_flat"), "Extra cars bought").basis).toContain(
+      "The average price paid for a car is unknown, because no car sold in the last 90 days has a purchase price recorded."
+    );
   });
 
   it("no cars in stock: there is no sales-per-car pace to scale from, so extra sales stay unknown", () => {
@@ -729,12 +733,13 @@ describe("confidence is low or medium, decided in code, with reasons", () => {
   });
 
   it("an unknown or unusable average purchase price is LOW, with its own reason", () => {
-    // six cars, profit known for all six (bought at £0), but an average of £0 cannot be used
+    // six cars all bought "at £0": that is not a price (recordedPrice.ts), so no price is
+    // known, no profit is known, and the average price paid is unknown
     const zero = conf(salesData(6, 6, 0));
     expect(zero.confidence).toBe("low");
-    expect(zero.confidenceReasons.join(" ")).toContain("works out at £0 or less");
-    expect(zero.confidenceReasons.join(" ")).not.toContain("Only");
-    expect(zero.confidenceReasons.join(" ")).not.toContain("Profit is known for only");
+    expect(zero.confidenceReasons.join(" ")).toContain("average price paid for a car is unknown");
+    expect(zero.confidenceReasons.join(" ")).toContain("Profit is not known for any car sold recently");
+    expect(zero.confidenceReasons.join(" ")).not.toContain("works out at £0 or less");
     // no purchase prices at all
     const none = conf(salesData(8, 0));
     expect(none.confidence).toBe("low");

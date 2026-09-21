@@ -9,8 +9,11 @@ import {
   ProfitSummary,
   MonthlyReport,
 } from "./types";
-import { calculateVat, calculateMarginVat } from "./vatUtils";
-import { hubTotals } from "./profitTotals";
+import { calculateVat } from "./vatUtils";
+import { withSaleVat } from "./saleVat";
+import { isPositiveAmount } from "@/lib/parseMoney";
+import { hubTotals, carProfit } from "./profitTotals";
+import { purchaseVatSettings } from "./purchaseVat";
 import { loadBookkeeping, saveBookkeeping, type BookkeepingDoc } from "./bookkeepingStorage.web";
 import { useAuth } from "@/context/AuthContext";
 import { useGuardedLoad } from "@/lib/useGuardedLoad";
@@ -29,7 +32,16 @@ interface BookkeepingContextValue {
   deleteCost: (id: string) => void;
 
   addPurchase: (entry: PurchaseEntry) => void;
+  // Adds several purchases in ONE update and ONE save, and says how many were
+  // saved (0 when the books were not ready to be written). Calling addPurchase in
+  // a loop cannot do this: each call builds its new list from the same
+  // render-time copy, so every call overwrites the one before it.
+  addPurchases: (entries: PurchaseEntry[]) => number;
   addSale: (entry: SaleEntry) => void;
+  // Records what a car really cost on the purchase the books already hold for it,
+  // and works out the VAT due on its Margin Scheme sale in the same save. False when
+  // nothing was saved (books not ready, no purchase for that car, price not above 0).
+  recordPurchasePrice: (vehicleId: string, price: number, scheme: "margin" | "standard") => boolean;
   updateSale: (id: string, patch: Partial<SaleEntry>) => void;
   addTransaction: (entry: TransactionEntry) => void;
 
@@ -165,59 +177,57 @@ export function BookkeepingProvider({ children }: BookkeepingProviderProps) {
   };
 
   // PURCHASES
-  const addPurchase = (entry: PurchaseEntry) => {
-    if (!guardSave()) return;
+  //
+  // The stored form of a purchase. One that says it was bought under the Margin
+  // Scheme has no VAT invoice, so it is stored with no VAT whatever rate the
+  // caller left on it.
+  const enrichPurchase = (entry: PurchaseEntry): PurchaseEntry => {
+    const { vatRate, vatIncluded } = purchaseVatSettings(
+      entry.vatScheme === "margin" ? "margin" : "standard",
+      entry.vatRate,
+      entry.vatIncluded
+    );
     const vat = calculateVat(entry.purchasePrice, {
-      vatRate: entry.vatRate,
-      vatIncluded: entry.vatIncluded,
+      vatRate,
+      vatIncluded,
       vatReclaimable: true,
     });
 
-    const enriched: PurchaseEntry = {
+    return {
       ...entry,
+      vatRate,
+      vatIncluded,
       vatAmount: vat.vat,
       netAmount: vat.net,
     };
+  };
 
-    const updated = [...purchases, enriched];
+  const addPurchase = (entry: PurchaseEntry) => {
+    if (!guardSave()) return;
+    const updated = [...purchases, enrichPurchase(entry)];
     setPurchases(updated);
     persist({ purchases: updated });
   };
 
+  const addPurchases = (entries: PurchaseEntry[]): number => {
+    if (entries.length === 0) return 0;
+    if (!guardSave()) return 0;
+    const updated = [...purchases, ...entries.map(enrichPurchase)];
+    setPurchases(updated);
+    persist({ purchases: updated });
+    return entries.length;
+  };
+
   // SALES
   //
-  // Margin Scheme sales need the vehicle's purchase price to compute
-  // the margin VAT is actually due on — completely different maths
-  // from calculateVat() (see vatUtils.ts). Falls back to standard VAT
-  // if no purchase record exists yet (margin can't be computed without
-  // a purchase price), so a sale never silently loses its VAT figure.
+  // A sale's VAT comes from saleVat.ts, the same function the Record Sale form
+  // previews with. A Margin Scheme sale needs the car's purchase price (completely
+  // different maths from calculateVat(): see vatUtils.ts); with no real purchase
+  // price on record its VAT is stored as null ("not worked out"), never as a figure
+  // made from a £0 cost and never by quietly switching the sale to standard VAT.
   const addSale = (entry: SaleEntry) => {
     if (!guardSave()) return;
-    let enriched: SaleEntry;
-
-    const purchase = getPurchaseForVehicle(entry.vehicleId);
-
-    if (entry.vatScheme === "margin" && purchase) {
-      const margin = calculateMarginVat(entry.salePrice, purchase.purchasePrice, entry.vatRate);
-      enriched = {
-        ...entry,
-        vatAmount: margin.vat,
-        netAmount: entry.salePrice - margin.vat,
-        marginPurchasePrice: purchase.purchasePrice,
-      };
-    } else {
-      const vat = calculateVat(entry.salePrice, {
-        vatRate: entry.vatRate,
-        vatIncluded: entry.vatIncluded,
-        vatReclaimable: false,
-      });
-      enriched = {
-        ...entry,
-        vatScheme: "standard",
-        vatAmount: vat.vat,
-        netAmount: vat.net,
-      };
-    }
+    const enriched = withSaleVat(entry, getPurchaseForVehicle(entry.vehicleId));
 
     const updated = [...sales, enriched];
     setSales(updated);
@@ -234,29 +244,39 @@ export function BookkeepingProvider({ children }: BookkeepingProviderProps) {
     if (!existing) return;
 
     const merged: SaleEntry = { ...existing, ...patch };
-    const purchase = getPurchaseForVehicle(merged.vehicleId);
-
-    let enriched: SaleEntry;
-    if (merged.vatScheme === "margin" && purchase) {
-      const margin = calculateMarginVat(merged.salePrice, purchase.purchasePrice, merged.vatRate);
-      enriched = {
-        ...merged,
-        vatAmount: margin.vat,
-        netAmount: merged.salePrice - margin.vat,
-        marginPurchasePrice: purchase.purchasePrice,
-      };
-    } else {
-      const vat = calculateVat(merged.salePrice, {
-        vatRate: merged.vatRate,
-        vatIncluded: merged.vatIncluded,
-        vatReclaimable: false,
-      });
-      enriched = { ...merged, vatScheme: "standard", vatAmount: vat.vat, netAmount: vat.net };
-    }
+    const enriched = withSaleVat(merged, getPurchaseForVehicle(merged.vehicleId));
 
     const updated = sales.map((s) => (s.id === id ? enriched : s));
     setSales(updated);
     persist({ sales: updated });
+  };
+
+  // Records what a car really cost, on the purchase the books already hold for it
+  // (one saved with no usable price: a blank that was once saved as 0, or a price
+  // that could not be read). Purchases could not be edited at all, so a car whose
+  // purchase price was missing stayed "not recorded" for good.
+  //
+  // The VAT due on this car's Margin Scheme sale was waiting for exactly this price,
+  // so it is worked out now, in the same save. Standard-scheme sales are left alone:
+  // their VAT does not depend on what the car cost, and an invoice already issued
+  // must not change under the customer.
+  //
+  // false when nothing was saved: the books are not ready to be written, the car has
+  // no purchase on record, or the price is not a real amount above zero.
+  const recordPurchasePrice = (vehicleId: string, price: number, scheme: "margin" | "standard"): boolean => {
+    if (!isPositiveAmount(price)) return false;
+    if (!guardSave()) return false;
+    const current = getPurchaseForVehicle(vehicleId);
+    if (!current) return false;
+
+    const fixed = enrichPurchase({ ...current, purchasePrice: price, vatScheme: scheme });
+    const updatedPurchases = purchases.map((p) => (p === current ? fixed : p));
+    const updatedSales = sales.map((s) => (s.vehicleId === vehicleId && s.vatScheme === "margin" ? withSaleVat(s, fixed) : s));
+
+    setPurchases(updatedPurchases);
+    setSales(updatedSales);
+    persist({ purchases: updatedPurchases, sales: updatedSales });
+    return true;
   };
 
   // TRANSACTIONS
@@ -304,16 +324,21 @@ export function BookkeepingProvider({ children }: BookkeepingProviderProps) {
 
     if (!purchase || !sale) return null;
 
-    const profit = sale.salePrice - purchase.purchasePrice - totalCosts;
-    const margin = (profit / sale.salePrice) * 100;
+    // One definition of a car's profit, shared with the hub (profitTotals.ts).
+    // A purchase price, or a sale price, that is not a real amount above zero
+    // counts as "not recorded": the profit is unknown (null), never worked out
+    // against a £0 cost or as a loss on a sale of £0. So a sale of nothing can
+    // never print "-Infinity%" or "NaN%" either.
+    const worked = carProfit(purchase.purchasePrice, sale.salePrice, totalCosts);
+    if (!worked) return null;
 
     return {
       vehicleId,
       purchasePrice: purchase.purchasePrice,
       totalCosts,
       salePrice: sale.salePrice,
-      profit,
-      margin,
+      profit: worked.profit,
+      margin: worked.margin,
     };
   };
 
@@ -379,7 +404,9 @@ export function BookkeepingProvider({ children }: BookkeepingProviderProps) {
     deleteCost,
 
     addPurchase,
+    addPurchases,
     addSale,
+    recordPurchasePrice,
     updateSale,
     addTransaction,
 
