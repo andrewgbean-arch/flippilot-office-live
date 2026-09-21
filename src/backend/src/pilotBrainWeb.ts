@@ -211,6 +211,23 @@ function asString(v: unknown): string {
 // Tolerant on purpose: the response is third-party data, and a search
 // error comes back as HTTP 200 with `content` a single error OBJECT
 // instead of a list — every field is checked rather than trusted.
+// The model's words arrive as several text blocks: split around citations
+// mid-sentence, and split around each lookup it does ("Let me check…" then a
+// search, then more words). Joined with nothing, the pieces around a lookup
+// run together ("…in detail.Let me get a clearer view"). Joined with a blank
+// line, a citation would break a sentence in half. So: a paragraph break only
+// where the previous piece ended a sentence and the next starts a new one;
+// otherwise (the model left a space, or a citation split a sentence) the pieces are run on as they were.
+export function joinTextBlocks(pieces: readonly string[]): string {
+  let out = "";
+  for (const piece of pieces) {
+    if (!piece) continue;
+    if (out && /[.!?:]["')\]]?$/.test(out) && /^\S/.test(piece)) out = out + "\n\n" + piece;
+    else out += piece;
+  }
+  return out.trim();
+}
+
 export function parseWebResponse(content: unknown): ParsedWebResponse {
   const blocks: any[] = Array.isArray(content) ? content : [];
   const texts: string[] = [];
@@ -256,7 +273,7 @@ export function parseWebResponse(content: unknown): ParsedWebResponse {
     }
   }
 
-  return { text: texts.join("").trim(), searches, cited, retrieved };
+  return { text: joinTextBlocks(texts), searches, cited, retrieved };
 }
 
 /* ---------- showing sources ---------- */

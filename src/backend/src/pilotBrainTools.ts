@@ -9,6 +9,7 @@
 // reason the reply is written without tools rather than failing the chat.
 
 import { randomUUID } from "crypto";
+import { joinTextBlocks } from "./pilotBrainWeb";
 import type { AuthUser } from "./auth";
 import { readTenantCollection, readTenantDoc, writeTenantCollection } from "./db";
 // Only the reader. Pilot Brain never writes a decision: the journal is written by
@@ -168,14 +169,13 @@ export async function chatWithTools(params: {
 
       // Only the final message's words: what it said before a lookup ("let
       // me check") isn't part of the answer.
-      const text = content
-        .map(b => {
+      const text = joinTextBlocks(
+        content.map(b => {
           if (typeof b !== "object" || b === null) return "";
           const block = b as { type?: unknown; text?: unknown };
           return (block.type === undefined || block.type === "text") && typeof block.text === "string" ? block.text : "";
         })
-        .join("")
-        .trim();
+      );
       if (!text) throw new Error("Anthropic API returned no text");
       return text;
     }

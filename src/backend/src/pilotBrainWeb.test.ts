@@ -23,6 +23,7 @@ import {
   chooseSources,
   formatSourcesFooter,
   parseWebResponse,
+  joinTextBlocks,
   readWebState,
   recordWebSearches,
   setWebEnabled,
@@ -85,7 +86,34 @@ describe("buildWebSearchTool", () => {
   });
 });
 
+describe("joinTextBlocks", () => {
+  it("puts a paragraph break between a finished sentence and a fresh one, so words around a lookup never run together", () => {
+    expect(joinTextBlocks(["Let me look at the aging stock in detail.", "Let me get a clearer view.", "Good — now the oldest stock: the BMW."]))
+      .toBe("Let me look at the aging stock in detail.\n\nLet me get a clearer view.\n\nGood — now the oldest stock: the BMW.");
+  });
+
+  it("runs pieces on as they were when a citation split a sentence in half", () => {
+    expect(joinTextBlocks(["Asking prices range ", "between £11,890 and £14,250", " for a 2017 320d."])).toBe("Asking prices range between £11,890 and £14,250 for a 2017 320d.");
+    expect(joinTextBlocks(["Two things stand out. ", "First, the BMW."])).toBe("Two things stand out. First, the BMW.");
+  });
+
+  it("ignores empty pieces and trims the ends", () => {
+    expect(joinTextBlocks(["", "  Hello Boss.  ", ""])).toBe("Hello Boss.");
+    expect(joinTextBlocks([])).toBe("");
+  });
+});
+
 describe("parseWebResponse", () => {
+  it("keeps the words before and after a search apart", () => {
+    const parsed = parseWebResponse([
+      { type: "text", text: "Let me check the market." },
+      { type: "server_tool_use", id: "s1", name: "web_search", input: { query: "2017 320d price" } },
+      { type: "web_search_tool_result", tool_use_id: "s1", content: [{ type: "web_search_result", url: "https://www.autotrader.co.uk/x", title: "Used BMW" }] },
+      { type: "text", text: "Similar cars ask £11,890 to £14,250." },
+    ]);
+    expect(parsed.text).toBe("Let me check the market.\n\nSimilar cars ask £11,890 to £14,250.");
+  });
+
   it("reads the text, what was searched, and the results and citations", () => {
     const parsed = parseWebResponse(EXAMPLE_CONTENT);
     expect(parsed.text).toBe("I'll look up current Fiesta prices. Asking prices sit around £6,000–£7,500.");

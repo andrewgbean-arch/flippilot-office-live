@@ -188,6 +188,16 @@ describe("chatWithTools", () => {
     expect(fallbackCall).not.toHaveBeenCalled();
   });
 
+  it("keeps the final message's own paragraphs apart when the model wrote them as separate text blocks", async () => {
+    const asked = [{ type: "text", text: "Let me check the leads." }, toolUse("tu_1", { tab: "leads" })];
+    const finalBlocks = { stop_reason: "end_turn", content: [{ type: "text", text: "Two things stand out." }, { type: "text", text: "First, AutoTrader brings in your only lead." }] };
+    stub(usesTool(...asked), finalBlocks);
+
+    const text = await run();
+
+    expect(text).toBe("Two things stand out.\n\nFirst, AutoTrader brings in your only lead.");
+  });
+
   it("runs a lookup, sends the result back the way the API expects, and returns only the final words", async () => {
     const asked = [{ type: "text", text: "Let me check the leads. " }, toolUse("tu_1", { tab: "leads" })];
     const fetchMock = stub(usesTool(...asked), says("AutoTrader is bringing in your only lead."));

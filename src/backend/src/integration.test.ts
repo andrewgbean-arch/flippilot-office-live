@@ -2535,6 +2535,9 @@ describe("Pilot Brain and a brand-new dealership", () => {
     await chat(owner.token);
 
     expect(calls[0].system).toContain("GETTING STARTED (brand-new dealerships)");
+    // A wild market comparison is a mismatched sample before it is a mispriced car.
+    expect(calls[0].system).toContain("MISMATCHED SAMPLES");
+    expect(calls[0].system).toContain("Never call Boss's price a mistake, a data-entry error or a smoking gun on the strength of one lookup");
     expect(calls[0].system).toContain('"Getting started" card on the Dashboard');
     const snapshot = buildBusinessSummary(owner.user.dealershipId);
     expect(snapshot).toContain("Starting state: BRAND NEW");
