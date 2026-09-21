@@ -10,6 +10,7 @@ import {
   isInviteRevoked,
   signPasswordResetToken,
   verifyPasswordResetToken,
+  resetTokenMatchesUser,
   toPublicUser,
   type StoredUser,
   type AuthUser,
@@ -17,8 +18,11 @@ import {
   type InviteTokenPayload,
 } from "../auth";
 import { sendEmail } from "../email";
+import { appLink } from "../appUrl";
+import { takeResetEmailSlot } from "../resetRequestLimit";
 import { trialEndsAtFrom } from "../trial";
 
+const RESET_INVALID_MESSAGE = "This reset link is invalid or has expired";
 const INVITE_INVALID_MESSAGE = "This invite link is invalid or has expired";
 // Sent when the owner has cancelled the link — they removed someone, or
 // moved someone to a lower role, after making it (see Dealership.inviteEpoch
@@ -358,6 +362,15 @@ export default function registerAuthRoute(app: Express) {
   // Requesting a reset always returns the same generic response
   // regardless of whether the email is registered — otherwise this
   // endpoint could be used to check which emails have accounts.
+  //
+  // The link in the email is built from the server's own configured web address
+  // (appUrl.ts), never from a request header: the Origin header is chosen by
+  // whoever calls this route, and taking it would let an attacker have a real
+  // reset email for the victim carry a valid token to the attacker's own site.
+  //
+  // The link is NEVER put in this reply, except under NODE_ENV=test, where the
+  // tests need it. Handing it back whenever no email provider was set up meant
+  // that anyone who knew a dealer's email address could take over the account.
   app.post("/auth/forgot-password", async (req, res) => {
     const { email } = req.body ?? {};
     if (notText(email)) return res.status(400).json({ ok: false, error: "Those details must be text." });
@@ -371,22 +384,27 @@ export default function registerAuthRoute(app: Express) {
 
     let devResetLink: string | undefined;
 
-    if (user) {
-      const token = signPasswordResetToken(user.id);
-      const resetLink = `${req.headers.origin || "http://localhost:5173"}/reset-password?token=${token}`;
+    // An account already over its hourly allowance gets the same generic reply
+    // below, with no email sent (see resetRequestLimit.ts).
+    if (user && takeResetEmailSlot(user.email)) {
+      const token = signPasswordResetToken(user);
+      const resetLink = appLink(`/reset-password?token=${token}`);
+
+      if (!process.env.RESEND_API_KEY) {
+        // Nothing can actually deliver this email. Say so where the operator can
+        // see it, and (see the note above the route) never hand the link to the
+        // caller.
+        console.error(
+          "forgot-password: RESEND_API_KEY is not set, so no reset email can be delivered. Set it on the server. The reset link is deliberately not returned to the caller."
+        );
+        if (process.env.NODE_ENV === "test") devResetLink = resetLink;
+      }
 
       await sendEmail(
         user.email,
         "Reset your FlipPilot Dealer OS password",
         `Click this link to reset your password (expires in 1 hour): ${resetLink}\n\nIf you didn't request this, ignore this email.`
       );
-
-      // Only surfaced when no real email provider is configured (see
-      // email.ts) — otherwise the link would only ever reach the real
-      // inbox, same as a production password reset should work.
-      if (!process.env.RESEND_API_KEY) {
-        devResetLink = resetLink;
-      }
     }
 
     res.json({
@@ -409,14 +427,20 @@ export default function registerAuthRoute(app: Express) {
         .json({ ok: false, error: "New password must be at least 8 characters" });
     }
 
-    const userId = verifyPasswordResetToken(token);
-    if (!userId) {
-      return res.status(400).json({ ok: false, error: "This reset link is invalid or has expired" });
+    const claims = verifyPasswordResetToken(token);
+    if (!claims) {
+      return res.status(400).json({ ok: false, error: RESET_INVALID_MESSAGE });
     }
 
-    // Fail fast, before the bcrypt hash, if the account is already gone.
-    if (!readCollection<StoredUser>("users").some(u => u.id === userId)) {
+    // Fail fast, before the bcrypt hash, if the account is already gone, or the
+    // password has changed since this link was made (the link has been used, or
+    // an older one has been superseded).
+    const early = readCollection<StoredUser>("users").find(u => u.id === claims.userId);
+    if (!early) {
       return res.status(404).json({ ok: false, error: "Account no longer exists" });
+    }
+    if (!resetTokenMatchesUser(claims, early)) {
+      return res.status(400).json({ ok: false, error: RESET_INVALID_MESSAGE });
     }
 
     // The slow, awaited part, done before `users` is read for writing (see
@@ -425,11 +449,17 @@ export default function registerAuthRoute(app: Express) {
 
     // From here to the response nothing awaits. The account is looked up
     // again on this fresh read: if it was removed while the hash ran it
-    // must stay removed (404, as above), not be written back.
+    // must stay removed (404, as above), not be written back. The link is
+    // checked AGAIN here, because two requests with the same link can both
+    // pass the early check while their hashes run: the first to reach this
+    // point changes the password, and the second must then be refused.
     const users = readCollection<StoredUser>("users");
-    const user = users.find(u => u.id === userId);
+    const user = users.find(u => u.id === claims.userId);
     if (!user) {
       return res.status(404).json({ ok: false, error: "Account no longer exists" });
+    }
+    if (!resetTokenMatchesUser(claims, user)) {
+      return res.status(400).json({ ok: false, error: RESET_INVALID_MESSAGE });
     }
     user.passwordHash = newPasswordHash;
     writeCollection("users", users);

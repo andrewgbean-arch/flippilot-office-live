@@ -407,7 +407,7 @@ describe.each(LINEUPS)("a password reset in flight while the owner removes that 
   it("they stay removed, and the reset is told the account no longer exists", async () => {
     const owner = await signup("reset");
     const staff = await joinStaff(owner.token, "general");
-    const resetToken = authModule.signPasswordResetToken(staff.user.id);
+    const resetToken = authModule.signPasswordResetToken(storedUsers().find(u => u.id === staff.user.id)!);
 
     const { slowRes, quickRes, quickFinishedFirst } = await overlap(
       lineup,
@@ -453,7 +453,7 @@ describe("normal (no overlap) password routes still behave as before", () => {
 
     const ok = await request(app)
       .post("/auth/reset-password")
-      .send({ token: authModule.signPasswordResetToken(owner.user.id), newPassword: "resetpassword123" });
+      .send({ token: authModule.signPasswordResetToken(storedUsers().find(u => u.id === owner.user.id)!), newPassword: "resetpassword123" });
     expect(ok.status).toBe(200);
     expect(ok.body).toEqual({ ok: true });
     const row = storedUsers().find(u => u.id === owner.user.id);
@@ -461,7 +461,7 @@ describe("normal (no overlap) password routes still behave as before", () => {
 
     const ghost = await request(app)
       .post("/auth/reset-password")
-      .send({ token: authModule.signPasswordResetToken("no-such-account"), newPassword: "resetpassword123" });
+      .send({ token: authModule.signPasswordResetToken({ id: "no-such-account", passwordHash: "no-hash" }), newPassword: "resetpassword123" });
     expect(ghost.status).toBe(404);
     expect(ghost.body).toEqual({ ok: false, error: "Account no longer exists" });
   });

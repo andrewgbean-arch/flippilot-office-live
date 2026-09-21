@@ -13,8 +13,13 @@ export async function sendEmail(to: string, subject: string, body: string): Prom
   const from = process.env.EMAIL_FROM || "FlipPilot Dealer OS <onboarding@resend.dev>";
 
   if (!apiKey) {
+    // The body of a real email can carry a working password-reset link, so on a
+    // production server it is NOT written to the log, where anyone who can read
+    // the logs could use it. Locally (and in tests) it is printed, which is how a
+    // developer gets the link without a real inbox.
+    const shownBody = process.env.NODE_ENV === "production" ? "(body not logged in production)" : body;
     console.log(
-      `\n📧 [DEV MODE — no RESEND_API_KEY set, email not actually sent]\nTo: ${to}\nSubject: ${subject}\n${body}\n`
+      `\n📧 [DEV MODE — no RESEND_API_KEY set, email not actually sent]\nTo: ${to}\nSubject: ${subject}\n${shownBody}\n`
     );
     return;
   }

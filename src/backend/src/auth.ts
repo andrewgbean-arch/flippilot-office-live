@@ -1,4 +1,5 @@
 import bcrypt from "bcryptjs";
+import { createHmac, timingSafeEqual } from "crypto";
 import jwt from "jsonwebtoken";
 import { Request, Response, NextFunction } from "express";
 import { readCollection } from "./db";
@@ -256,27 +257,69 @@ export function requireStaffRole(...allowed: StaffRole[]) {
 interface PasswordResetPayload {
   purpose: "password-reset";
   userId: string;
+  // A short fingerprint of the password the account had when the token was made
+  // (see passwordFingerprint). Tokens made before this existed have none, and are
+  // refused.
+  fp?: string;
+}
+
+// A short, one-way fingerprint of the account's CURRENT password hash. A reset
+// token carries it, and /auth/reset-password compares it with the account's
+// hash at that moment, so the token stops working the instant the password
+// changes: it is single-use, and any older token dies too. It is keyed with the
+// server secret, so the token (whose payload anyone holding it can read) reveals
+// nothing about the stored hash, and nobody can work out the value for another
+// hash without the secret.
+export function passwordFingerprint(passwordHash: string): string {
+  return createHmac("sha256", getJwtSecret())
+    .update(`password-reset-fingerprint:${passwordHash}`)
+    .digest("hex")
+    .slice(0, 32);
 }
 
 // Short-lived (1 hour), single-purpose token — same separation-of-
 // concerns reasoning as the invite token: never accepted by requireAuth,
-// never usable for anything except calling /auth/reset-password once.
-export function signPasswordResetToken(userId: string): string {
+// never usable for anything except calling /auth/reset-password. It is tied to
+// the password the account has right now, so once that password changes (by this
+// reset, a change from Settings, or another reset) the token is dead.
+export function signPasswordResetToken(user: Pick<StoredUser, "id" | "passwordHash">): string {
   return jwt.sign(
-    { purpose: "password-reset", userId },
+    { purpose: "password-reset", userId: user.id, fp: passwordFingerprint(user.passwordHash) },
     getJwtSecret(),
     { expiresIn: "1h" }
   );
 }
 
-export function verifyPasswordResetToken(token: string): string | null {
+export interface PasswordResetClaims {
+  userId: string;
+  fingerprint: string;
+}
+
+// The signature, purpose, expiry and shape are checked here. Whether the token
+// is still good for the account as it is NOW is a separate question, answered by
+// resetTokenMatchesUser once the account has been read.
+export function verifyPasswordResetToken(token: string): PasswordResetClaims | null {
   try {
     const decoded = jwt.verify(token, getJwtSecret()) as PasswordResetPayload;
     if (decoded.purpose !== "password-reset") return null;
-    return decoded.userId;
+    if (typeof decoded.userId !== "string" || !decoded.userId) return null;
+    if (typeof decoded.fp !== "string" || !decoded.fp) return null;
+    return { userId: decoded.userId, fingerprint: decoded.fp };
   } catch {
     return null;
   }
+}
+
+// True only while the account still has the password it had when the token was
+// made.
+export function resetTokenMatchesUser(
+  claims: PasswordResetClaims,
+  user: Pick<StoredUser, "id" | "passwordHash">
+): boolean {
+  if (claims.userId !== user.id) return false;
+  const expected = Buffer.from(passwordFingerprint(user.passwordHash));
+  const given = Buffer.from(claims.fingerprint);
+  return expected.length === given.length && timingSafeEqual(expected, given);
 }
 
 // Attaches req.user when a valid token is present, and rejects with 401
