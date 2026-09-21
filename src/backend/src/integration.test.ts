@@ -5474,3 +5474,68 @@ describe("Wanted requests — the team hears when a matching car arrives", () =>
     }
   });
 });
+
+describe("Store photos — one picture per car on the public store page", () => {
+  const HOSTED = "https://api.example.test/photos/a1b2c3d4-0000-4000-8000-000000000001.jpg";
+  const INLINE = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQ==";
+
+  async function setup(label: string, cars: object[]) {
+    const owner = await signup(label);
+    writeTenantCollection(owner.user.dealershipId, "vehicles", cars);
+    return owner.user.dealershipId as string;
+  }
+  const listing = async (dealershipId: string) => (await request(app).get(`/public/${dealershipId}/vehicles`)).body.items as any[];
+
+  it("gives each car its first usable photo, and nothing for a car with none", async () => {
+    const id = await setup("store-photo-basic", [
+      { id: "v1", make: "Ford", model: "Fiesta", status: "in stock", priceRetail: 8000, images: [INLINE, "javascript:alert(1)", HOSTED] },
+      { id: "v2", make: "Audi", model: "A3", status: "in stock", priceRetail: 9000 },
+      { id: "v3", make: "BMW", model: "1 Series", status: "in stock", priceRetail: 9500, images: [] },
+    ]);
+    const items = await listing(id);
+    expect(items.find(i => i.id === "v1").photo).toBe(HOSTED);
+    expect(items.find(i => i.id === "v2")).not.toHaveProperty("photo");
+    expect(items.find(i => i.id === "v3")).not.toHaveProperty("photo");
+  });
+
+  it("never sends an unsafe or embedded picture, or the whole list of pictures", async () => {
+    const id = await setup("store-photo-unsafe", [
+      { id: "v1", make: "Ford", model: "Fiesta", status: "in stock", priceRetail: 8000, images: [INLINE] },
+      { id: "v2", make: "Audi", model: "A3", status: "in stock", priceRetail: 9000, images: ["http://insecure.example.test/a.jpg", "javascript:alert(1)", "data:image/svg+xml;base64,PHN2Zz4="] },
+      { id: "v3", make: "BMW", model: "1 Series", status: "in stock", priceRetail: 9500, images: [HOSTED, "https://api.example.test/photos/b.jpg"] },
+    ]);
+    const items = await listing(id);
+    expect(items.find(i => i.id === "v1")).not.toHaveProperty("photo");
+    expect(items.find(i => i.id === "v2")).not.toHaveProperty("photo");
+    expect(items.find(i => i.id === "v3").photo).toBe(HOSTED);
+    for (const item of items) expect(item).not.toHaveProperty("images"); // one picture, never the full list
+    const text = JSON.stringify(items);
+    expect(text).not.toContain("javascript:");
+    expect(text).not.toContain("data:image");
+  });
+
+  it("does not put a sold car, or a demo car, on the store with its photo", async () => {
+    const id = await setup("store-photo-sold", [
+      { id: "v1", make: "Ford", model: "Fiesta", status: "sold", priceRetail: 8000, images: [HOSTED] },
+      { id: "DM-001", make: "Demo", model: "Car", status: "in stock", priceRetail: 5000, images: [HOSTED] },
+      { id: "v2", make: "Audi", model: "A3", status: "in stock", priceRetail: 9000, images: [HOSTED] },
+    ]);
+    const items = await listing(id);
+    expect(items.map(i => i.id)).toEqual(["v2"]);
+  });
+
+  it("adds nothing else that was private: the same fields as before plus the one photo", async () => {
+    const id = await setup("store-photo-fields", [
+      { id: "v1", reg: "AB12CDE", make: "Ford", model: "Fiesta", year: 2019, mileage: 42000, colour: "Blue", status: "in stock", priceRetail: 8000, buyPrice: 777777, notes: "SECRET-NOTE", vin: "SECRET-VIN", images: [HOSTED] },
+    ]);
+    const item = (await listing(id))[0];
+    expect(Object.keys(item).sort()).toEqual(["colour", "id", "make", "mileage", "model", "photo", "priceRetail", "reg", "year"]);
+    expect(JSON.stringify(item)).not.toMatch(/777777|SECRET/);
+  });
+
+  it("shows the same picture to the customer who has just asked for a car like it", async () => {
+    const id = await setup("store-photo-wanted", [{ id: "v1", make: "Ford", model: "Fiesta", status: "in stock", priceRetail: 8000, images: [HOSTED] }]);
+    const answer = await request(app).post(`/public/${id}/wanted`).send({ consent: true, name: "Priya", email: "priya@example.co.uk", make: "Ford", model: "Fiesta" });
+    expect(answer.body.inStockNow[0].photo).toBe(HOSTED);
+  });
+});

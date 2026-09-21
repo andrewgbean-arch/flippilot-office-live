@@ -5,6 +5,7 @@ import { readCollection, readTenantCollection, writeTenantCollection, readTenant
 import type { StoredUser, Dealership } from "../auth";
 import { isSampleVehicleId } from "../sampleVehicles";
 import { publishedVehicleIds } from "./carPassport";
+import { storePhoto } from "../engines/storePhoto";
 import { bookedStatus, leadUpdateForBooking } from "../engines/leadBookingStatus";
 import { DEFAULT_BOOKING_SETTINGS, type BookingSettings, type WeekDay } from "./bookingSettings";
 import { toSingleLine, toMultiLine } from "../untrustedText";
@@ -52,6 +53,8 @@ export interface PublicVehicle {
   year: number | null;
   mileage: number | null;
   colour?: string;
+  // One picture for the store page's card (see engines/storePhoto.ts). Absent when the car has none it may show.
+  photo?: string;
   priceRetail: number | null;
 }
 
@@ -121,17 +124,21 @@ export function publicVehiclesFor(dealershipId: string): PublicVehicle[] {
     .filter(v => String(v.status ?? "").toLowerCase() !== "sold")
     .filter(v => !isSampleVehicleId(v.id));
   const passports = publishedVehicleIds(dealershipId);
-  return vehicles.map(v => ({
-    id: v.id,
-    ...(passports.has(v.id) ? { hasPassport: true } : {}),
-    ...(v.reg ? { reg: v.reg } : {}),
-    make: v.make,
-    model: v.model,
-    year: v.year ?? null,
-    mileage: v.mileage ?? null,
-    ...(v.colour ? { colour: v.colour } : {}),
-    priceRetail: publicAskingPrice(v.priceRetail),
-  }));
+  return vehicles.map(v => {
+    const photo = storePhoto(v.images);
+    return {
+      id: v.id,
+      ...(passports.has(v.id) ? { hasPassport: true } : {}),
+      ...(v.reg ? { reg: v.reg } : {}),
+      make: v.make,
+      model: v.model,
+      year: v.year ?? null,
+      mileage: v.mileage ?? null,
+      ...(v.colour ? { colour: v.colour } : {}),
+      ...(photo ? { photo } : {}),
+      priceRetail: publicAskingPrice(v.priceRetail),
+    };
+  });
 }
 
 const WEEKDAY_BY_GETDAY: WeekDay[] = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];

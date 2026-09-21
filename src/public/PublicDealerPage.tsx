@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { SupernovaGlowCard } from "@/components/supernova/SupernovaGlowCard";
 import { SupernovaHeroHeader } from "@/components/supernova/SupernovaHeroHeader";
-import { formatMoney } from "@/lib/formatMoney";
 import {
   loadPublicDealerInfo,
   loadPublicVehicles,
@@ -10,6 +8,7 @@ import {
   type PublicDealerInfo,
   type PublicVehicle,
 } from "./publicBookingApi";
+import StoreVehicleCard from "./StoreVehicleCard";
 import WantedSection from "./WantedForm";
 
 const WEEK_DAYS: { key: string; label: string }[] = [
@@ -132,47 +131,7 @@ export default function PublicDealerPage({ dealershipIdOverride }: { dealershipI
         {stock.length === 0 ? (
           <p className="text-white/70">No vehicles listed yet. Check back soon.</p>
         ) : (
-          stock.map((v) => {
-            const reg = v.reg?.trim().toUpperCase() || null;
-            const priced = (v.priceRetail ?? 0) > 0;
-            const facts = [v.year, v.mileage != null ? `${v.mileage.toLocaleString("en-GB")} miles` : null, v.colour]
-              .filter(Boolean)
-              .join(" · ");
-            return (
-              <SupernovaGlowCard key={v.id}>
-                <h3 className="text-xl font-bold text-yellow-400">
-                  {v.make} {v.model}
-                </h3>
-                <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-white/75">
-                  {reg && (
-                    <span className="rounded bg-yellow-300 px-1.5 py-px font-mono text-xs font-bold tracking-wide text-black">
-                      {reg}
-                    </span>
-                  )}
-                  {facts && <span>{facts}</span>}
-                </p>
-                <p className={`mt-3 text-2xl font-bold ${priced ? "text-white" : "text-white/70"}`}>
-                  {priced ? formatMoney(v.priceRetail) : "Price on request"}
-                </p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {v.hasPassport && (
-                    <a
-                      href={`/car/${encodeURIComponent(dealershipId)}/${encodeURIComponent(v.id)}`}
-                      className="inline-flex items-center rounded-lg bg-yellow-400 px-4 py-2 text-sm font-bold text-black hover:bg-yellow-300"
-                    >
-                      See full history
-                    </a>
-                  )}
-                  <a
-                    href={`/book/${dealershipId}?vehicle=${encodeURIComponent(v.id)}`}
-                    className="inline-flex items-center rounded-lg border border-yellow-400/70 px-4 py-2 text-sm font-semibold text-yellow-200 hover:bg-white/10"
-                  >
-                    Book a viewing
-                  </a>
-                </div>
-              </SupernovaGlowCard>
-            );
-          })
+          stock.map((v) => <StoreVehicleCard key={v.id} v={v} dealershipId={dealershipId} />)
         )}
       </section>
 

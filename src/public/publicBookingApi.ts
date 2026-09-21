@@ -13,6 +13,8 @@ export interface PublicVehicle {
   year: number | null;
   mileage: number | null;
   colour?: string;
+  // The one picture for this car's card on the store page. Absent when there is none.
+  photo?: string;
   priceRetail: number | null;
 }
 
