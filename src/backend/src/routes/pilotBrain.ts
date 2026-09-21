@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import { Readable } from "stream";
+import { availableVoices, resolveVoice, speechRequest } from "../pilotBrainVoices";
 import { Express, Request } from "express";
 import rateLimit from "express-rate-limit";
 import { readCollection, readTenantCollection, writeTenantCollection, readTenantDoc, writeTenantDoc } from "../db";
@@ -958,7 +959,13 @@ export default function registerPilotBrainRoute(app: Express) {
   // key from Anthropic, hence its own rate limit. Returns raw MP3 bytes
   // rather than a URL — nothing is stored, each call is generated fresh
   // and streamed straight through.
-  const OPENAI_VOICES = ["alloy", "echo", "fable", "onyx", "nova", "shimmer"] as const;
+  // What this server can speak with, FlipPilot's own voices first (see
+  // pilotBrainVoices.ts). The picker is built from this, so nobody is
+  // offered a voice that would then fail.
+  app.get("/pilot-brain/voices", requireAuth, (_req, res) => {
+    const voices = availableVoices().map(({ id, label, provider }) => ({ id, label, provider }));
+    res.json({ ok: true, voices, defaultVoice: voices[0]?.id ?? null });
+  });
 
   app.post("/pilot-brain/speak", requireAuth, speakLimiter, async (req, res) => {
     const { text, voice } = req.body ?? {};
@@ -976,46 +983,37 @@ export default function registerPilotBrainRoute(app: Express) {
     if (stripWebSourcesFooter(text).length > 4096) {
       return res.status(400).json({ ok: false, error: "Text is too long to speak" });
     }
-    // Whitelisted rather than passed straight through — this value goes
-    // directly into a real paid API call, so an unvalidated field here
-    // would let a client pass anything through to OpenAI on our key.
-    const selectedVoice = OPENAI_VOICES.includes(voice) ? voice : "fable";
-
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
+    // Looked up in the whitelist rather than passed straight through — the
+    // resolved value goes directly into a real paid API call, so an
+    // unvalidated field here would let a client spend on our key however
+    // it liked. A voice this server can't produce falls back to the first
+    // it can, and the reply says which one was used.
+    const selectedVoice = resolveVoice(voice);
+    if (!selectedVoice) {
       return res.status(400).json({
         ok: false,
-        error: "Voice needs an API key — set OPENAI_API_KEY in backend/.env to enable this.",
+        error: "Voice needs an API key — set ELEVENLABS_API_KEY (FlipPilot's own voices) or OPENAI_API_KEY in backend/.env to enable this.",
       });
     }
 
     try {
-      const response = await fetch("https://api.openai.com/v1/audio/speech", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model: "tts-1",
-          voice: selectedVoice,
-          input: stripWebSourcesFooter(text).trim(),
-        }),
-      });
+      const request = speechRequest(selectedVoice, stripWebSourcesFooter(text).trim());
+      const response = await fetch(request.url, request.init);
 
       if (!response.ok) {
         const errText = await response.text();
-        console.error("pilot-brain/speak: OpenAI error", response.status, errText);
+        console.error(`pilot-brain/speak: ${selectedVoice.provider} error`, response.status, errText);
         return res.status(502).json({ ok: false, error: "Could not generate voice right now." });
       }
 
-      // Piped through as OpenAI produces it, not buffered into memory
-      // first — buffering here would force the client to wait for the
-      // ENTIRE file before it could even start receiving bytes, which
+      // Piped through as the provider produces it, not buffered into
+      // memory first — buffering here would force the client to wait for
+      // the ENTIRE file before it could even start receiving bytes, which
       // is most of the real "5 seconds before anything plays" latency
-      // for a longer reply. The frontend now plays progressively as
-      // this streams in (see PilotBrainChat.tsx's speak()).
+      // for a longer reply. The frontend plays progressively as this
+      // streams in (see PilotBrainChat.tsx's speak()).
       res.set("Content-Type", "audio/mpeg");
+      res.set("X-Pilot-Voice", selectedVoice.id);
       Readable.fromWeb(response.body as import("stream/web").ReadableStream<Uint8Array>).pipe(res);
     } catch (err) {
       console.error("pilot-brain/speak: request failed", err);

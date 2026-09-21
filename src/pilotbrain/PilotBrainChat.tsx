@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { FiMic, FiMicOff, FiVolume2, FiVolumeX } from "react-icons/fi";
 import AssistantMarkdown from "./AssistantMarkdown";
-import { fetchPilotBrainMessages, sendPilotBrainMessage, fetchSpeech, fetchMorningBriefing, fetchPerformanceReview, fetchTodaysPriorities, clearPilotBrainConversation, OPENAI_VOICES, type OpenAiVoice, type PilotBrainMessage, type ReviewPeriod } from "@/lib/pilotBrainApi";
+import { fetchPilotBrainMessages, sendPilotBrainMessage, fetchSpeech, fetchMorningBriefing, fetchPerformanceReview, fetchTodaysPriorities, clearPilotBrainConversation, fetchVoices, type PilotVoice, type PilotBrainMessage, type ReviewPeriod } from "@/lib/pilotBrainApi";
 import { authHeaders } from "@/lib/authToken";
 import { BASE_URL } from "@/lib/apiBaseUrl";
 import "@/staff/StaffDashboard.css";
@@ -34,7 +34,8 @@ const SpeechRecognitionCtor: typeof window.SpeechRecognition | undefined =
 
 const VOICE_OUTPUT_KEY = "flippilot_pilot_brain_voice_output";
 const VOICE_CHOICE_KEY = "flippilot_pilot_brain_voice_choice";
-const DEFAULT_VOICE: OpenAiVoice = "fable";
+// FlipPilot's own voice when the server has it; the server's list decides otherwise.
+const DEFAULT_VOICE = "wendy";
 
 // Voices differ per OS/browser and there's no reliable "gender" field
 // on the Web Speech API — just a name. This matches against common
@@ -88,21 +89,31 @@ export default function PilotBrainChat() {
     }
   });
 
-  const [voiceChoice, setVoiceChoice] = useState<OpenAiVoice>(() => {
+  const [voiceChoice, setVoiceChoice] = useState<string>(() => {
     try {
-      const saved = localStorage.getItem(VOICE_CHOICE_KEY);
-      return (OPENAI_VOICES as readonly string[]).includes(saved ?? "") ? (saved as OpenAiVoice) : DEFAULT_VOICE;
+      return localStorage.getItem(VOICE_CHOICE_KEY) || DEFAULT_VOICE;
     } catch {
       return DEFAULT_VOICE;
     }
   });
 
-  function changeVoice(next: OpenAiVoice) {
+  function changeVoice(next: string) {
     setVoiceChoice(next);
     try {
       localStorage.setItem(VOICE_CHOICE_KEY, next);
     } catch {}
   }
+
+  // The voices this server can actually produce (FlipPilot's own first).
+  // A remembered choice the server no longer offers falls back to its default.
+  const [voices, setVoices] = useState<PilotVoice[]>([]);
+  useEffect(() => {
+    fetchVoices().then(({ voices: list, defaultVoice }) => {
+      setVoices(list);
+      if (list.length > 0 && !list.some(v => v.id === voiceChoice)) changeVoice(defaultVoice ?? list[0]?.id ?? DEFAULT_VOICE);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     fetchPilotBrainMessages().then(result => {
@@ -179,7 +190,7 @@ export default function PilotBrainChat() {
   // audio instead of the full file. Falls back to the simpler
   // buffered path on any error (unsupported codec quirk, network
   // hiccup, etc.) rather than leaving Wendy silent.
-  async function speakStreaming(text: string, voice: OpenAiVoice): Promise<boolean> {
+  async function speakStreaming(text: string, voice: string): Promise<boolean> {
     try {
       const res = await fetch(`${BASE_URL}/pilot-brain/speak`, {
         method: "POST",
@@ -231,7 +242,7 @@ export default function PilotBrainChat() {
 
   // Full-download fallback — used when the browser can't stream MP3
   // via MediaSource, or when streaming playback itself fails.
-  async function speakBuffered(text: string, voice: OpenAiVoice) {
+  async function speakBuffered(text: string, voice: string) {
     const audioUrl = await fetchSpeech(text, voice);
     if (!audioUrl) {
       speakWithBrowserVoice(text); // real AI voice unavailable/failed — don't go silent
@@ -248,7 +259,7 @@ export default function PilotBrainChat() {
     audio.play().catch(() => speakWithBrowserVoice(text));
   }
 
-  async function speak(text: string, voiceOverride?: OpenAiVoice) {
+  async function speak(text: string, voiceOverride?: string) {
     if (!voiceOutput && !voiceOverride) return; // voiceOverride lets the "try this voice" preview bypass the toggle
 
     stopAiAudio();
@@ -261,10 +272,10 @@ export default function PilotBrainChat() {
     await speakBuffered(text, voice);
   }
 
-  const [previewing, setPreviewing] = useState<OpenAiVoice | null>(null);
-  async function previewVoice(voice: OpenAiVoice) {
+  const [previewing, setPreviewing] = useState<string | null>(null);
+  async function previewVoice(voice: string) {
     setPreviewing(voice);
-    await speak(`Hello Boss, this is the ${voice} voice.`, voice);
+    await speak(`Hello Boss, this is ${voices.find(v => v.id === voice)?.label ?? voice}.`, voice);
     setPreviewing(null);
   }
 
@@ -459,14 +470,15 @@ export default function PilotBrainChat() {
           <select
             id="pilot-brain-voice-choice"
             value={voiceChoice}
-            onChange={e => changeVoice(e.target.value as OpenAiVoice)}
+            onChange={e => changeVoice(e.target.value as string)}
             style={{
               background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.15)",
               borderRadius: 8, color: "#f5f7ff", fontSize: 12, padding: "4px 8px",
             }}
           >
-            {OPENAI_VOICES.map(v => (
-              <option key={v} value={v}>{v}</option>
+            {voices.length === 0 && <option value={voiceChoice}>No voice set up on this server</option>}
+            {voices.map(v => (
+              <option key={v.id} value={v.id}>{v.label}</option>
             ))}
           </select>
           <button

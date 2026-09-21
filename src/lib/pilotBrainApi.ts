@@ -99,13 +99,32 @@ export async function fetchWatcher(): Promise<WatcherResult | null> {
   }
 }
 
-export const OPENAI_VOICES = ["alloy", "echo", "fable", "onyx", "nova", "shimmer"] as const;
-export type OpenAiVoice = (typeof OPENAI_VOICES)[number];
+// A voice Pilot Brain can speak with on this server. FlipPilot's own
+// voices ("wendy", "pilot") come first when the server has them; the
+// list is whatever the backend can actually produce, so the picker never
+// offers a voice that would then fail.
+export interface PilotVoice {
+  id: string;
+  label: string;
+  provider: "elevenlabs" | "openai";
+}
 
-// Real AI voice (OpenAI tts-1) — returns a playable object URL, or null
-// if it's not available/configured/failed, so the caller can fall back
-// to the free browser voice rather than going silent.
-export async function fetchSpeech(text: string, voice: OpenAiVoice): Promise<string | null> {
+export async function fetchVoices(): Promise<{ voices: PilotVoice[]; defaultVoice: string | null }> {
+  try {
+    const res = await fetch(`${BASE_URL}/pilot-brain/voices`, { headers: authHeaders() });
+    if (!res.ok) return { voices: [], defaultVoice: null };
+    const data = await res.json();
+    return { voices: Array.isArray(data.voices) ? data.voices : [], defaultVoice: data.defaultVoice ?? null };
+  } catch (err) {
+    console.error("fetchVoices: backend unreachable", err);
+    return { voices: [], defaultVoice: null };
+  }
+}
+
+// Real AI voice — returns a playable object URL, or null if it's not
+// available/configured/failed, so the caller can fall back to the free
+// browser voice rather than going silent.
+export async function fetchSpeech(text: string, voice: string): Promise<string | null> {
   try {
     const res = await fetch(`${BASE_URL}/pilot-brain/speak`, {
       method: "POST",

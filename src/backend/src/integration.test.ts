@@ -4706,4 +4706,61 @@ describe("Pilot Brain web access", () => {
     expect(res.status).toBe(200);
     expect(spoken).toBe("Asking prices are roughly £6,000–£7,500.");
   });
+
+  it("lists the voices this server can produce, FlipPilot's own first, and speaks Wendy through ElevenLabs", async () => {
+    process.env.ELEVENLABS_API_KEY = "test-elevenlabs-key";
+    process.env.OPENAI_API_KEY = "test-openai-key";
+    try {
+      const list = await request(app).get("/pilot-brain/voices").set(asOwner());
+      expect(list.status).toBe(200);
+      expect(list.body.defaultVoice).toBe("wendy");
+      expect(list.body.voices.slice(0, 2)).toEqual([
+        { id: "wendy", label: "Wendy (FlipPilot)", provider: "elevenlabs" },
+        { id: "pilot", label: "Pilot (FlipPilot, male)", provider: "elevenlabs" },
+      ]);
+      expect(list.body.voices.map((v: { id: string }) => v.id)).toContain("fable");
+
+      let calledUrl = "";
+      let sentKey = "";
+      let sentBody: any = null;
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (url: any, init: any) => {
+          calledUrl = String(url);
+          sentKey = init.headers["xi-api-key"];
+          sentBody = JSON.parse(init.body);
+          return new Response("fake-mp3-bytes", { status: 200 });
+        })
+      );
+      const res = await request(app).post("/pilot-brain/speak").set(asOwner()).send({ text: "Boss, two cars sold this month.", voice: "wendy" });
+      expect(res.status).toBe(200);
+      expect(res.headers["x-pilot-voice"]).toBe("wendy");
+      expect(calledUrl).toBe("https://api.elevenlabs.io/v1/text-to-speech/UryOOkXFzyQ2AZGyEJ2g/stream?output_format=mp3_44100_128");
+      expect(sentKey).toBe("test-elevenlabs-key");
+      expect(sentBody.text).toBe("Boss, two cars sold this month.");
+    } finally {
+      delete process.env.ELEVENLABS_API_KEY;
+    }
+  });
+
+  it("falls back to a voice it can produce when the asked-for one isn't configured, and says which", async () => {
+    delete process.env.ELEVENLABS_API_KEY;
+    process.env.OPENAI_API_KEY = "test-openai-key";
+    let sentVoice = "";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: any, init: any) => {
+        if (!String(url).includes("api.openai.com")) throw new Error(`unexpected fetch to ${url}`);
+        sentVoice = JSON.parse(init.body).voice;
+        return new Response("fake-mp3-bytes", { status: 200 });
+      })
+    );
+    const res = await request(app).post("/pilot-brain/speak").set(asOwner()).send({ text: "Hello Boss.", voice: "wendy" });
+    expect(res.status).toBe(200);
+    expect(res.headers["x-pilot-voice"]).toBe("alloy");
+    expect(sentVoice).toBe("alloy");
+
+    const list = await request(app).get("/pilot-brain/voices").set(asOwner());
+    expect(list.body.voices.map((v: { id: string }) => v.id)).toEqual(["alloy", "echo", "fable", "onyx", "nova", "shimmer"]);
+  });
 });
