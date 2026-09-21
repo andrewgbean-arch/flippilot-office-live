@@ -159,7 +159,7 @@ export default function BillingScreen() {
           <>
             {!dealership.pilotBrainEnabled && (
               <p className="text-white/50 text-sm">
-                Want Pilot Brain — your always-on business companion, watching, explaining, and checking the market for less than a day's staff wages a month? Add it from the billing portal below.
+                Want Pilot Brain — your always-on business companion, watching, explaining, and checking the market for a fraction of the cost of a part-time member of staff? Add it from the billing portal below.
               </p>
             )}
             <button
@@ -181,7 +181,7 @@ export default function BillingScreen() {
               />
               <span className="text-sm text-white/80">
                 <span className="font-semibold text-yellow-300">Include Pilot Brain</span> — your always-on business companion.
-                Watches your leads and stock, explains what's happening and why, and checks real market pricing. Less than a day's staff wages a month.
+                Watches your leads and stock, explains what's happening and why, and checks real market pricing. A fraction of the cost of a part-time member of staff.
               </span>
             </label>
             <button
