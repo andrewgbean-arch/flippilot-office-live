@@ -25,6 +25,7 @@
 
 import type { AuthUser } from "./auth";
 import { oneLine } from "./engines/promptText";
+import { recordedPrice } from "./engines/recordedPrice";
 import { decisionState, parseConfidence, MAX_EXPECTATIONS, type BossDecision, type FigureUnit, type Outcome } from "./decisionTypes";
 
 export type TabId =
@@ -376,13 +377,13 @@ const TABS: TabDef[] = [
       if (section === "purchases") {
         return asRecords(book.purchases).map(p => ({
           date: dateText(p.date),
-          out: compact({ vehicleId: text(p.vehicleId, 60), vehicle: car(p.vehicleId), purchasePrice: num(p.purchasePrice), source: text(p.source, 40), date: dateText(p.date) }),
+          out: compact({ vehicleId: text(p.vehicleId, 60), vehicle: car(p.vehicleId), purchasePrice: recordedPrice(p.purchasePrice) ?? undefined, source: text(p.source, 40), date: dateText(p.date) }),
         }));
       }
       if (section === "sales") {
         return asRecords(book.sales).map(s => ({
           date: dateText(s.date),
-          out: compact({ vehicleId: text(s.vehicleId, 60), vehicle: car(s.vehicleId), salePrice: num(s.salePrice), vatScheme: text(s.vatScheme, 12), date: dateText(s.date) }),
+          out: compact({ vehicleId: text(s.vehicleId, 60), vehicle: car(s.vehicleId), salePrice: recordedPrice(s.salePrice) ?? undefined, vatScheme: text(s.vatScheme, 12), date: dateText(s.date) }),
         }));
       }
       return asRecords(book.costs).map(c => ({

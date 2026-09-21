@@ -13,6 +13,8 @@
 // project memory correction) — this engine is the first thing in this
 // app to actually read it server-side.
 
+import { recordedPrice } from "./recordedPrice";
+
 interface Vehicle {
   id: string;
   make: string;
@@ -108,14 +110,20 @@ function compare(metric: string, current: number, previous: number): PeriodCompa
   return { metric, current, previous, changePercent };
 }
 
-function profitForVehicle(vehicleId: string, bookkeeping: Bookkeeping): number | null {
+export function profitForVehicle(vehicleId: string, bookkeeping: Bookkeeping): number | null {
   const purchase = bookkeeping.purchases.find(p => p.vehicleId === vehicleId);
   const sale = bookkeeping.sales.find(s => s.vehicleId === vehicleId);
   if (!purchase || !sale) return null;
+  // A purchase or sale price that is not a real amount above zero is not a price
+  // (recordedPrice.ts): the profit is unknown, as on the Bookkeeping hub, never
+  // worked out against a cost of 0 or as a loss on a sale of 0.
+  const bought = recordedPrice(purchase.purchasePrice);
+  const sold = recordedPrice(sale.salePrice);
+  if (bought === null || sold === null) return null;
   const totalCosts = bookkeeping.costs
     .filter(c => c.vehicleId === vehicleId)
     .reduce((sum, c) => sum + c.amount, 0);
-  return sale.salePrice - purchase.purchasePrice - totalCosts;
+  return sold - bought - totalCosts;
 }
 
 // The core Business Investigation Engine — real evidence for a real

@@ -154,6 +154,31 @@ describe("what comes back", () => {
     expect(costs[1]).toMatchObject({ type: "parts", label: "Brake discs", category: "Recon", amount: 240, supplier: "Parts Co" });
   });
 
+  it("does not present a price saved as 0 (or nothing) as a real price: it is left out of the record, as 'not recorded'", () => {
+    const blanks: TabSource = {
+      ...source,
+      bookkeeping: () => ({
+        purchases: [
+          { vehicleId: "v1", purchasePrice: 0, source: "Auction", date: "2030-02-20" },
+          { vehicleId: "v2", purchasePrice: null, source: "Private", date: "2030-02-21" },
+        ],
+        sales: [
+          { vehicleId: "v1", salePrice: 0, vatScheme: "standard", date: "2030-03-03" },
+          { vehicleId: "v2", salePrice: -5, vatScheme: "margin", date: "2030-03-04" },
+        ],
+        costs: [],
+      }),
+    };
+    for (const record of ok(lookInside(owner, blanks, { tab: "bookkeeping", section: "purchases" })).records) {
+      expect(record).not.toHaveProperty("purchasePrice");
+      expect(record).toHaveProperty("source");
+    }
+    for (const record of ok(lookInside(owner, blanks, { tab: "bookkeeping", section: "sales" })).records) {
+      expect(record).not.toHaveProperty("salePrice");
+      expect(record).toHaveProperty("vatScheme");
+    }
+  });
+
   it("needs a valid section for the ledger", () => {
     for (const section of [undefined, "transactions", "wages", 3]) {
       expect(lookInside(owner, source, { tab: "bookkeeping", section }).ok, String(section)).toBe(false);

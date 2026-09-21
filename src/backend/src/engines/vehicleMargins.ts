@@ -8,10 +8,13 @@
 // Pilot Brain never contradicts the figure the dealer can see on screen.
 // Where a number needed for that isn't recorded, the car is reported as
 // UNKNOWN and left out of every total — never guessed at, never counted as
-// zero. Only vehicle details and money go to the model: nothing about the
+// zero. That includes a purchase price or a sale price that is not a real amount
+// above zero (recordedPrice.ts): a blank an older form saved as 0 is not a price, so
+// it is UNKNOWN here exactly as the Bookkeeping hub reports it. Only vehicle details and money go to the model: nothing about the
 // buyer.
 
 import { oneLine } from "./promptText";
+import { recordedPrice } from "./recordedPrice";
 
 export interface MarginVehicle {
   id?: unknown;
@@ -131,8 +134,8 @@ export function summariseVehicleMargins(
 
   const known: KnownSale[] = [];
   for (const [vehicleId, sale] of recentSales) {
-    const salePrice = num(sale.salePrice);
-    const purchasePrice = num(purchases.get(vehicleId)?.purchasePrice);
+    const salePrice = recordedPrice(sale.salePrice);
+    const purchasePrice = recordedPrice(purchases.get(vehicleId)?.purchasePrice);
     if (salePrice === null || purchasePrice === null) continue;
 
     const costEntries = costsByCar.get(vehicleId) ?? [];
