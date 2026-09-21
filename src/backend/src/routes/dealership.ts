@@ -1,5 +1,6 @@
 import { Express, Request } from "express";
 import { readCollection, writeCollection, deleteTenantData } from "../db";
+import { trialEndsAtFrom } from "../trial";
 import {
   requireAuth,
   requireOwner,
@@ -176,7 +177,15 @@ export default function registerDealershipRoute(app: Express) {
       return res.status(404).json({ ok: false, error: "Dealership not found" });
     }
 
+    const wasPending = dealership.approvalStatus === "pending";
     dealership.approvalStatus = "approved";
+    // The 14 free days start when the dealership can actually use the app, not at
+    // sign-up: otherwise a slow review would eat into the trial they were promised.
+    // Only a pending dealership that is still on its trial is touched, so approving
+    // twice, or an account that has already subscribed, keeps whatever it had.
+    if (wasPending && dealership.subscriptionStatus === "trialing") {
+      dealership.trialEndsAt = trialEndsAtFrom(new Date());
+    }
     writeCollection("dealerships", dealerships);
     res.json({ ok: true, dealership: { id: dealership.id, name: dealership.name, approvalStatus: dealership.approvalStatus } });
   });

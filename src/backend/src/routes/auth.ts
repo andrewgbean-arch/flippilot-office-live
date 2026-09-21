@@ -17,8 +17,7 @@ import {
   type InviteTokenPayload,
 } from "../auth";
 import { sendEmail } from "../email";
-
-const TRIAL_DAYS = 14;
+import { trialEndsAtFrom } from "../trial";
 
 const INVITE_INVALID_MESSAGE = "This invite link is invalid or has expired";
 // Sent when the owner has cancelled the link — they removed someone, or
@@ -120,7 +119,10 @@ export default function registerAuthRoute(app: Express) {
     // immediately uses them, and the gate itself has its own dedicated
     // tests that explicitly opt back in to "pending".
     const now = new Date();
-    const trialEndsAt = new Date(now.getTime() + TRIAL_DAYS * 86400000);
+    // Provisional: approval restarts the 14 days (see trial.ts), so a slow review
+    // never uses up the trial. Under NODE_ENV=test the dealership is approved at
+    // once, so this is the real date.
+    const trialEndsAt = trialEndsAtFrom(now);
 
     const dealership: Dealership = {
       id: randomUUID(),
@@ -128,7 +130,7 @@ export default function registerAuthRoute(app: Express) {
       ownerId: "", // filled in below once the user id exists
       createdAt: now.toISOString(),
       subscriptionStatus: "trialing",
-      trialEndsAt: trialEndsAt.toISOString(),
+      trialEndsAt,
       approvalStatus:
         process.env.NODE_ENV === "test" && req.body?.requireApproval !== true
           ? "approved"

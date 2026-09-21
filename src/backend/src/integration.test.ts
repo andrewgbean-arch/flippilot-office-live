@@ -1247,6 +1247,77 @@ describe("new-dealership approval gate", () => {
     expect(afterRes.status).toBe(200);
   });
 
+  // The 14 free days count from the approval, not from sign-up: a slow review must
+  // never eat into the trial the dealer was promised on the website.
+  describe("the free trial is counted from approval", () => {
+    const DAY = 86_400_000;
+    let adminCount = 0;
+    async function approveAsAdmin(dealershipId: string) {
+      const admin = await signup(`appr-trial-admin-${++adminCount}`);
+      const prevAdminEmail = process.env.ADMIN_EMAIL;
+      process.env.ADMIN_EMAIL = admin.email;
+      try {
+        return await request(app).post(`/admin/dealerships/${dealershipId}/approve`).set("Authorization", `Bearer ${admin.token}`);
+      } finally {
+        if (prevAdminEmail === undefined) delete process.env.ADMIN_EMAIL;
+        else process.env.ADMIN_EMAIL = prevAdminEmail;
+      }
+    }
+    const stored = (id: string) => readCollection<any>("dealerships").find(d => d.id === id);
+    const change = (id: string, patch: Record<string, unknown>) =>
+      writeCollection("dealerships", readCollection<any>("dealerships").map(d => (d.id === id ? { ...d, ...patch } : d)));
+    const daysLeft = (iso: string) => (new Date(iso).getTime() - Date.now()) / DAY;
+
+    it("a signup is given a provisional 14 days, and approval restarts them from that moment", async () => {
+      const pending = await signupPending("appr-trial-a");
+      const id = pending.user.dealershipId;
+      // the review took nine days: sign-up and its provisional trial date are nine days old
+      change(id, { createdAt: new Date(Date.now() - 9 * DAY).toISOString(), trialEndsAt: new Date(Date.now() - 9 * DAY + 14 * DAY).toISOString() });
+      expect(daysLeft(stored(id).trialEndsAt)).toBeLessThan(5.5); // only about 5 days would be left if it counted from sign-up
+
+      const res = await approveAsAdmin(id);
+      expect(res.status).toBe(200);
+      const left = daysLeft(stored(id).trialEndsAt);
+      expect(left).toBeGreaterThan(13.99);
+      expect(left).toBeLessThanOrEqual(14);
+
+      // and the dealer sees that same date
+      const me = await request(app).get("/dealership/me").set("Authorization", `Bearer ${pending.token}`);
+      expect(new Date(me.body.dealership.trialEndsAt).getTime()).toBe(new Date(stored(id).trialEndsAt).getTime());
+    });
+
+    it("approving the same dealership again does not move the date (it cannot be used to extend a trial)", async () => {
+      const pending = await signupPending("appr-trial-b");
+      const id = pending.user.dealershipId;
+      await approveAsAdmin(id);
+      const fixed = new Date(Date.now() + 3 * DAY).toISOString();
+      change(id, { trialEndsAt: fixed });
+      const again = await approveAsAdmin(id);
+      expect(again.status).toBe(200);
+      expect(stored(id).trialEndsAt).toBe(fixed);
+    });
+
+    it("a dealership that was not pending (approved at sign-up) keeps the date it had", async () => {
+      const { user } = await signup("appr-trial-c");
+      const fixed = new Date(Date.now() + 2 * DAY).toISOString();
+      change(user.dealershipId, { trialEndsAt: fixed });
+      const res = await approveAsAdmin(user.dealershipId);
+      expect(res.status).toBe(200);
+      expect(stored(user.dealershipId).trialEndsAt).toBe(fixed);
+    });
+
+    it("an account that has already subscribed keeps its record when it is approved", async () => {
+      const pending = await signupPending("appr-trial-d");
+      const id = pending.user.dealershipId;
+      const old = new Date(Date.now() - 20 * DAY).toISOString();
+      change(id, { subscriptionStatus: "active", trialEndsAt: old });
+      const res = await approveAsAdmin(id);
+      expect(res.status).toBe(200);
+      expect(stored(id).trialEndsAt).toBe(old);
+      expect(stored(id).subscriptionStatus).toBe("active");
+    });
+  });
+
   it("a dealership with no approvalStatus at all (predates the gate) is grandfathered in, not locked out", async () => {
     const { token, user } = await signup("appr-g");
     const dealerships = readCollection<any>("dealerships");
