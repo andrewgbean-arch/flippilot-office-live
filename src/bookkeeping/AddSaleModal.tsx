@@ -1,12 +1,14 @@
 import { formatMoney } from "@/lib/formatMoney";
 import React, { useState, useMemo } from "react";
 import { SaleEntry } from "./types";
-import { calculateVat, calculateMarginVat } from "./vatUtils";
+import { withSaleVat } from "./saleVat";
+import { marginVatForSale } from "./vatUtils";
 import { nextInvoiceNumber } from "./invoiceUtils";
 import { useBookkeeping } from "./BookkeepingProvider";
 import { useInventory } from "@/context/InventoryProvider";
 import { toDateKey } from "@/planner/dateUtils";
-import { readMoney } from "@/lib/parseMoney";
+import { readMoney, readPercent, percentToRate, rateToPercentText, isPositiveAmount } from "@/lib/parseMoney";
+import { focusField } from "@/lib/focusField";
 import VehiclePicker from "./VehiclePicker";
 
 interface AddSaleModalProps {
@@ -23,7 +25,7 @@ export default function AddSaleModal({ vehicleId: initialVehicleId, existing, on
   // selection, defaulting to whatever the caller suggested.
   const [vehicleId, setVehicleId] = useState<string | null>(existing?.vehicleId ?? initialVehicleId);
   const [salePrice, setSalePrice] = useState<string>(existing ? String(existing.salePrice) : "");
-  const [vatRate, setVatRate] = useState<string>(existing ? String(existing.vatRate * 100) : "20");
+  const [vatRate, setVatRate] = useState<string>(existing ? rateToPercentText(existing.vatRate) : "20");
   const [vatIncluded, setVatIncluded] = useState<boolean>(existing?.vatIncluded ?? true);
   const [buyer, setBuyer] = useState<string>(existing?.buyer ?? "");
   const [buyerEmail, setBuyerEmail] = useState<string>(existing?.buyerEmail ?? "");
@@ -34,11 +36,13 @@ export default function AddSaleModal({ vehicleId: initialVehicleId, existing, on
   const vehicle = vehicles.find((v) => v.id === vehicleId) ?? null;
   const purchase = vehicleId ? getPurchaseForVehicle(vehicleId) : undefined;
 
-  // Margin Scheme needs the vehicle's purchase price — if it doesn't
-  // have one on record yet, there's nothing to compute a margin from,
-  // so this falls back to standard VAT (same fallback BookkeepingProvider
-  // applies), and the UI below says so rather than showing broken maths.
-  const isMarginScheme = vehicle?.vatScheme === "margin" && !!purchase;
+  // The scheme is the car's own. A Margin Scheme sale needs the car's purchase price
+  // to work out the VAT due, and a purchase saved with no usable price (0, nothing,
+  // text, a negative) is NOT a price: it is never used as a cost of £0. Without a real
+  // one there is no VAT figure to show or store (see saleVat.ts), and the sale is NOT
+  // switched to standard VAT either: the sale stays a Margin Scheme sale.
+  const isMarginScheme = vehicle?.vatScheme === "margin";
+  const purchaseRecorded = isPositiveAmount(purchase?.purchasePrice);
 
   // The sale price is REQUIRED and must be an amount above £0. A blank used to be
   // saved as a £0 sale (and the car marked SOLD at £0, printing "-Infinity%"), and
@@ -48,43 +52,38 @@ export default function AddSaleModal({ vehicleId: initialVehicleId, existing, on
   const priceRead = readMoney(salePrice, { positive: true, blankMessage: "Enter the sale price." });
   const priceError = priceRead.ok ? null : priceRead.message;
   const showPriceError = priceError !== null && (submitted || salePrice.trim() !== "");
-  // null while the price is blank or unreadable: the preview then shows dashes,
-  // not a made-up £0 margin.
+  // The VAT rate is REQUIRED too, and read strictly: a blank or unreadable rate used
+  // to become 0% without a word, and "0.2" was saved as 0.2%. The box starts at 20,
+  // so any message about it is one to show straight away.
+  const rateRead = readPercent(vatRate);
+  const rateError = rateRead.ok ? null : rateRead.message;
+  // null while the price or rate is blank or unreadable: the preview then shows
+  // dashes, not a made-up £0 margin.
   const previewPrice = priceRead.ok ? priceRead.value : null;
-  const numericVatRate = (Number(vatRate) || 0) / 100;
+  const numericVatRate = rateRead.ok ? percentToRate(rateRead.value) : null;
 
-  const marginPreview = useMemo(() => {
-    if (!isMarginScheme || !purchase || previewPrice === null) return null;
-    return calculateMarginVat(previewPrice, purchase.purchasePrice, numericVatRate);
-  }, [isMarginScheme, purchase, previewPrice, numericVatRate]);
+  const marginPreview = useMemo(
+    () => (isMarginScheme ? marginVatForSale(previewPrice, purchase?.purchasePrice, numericVatRate) : null),
+    [isMarginScheme, purchase, previewPrice, numericVatRate]
+  );
+
+  // What is wrong with the form, first problem first, for the line beside Save.
+  const problems: { field: string; message: string }[] = [];
+  if (priceError) problems.push({ field: "addsalemodal-sale-price", message: priceError });
+  if (rateError) problems.push({ field: "addsalemodal-vat-rate", message: rateError });
 
   function handleSave() {
     if (!vehicleId) {
       alert("Select a vehicle first.");
       return;
     }
-    if (!priceRead.ok) {
+    if (!priceRead.ok || !rateRead.ok) {
       setSubmitted(true);
+      if (problems[0]) focusField(problems[0].field);
       return;
     }
     const numericPrice = priceRead.value;
-
-    let vatAmount: number;
-    let netAmount: number;
-
-    if (isMarginScheme && purchase) {
-      const breakdown = calculateMarginVat(numericPrice, purchase.purchasePrice, numericVatRate);
-      vatAmount = breakdown.vat;
-      netAmount = numericPrice - breakdown.vat;
-    } else {
-      const breakdown = calculateVat(numericPrice, {
-        vatRate: numericVatRate,
-        vatIncluded,
-        vatReclaimable: false,
-      });
-      vatAmount = breakdown.vat;
-      netAmount = breakdown.net;
-    }
+    const rate = percentToRate(rateRead.value);
 
     // Only includes a contact field when it has a value — matches this
     // project's established optional-field convention under
@@ -107,7 +106,7 @@ export default function AddSaleModal({ vehicleId: initialVehicleId, existing, on
         salePrice: numericPrice,
         date,
         vatScheme: isMarginScheme ? "margin" : "standard",
-        vatRate: numericVatRate,
+        vatRate: rate,
         vatIncluded,
         ...contactFields,
       });
@@ -115,20 +114,25 @@ export default function AddSaleModal({ vehicleId: initialVehicleId, existing, on
       return;
     }
 
-    const entry: SaleEntry = {
-      id: crypto.randomUUID(),
-      vehicleId,
-      salePrice: numericPrice,
-      invoiceNumber: nextInvoiceNumber(sales),
-      date,
-      vatScheme: isMarginScheme ? "margin" : "standard",
-      vatRate: numericVatRate,
-      vatIncluded,
-      vatAmount,
-      netAmount,
-      ...(isMarginScheme && purchase ? { marginPurchasePrice: purchase.purchasePrice } : {}),
-      ...contactFields,
-    };
+    // The VAT and net come from the one shared function (saleVat.ts), which the
+    // provider applies again when it stores the sale: null when they cannot be
+    // worked out, never a figure made up to fill the gap.
+    const entry: SaleEntry = withSaleVat(
+      {
+        id: crypto.randomUUID(),
+        vehicleId,
+        salePrice: numericPrice,
+        invoiceNumber: nextInvoiceNumber(sales),
+        date,
+        vatScheme: isMarginScheme ? "margin" : "standard",
+        vatRate: rate,
+        vatIncluded,
+        vatAmount: null,
+        netAmount: null,
+        ...contactFields,
+      },
+      purchase
+    );
 
     addSale(entry);
     updateVehicleSale(vehicleId, numericPrice);
@@ -170,14 +174,16 @@ export default function AddSaleModal({ vehicleId: initialVehicleId, existing, on
         {vehicle && (
           <div className="mb-4 px-3 py-2 rounded bg-black/30 border border-white/10 text-sm">
             {vehicle.vatScheme === "margin" ? (
-              purchase ? (
+              purchaseRecorded ? (
                 <span className="text-yellow-300/90">
                   VAT Margin Scheme — VAT is due on the profit margin only, not the sale price.
                 </span>
               ) : (
-                <span className="text-orange-300/90">
-                  This vehicle is set to the Margin Scheme, but has no purchase price on
-                  record yet — VAT will be calculated as standard VAT until it does.
+                <span role="note" className="text-orange-300/90">
+                  This vehicle is set to the Margin Scheme, but has no purchase price on record, so the
+                  VAT due can't be worked out yet. The sale is saved without a VAT figure (it is not
+                  switched to standard VAT), and the VAT due is filled in once the purchase price is
+                  recorded on the car's ledger page.
                 </span>
               )
             ) : (
@@ -190,12 +196,21 @@ export default function AddSaleModal({ vehicleId: initialVehicleId, existing, on
         <label htmlFor="addsalemodal-vat-rate" className="text-white/60 text-sm">VAT Rate (%)</label>
         <input id="addsalemodal-vat-rate"
           type="number"
-          step="1"
+          step="any"
           value={vatRate}
           onChange={(e) => setVatRate(e.target.value)}
           placeholder="20"
-          className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-4"
+          aria-invalid={rateError !== null}
+          aria-describedby={rateError !== null ? "addsalemodal-vat-rate-error" : undefined}
+          className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-1"
         />
+        {rateError !== null ? (
+          <p id="addsalemodal-vat-rate-error" role="alert" className="text-red-400 text-sm mb-4">
+            {rateError}
+          </p>
+        ) : (
+          <div className="mb-4" />
+        )}
 
         {isMarginScheme ? (
           /* MARGIN SCHEME BREAKDOWN — replaces "VAT Included?", which
@@ -205,7 +220,7 @@ export default function AddSaleModal({ vehicleId: initialVehicleId, existing, on
           <div className="mb-4 px-3 py-3 rounded bg-black/40 border border-yellow-400/20 text-sm space-y-1">
             <div className="flex justify-between text-white/60">
               <span>Purchase Price</span>
-              <span>{formatMoney(purchase!.purchasePrice, { pence: true })}</span>
+              <span>{purchaseRecorded ? formatMoney(purchase?.purchasePrice, { pence: true }) : "Not recorded"}</span>
             </div>
             <div className="flex justify-between text-white/60">
               <span>Margin</span>
@@ -273,6 +288,14 @@ export default function AddSaleModal({ vehicleId: initialVehicleId, existing, on
           onChange={(e) => setDate(e.target.value)}
           className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-6"
         />
+
+        {/* What stopped the last Save, right beside the button: the field's own message
+            can be screens above it in this scrolling form. */}
+        {submitted && problems.length > 0 && (
+          <p id="addsalemodal-save-error" role="status" className="text-red-400 text-sm mb-3 text-right">
+            Can't save yet: {problems[0]!.message}
+          </p>
+        )}
 
         {/* BUTTONS */}
         <div className="flex justify-end gap-3">

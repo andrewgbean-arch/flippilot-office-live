@@ -110,8 +110,11 @@ export interface SaleEntry {
 
   vatRate: number;
   vatIncluded: boolean;
-  vatAmount: number;
-  netAmount: number;
+  // null = not worked out. A Margin Scheme sale needs the car's purchase price to
+  // work out its VAT; with no real purchase price on record there is no figure, and
+  // none is made up (see saleVat.ts). Never a stand-in 0.
+  vatAmount: number | null;
+  netAmount: number | null;
 
   // Only meaningful when vatScheme is "margin" — the purchase price
   // used to compute the margin, kept alongside the result so the

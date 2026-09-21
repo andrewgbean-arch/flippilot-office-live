@@ -3,8 +3,9 @@ import { hubTotals, carProfit } from "./profitTotals";
 import type { CostEntry, PurchaseEntry, SaleEntry } from "./types";
 
 // A purchase whose price is not a real amount above zero is "purchase not
-// recorded": the profit is unknown, the sale is left out AND counted, and
-// nothing ever turns into NaN, Infinity or a made-up zero.
+// recorded", and a sale whose price is not a real amount above zero is "sale price
+// not recorded": either way the profit is unknown, the sale is left out AND
+// counted, and nothing ever turns into NaN, Infinity or a made-up zero.
 
 const buy = (vehicleId: string, purchasePrice: unknown) => ({ id: `p-${vehicleId}`, vehicleId, purchasePrice }) as PurchaseEntry;
 const sell = (vehicleId: string, salePrice: unknown) => ({ id: `s-${vehicleId}`, vehicleId, salePrice }) as SaleEntry;
@@ -47,18 +48,20 @@ describe("carProfit: one definition of a car's profit and margin", () => {
     expect(carProfit(price, 5000, 0)).toBeNull();
   });
 
-  it("a sale price of 0 has NO margin (null), never Infinity or NaN", () => {
-    const loss = carProfit(4000, 0, 0)!;
-    expect(loss.profit).toBe(-4000);
-    expect(loss.margin).toBeNull();
-    expect(carProfit(4000, 0, 250)!.margin).toBeNull();
+  // The same "unknown is never zero" rule as the purchase price, on the other side. A
+  // sale saved with no usable price is not a sale of £0: it used to turn a £4,000
+  // purchase into a £4,000 LOSS on the hub, while the invoice page for that very sale
+  // said "No Price Recorded".
+  it.each(NOT_A_PRICE)("a sale price of %s is 'sale price not recorded': null, never a loss of the whole purchase", (_name, price) => {
+    expect(carProfit(4000, price, 0)).toBeNull();
+    expect(carProfit(4000, price, 250)).toBeNull();
   });
 
-  it("a sale price that is not a number is treated as no sale amount: still no NaN, no Infinity", () => {
-    for (const sale of [NaN, Infinity, -Infinity, null, undefined, "5000"]) {
+  it("a real sale price always gives a real margin (never Infinity or NaN)", () => {
+    for (const sale of [0.01, 1, 5000, 999999]) {
       const r = carProfit(4000, sale, 0)!;
       expect(Number.isFinite(r.profit), String(sale)).toBe(true);
-      expect(r.margin, String(sale)).toBeNull();
+      expect(Number.isFinite(r.margin), String(sale)).toBe(true);
     }
   });
 
@@ -129,11 +132,38 @@ describe("hubTotals treats a purchase with no real price as 'purchase not record
     expect(t.soldWithoutPurchase).toBe(0);
   });
 
-  it("a sale price of 0 on a good purchase is a loss with NO margin, never -Infinity or NaN", () => {
-    const t = hubTotals([buy("a", 4000)], [sell("a", 0)], []);
-    expect(t.profit).toBe(-4000);
+  it.each(NOT_A_PRICE)("a sale price of %s on a good purchase is left out and counted (not a loss of the whole purchase)", (_name, price) => {
+    const t = hubTotals([buy("a", 4000)], [sell("a", price)], []);
+    expect(t.profit).toBe(0); // not -4000
     expect(t.revenue).toBe(0);
     expect(t.marginPercent).toBeNull();
+    expect(t.soldCounted).toBe(0);
+    expect(t.soldWithoutPrice).toBe(1);
+    expect(t.soldWithoutPurchase).toBe(0); // the purchase is fine: the count says what is actually missing
+  });
+
+  it("counts the two kinds of missing figure apart, and still works out the good cars", () => {
+    const t = hubTotals(
+      [buy("good", 4000), buy("noBuy", 0), buy("noSale", 3000)],
+      [sell("good", 5000), sell("noBuy", 6000), sell("noSale", 0)],
+      [cost("good", 300)]
+    );
+    expect(t.profit).toBe(700);
+    expect(t.soldCounted).toBe(1);
+    expect(t.soldWithoutPurchase).toBe(1);
+    expect(t.soldWithoutPrice).toBe(1);
+  });
+
+  it("a sale with neither a purchase nor a price is counted once, as having no purchase", () => {
+    const t = hubTotals([buy("a", 0)], [sell("a", 0)], []);
+    expect(t.soldWithoutPurchase).toBe(1);
+    expect(t.soldWithoutPrice).toBe(0);
+  });
+
+  it("the audit example: a blank saved as a 0 sale of a 4,000 car is NOT a 4,000 loss", () => {
+    const t = hubTotals([buy("a", 4000)], [sell("a", 0)], []);
+    expect(t.profit).not.toBe(-4000);
+    expect(t.soldCounted).toBe(0);
   });
 
   it("buying and selling both at 0 is 'not recorded', not 'NaN%'", () => {

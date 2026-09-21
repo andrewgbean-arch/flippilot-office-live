@@ -211,10 +211,39 @@ describe("a sale with no usable price is never billed as £0.00", () => {
     expect(html).not.toContain("mailto:");
   });
 
-  it("a standard sale whose VAT rate is unreadable is not billed either", () => {
+  it("a standard sale whose VAT rate is unreadable is not billed either, and the page says it is the RATE", () => {
     const html = render({ ...storedSale({ price: 1000, included: false }), vatRate: NaN });
-    expect(visible(html)).toContain("No Price Recorded");
+    expect(visible(html)).toContain("VAT Rate Not Valid");
+    expect(visible(html)).toContain("has no usable VAT rate");
+    // not the price message: the price is fine, and pointing at it sends the dealer to the wrong field
+    expect(visible(html)).not.toContain("No Price Recorded");
+    expect(visible(html)).not.toContain("no usable sale price");
     expect(visible(html)).not.toContain("Total Due");
+  });
+
+  it.each([
+    ["more than 100% (a rate of 200 saved as 2)", 2],
+    ["negative", -0.2],
+    ["nothing (null)", null],
+    ["text", "20"],
+  ])("a VAT rate that is %s says the RATE is wrong, not the price", (_name, rate) => {
+    const html = render({ ...storedSale({ price: 1000, included: false }), vatRate: rate as never });
+    expect(visible(html)).toContain("VAT Rate Not Valid");
+    expect(visible(html)).not.toContain("no usable sale price");
+    expect(visible(html)).not.toContain("Total Due");
+  });
+
+  it("a sale with no price still says the PRICE is missing", () => {
+    const html = render({ ...storedSale({ price: 1000, included: false }), salePrice: 0 });
+    expect(visible(html)).toContain("No Price Recorded");
+    expect(visible(html)).toContain("no usable sale price");
+    expect(visible(html)).not.toContain("VAT Rate Not Valid");
+  });
+
+  it("a margin sale never needs a VAT rate, so a bad one does not stop it being billed", () => {
+    const html = render({ ...storedSale({ price: 6000, scheme: "margin" }), vatRate: NaN });
+    expect(visible(html)).toContain("Total Due");
+    expect(visible(html)).not.toContain("VAT Rate Not Valid");
   });
 });
 

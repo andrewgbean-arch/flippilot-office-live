@@ -8,6 +8,15 @@ import { isMarginPurchase } from "./purchaseVat";
 import { useInventory } from "@/context/InventoryProvider";
 import AddCostModal from "./AddCostModal";
 import AddSaleModal from "./AddSaleModal";
+import RecordPurchasePriceModal from "./RecordPurchasePriceModal";
+import { trustedSaleVat } from "./saleVat";
+
+// Ask before removing a record that changes a car's profit. With no browser to ask
+// in (a test, a server render) there is nobody to ask, so it goes ahead.
+function confirmDelete(message: string): boolean {
+  if (typeof window === "undefined" || typeof window.confirm !== "function") return true;
+  return window.confirm(message);
+}
 
 export default function BookkeepingEntryScreen() {
   const { vehicleId } = useParams();
@@ -17,6 +26,7 @@ export default function BookkeepingEntryScreen() {
     sales,
     getTotalCostForVehicle,
     getProfitForVehicle,
+    deleteCost,
   } = useBookkeeping();
   const { vehicles } = useInventory();
   // Margin-scheme purchases saved with phantom VAT read as the no-VAT purchases
@@ -31,6 +41,8 @@ export default function BookkeepingEntryScreen() {
   const sale = sales.find((s) => s.vehicleId === vehicleId);
 
   const totalCost = getTotalCostForVehicle(vehicleId!);
+  // The sale's VAT and net, only as far as they can be trusted (see saleVat.ts).
+  const saleVat = sale ? trustedSaleVat(sale) : { vat: null, net: null };
 
   // null = not worked out (no sale yet, or no purchase price recorded). It must
   // not be shown as £0 profit and 0.0% margin, which reads as a car that broke even.
@@ -38,6 +50,7 @@ export default function BookkeepingEntryScreen() {
 
   const [showCostModal, setShowCostModal] = React.useState(false);
   const [showSaleModal, setShowSaleModal] = React.useState(false);
+  const [showPurchasePriceModal, setShowPurchasePriceModal] = React.useState(false);
 
   if (!purchase) {
     return (
@@ -58,6 +71,15 @@ export default function BookkeepingEntryScreen() {
         <AddCostModal
           vehicleId={vehicleId!}
           onClose={() => setShowCostModal(false)}
+        />
+      )}
+
+      {showPurchasePriceModal && (
+        <RecordPurchasePriceModal
+          vehicleId={vehicleId!}
+          scheme={vehicle?.vatScheme === "standard" ? "standard" : "margin"}
+          vehicleLabel={vehicleLabel ?? ""}
+          onClose={() => setShowPurchasePriceModal(false)}
         />
       )}
 
@@ -82,6 +104,14 @@ export default function BookkeepingEntryScreen() {
           <span className="text-white/60">Price:</span>{" "}
           {isPositiveAmount(purchase.purchasePrice) ? formatMoney(purchase.purchasePrice) : "Not recorded"}
         </p>
+        {!isPositiveAmount(purchase.purchasePrice) && (
+          <button
+            onClick={() => setShowPurchasePriceModal(true)}
+            className="mt-2 mb-2 px-3 py-2 bg-blue-500 text-black rounded hover:bg-blue-400"
+          >
+            Record purchase price
+          </button>
+        )}
         <p><span className="text-white/60">Purchased From:</span> {purchase.source}</p>
         <p><span className="text-white/60">Date:</span> {purchase.date}</p>
         {isMarginPurchase(purchase) ? (
@@ -129,6 +159,22 @@ export default function BookkeepingEntryScreen() {
                 <p className="text-white/60">
                   Net: {formatMoney(c.netAmount, { pence: true })}
                 </p>
+                {c.consumableId ? (
+                  // A cost raised against real stock has its parts to give back: that is
+                  // done from the Recon screen, which returns the stock with the cost.
+                  <p className="text-white/50 text-xs mt-2">Raised against stock: remove it from the Recon screen.</p>
+                ) : (
+                  <button
+                    onClick={() => {
+                      if (confirmDelete(`Delete this ${c.type} cost of ${formatMoney(c.amount, { pence: true })}? The car's profit will change.`)) {
+                        deleteCost(c.id);
+                      }
+                    }}
+                    className="mt-2 px-2 py-1 text-xs rounded bg-white/10 text-white/70 hover:bg-red-500/30"
+                  >
+                    Delete cost
+                  </button>
+                )}
               </li>
             ))}
           </ul>
@@ -157,13 +203,21 @@ export default function BookkeepingEntryScreen() {
         {sale ? (
           <>
             <p><span className="text-white/60">Invoice No:</span> {sale.invoiceNumber}</p>
-            <p><span className="text-white/60">Sale Price:</span> {formatMoney(sale.salePrice)}</p>
+            <p>
+              <span className="text-white/60">Sale Price:</span>{" "}
+              {isPositiveAmount(sale.salePrice) ? formatMoney(sale.salePrice) : "Not recorded"}
+            </p>
             <p><span className="text-white/60">Buyer:</span> {sale.buyer || "—"}</p>
             {sale.buyerEmail && <p><span className="text-white/60">Email:</span> {sale.buyerEmail}</p>}
             {sale.buyerPhone && <p><span className="text-white/60">Phone:</span> {sale.buyerPhone}</p>}
             <p><span className="text-white/60">Date:</span> {sale.date}</p>
-            <p><span className="text-white/60">VAT:</span> {formatMoney(sale.vatAmount, { pence: true })}</p>
-            <p><span className="text-white/60">Net:</span> {formatMoney(sale.netAmount, { pence: true })}</p>
+            <p><span className="text-white/60">VAT:</span> {formatMoney(saleVat.vat, { pence: true })}</p>
+            <p><span className="text-white/60">Net:</span> {formatMoney(saleVat.net, { pence: true })}</p>
+            {saleVat.vat === null && sale.vatScheme === "margin" && (
+              <p className="text-orange-300/90 text-sm mt-1">
+                The VAT due on this Margin Scheme sale is not worked out: it needs a recorded purchase price.
+              </p>
+            )}
 
             <div className="flex gap-3 mt-4">
               <button
@@ -196,7 +250,9 @@ export default function BookkeepingEntryScreen() {
         </p>
         {!profitSummary && (
           <p className="text-white/60 text-sm mt-2">
-            Profit is worked out once this car has a recorded purchase price above £0 and a sale.
+            {sale && isPositiveAmount(purchase.purchasePrice) && !isPositiveAmount(sale.salePrice)
+              ? "The sale price is not recorded, so the profit cannot be worked out. Edit the sale and enter the price the car sold for."
+              : "Profit is worked out once this car has a recorded purchase price above £0 and a sale."}
           </p>
         )}
       </div>

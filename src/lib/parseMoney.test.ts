@@ -1,5 +1,18 @@
 import { describe, it, expect } from "vitest";
-import { readMoney, parseMoney, moneyProblem, isPositiveAmount, readOptionalMoney, MAX_MONEY, type MoneyProblem } from "./parseMoney";
+import {
+  readMoney,
+  parseMoney,
+  moneyProblem,
+  isPositiveAmount,
+  readOptionalMoney,
+  MAX_MONEY,
+  type MoneyProblem,
+  readPercent,
+  percentProblem,
+  percentToRate,
+  rateToPercentText,
+  isValidVatRate,
+} from "./parseMoney";
 
 // Hand-computed: every row is what a person would say the text means.
 describe("parseMoney reads what a dealer types", () => {
@@ -250,5 +263,133 @@ describe("readOptionalMoney: an optional stock price is unset, never 0", () => {
     expect(readOptionalMoney("4.500,00")).toMatchObject({ ok: false, reason: "european" });
     expect(readOptionalMoney("7250.999")).toMatchObject({ ok: false, reason: "pence" });
     expect(readOptionalMoney("99999999999")).toMatchObject({ ok: false, reason: "too-large" });
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * VAT rates
+ * ------------------------------------------------------------------ */
+
+describe("readPercent reads a VAT rate a dealer types", () => {
+  const good: [string | number, number][] = [
+    ["20", 20],
+    ["5", 5],
+    ["0", 0], // a real rate, but it has to be typed
+    ["0.00", 0],
+    ["17.5", 17.5],
+    ["12.34", 12.34],
+    ["20%", 20],
+    ["20 %", 20],
+    ["  20  ", 20],
+    [" 20 ", 20],
+    ["100", 100],
+    ["1", 1],
+    ["1.5", 1.5],
+    [20, 20],
+    [0, 0],
+  ];
+  it.each(good)("%j reads as %d percent", (text, expected) => {
+    const r = readPercent(text);
+    expect(r).toEqual({ ok: true, value: expected });
+  });
+
+  const bad: [unknown, string][] = [
+    ["", "blank"],
+    ["   ", "blank"],
+    [null, "blank"],
+    [undefined, "blank"],
+    ["%", "blank"],
+    ["abc", "unreadable"],
+    ["1e2", "unreadable"],
+    ["0x14", "unreadable"],
+    ["20 20", "unreadable"],
+    ["20,5", "unreadable"], // a decimal comma is not guessed at
+    [".5", "unreadable"],
+    ["20.", "unreadable"],
+    ["Infinity", "unreadable"],
+    [NaN, "unreadable"],
+    [Infinity, "unreadable"],
+    [{}, "unreadable"],
+    [[20], "unreadable"],
+    ["-20", "negative"],
+    ["−20", "negative"], // a real minus sign, pasted from Word
+    ["-0", "negative"],
+    ["100.01", "too-large"],
+    ["200", "too-large"],
+    ["1000000", "too-large"],
+    ["17.555", "pence"],
+    ["0.001", "pence"],
+    ["0.2", "fraction"], // a fraction typed by someone meaning 20%
+    ["0.5", "fraction"],
+    ["0.99", "fraction"],
+    [0.2, "fraction"],
+  ];
+  it.each(bad)("%j is refused (%s), never turned into 0", (text, reason) => {
+    const r = readPercent(text);
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.reason).toBe(reason);
+      expect(r.message.length).toBeGreaterThan(10);
+    }
+  });
+
+  it("a blank is NEVER 0%: it is refused, and only a typed 0 is zero", () => {
+    expect(readPercent("").ok).toBe(false);
+    expect(readPercent("0")).toEqual({ ok: true, value: 0 });
+  });
+
+  it("the blank message can be set by the form", () => {
+    expect(readPercent("", { blankMessage: "Say the rate." })).toMatchObject({ ok: false, message: "Say the rate." });
+  });
+
+  it("each refusal has its own dealer-readable message", () => {
+    const message = (text: string) => percentProblem(text);
+    expect(message("")).toBe("Enter the VAT rate as a percentage, like 20.");
+    expect(message("abc")).toBe("Enter the VAT rate as a percentage, like 20 for 20% or 5 for 5%.");
+    expect(message("-5")).toBe("The VAT rate can't be negative.");
+    expect(message("200")).toBe("The VAT rate can't be more than 100%.");
+    expect(message("17.555")).toBe("Use at most 2 decimal places for the VAT rate, like 17.5.");
+    expect(message("0.2")).toContain("not as a fraction like 0.2");
+    expect(message("20")).toBeNull();
+  });
+});
+
+describe("percentToRate and rateToPercentText", () => {
+  it("turn a typed percentage into the fraction the books use, exactly", () => {
+    expect(percentToRate(20)).toBe(0.2);
+    expect(percentToRate(5)).toBe(0.05);
+    expect(percentToRate(0)).toBe(0);
+    expect(percentToRate(17.5)).toBe(0.175);
+    expect(percentToRate(12.34)).toBe(0.1234);
+    expect(percentToRate(100)).toBe(1);
+  });
+
+  it("turn a stored rate back into what goes in the box, with no floating-point noise", () => {
+    expect(rateToPercentText(0.2)).toBe("20");
+    expect(rateToPercentText(0.05)).toBe("5");
+    expect(rateToPercentText(0.07)).toBe("7"); // 0.07 * 100 is 7.000000000000001
+    expect(rateToPercentText(0.175)).toBe("17.5");
+    expect(rateToPercentText(0)).toBe("0");
+    expect(rateToPercentText(1)).toBe("100");
+  });
+
+  it("a stored rate that is not a number gives an empty box, never NaN or a made-up 0", () => {
+    for (const bad of [NaN, Infinity, null, undefined, "0.2", {}]) expect(rateToPercentText(bad), String(bad)).toBe("");
+  });
+
+  it("round trip: what is shown reads back as the same rate", () => {
+    for (const rate of [0.2, 0.05, 0.07, 0.175, 0.1234, 0, 1]) {
+      const read = readPercent(rateToPercentText(rate));
+      expect(read.ok && percentToRate(read.value), String(rate)).toBe(rate);
+    }
+  });
+});
+
+describe("isValidVatRate: a stored rate that can be worked with", () => {
+  it("accepts 0 to 1", () => {
+    for (const ok of [0, 0.05, 0.2, 0.175, 1]) expect(isValidVatRate(ok), String(ok)).toBe(true);
+  });
+  it("refuses anything else: NaN saved as null, 200% saved as 2, a negative, text", () => {
+    for (const bad of [NaN, Infinity, null, undefined, -0.2, 2, 20, "0.2", {}]) expect(isValidVatRate(bad), String(bad)).toBe(false);
   });
 });

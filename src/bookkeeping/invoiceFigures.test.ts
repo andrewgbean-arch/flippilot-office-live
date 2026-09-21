@@ -135,3 +135,36 @@ describe("invoiceFigures: what the customer pays and the lines to print", () => 
     expect(JSON.stringify(sale)).toBe(before);
   });
 });
+
+// Why an invoice cannot be printed decides what the page tells the dealer to fix.
+describe("invoiceFigures: the problem, when there is nothing honest to bill", () => {
+  const sale = (over: Record<string, unknown>) =>
+    ({ vatScheme: "standard", salePrice: 1000, vatRate: 0.2, vatIncluded: false, ...over }) as never;
+
+  it("no problem for a sale that can be billed", () => {
+    expect(invoiceFigures(sale({})).problem).toBeNull();
+    expect(invoiceFigures(sale({ vatScheme: "margin" })).problem).toBeNull();
+  });
+
+  it.each([0, -1, NaN, null, undefined, "1000"])("a sale price of %s is a PRICE problem", (price) => {
+    const f = invoiceFigures(sale({ salePrice: price }));
+    expect(f.problem).toBe("no-price");
+    expect(f.totalDue).toBeNull();
+  });
+
+  it.each([NaN, null, undefined, "0.2", -0.2, 2, 20])("a VAT rate of %s on a standard sale is a RATE problem, not a price problem", (rate) => {
+    const f = invoiceFigures(sale({ vatRate: rate }));
+    expect(f.problem).toBe("bad-rate");
+    expect(f.totalDue).toBeNull();
+  });
+
+  it("a bad price wins when both are bad (the price is the first thing to fix)", () => {
+    expect(invoiceFigures(sale({ salePrice: 0, vatRate: NaN })).problem).toBe("no-price");
+  });
+
+  it("a margin sale never needs a rate", () => {
+    const f = invoiceFigures(sale({ vatScheme: "margin", vatRate: NaN, salePrice: 6000 }));
+    expect(f.problem).toBeNull();
+    expect(f.totalDue).toBe(6000);
+  });
+});

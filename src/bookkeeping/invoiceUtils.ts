@@ -1,4 +1,5 @@
 import type { SaleEntry } from "./types";
+import { isPositiveAmount, isValidVatRate } from "@/lib/parseMoney";
 
 // Assigned once when a sale is first recorded and never recalculated —
 // editing a sale must never renumber an invoice already issued to a
@@ -49,16 +50,24 @@ export interface InvoiceVatLines {
   ratePercent: number;
 }
 
+// Why there is nothing honest to bill: the sale has no usable price, or (for a
+// standard-VAT sale) no usable VAT rate. They need different fixes, so the invoice
+// page says which.
+export type InvoiceProblem = "no-price" | "bad-rate";
+
 export interface InvoiceFigures {
   scheme: "margin" | "standard";
   // What the customer pays, in pounds and pence. null when the sale has no
-  // usable price (blank saved as 0, or unreadable): there is nothing honest to bill.
+  // usable price (blank saved as 0, or unreadable) or no usable VAT rate: there is
+  // nothing honest to bill.
   totalDue: number | null;
   // The amount printed on the vehicle's own line: the price as it was typed.
   itemAmount: number | null;
   // The Net and VAT lines to print. null under the margin scheme (never show VAT)
   // and when there is no usable price.
   vatLines: InvoiceVatLines | null;
+  // null when the sale can be billed.
+  problem: InvoiceProblem | null;
 }
 
 type InvoiceSale = Pick<SaleEntry, "vatScheme" | "salePrice" | "vatRate" | "vatIncluded">;
@@ -68,18 +77,18 @@ const toPounds = (pence: number): number => pence / 100;
 
 export function invoiceFigures(sale: InvoiceSale): InvoiceFigures {
   const scheme = sale.vatScheme === "margin" ? "margin" : "standard";
-  const none: InvoiceFigures = { scheme, totalDue: null, itemAmount: null, vatLines: null };
+  const none = (problem: InvoiceProblem): InvoiceFigures => ({ scheme, totalDue: null, itemAmount: null, vatLines: null, problem });
 
   const price = sale.salePrice;
-  if (typeof price !== "number" || !Number.isFinite(price) || price <= 0) return none;
+  if (!isPositiveAmount(price)) return none("no-price");
   const pricePence = toPence(price);
 
   if (scheme === "margin") {
-    return { scheme, totalDue: toPounds(pricePence), itemAmount: toPounds(pricePence), vatLines: null };
+    return { scheme, totalDue: toPounds(pricePence), itemAmount: toPounds(pricePence), vatLines: null, problem: null };
   }
 
   const rate = sale.vatRate;
-  if (typeof rate !== "number" || !Number.isFinite(rate) || rate < 0 || rate > 1) return none;
+  if (!isValidVatRate(rate)) return none("bad-rate");
   // Basis points (2000 = 20%), so the pence sums below stay in exact integers.
   const basisPoints = Math.round(rate * 10000);
 
@@ -90,6 +99,7 @@ export function invoiceFigures(sale: InvoiceSale): InvoiceFigures {
       totalDue: toPounds(pricePence),
       itemAmount: toPounds(pricePence),
       vatLines: { net: toPounds(pricePence - vatPence), vat: toPounds(vatPence), ratePercent: basisPoints / 100 },
+      problem: null,
     };
   }
 
@@ -99,5 +109,6 @@ export function invoiceFigures(sale: InvoiceSale): InvoiceFigures {
     totalDue: toPounds(pricePence + vatPence),
     itemAmount: toPounds(pricePence),
     vatLines: { net: toPounds(pricePence), vat: toPounds(vatPence), ratePercent: basisPoints / 100 },
+    problem: null,
   };
 }

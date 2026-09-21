@@ -41,13 +41,17 @@ export default function Invoice() {
   const totalDue = figures.totalDue;
   if (totalDue === null) {
     // A sale saved with a blank or unreadable price has nothing honest to bill.
-    // Printing £0.00 as if that were the price is exactly what must not happen.
+    // Printing £0.00 as if that were the price is exactly what must not happen. A
+    // VAT rate that is not a rate (200%, negative, nothing) is a different fault with
+    // a different fix, so it gets its own message rather than "no usable sale price".
+    const badRate = figures.problem === "bad-rate";
     return (
       <div className="sn-panel sn-panel--full" style={{ margin: 24 }}>
-        <h2 className="sn-panel__title">No Price Recorded</h2>
+        <h2 className="sn-panel__title">{badRate ? "VAT Rate Not Valid" : "No Price Recorded"}</h2>
         <p className="sn-empty">
-          Invoice {sale.invoiceNumber} has no usable sale price, so there is nothing to bill. Edit the sale and
-          enter the price the car sold for, then come back to print this invoice.
+          {badRate
+            ? `Invoice ${sale.invoiceNumber} has no usable VAT rate, so the VAT and the total can't be worked out. Edit the sale and enter the VAT rate that applies (for example 20), then come back to print this invoice.`
+            : `Invoice ${sale.invoiceNumber} has no usable sale price, so there is nothing to bill. Edit the sale and enter the price the car sold for, then come back to print this invoice.`}
         </p>
         <button className="sn-btn sn-btn--ghost" onClick={() => navigate(-1)}>
           Back

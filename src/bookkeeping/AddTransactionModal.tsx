@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { TransactionEntry } from "./types";
 import { useBookkeeping } from "./BookkeepingProvider";
 import { readMoney } from "@/lib/parseMoney";
+import { focusField } from "@/lib/focusField";
 
 type AddTransactionModalProps = {
   onClose: () => void;
@@ -34,6 +35,7 @@ export default function AddTransactionModal({
   function handleSave() {
     if (!amountRead.ok) {
       setSubmitted(true);
+      focusField("addtransactionmodal-amount");
       return;
     }
     const entry: TransactionEntry = {
@@ -103,6 +105,14 @@ export default function AddTransactionModal({
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
           />
+
+          {/* What stopped the last Save, right beside the button: the field's own message
+              can be screens above it in this scrolling form. */}
+          {submitted && amountError !== null && (
+            <p id="addtransactionmodal-save-error" role="status" className="text-red-400 text-sm">
+              Can't save yet: {amountError}
+            </p>
+          )}
 
           <button
             className="

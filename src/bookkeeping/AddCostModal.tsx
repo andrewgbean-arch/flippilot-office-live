@@ -2,7 +2,8 @@ import React, { useState } from "react";
 import { CostType, CostEntry } from "./types";
 import { calculateVat } from "./vatUtils";
 import { useBookkeeping } from "./BookkeepingProvider";
-import { readMoney } from "@/lib/parseMoney";
+import { readMoney, readPercent, percentToRate } from "@/lib/parseMoney";
+import { focusField } from "@/lib/focusField";
 import VehiclePicker from "./VehiclePicker";
 
 interface AddCostModalProps {
@@ -18,6 +19,11 @@ export default function AddCostModal({ vehicleId: initialVehicleId, onClose }: A
   const [vehicleId, setVehicleId] = useState<string | null>(initialVehicleId);
   const [type, setType] = useState<CostType>("parts");
   const [amount, setAmount] = useState<string>("");
+  // A credit or refund is a NEGATIVE cost (money back from a supplier for a part
+  // that was returned or a job that was overcharged). It is entered as a positive
+  // amount with this ticked, so a stray minus sign is still refused, and it is the
+  // way to take off a cost that was entered by mistake.
+  const [isCredit, setIsCredit] = useState<boolean>(false);
   const [vatRate, setVatRate] = useState<string>("20");
   const [vatIncluded, setVatIncluded] = useState<boolean>(true);
   const [vatReclaimable, setVatReclaimable] = useState<boolean>(true);
@@ -29,21 +35,35 @@ export default function AddCostModal({ vehicleId: initialVehicleId, onClose }: A
   // cost, and "£120" or "1,200" was read as nothing.
   const [submitted, setSubmitted] = useState(false);
   const amountRead = readMoney(amount, { positive: true, blankMessage: "Enter the cost amount." });
-  const amountError = amountRead.ok ? null : amountRead.message;
+  const amountError = amountRead.ok
+    ? null
+    : amountRead.reason === "negative"
+    ? "Enter the amount without a minus sign. To take money off this car's costs, tick \"This is a credit or refund\"."
+    : amountRead.message;
   const showAmountError = amountError !== null && (submitted || amount.trim() !== "");
+  // The VAT rate is REQUIRED, read strictly: a blank or unreadable rate used to be
+  // saved as 0% VAT without a word.
+  const rateRead = readPercent(vatRate);
+  const rateError = rateRead.ok ? null : rateRead.message;
+
+  const problems: { field: string; message: string }[] = [];
+  if (amountError) problems.push({ field: "addcostmodal-amount", message: amountError });
+  if (rateError) problems.push({ field: "addcostmodal-vat-rate", message: rateError });
 
   function handleSave() {
     if (!vehicleId) {
       alert("Select a vehicle first.");
       return;
     }
-    if (!amountRead.ok) {
+    if (!amountRead.ok || !rateRead.ok) {
       setSubmitted(true);
+      if (problems[0]) focusField(problems[0].field);
       return;
     }
 
-    const numericAmount = amountRead.value;
-    const numericVatRate = (Number(vatRate) || 0) / 100;
+    // A credit is stored as a negative cost, which lowers the car's total cost.
+    const numericAmount = isCredit ? -amountRead.value : amountRead.value;
+    const numericVatRate = percentToRate(rateRead.value);
 
     const breakdown = calculateVat(numericAmount, {
       vatRate: numericVatRate,
@@ -119,16 +139,35 @@ export default function AddCostModal({ vehicleId: initialVehicleId, onClose }: A
           <div className="mb-4" />
         )}
 
+        {/* CREDIT OR REFUND */}
+        <label htmlFor="addcostmodal-credit" className="flex items-center gap-2 text-white/60 text-sm mb-4">
+          <input id="addcostmodal-credit"
+            type="checkbox"
+            checked={isCredit}
+            onChange={(e) => setIsCredit(e.target.checked)}
+          />
+          This is a credit or refund (it reduces this car's costs)
+        </label>
+
         {/* VAT RATE */}
         <label htmlFor="addcostmodal-vat-rate" className="text-white/60 text-sm">VAT Rate (%)</label>
         <input id="addcostmodal-vat-rate"
           type="number"
-          step="1"
+          step="any"
           value={vatRate}
           onChange={(e) => setVatRate(e.target.value)}
           placeholder="20"
-          className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-4"
+          aria-invalid={rateError !== null}
+          aria-describedby={rateError !== null ? "addcostmodal-vat-rate-error" : undefined}
+          className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-1"
         />
+        {rateError !== null ? (
+          <p id="addcostmodal-vat-rate-error" role="alert" className="text-red-400 text-sm mb-4">
+            {rateError}
+          </p>
+        ) : (
+          <div className="mb-4" />
+        )}
 
         {/* VAT INCLUDED */}
         <label htmlFor="addcostmodal-vat-included" className="text-white/60 text-sm">VAT Included?</label>
@@ -177,6 +216,14 @@ export default function AddCostModal({ vehicleId: initialVehicleId, onClose }: A
           onChange={(e) => setDate(e.target.value)}
           className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-6"
         />
+
+        {/* What stopped the last Save, right beside the button: the field's own message
+            can be screens above it in this scrolling form. */}
+        {submitted && problems.length > 0 && (
+          <p id="addcostmodal-save-error" role="status" className="text-red-400 text-sm mb-3 text-right">
+            Can't save yet: {problems[0]!.message}
+          </p>
+        )}
 
         {/* BUTTONS */}
         <div className="flex justify-end gap-3">

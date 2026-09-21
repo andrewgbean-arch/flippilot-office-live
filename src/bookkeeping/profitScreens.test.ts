@@ -6,8 +6,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 //
 // The bug: a car bought with a price that could not be read (saved as 0 or
 // nothing) and later sold for 5,000 showed a profit of 5,000 and a 100% margin;
-// a sale saved at 0 printed "-Infinity%"; a car bought and sold at 0 printed
-// "NaN%"; and a car with no worked-out profit was shown as "£0, 0.0%".
+// a sale saved at 0 printed "-Infinity%" (and once that was fixed, a loss of the
+// whole purchase, while its invoice said no price was recorded); a car bought and
+// sold at 0 printed "NaN%"; and a car with no worked-out profit was shown as "£0,
+// 0.0%".
 
 const ledger = vi.hoisted(() => ({
   doc: { costs: [], purchases: [], sales: [], transactions: [], suppliers: [], categories: [] } as Record<string, any[]>,
@@ -185,11 +187,15 @@ describe("the provider's getProfitForVehicle", () => {
     expect(ctx().getProfitForVehicle("v1")).toBeNull();
   });
 
-  it("a sale saved at 0 gives a loss with a null margin, never -Infinity", async () => {
-    await openLedger({ purchases: [purchase(4000)], sales: [sale(0)] });
-    const p = ctx().getProfitForVehicle("v1");
-    expect(p.profit).toBe(-4000);
-    expect(p.margin).toBeNull();
+  it.each([
+    ["saved at 0", 0],
+    ["saved as nothing (null)", null],
+    ["saved as text", "5000"],
+  ])("a sale price %s: profit is unknown (null), not a loss of the whole purchase", async (_name, price) => {
+    await openLedger({ purchases: [purchase(4000)], sales: [sale(price)] });
+    expect(ctx().getProfitForVehicle("v1")).toBeNull();
+    // and the hub agrees: left out, and counted as a sale with no price
+    expect(ctx().getTotalProfit()).toBe(0);
   });
 
   it("bought and sold at 0 is unknown, not NaN", async () => {
@@ -219,10 +225,12 @@ describe("the vehicle ledger table", () => {
     expect(rowText()).toContain("Ford Focus | £4,500 | £0 | £5,000 | £500 | 10.0% |");
   });
 
-  it("shows a loss and a dash for margin when the sale was saved at 0, never -Infinity%", async () => {
+  it("shows dashes, not a £4,000 loss or £0, when the sale was saved at 0", async () => {
     await openLedger({ purchases: [purchase(4000)], sales: [sale(0)] });
     const row = rowText();
-    expect(row).toContain("| -£4,000 | — |");
+    // Vehicle | Purchase | Total Cost | Sale | Profit | Margin | VAT Due | ...
+    expect(row).toContain("Ford Focus | £4,000 | £0 | — | — | — | — |");
+    expect(row).not.toContain("-£4,000");
     expect(row).not.toMatch(/NaN|Infinity/);
   });
 
@@ -267,11 +275,16 @@ describe("the single-vehicle ledger screen", () => {
     expect(t).not.toContain("Profit is worked out once");
   });
 
-  it("prints a dash for margin, not -Infinity%, when the sale was saved at 0", async () => {
+  it("says the SALE price is not recorded, and shows no loss, when the sale was saved at 0", async () => {
     await openLedger({ purchases: [purchase(4000)], sales: [sale(0)] });
     const t = text();
-    expect(t).toContain("Profit: -£4,000");
+    expect(t).toContain("Price: £4,000"); // the purchase is fine
+    expect(t).toContain("Sale Price: Not recorded");
+    expect(t).toContain("Profit: —");
     expect(t).toContain("Margin: —");
+    expect(t).toContain("The sale price is not recorded, so the profit cannot be worked out.");
+    expect(t).not.toContain("Profit is worked out once this car has a recorded purchase price"); // not the purchase message
+    expect(t).not.toContain("-£4,000");
     expect(t).not.toMatch(/NaN|Infinity/);
   });
 });

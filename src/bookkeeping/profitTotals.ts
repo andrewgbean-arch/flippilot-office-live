@@ -23,6 +23,13 @@ import { isPositiveAmount } from "@/lib/parseMoney";
 // cost made the whole sale price look like profit (a £5,000 sale showed £5,000
 // profit and a 100% margin on a car that really made £500), so it is treated
 // exactly like a missing purchase: profit unknown, left out, and counted.
+//
+// The same goes for the SALE price. A sale saved with no usable price (the £0 the old
+// form saved for a blank, or a price that was saved as nothing or as text) is not a
+// sale of £0: counting it as one turned a £4,000 purchase into a reported £4,000 loss
+// while the invoice page for that very sale said "No Price Recorded". So a sale whose
+// price is not a real amount above zero is left out too, and counted apart
+// (soldWithoutPrice), never worked out.
 
 export interface HubTotals {
   // Every purchase price plus every cost, on cars sold or not: money that has
@@ -38,6 +45,9 @@ export interface HubTotals {
   // Sales with no purchase on record, or with a purchase price that is not a
   // real amount above zero: left out of profit and margin.
   soldWithoutPurchase: number;
+  // Sales with a real purchase but a sale price that is not a real amount above zero:
+  // left out of profit and margin.
+  soldWithoutPrice: number;
   // Cars bought that have no sale yet.
   boughtNotSold: number;
 }
@@ -46,22 +56,21 @@ const amount = (value: number): number => (Number.isFinite(value) ? value : 0);
 
 export interface CarProfit {
   profit: number;
-  // profit / sale price as a percentage. null when the sale price is not above
-  // zero: there is no margin on a sale of nothing, and dividing by it would give
-  // Infinity or NaN.
-  margin: number | null;
+  // profit / sale price as a percentage. The sale price is above zero for any car
+  // that can be worked out, so this is always a real number.
+  margin: number;
 }
 
-// One sold car's profit and margin, or null when it cannot be worked out because
-// its purchase is not recorded (missing, or a price that is not a finite number
-// above zero). The ONE definition, used by the provider's getProfitForVehicle and
-// by hubTotals, so a car's figure is the same on every screen.
+// One sold car's profit and margin, or null when it cannot be worked out because its
+// purchase price or its sale price is not recorded (missing, or not a finite number
+// above zero). The ONE definition, used by the provider's getProfitForVehicle and by
+// hubTotals, so a car's figure is the same on every screen.
 export function carProfit(purchasePrice: unknown, salePrice: unknown, costs: unknown): CarProfit | null {
   if (!isPositiveAmount(purchasePrice)) return null;
-  const sold = typeof salePrice === "number" ? amount(salePrice) : 0;
+  if (!isPositiveAmount(salePrice)) return null;
   const spent = typeof costs === "number" ? amount(costs) : 0;
-  const profit = sold - purchasePrice - spent;
-  return { profit, margin: sold > 0 ? (profit / sold) * 100 : null };
+  const profit = salePrice - purchasePrice - spent;
+  return { profit, margin: (profit / salePrice) * 100 };
 }
 
 export function hubTotals(
@@ -90,11 +99,16 @@ export function hubTotals(
   let revenue = 0;
   let soldCounted = 0;
   let soldWithoutPurchase = 0;
+  let soldWithoutPrice = 0;
   for (const [vehicleId, sale] of firstSale) {
     const purchase = firstPurchase.get(vehicleId);
-    const car = purchase ? carProfit(purchase.purchasePrice, sale.salePrice, costsByCar.get(vehicleId) ?? 0) : null;
-    if (!car) {
+    if (!purchase || !isPositiveAmount(purchase.purchasePrice)) {
       soldWithoutPurchase += 1;
+      continue;
+    }
+    const car = carProfit(purchase.purchasePrice, sale.salePrice, costsByCar.get(vehicleId) ?? 0);
+    if (!car) {
+      soldWithoutPrice += 1;
       continue;
     }
     profit += car.profit;
@@ -112,6 +126,23 @@ export function hubTotals(
     marginPercent: revenue > 0 ? (profit / revenue) * 100 : null,
     soldCounted,
     soldWithoutPurchase,
+    soldWithoutPrice,
     boughtNotSold,
   };
+}
+
+// The line under "Profit on sold cars" saying which sales were left out and why, or
+// null when none were.
+export function leftOutNote(totals: Pick<HubTotals, "soldWithoutPurchase" | "soldWithoutPrice">): string | null {
+  const noPurchase = totals.soldWithoutPurchase;
+  const noPrice = totals.soldWithoutPrice;
+  const sales = (n: number) => `${n} sale${n === 1 ? " has" : "s have"}`;
+  if (noPurchase > 0 && noPrice > 0) {
+    return `${sales(noPurchase)} no purchase recorded and ${sales(noPrice)} no sale price recorded, so ${
+      noPurchase + noPrice === 2 ? "both are" : "all of them are"
+    } left out`;
+  }
+  if (noPurchase > 0) return `${sales(noPurchase)} no purchase recorded and ${noPurchase === 1 ? "is" : "are"} left out`;
+  if (noPrice > 0) return `${sales(noPrice)} no sale price recorded and ${noPrice === 1 ? "is" : "are"} left out`;
+  return null;
 }

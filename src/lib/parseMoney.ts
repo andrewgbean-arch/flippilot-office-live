@@ -152,3 +152,95 @@ export function readOptionalMoney(input: unknown): OptionalMoneyRead {
 export function isPositiveAmount(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value > 0;
 }
+
+/* ------------------------------------------------------------------ *
+ * VAT rates (a percentage a dealer types, like 20)
+ * ------------------------------------------------------------------ */
+
+// A VAT rate box used to be read with `(Number(text) || 0) / 100`. That turned a
+// blank or unreadable rate into 0% (an unknown treated as zero: a sale saved with a
+// blank rate printed "VAT (0%) £0.00" and a Total Due equal to the price), kept a
+// negative or absurd rate (-20, 200), and read "0.2" (a dealer thinking in
+// fractions) as 0.2%. This reads the box strictly instead.
+//
+// A rate is a percentage from 0 to 100 with at most 2 decimal places ("20", "5",
+// "17.5", "20%"). 0 is a real rate but must be TYPED: a blank is never 0. A value
+// above 0 and below 1 is refused: no UK VAT rate is under 1%, so "0.2" is a fraction
+// typed by someone meaning 20%, and saving it would charge 0.2%.
+export type PercentProblem = "blank" | "unreadable" | "negative" | "too-large" | "pence" | "fraction";
+
+export type PercentRead =
+  | { ok: true; value: number }
+  | { ok: false; reason: PercentProblem; message: string };
+
+const PERCENT_MESSAGES: Record<Exclude<PercentProblem, "blank">, string> = {
+  unreadable: "Enter the VAT rate as a percentage, like 20 for 20% or 5 for 5%.",
+  negative: "The VAT rate can't be negative.",
+  "too-large": "The VAT rate can't be more than 100%.",
+  pence: "Use at most 2 decimal places for the VAT rate, like 17.5.",
+  fraction: "That reads as under 1%. Type the VAT rate as a percentage, like 20 for 20%, not as a fraction like 0.2.",
+};
+
+const PERCENT = /^(\d+)(?:\.(\d+))?$/;
+
+export function readPercent(input: unknown, options: { blankMessage?: string } = {}): PercentRead {
+  const fail = (reason: Exclude<PercentProblem, "blank">): PercentRead => ({ ok: false, reason, message: PERCENT_MESSAGES[reason] });
+  const blank: PercentRead = {
+    ok: false,
+    reason: "blank",
+    message: options.blankMessage ?? "Enter the VAT rate as a percentage, like 20.",
+  };
+
+  if (input === null || input === undefined) return blank;
+  let text: string;
+  if (typeof input === "number") {
+    if (!Number.isFinite(input)) return fail("unreadable");
+    text = String(input);
+  } else if (typeof input === "string") {
+    text = input;
+  } else {
+    return fail("unreadable");
+  }
+
+  text = text.replace(/\u2212/g, "-").trim();
+  if (text.endsWith("%")) text = text.slice(0, -1).trimEnd();
+  if (text === "") return blank;
+  if (text.startsWith("-")) return fail("negative");
+
+  const match = PERCENT.exec(text);
+  if (!match) return fail("unreadable");
+  if ((match[2] ?? "").length > 2) return fail("pence");
+
+  const value = Number(text);
+  if (!Number.isFinite(value)) return fail("unreadable");
+  if (value > 100) return fail("too-large");
+  if (value > 0 && value < 1) return fail("fraction");
+  return { ok: true, value };
+}
+
+// The message to show under a VAT rate box, or null when the text is fine.
+export function percentProblem(input: unknown, options: { blankMessage?: string } = {}): string | null {
+  const read = readPercent(input, options);
+  return read.ok ? null : read.message;
+}
+
+// 20 (a typed percentage) -> 0.2 (the fraction every calculation in the books uses),
+// worked in whole hundredths of a percent so 17.5 is exactly 0.175.
+export function percentToRate(percent: number): number {
+  return Math.round(percent * 100) / 10000;
+}
+
+// 0.2 (a stored rate) -> "20" (what goes in the box). A stored rate that is not a
+// number gives an empty box, so the reader says "enter the rate" and the dealer
+// fixes it, rather than the box showing "NaN" or a made-up 0.
+export function rateToPercentText(rate: unknown): string {
+  if (typeof rate !== "number" || !Number.isFinite(rate)) return "";
+  return String(Math.round(rate * 10000) / 100);
+}
+
+// A stored VAT rate that can be worked with: a fraction from 0 to 1 (0.2 is 20%).
+// Anything else (NaN or null saved as nothing, a rate of 2 that is really 200%, a
+// negative) is not a rate, and no figure may be worked out from it.
+export function isValidVatRate(rate: unknown): rate is number {
+  return typeof rate === "number" && Number.isFinite(rate) && rate >= 0 && rate <= 1;
+}

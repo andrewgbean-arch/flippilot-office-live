@@ -17,7 +17,7 @@ import GoldButton from "@/components/ui/GoldButton.web";   // ⭐ FIXED
 import { useAuth } from "@/context/AuthContext";
 import { canWriteBookkeeping } from "@/lib/permissions";
 import { formatMoney } from "@/lib/formatMoney";
-import { hubTotals } from "./profitTotals";
+import { hubTotals, leftOutNote } from "./profitTotals";
 
 function SummaryTile({
   label,
@@ -120,11 +120,7 @@ const [showTransactionModal, setShowTransactionModal] = useState(false); // ⭐ 
         <SummaryTile
           label="Profit on sold cars"
           value={formatMoney(totals.profit)}
-          note={
-            totals.soldWithoutPurchase > 0
-              ? `${totals.soldWithoutPurchase} sale${totals.soldWithoutPurchase === 1 ? " has" : "s have"} no purchase recorded and ${totals.soldWithoutPurchase === 1 ? "is" : "are"} left out`
-              : `${totals.soldCounted} car${totals.soldCounted === 1 ? "" : "s"} sold`
-          }
+          note={leftOutNote(totals) ?? `${totals.soldCounted} car${totals.soldCounted === 1 ? "" : "s"} sold`}
           border="border-green-400/20"
           tone={totals.profit < 0 ? "text-red-300" : "text-green-300"}
         />

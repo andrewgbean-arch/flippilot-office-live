@@ -1,5 +1,6 @@
 import { formatMoney } from "@/lib/formatMoney";
 import { isPositiveAmount } from "@/lib/parseMoney";
+import { trustedSaleVat } from "./saleVat";
 import { formatDate } from "@/dealer/inventory/vehicleListModel";
 import { FiChevronRight } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
@@ -46,13 +47,17 @@ export default function BookkeepingTable({ vehicleId }: BookkeepingTableProps) {
       totalCost,
       // Not sold yet (or sold with no purchase on record) means UNKNOWN, not zero:
       // the ledger used to print "Sale £0, Profit £0, Margin 0.0%" for a car that
-      // simply hasn't sold, which reads as a car sold for nothing.
-      expectedSale: sale?.salePrice ?? null,
+      // simply hasn't sold, which reads as a car sold for nothing. A sale saved with
+      // no real price is unknown too, not "£0".
+      expectedSale: isPositiveAmount(sale?.salePrice) ? sale.salePrice : null,
       profit: profitSummary?.profit ?? null,
       margin: profitSummary?.margin ?? null,
       source: p.source ?? "Unknown",
       date: p.date,
-      vatDue: sale?.vatAmount,
+      // Only a VAT figure that can be trusted: none when it was worked out from a
+      // purchase price that was never real, or is null because it could not be
+      // worked out.
+      vatDue: sale ? trustedSaleVat(sale).vat : null,
       vatScheme: sale?.vatScheme,
     };
   });

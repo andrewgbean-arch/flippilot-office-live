@@ -1,3 +1,5 @@
+import { isPositiveAmount, isValidVatRate } from "@/lib/parseMoney";
+
 export interface VatConfig {
   vatRate: number;        // e.g. 0.2 for 20%
   vatIncluded: boolean;   // true = amount includes VAT
@@ -52,4 +54,23 @@ export function calculateMarginVat(
   const vat = margin * (vatRate / (1 + vatRate));
   const net = margin - vat;
   return { margin, vat, net };
+}
+
+// Margin VAT for a RECORDED sale: null when it cannot be worked out honestly.
+//
+// calculateMarginVat above is only the arithmetic, and it happily works from any
+// number it is handed. A purchase price saved as 0 (the old blank), as nothing
+// (null/NaN), as text or as a negative is not a price, but as a "cost of £0" it
+// made the WHOLE sale price the margin: a £6,000 sale stored £1,000 of margin VAT
+// (the real figure on a £5,000 car is £166.67) next to a profit of "—". Anything
+// that stores or shows a sale's margin VAT goes through this instead:
+//   - the purchase price must be a real amount above zero,
+//   - the sale price must be a finite number,
+//   - the VAT rate must be a real rate (0 to 1).
+// Otherwise there is no figure, and nothing is stored or shown as one.
+export function marginVatForSale(salePrice: unknown, purchasePrice: unknown, vatRate: unknown): MarginVatBreakdown | null {
+  if (!isPositiveAmount(purchasePrice)) return null;
+  if (typeof salePrice !== "number" || !Number.isFinite(salePrice)) return null;
+  if (!isValidVatRate(vatRate)) return null;
+  return calculateMarginVat(salePrice, purchasePrice, vatRate);
 }

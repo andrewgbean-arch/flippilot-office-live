@@ -34,7 +34,7 @@ vi.mock("@/context/InventoryProvider", () => ({
 }));
 
 import { mount, type Mounted } from "@/lib/testing/hookRuntime";
-import { byId, buttonByText, typeInto, alerts } from "@/lib/testing/elementTree";
+import { byId, buttonByText, typeInto, alerts, screenText } from "@/lib/testing/elementTree";
 import AddCostModal from "./AddCostModal";
 import AddTransactionModal from "./AddTransactionModal";
 
@@ -68,7 +68,7 @@ const BAD: [string, string][] = [
   ["abc", "Enter an amount in pounds"],
   ["0", "greater than £0"],
   ["0.00", "greater than £0"],
-  ["-20", "no minus sign"],
+  ["-20", "minus sign"],
   ["1,2", "Commas can only separate thousands"],
   ["1.200,50", "European"],
   ["1e2", "Enter an amount in pounds"],
@@ -167,5 +167,29 @@ describe("Add Transaction", () => {
     await type("addtransactionmodal-amount", "250");
     await press("Save Transaction");
     expect(transactions[0]).toMatchObject({ type: "income", amount: 250 });
+  });
+});
+
+// A refused Save is explained beside the Save button, and the field is focused.
+describe("Add Transaction: a refused Save is explained beside the button", () => {
+  it("says what is wrong right by Save, and focuses the amount (it is not a second alert)", async () => {
+    const focused: string[] = [];
+    vi.stubGlobal("document", {
+      getElementById: (id: string) => ({ scrollIntoView: () => {}, focus: () => void focused.push(id) }),
+    });
+    try {
+      mounted = mount(AddTransactionModal as (p: any) => unknown, { onClose: () => void closed++ }) as Mounted<any, any>;
+      await settle();
+      expect(byId(screen(), "addtransactionmodal-save-error")).toBeUndefined();
+      await press("Save Transaction");
+      const line = byId(screen(), "addtransactionmodal-save-error")!;
+      expect(line.props.role).toBe("status");
+      expect(screenText(line)).toBe("Can't save yet: Enter the amount.");
+      expect(alerts(screen())).toEqual(["Enter the amount."]);
+      expect(focused).toEqual(["addtransactionmodal-amount"]);
+      expect(transactions).toEqual([]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
