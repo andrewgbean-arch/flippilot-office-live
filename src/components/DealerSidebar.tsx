@@ -1,5 +1,5 @@
-import { NavLink, useLocation } from "react-router-dom";
-import { useState } from "react";
+import { Link, NavLink, useLocation } from "react-router-dom";
+import { useEffect, useState } from "react";
 import { useIsSupportAdmin } from "@/lib/useIsSupportAdmin";
 
 import {
@@ -233,7 +233,29 @@ export default function DealerSidebar() {
     },
   ];
 
-  const [open, setOpen] = useState<Record<string, boolean>>({});
+  // "You are here": the one menu item that best matches the current page
+  // (longest matching address, so /dealer/sales/leads lights up Leads
+  // Dashboard, not Sales Hub too), and the group it lives in.
+  const matches = (to: string) => pathname === to || pathname.startsWith(`${to}/`);
+  let currentTo = "";
+  let currentSection = "";
+  for (const section of sections) {
+    for (const item of section.items ?? []) {
+      if (matches(item.to) && item.to.length > currentTo.length) {
+        currentTo = item.to;
+        currentSection = section.label;
+      }
+    }
+  }
+
+  const [open, setOpen] = useState<Record<string, boolean>>(() =>
+    currentSection ? { [currentSection]: true } : {}
+  );
+  // Moving to a page in a closed group opens that group, so the highlight
+  // is always visible; groups the dealer opened themselves stay open.
+  useEffect(() => {
+    if (currentSection) setOpen((prev) => (prev[currentSection] ? prev : { ...prev, [currentSection]: true }));
+  }, [currentSection]);
   const toggle = (label: string) =>
     setOpen((prev) => ({ ...prev, [label]: !prev[label] }));
 
@@ -297,12 +319,18 @@ export default function DealerSidebar() {
               <div key={section.label}>
                 <button
                   onClick={() => toggle(section.label)}
-                  className="
+                  aria-expanded={!!isOpen}
+                  className={`
                     flex items-center justify-between w-full
-                    text-white/80 font-semibold tracking-wide
-                    px-2 py-2 rounded-md
+                    font-semibold tracking-wide
+                    px-2 py-2 rounded-md border-l-4
                     hover:text-yellow-300 transition
-                  "
+                    ${
+                      section.label === currentSection
+                        ? "text-yellow-300 border-yellow-400 bg-yellow-400/10"
+                        : "text-white/80 border-transparent"
+                    }
+                  `}
                 >
                   <span className="flex items-center gap-2">
                     <Icon className="text-yellow-300" />
@@ -319,23 +347,23 @@ export default function DealerSidebar() {
                 {isOpen && (
                   <div className="flex flex-col mt-2 ml-4 gap-2">
                     {section.items.map((item) => (
-                      <NavLink
+                      <Link
                         key={item.to}
                         to={item.to}
-                        className={({ isActive }) =>
+                        aria-current={item.to === currentTo ? "page" : undefined}
+                        className={
                           `
                           px-3 py-2 rounded-lg border transition-all duration-200
                           text-sm
                           ${
-                            isActive
+                            item.to === currentTo
                               ? "bg-black/60 border-yellow-400 text-yellow-300 shadow-[0_0_15px_rgba(255,215,0,0.5)]"
                               : "bg-black/20 border-white/10 text-white/80 hover:bg-black/40 hover:text-yellow-300 hover:border-yellow-300/40"
                           }
-                        `
-                        }
+                        `}
                       >
                         {item.label}
-                      </NavLink>
+                      </Link>
                     ))}
                   </div>
                 )}

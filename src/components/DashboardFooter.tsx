@@ -82,15 +82,20 @@ export default function DashboardFooter() {
           position/size/z-index. Only the icon row actually needs to
           scroll horizontally on narrow screens. */}
       <div className="flex gap-4 lg:gap-12 overflow-x-auto">
-        {mainActions.map((a, i) => (
+        {mainActions.map((a, i) => {
+          // Light up the button for the page you're on (the first one only,
+          // since Add Vehicle and New Flip currently open the same page).
+          const current = pathname === a.to && mainActions.findIndex((b) => b.to === a.to) === i;
+          return (
           <Link
             key={i}
             to={a.to}
-            className="
-              flex flex-col items-center gap-1
-              text-white/80 hover:text-yellow-300 transition
-              group
-            "
+            aria-current={current ? "page" : undefined}
+            className={`
+              flex flex-col items-center gap-1 transition group
+              rounded-lg px-2 pt-1 border-b-2
+              ${current ? "text-yellow-300 border-yellow-400 bg-yellow-400/10" : "text-white/80 hover:text-yellow-300 border-transparent"}
+            `}
           >
             <div className="text-xl group-hover:scale-125 transition drop-shadow-[0_0_8px_rgba(255,215,0,0.4)]">
               {a.icon}
@@ -99,7 +104,8 @@ export default function DashboardFooter() {
               {a.label}
             </span>
           </Link>
-        ))}
+          );
+        })}
       </div>
 
       {/* RIGHT — ALERTS */}
