@@ -1,18 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Browser-tab icon: the Dealer OS FPD monogram in gold. At tab size the
+       full circular logo is unreadable, so this is just the letters. -->
   <defs>
-    <linearGradient id="fpGold" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#FFE082"/>
-      <stop offset="55%" stop-color="#FBBF24"/>
-      <stop offset="100%" stop-color="#D97706"/>
+    <linearGradient id="fpGold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFF4C4"/>
+      <stop offset="45%" stop-color="#FFD700"/>
+      <stop offset="100%" stop-color="#C58B00"/>
     </linearGradient>
   </defs>
-
   <rect width="64" height="64" rx="14" fill="#0A1128"/>
-  <rect x="1.5" y="1.5" width="61" height="61" rx="12.5" fill="none" stroke="#FBBF24" stroke-opacity="0.35" stroke-width="1.5"/>
-
-  <!-- Bold "F" mark, built from straight bars for max legibility at 16-32px -->
-  <path
-    d="M20 14 H46 V22 H29 V29 H42 V37 H29 V50 H20 Z"
-    fill="url(#fpGold)"
-  />
+  <rect x="1.5" y="1.5" width="61" height="61" rx="12.5" fill="none" stroke="#FFD700" stroke-opacity="0.45" stroke-width="1.5"/>
+  <text x="32" y="43" text-anchor="middle" textLength="54" lengthAdjust="spacingAndGlyphs"
+        font-family="'Arial Black', 'Arial', sans-serif" font-weight="900" font-size="30" fill="url(#fpGold)">FPD</text>
 </svg>
