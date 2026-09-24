@@ -66,7 +66,7 @@ describe("appMapPromptSection", () => {
   });
 
   it("covers the right sidebar too", () => {
-    expect(text).toContain("Add Vehicle, Add Lead, Vehicle List, Jobs Board, My Rota, Consumables, Search");
+    expect(text).toContain("Add Vehicle, Add Lead, Vehicle List, Photo Studio, Jobs Board, My Rota, Consumables, Search");
     expect(text).toContain("Open Jobs, Pending Bookings, MOT Attention");
   });
 

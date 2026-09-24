@@ -24,7 +24,7 @@ export const APP_MAP: AppMapSection[] = [
   { section: "Contacts", items: ["Suppliers & Contacts"] },
   { section: "Diary", items: ["My Diary"] },
   { section: "Message Board", items: ["Team Message Board", "Contact a Team Member", "Contact FlipPilot Support"] },
-  { section: "Vehicles", items: ["Inventory Hub", "Import from CSV"] },
+  { section: "Vehicles", items: ["Inventory Hub", "Photo Studio", "Import from CSV"] },
   {
     section: "Sales",
     items: ["Sales Hub", "Add Lead", "Leads Dashboard", "Sales Pipeline", "Viewing & Test Drive Requests", "Wanted Cars"],
@@ -74,6 +74,7 @@ export const RIGHT_SIDEBAR_QUICK_LINKS = [
   "Add Vehicle",
   "Add Lead",
   "Vehicle List",
+  "Photo Studio",
   "Jobs Board",
   "My Rota",
   "Consumables",
