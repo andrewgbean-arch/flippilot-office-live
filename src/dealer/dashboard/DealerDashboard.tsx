@@ -202,7 +202,8 @@ export default function DealerDashboard({ brain }: Props) {
           the app or dismissed this, and gone for good once dismissed. */}
       <InstallHint className="-mb-2" />
 
-      {/* GREETING + the four things done most often. These replace the
+      {/* GREETING */}
+      {/* ...plus the four things done most often. These replace the
           "Dealer Modules" cards, which only repeated the menu. */}
       <div data-tour="tour-welcome" className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-4">
         <div>

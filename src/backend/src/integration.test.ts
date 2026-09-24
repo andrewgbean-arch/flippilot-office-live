@@ -2449,7 +2449,7 @@ describe("Pilot Brain — looking inside the tabs", () => {
 
     expect(res.status).toBe(200);
     expect(calls[0].tools[0].input_schema.properties.tab.enum).toContain("decisions");
-    expect(calls[0].system).toContain("decisions (Pilot Brain → Decisions");
+    expect(calls[0].system).toContain("decisions (Wendy · Pilot Brain → Decision Journal");
     expect(calls[0].system).not.toContain("SUVs"); // the journal is never part of her always-on snapshot, only read on request
 
     const result = resultOf(calls[1]);
@@ -2517,8 +2517,8 @@ describe("Pilot Brain — looking inside the tabs", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     const calls = stubAnthropic(n => (n === 1 ? { status: 400, body: { error: "tools not allowed" } } : { body: final("Plain answer.") }));
     await chat(owner.token);
-    expect(calls[0].system).toContain("decisions (Pilot Brain → Decisions");
-    expect(calls[1].system).not.toContain("decisions (Pilot Brain → Decisions");
+    expect(calls[0].system).toContain("decisions (Wendy · Pilot Brain → Decision Journal");
+    expect(calls[1].system).not.toContain("decisions (Wendy · Pilot Brain → Decision Journal");
     expect(calls[1].system).not.toContain("you cannot create, change, decide or review anything in it");
     // her standing roadmap is still there, and still true without the tool
     expect(calls[1].system).toContain("PARTLY BUILT");
