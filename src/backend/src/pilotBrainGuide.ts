@@ -16,56 +16,54 @@ export interface AppMapSection {
 
 // The left sidebar (components/DealerSidebar.tsx).
 export const APP_MAP: AppMapSection[] = [
-  { section: "Dashboard", items: ["Dealer Dashboard"] },
-  { section: "Pilot Brain", items: ["Talk to Pilot Brain", "Operations (Approvals)", "Strategy (Goals & Briefing)"] },
-  { section: "Jobs", items: ["Jobs Board", "Workshop Calendar"] },
-  { section: "Consumables", items: ["Stock & Ordering"] },
-  { section: "Customers", items: ["Customer Database"] },
-  { section: "Contacts", items: ["Suppliers & Contacts"] },
-  { section: "Diary", items: ["My Diary"] },
-  { section: "Message Board", items: ["Team Message Board", "Contact a Team Member", "Contact FlipPilot Support"] },
-  { section: "Vehicles", items: ["Inventory Hub", "Photo Studio", "Import from CSV"] },
+  { section: "Dashboard", items: ["Dashboard"] },
+  { section: "Wendy · Pilot Brain", items: ["Ask Wendy", "Approvals", "Goals & Briefing", "Decision Journal"] },
   {
-    section: "Sales",
-    items: ["Sales Hub", "Add Lead", "Leads Dashboard", "Sales Pipeline", "Viewing & Test Drive Requests", "Wanted Cars"],
+    section: "Stock",
+    items: ["Stock Overview", "Vehicle List", "Photo Studio", "MOT Lookup", "Stock Tools", "Import from CSV"],
   },
   {
-    section: "Finance Suite",
+    section: "Sales",
     items: [
-      "Finance Hub",
+      "Sales Overview",
+      "Leads",
+      "Add Lead",
+      "Pipeline",
+      "Viewings & Test Drives",
+      "Wanted Cars",
+      "Your Public Page",
+      "Portal Stock Feed",
+    ],
+  },
+  { section: "Customers", items: ["Customer Database", "Suppliers & Contacts"] },
+  { section: "Workshop", items: ["Jobs Board", "Workshop Calendar", "Parts & Consumables"] },
+  {
+    section: "Money",
+    items: [
+      "Bookkeeping",
+      "Profit Breakdown",
       "Finance Calculator",
       "Deal Sheet",
       "Lender Comparison",
-      "Profit Breakdown",
       "Trade-In Valuation",
       "Contract Generator",
     ],
   },
   {
-    section: "Staff",
-    items: ["My Rota", "Staff Dashboard", "Message a Teammate", "Add Staff", "Rota Planner", "Permissions"],
-  },
-  {
-    section: "Intelligence",
-    items: ["Motors Dashboard", "Lead Summary", "Risk Intelligence"],
-  },
-  {
-    section: "Analytics",
+    section: "Team",
     items: [
-      "Analytics Hub",
-      "Sales Analytics",
-      "Inventory Analytics",
-      "Lead Conversion",
-      "Staff Analytics",
-      "Staff by Branch",
+      "My Rota",
+      "My Diary",
+      "Team Message Board",
+      "Message a Teammate",
+      "Staff",
+      "Rota Planner",
+      "Add Staff",
+      "Who Can See What",
     ],
   },
-  { section: "Marketing", items: ["Marketing Hub", "Marketplace Sync"] },
-  { section: "Bookkeeping", items: ["Bookkeeping Hub"] },
-  { section: "Risk", items: ["Risk Hub"] },
-  { section: "Tools", items: ["Tools Hub"] },
-  { section: "Settings", items: ["Settings", "Billing"] },
-  { section: "Workflows", items: ["Finance Workflow"] },
+  { section: "Reports", items: ["Overview", "Stock", "Sales & Leads", "Lead Sources", "MOT & Risk", "Staff"] },
+  { section: "Settings", items: ["Settings", "Billing", "Help & Support", "Take the Tour"] },
 ];
 
 // The right sidebar (components/DealerRightSidebar.tsx): quick links, then
@@ -108,7 +106,7 @@ export const V8_NOT_BUILT = [
 // never a prediction. Boss decides.
 export function roadmapPromptSection(): string {
   return [
-    `YOUR ROADMAP, so you never mis-describe what exists: V1-V7 above are built and live. V8, "Digital Twin", is PARTLY BUILT. What exists today is all on the Decisions page under Pilot Brain, for owners and managers only. The app calls it the Decision Journal and it is not in the left sidebar: owners and managers open it from the "Decision Journal" button next to Today's Priorities on the Talk to Pilot Brain page, or from the "Decision Journal (owners and managers)" link at the top of the Strategy (Goals & Briefing) page. On that page, each decision is opened from the "Your decisions" list.`,
+    `YOUR ROADMAP, so you never mis-describe what exists: V1-V7 above are built and live. V8, "Digital Twin", is PARTLY BUILT. What exists today is all on the Decision Journal page, for owners and managers only. Owners and managers open it from the left sidebar (Wendy · Pilot Brain → Decision Journal), from the "Decision Journal" button next to Today's Priorities on the Ask Wendy page, or from the "Decision Journal (owners and managers)" link at the top of the Goals & Briefing page. On that page, each decision is opened from the "Your decisions" list.`,
     `BUILT: (1) a Decision Journal: one record for each significant decision, holding the question and the options, your recommendation (asked for on a decision and called Pilot's view in the app), the Devil's Advocate challenge, what Boss chose and why, what he expected, and about ${DEFAULT_REVIEW_DAYS} days later what actually happened and the lesson. (2) A Devil's Advocate ("Challenge me"): the case for, the case against, the assumptions, the unknowns, the downside, an alternative and your view. (3) A first Simulator: plain arithmetic on the dealership's own recent history, for two kinds of decision only, adding stock and cutting the price of ageing stock. Boss opens it from inside a decision, picks one of those two ideas and changes its few numbers; up to three simulations can be kept with a decision and compared side by side. It prints every assumption next to its answer, marks every figure as known, inferred, predicted or unknown (an unknown figure is shown as Unknown, never guessed and never as 0), and gives confidence as low, medium or high with reasons.`,
     `NOT BUILT YET, and you must say so plainly if Boss asks for any of it: ${V8_NOT_BUILT.join(", ")}. The Simulator cannot account for what it leaves out (cash, workshop capacity, the market), so say so when that matters. Do not describe any V8 feature that is not listed as built above, and never say a built one can do more than it does.`,
     `HOW TO TALK ABOUT IT: a simulation is arithmetic on the dealership's own history plus the assumptions printed next to the answer, so call it "a simulation, not a forecast" and never present its answer as a prediction. Confidence is only ever the word low, medium or high, never a percentage. You recommend, challenge and simulate; Boss decides. You cannot create, change, decide or review anything in the journal yourself: people do that on the Decisions page, and nothing there changes a car, a lead, a price or the books. If someone who is not an owner or manager asks about it, tell them it is for owners and managers only.`,

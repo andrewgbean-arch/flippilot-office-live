@@ -231,7 +231,7 @@ const everyone = () => true;
 const TABS: TabDef[] = [
   {
     id: "inventory",
-    where: "Vehicles → Inventory Hub",
+    where: "Stock → Stock Overview",
     contains:
       "each car's registration, year, make, model, mileage, colour, condition, status, asking and trade price, when it was added, MOT expiry and status, fuel type (buy price only for owners, managers and finance)",
     allowed: everyone,
@@ -265,7 +265,7 @@ const TABS: TabDef[] = [
   },
   {
     id: "leads",
-    where: "Sales → Leads Dashboard and Sales Pipeline",
+    where: "Sales → Leads and Pipeline",
     contains: "each lead's source, status, the car they're interested in, score and when it came in (never their name, phone, email, notes or finances)",
     allowed: everyone,
     project(_user, source) {
@@ -285,7 +285,7 @@ const TABS: TabDef[] = [
   },
   {
     id: "appointments",
-    where: "Sales → Viewing & Test Drive Requests",
+    where: "Sales → Viewings & Test Drives",
     contains: "each request's type, status, recorded outcome, date and time, and the car (never the customer's name, phone, email, notes or own registration)",
     allowed: everyone,
     project(_user, source) {
@@ -307,7 +307,7 @@ const TABS: TabDef[] = [
   },
   {
     id: "jobs",
-    where: "Jobs → Jobs Board and Workshop Calendar",
+    where: "Workshop → Jobs Board and Workshop Calendar",
     contains: "each job's title, status, priority, due date, workshop slot and bay, the car, who it's assigned to (not the job's private notes)",
     allowed: everyone,
     project(_user, source) {
@@ -334,7 +334,7 @@ const TABS: TabDef[] = [
   },
   {
     id: "consumables",
-    where: "Consumables → Stock & Ordering",
+    where: "Workshop → Parts & Consumables",
     contains: "each part's name, part number, unit, stock level, reorder threshold and supplier name; status is 'low' when it needs reordering (not supplier contact details or notes)",
     allowed: everyone,
     project(_user, source) {
@@ -360,7 +360,7 @@ const TABS: TabDef[] = [
   },
   {
     id: "bookkeeping",
-    where: "Bookkeeping → Bookkeeping Hub",
+    where: "Money → Bookkeeping",
     contains:
       "the ledger in three sections, purchases, sales and costs, with the car each belongs to, amounts, dates, cost type and category (never a buyer's details; owners, managers and finance only)",
     allowed: canSeeMoney,
@@ -403,7 +403,7 @@ const TABS: TabDef[] = [
   },
   {
     id: "rota",
-    where: "Staff → My Rota and Rota Planner",
+    where: "Team → My Rota and Rota Planner",
     contains: "who is on shift when: date, start, end and the person's name (not leave requests or work patterns)",
     allowed: everyone,
     project(_user, source) {
@@ -415,7 +415,7 @@ const TABS: TabDef[] = [
   },
   {
     id: "contacts",
-    where: "Contacts → Suppliers & Contacts",
+    where: "Customers → Suppliers & Contacts",
     contains: "each supplier's name and category (not phone, email, address or notes)",
     allowed: everyone,
     project(_user, source) {
@@ -427,7 +427,7 @@ const TABS: TabDef[] = [
   },
   {
     id: "decisions",
-    where: "Pilot Brain → Decisions (opened from the Strategy and Talk to Pilot Brain pages)",
+    where: "Wendy · Pilot Brain → Decision Journal",
     contains:
       "the Decision Journal, one record per decision: its question, its state (open, decided, review_due or reviewed), the option Boss chose, whether he followed your recommendation (true, false, or null when there was no recommendation or no choice yet), your confidence as the word low, medium or high, the dates, how many simulations were run (a plain count, so known) and, only once reviewed, what he expected against what actually happened (each figure marked predicted, known or unknown), his reasoning and the lesson (never the background he typed, the notes on options, the challenge text or the edit history; owners and managers only)",
     note: "Read the journal as a record, not as advice: you cannot create, change, decide or review anything in it, because Boss decides and only people write it, on the Decisions page. A verdict of higher or lower than expected is only arithmetic: whether higher is better depends on the measure (cars sold, days to sell). Give a decision's confidence only as the word it holds, never as a percentage, and where a figure is \"not known\" say so: never treat it as zero.",

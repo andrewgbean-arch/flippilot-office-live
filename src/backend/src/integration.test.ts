@@ -2187,8 +2187,8 @@ describe("Pilot Brain snapshot — lead sources and per-car profit", () => {
 
     // the left sidebar, as Boss sees it
     expect(prompt).toContain("WHERE THINGS LIVE IN FLIPPILOT");
-    expect(prompt).toContain("Pilot Brain: Talk to Pilot Brain, Operations (Approvals), Strategy (Goals & Briefing)");
-    expect(prompt).toContain("Sales: Sales Hub, Add Lead, Leads Dashboard, Sales Pipeline, Viewing & Test Drive Requests, Wanted Cars");
+    expect(prompt).toContain("Wendy · Pilot Brain: Ask Wendy, Approvals, Goals & Briefing, Decision Journal");
+    expect(prompt).toContain("Sales: Sales Overview, Leads, Add Lead, Pipeline, Viewings & Test Drives, Wanted Cars, Your Public Page, Portal Stock Feed");
     // the right sidebar
     expect(prompt).toContain("Open Jobs, Pending Bookings, MOT Attention");
 
@@ -2210,7 +2210,7 @@ describe("Pilot Brain snapshot — lead sources and per-car profit", () => {
     expect(prompt).toContain("This is V8 (Digital Twin, first version)");
     expect(prompt).not.toContain("This is V7");
     expect(prompt).toContain("If Boss asks what version you are, or what is new, say you are V8");
-    expect(prompt).toContain('the "Decision Journal" button next to Today\'s Priorities on the Talk to Pilot Brain page');
+    expect(prompt).toContain('the "Decision Journal" button next to Today\'s Priorities on the Ask Wendy page');
     expect(prompt).toContain("Pilot's view");
 
     // the privacy promise is untouched

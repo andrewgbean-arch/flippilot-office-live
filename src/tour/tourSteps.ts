@@ -44,7 +44,7 @@ export const TOUR_STEPS: TourStep[] = [
     target: "tour-todays-actions",
     title: "Today's Actions",
     narration:
-      "These cards flag exactly what needs your attention right now — vehicles with an MOT expiring soon, recon that's needed, and pricing that needs a review. Click a card to jump straight to that vehicle.",
+      "Needs Your Attention flags what needs doing right now: MOTs due, MOT advisories, cars with no asking price, cars without photos, stock over 90 days and open jobs. A tile lights up when there's something to do; click it to go straight there.",
   },
   {
     id: "add-vehicle",
@@ -52,15 +52,15 @@ export const TOUR_STEPS: TourStep[] = [
     target: "tour-add-vehicle",
     title: "Adding a vehicle",
     narration:
-      "When you're ready to add a car to your stock, this is the button. You can also bring in a whole list at once using CSV import from Settings.",
+      "When you're ready to add a car to your stock, this is the button. You can also bring in a whole list at once with Import from CSV, under Stock in the menu.",
   },
   {
     id: "dealer-modules",
     route: "/dealer-dashboard",
     target: "tour-dealer-modules",
-    title: "Every part of the app, from here",
+    title: "Your shortcuts",
     narration:
-      "These module cards are quick access to everything — inventory, sales, finance, recon, MOT and risk checks, and bookkeeping. We'll walk through the main ones now.",
+      "These four buttons are the things you'll do most: add a vehicle, add a lead, record a sale, or ask Wendy. Everything else is in the menu on the left. We'll walk through the main parts now.",
   },
   {
     id: "vehicle-list",

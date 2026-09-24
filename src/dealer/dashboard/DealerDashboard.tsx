@@ -10,12 +10,7 @@ import { useDealer } from "@/context/DealerContext";
 import { useAuth } from "@/context/AuthContext";
 import { toDateKey } from "@/planner/dateUtils";
 
-import SupernovaCard from "@/components/SupernovaCard";
-import { SupernovaSectionDivider } from "@/components/supernova/SupernovaSectionDivider";
-import GoldButton from "@/components/ui/GoldButton.web";
 
-import SupernovaMarketTicker from "@/components/supernova/SupernovaMarketTicker";
-import DealerModeToggle from "@/components/supernova/DealerModeToggle";
 import PilotBrainWatcherCard from "@/pilotbrain/PilotBrainWatcherCard";
 import PilotBrainMarketCard from "@/pilotbrain/PilotBrainMarketCard";
 import InstallHint from "@/pwa/InstallHint";
@@ -26,13 +21,13 @@ import {
   FiAlertTriangle,
   FiCamera,
   FiTrendingUp,
-  FiList,
   FiUsers,
   FiDollarSign,
-  FiBarChart2,
-  FiSettings,
   FiCheckSquare,
   FiCalendar,
+  FiPlusCircle,
+  FiUserPlus,
+  FiMessageCircle,
 } from "react-icons/fi";
 
 type Props = {
@@ -166,65 +161,73 @@ export default function DealerDashboard({ brain }: Props) {
   const hour = new Date().getHours();
   const timeOfDay = hour < 12 ? "morning" : hour < 18 ? "afternoon" : "evening";
 
- const recentActivity: {
-  id: string;
-  title: string;
-  timestamp: string;
-}[] =
-  brain?.workflow?.activityFeed ??
-  safeVehicles.slice(0, 5).map((v) => ({
-    id: v.id,
-    title: `${v.make} ${v.model}`,
-    timestamp: new Date().toLocaleString(),
-  }));
+  // Recently added to stock, newest first, with the real date each car was
+  // added. This box used to be "Recent Activity": when no activity feed was
+  // passed in (it never was) it listed five cars stamped with the current
+  // time, so it looked as if they had just happened.
+  const recentlyAdded = [...forSale]
+    .filter((v) => v.createdAt)
+    .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
+    .slice(0, 5);
 
-  // Real ticker content built from the same real per-vehicle signals
-  // the "Today's Actions" cards below already use — was previously a
-  // single hardcoded string with a fabricated "3.2%" that never changed.
-  const tickerItems = [
-    `🚗 ${forSale.length} vehicle${forSale.length === 1 ? "" : "s"} in stock`,
-    motAlerts.length > 0
-      ? `⚠️ ${motAlerts.length} vehicle${motAlerts.length === 1 ? "" : "s"} need MOT attention`
-      : null,
-    reconNeeded.length > 0
-      ? `🔧 ${reconNeeded.length} vehicle${reconNeeded.length === 1 ? "" : "s"} with MOT advisories`
-      : null,
-    pricingNeeded.length > 0
-      ? `📉 ${pricingNeeded.length} vehicle${pricingNeeded.length === 1 ? "" : "s"} with no asking price`
-      : null,
-    photoNeeded.length > 0
-      ? `📷 ${photoNeeded.length} vehicle${photoNeeded.length === 1 ? "" : "s"} missing photos`
-      : null,
-    financeIssues.length > 0
-      ? `💰 ${financeIssues.length} vehicle${financeIssues.length === 1 ? "" : "s"} in stock for 90+ days`
-      : null,
-    overdueJobs.length > 0
-      ? `📋 ${overdueJobs.length} job${overdueJobs.length === 1 ? "" : "s"} overdue`
-      : null,
-  ].filter((item): item is string => item !== null);
+  // Everything that needs doing, as small tiles: coloured when there is
+  // something to do, quiet when the count is nought. Was seven large cards.
+  const attention: { label: string; count: number; to: string; tone: string; icon: ReactNode }[] = [
+    { label: "MOT due or expired", count: motAlerts.length, to: motAlerts[0]?.id ? `/dealer/workflow/mot/${motAlerts[0].id}` : "/dealer/inventory/list", tone: "red", icon: <FiAlertTriangle /> },
+    { label: "MOT advisories", count: reconNeeded.length, to: reconNeeded[0]?.id ? `/dealer/workflow/mot/${reconNeeded[0].id}` : "/dealer/inventory/list", tone: "gold", icon: <FiTool /> },
+    { label: "No asking price", count: pricingNeeded.length, to: pricingNeeded[0]?.id ? `/dealer/workflow/pricing/${pricingNeeded[0].id}` : "/dealer/inventory/list", tone: "blue", icon: <FiTrendingUp /> },
+    { label: "Need photos", count: photoNeeded.length, to: "/photo-studio", tone: "purple", icon: <FiCamera /> },
+    { label: "In stock 90+ days", count: financeIssues.length, to: "/dealer/inventory/list", tone: "orange", icon: <FiAlertTriangle /> },
+    { label: overdueJobs.length > 0 ? `Open jobs (${overdueJobs.length} overdue)` : "Open jobs", count: openJobs.length, to: "/jobs", tone: overdueJobs.length > 0 ? "red" : "blue", icon: <FiCheckSquare /> },
+  ];
+  const TONES: Record<string, string> = {
+    red: "border-red-400/60 bg-red-500/10 text-red-200",
+    gold: "border-yellow-400/60 bg-yellow-400/10 text-yellow-200",
+    blue: "border-sky-400/60 bg-sky-500/10 text-sky-200",
+    purple: "border-purple-400/60 bg-purple-500/10 text-purple-200",
+    orange: "border-orange-400/60 bg-orange-500/10 text-orange-200",
+  };
+
+  const quickActions: { label: string; to: string; icon: ReactNode; tour?: string }[] = [
+    { label: "Add Vehicle", to: "/new-flip", icon: <FiPlusCircle />, tour: "tour-add-vehicle" },
+    { label: "Add Lead", to: "/dealer/sales/add", icon: <FiUserPlus /> },
+    { label: "Record a Sale", to: "/bookkeeping/add-sale", icon: <FiDollarSign /> },
+    { label: "Ask Wendy", to: "/pilot-brain", icon: <FiMessageCircle /> },
+  ];
 
   return (
-    <div className="space-y-8 lg:space-y-12">
+    <div className="space-y-6 lg:space-y-8">
 
       {/* HOME-SCREEN CARD — only on a phone or tablet that has not installed
-          the app or dismissed this, and gone for good once dismissed. The
-          negative margin pulls the greeting back up under it, since this
-          container spaces its children a long way apart. */}
-      <InstallHint className="-mb-4" />
+          the app or dismissed this, and gone for good once dismissed. */}
+      <InstallHint className="-mb-2" />
 
-      {/* GREETING */}
-      <div data-tour="tour-welcome">
-        <h1 className="text-3xl font-extrabold text-white">
-          Good {timeOfDay}, {greetingName}
-        </h1>
-        <p className="text-white/50 mt-1">
-          {dealer?.name ?? "Your dealership"} — here's where things stand today.
-        </p>
+      {/* GREETING + the four things done most often. These replace the
+          "Dealer Modules" cards, which only repeated the menu. */}
+      <div data-tour="tour-welcome" className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-extrabold text-white">
+            Good {timeOfDay}, {greetingName}
+          </h1>
+          <p className="text-white/50 mt-1">
+            {dealer?.name ?? "Your dealership"} — here's where things stand today.
+          </p>
+        </div>
+        <div data-tour="tour-dealer-modules" className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {quickActions.map((a) => (
+            <button
+              key={a.label}
+              type="button"
+              data-tour={a.tour}
+              onClick={() => navigate(a.to)}
+              className="flex items-center justify-center gap-2 whitespace-nowrap rounded-xl px-3 py-3 text-sm font-bold text-black bg-gradient-to-b from-yellow-300 to-yellow-500 shadow-[0_0_14px_rgba(255,215,0,0.35)] hover:from-yellow-200 hover:to-yellow-400 transition"
+            >
+              {a.icon}
+              {a.label}
+            </button>
+          ))}
+        </div>
       </div>
-
-      {/* GETTING STARTED — the four things that make Pilot Brain useful,
-          ticked off from the real records; gone once they are all done. */}
-      <GettingStartedCard />
 
       {/* HEADLINE NUMBERS */}
       {/* On a phone the five tiles sit two to a row; the odd one out spans the
@@ -270,197 +273,69 @@ export default function DealerDashboard({ brain }: Props) {
         />
       </div>
 
-      <SupernovaMarketTicker items={tickerItems} />
-      <PilotBrainWatcherCard />
-      <PilotBrainMarketCard />
-      <DealerModeToggle />
-
-      {/* TODAY'S ACTIONS */}
-      <SupernovaSectionDivider label="Today's Actions" />
-      <div data-tour="tour-todays-actions" className="grid grid-cols-1 md:grid-cols-3 gap-6">
-
-        <SupernovaCard
-          title="MOT Expiring Soon"
-          icon={<FiAlertTriangle className="cosmic-pulse" />}
-          accent="red"
-          {...(motAlerts[0]?.id ? { to: `/dealer/workflow/mot/${motAlerts[0].id}` } : {})}
-        >
-          <p className="text-white/70">{motAlerts.length} vehicles need MOT attention</p>
-        </SupernovaCard>
-
-        <SupernovaCard
-          title="MOT Advisories"
-          icon={<FiTool className="cosmic-pulse" />}
-          accent="gold"
-          {...(reconNeeded[0]?.id ? { to: `/dealer/workflow/mot/${reconNeeded[0].id}` } : {})}
-        >
-          <p className="text-white/70">{reconNeeded.length} vehicles have MOT advisories</p>
-        </SupernovaCard>
-
-        <SupernovaCard
-          title="No Asking Price"
-          icon={<FiTrendingUp className="cosmic-pulse" />}
-          accent="blue"
-          {...(pricingNeeded[0]?.id ? { to: `/dealer/workflow/pricing/${pricingNeeded[0].id}` } : {})}
-        >
-          <p className="text-white/70">{pricingNeeded.length} vehicles have no asking price</p>
-        </SupernovaCard>
-      </div>
-
-      {/* SECOND ROW */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-
-        <SupernovaCard
-          title="Photos Needed"
-          icon={<FiCamera className="cosmic-pulse" />}
-          accent="purple"
-          {...(photoNeeded[0]?.id ? { to: `/dealer/workflow/photos/${photoNeeded[0].id}` } : {})}
-        >
-          <p className="text-white/70">{photoNeeded.length} vehicles need photos</p>
-        </SupernovaCard>
-
-        <SupernovaCard
-          title="Ageing Stock"
-          icon={<FiAlertTriangle className="cosmic-pulse" />}
-          accent="orange"
-          to="/dealer/inventory/list"
-        >
-          <p className="text-white/70">{financeIssues.length} vehicles in stock for 90+ days</p>
-        </SupernovaCard>
-
-        <SupernovaCard
-          title="Inventory Overview"
-          icon={<FiList className="cosmic-pulse" />}
-          accent="green"
-          to="/dealer/inventory"
-        >
-          <p className="text-white/70">{safeVehicles.length} vehicles in stock</p>
-        </SupernovaCard>
-      </div>
-
-      {/* THIRD ROW */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-
-        <SupernovaCard
-          title="Open Jobs"
-          icon={<FiCheckSquare className="cosmic-pulse" />}
-          accent={overdueJobs.length > 0 ? "red" : "blue"}
-          to="/jobs"
-        >
-          <p className="text-white/70">
-            {openJobs.length} open{overdueJobs.length > 0 ? ` • ${overdueJobs.length} overdue` : ""}
-          </p>
-        </SupernovaCard>
-      </div>
-
-      {/* RECENT ACTIVITY */}
-      <SupernovaSectionDivider label="Recent Activity" />
-
-      <div className="bg-black/20 border border-white/10 rounded-xl p-6 backdrop-blur-xl">
-        {recentActivity.length === 0 ? (
-          <p className="text-white/60 text-sm">No recent activity.</p>
-        ) : (
-          <div className="space-y-3">
-            {recentActivity.map((a) => (
+      {/* NEEDS YOUR ATTENTION */}
+      <section data-tour="tour-todays-actions" aria-labelledby="attention-heading">
+        <h2 id="attention-heading" className="brand-caps text-xs mb-3">NEEDS YOUR ATTENTION</h2>
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+          {attention.map((a) => {
+            const busy = a.count > 0;
+            return (
               <button
-                key={a.id}
-                onClick={() => navigate(`/dealer/inventory/${a.id}`)}
-                className="w-full text-left px-4 py-3 rounded-lg bg-black/30 border border-white/10 text-white/80 hover:bg-black/50 transition"
+                key={a.label}
+                type="button"
+                onClick={() => navigate(a.to)}
+                className={`text-left rounded-xl border px-4 py-3 transition hover:brightness-125 ${
+                  busy ? TONES[a.tone] : "border-white/10 bg-black/20 text-white/50"
+                }`}
               >
-                <div className="font-semibold text-yellow-300">{a.title}</div>
-                <div className="text-xs text-white/50">{a.timestamp}</div>
+                <span className="flex items-center gap-2 text-xs font-semibold">
+                  {a.icon}
+                  {a.label}
+                </span>
+                <span className={`block mt-1 text-2xl font-extrabold ${busy ? "text-white" : "text-white/40"}`}>
+                  {a.count}
+                </span>
               </button>
-            ))}
-          </div>
-        )}
+            );
+          })}
+        </div>
+      </section>
+
+      {/* GETTING STARTED — the four things that make Pilot Brain useful,
+          ticked off from the real records; gone once they are all done. */}
+      <GettingStartedCard />
+
+      {/* WENDY: what she is watching, and the market check, side by side */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
+        <PilotBrainWatcherCard />
+        <PilotBrainMarketCard />
       </div>
 
-      {/* DEALER MODULES */}
-      <SupernovaSectionDivider label="Dealer Modules" />
-
-      <div data-tour="tour-dealer-modules" className="grid grid-cols-1 md:grid-cols-2 gap-10">
-
-        <SupernovaCard
-          title="Inventory Module"
-          icon={<FiList className="cosmic-pulse" />}
-          accent="green"
-        >
-          <GoldButton onPress={() => navigate("/dealer/inventory")}>View Inventory</GoldButton>
-          <div data-tour="tour-add-vehicle">
-            <GoldButton onPress={() => navigate("/new-flip")}>Add Vehicle</GoldButton>
-          </div>
-          <GoldButton onPress={() => navigate("/dealer/inventory/mot-lookup")}>MOT Lookup</GoldButton>
-          <GoldButton onPress={() => navigate("/dealer/inventory/list")}>Vehicle List</GoldButton>
-        </SupernovaCard>
-
-        <SupernovaCard
-          title="Sales Module"
-          icon={<FiUsers className="cosmic-pulse" />}
-          accent="blue"
-        >
-          <GoldButton onPress={() => navigate("/dealer/sales/add")}>Add Lead</GoldButton>
-          <GoldButton onPress={() => navigate("/dealer/sales/pipeline")}>Sales Pipeline</GoldButton>
-          <GoldButton onPress={() => navigate("/dealer/intelligence/crm")}>Lead Summary</GoldButton>
-        </SupernovaCard>
-
-        <SupernovaCard
-          title="Finance Module"
-          icon={<FiDollarSign className="cosmic-pulse" />}
-          accent="gold"
-        >
-          <GoldButton onPress={() => navigate("/dealer/finance/calculator")}>Finance Calculator</GoldButton>
-          <GoldButton onPress={() => navigate("/dealer/finance/deal-sheet")}>Deal Sheet</GoldButton>
-          <GoldButton onPress={() => navigate("/dealer/finance/lender-comparison")}>Lender Comparison</GoldButton>
-        </SupernovaCard>
-
-        <SupernovaCard
-          title="Recon Module"
-          icon={<FiTool className="cosmic-pulse" />}
-          accent="red"
-        >
-          <GoldButton
-            onPress={() =>
-              forSale[0]?.id &&
-              navigate(`/dealer/workflow/recon/${forSale[0].id}`)
-            }
-          >
-            Recon Workflow
-          </GoldButton>
-          <GoldButton onPress={() => navigate("/bookkeeping/add-cost")}>Add Cost</GoldButton>
-          <GoldButton onPress={() => navigate("/dealer/inventory/parts-labour")}>Parts & Labour Log</GoldButton>
-        </SupernovaCard>
-
-        <SupernovaCard
-          title="Intelligence Module"
-          icon={<FiBarChart2 className="cosmic-pulse" />}
-          accent="purple"
-        >
-          <GoldButton onPress={() => navigate("/dealer/intelligence/motors")}>Motors Dashboard</GoldButton>
-          <GoldButton onPress={() => navigate("/dealer/intelligence/risk")}>Risk Hub</GoldButton>
-        </SupernovaCard>
-
-        <SupernovaCard
-          title="Bookkeeping Module"
-          icon={<FiSettings className="cosmic-pulse" />}
-          accent="orange"
-        >
-          <GoldButton onPress={() => navigate("/bookkeeping/add-purchase")}>Add Purchase</GoldButton>
-          <GoldButton onPress={() => navigate("/bookkeeping/add-sale")}>Add Sale</GoldButton>
-          <GoldButton onPress={() => navigate("/bookkeeping/add-transaction")}>Add Transaction</GoldButton>
-        </SupernovaCard>
-
-      </div>
-
-      <style>{`
-        .cosmic-pulse {
-          animation: cosmicPulse 3s ease-in-out infinite;
-        }
-        @keyframes cosmicPulse {
-          0% { transform: scale(1); opacity: 0.9; }
-          50% { transform: scale(1.08); opacity: 1; }
-          100% { transform: scale(1); opacity: 0.9; }
-        }
-      `}</style>
+      {/* RECENTLY ADDED TO STOCK */}
+      <section aria-labelledby="recent-heading">
+        <h2 id="recent-heading" className="brand-caps text-xs mb-3">RECENTLY ADDED TO STOCK</h2>
+        <div className="bg-black/20 border border-white/10 rounded-xl p-4 backdrop-blur-xl">
+          {recentlyAdded.length === 0 ? (
+            <p className="text-white/60 text-sm">No cars in stock yet. Add your first one with Add Vehicle.</p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3">
+              {recentlyAdded.map((v) => (
+                <button
+                  key={v.id}
+                  type="button"
+                  onClick={() => navigate(`/dealer/inventory/${v.id}`)}
+                  className="w-full text-left px-4 py-3 rounded-lg bg-black/30 border border-white/10 text-white/80 hover:bg-black/50 transition"
+                >
+                  <div className="font-semibold text-yellow-300 truncate">{`${v.make} ${v.model}`}</div>
+                  <div className="text-xs text-white/50">
+                    Added {new Date(v.createdAt as string).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
 
     </div>
   );

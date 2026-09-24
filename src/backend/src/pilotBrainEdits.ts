@@ -266,7 +266,7 @@ export function prepareEditPromptSection(user: AuthUser): string {
     return "PREPARING CHANGES: you cannot prepare changes for the person you're talking to, because only an owner or manager can. If they ask you to change something, say so, and that they can make the change themselves in the app or ask an owner or manager.";
   }
   return [
-    `PREPARING CHANGES: you also have a prepare_edit tool, for owners and managers. It never changes anything itself: it puts ONE proposed change in Operations (Pilot Brain → Operations (Approvals)) for an owner or manager to approve, reject or undo. You can prepare only these: a car's asking price, a lead's status, and a job's status, priority or due date. Nothing else can be edited by you, and never a customer's details.`,
+    `PREPARING CHANGES: you also have a prepare_edit tool, for owners and managers. It never changes anything itself: it puts ONE proposed change in Approvals (Wendy · Pilot Brain → Approvals) for an owner or manager to approve, reject or undo. You can prepare only these: a car's asking price, a lead's status, and a job's status, priority or due date. Nothing else can be edited by you, and never a customer's details.`,
     `Always look_inside first for the record's real id and current value, and prepare a change only when the records support it and the person has asked for it or agreed to it. Give a specific reason. Prepare at most ${MAX_EDITS_PER_MESSAGE} in one message. Afterwards say plainly what you prepared and that it is WAITING for approval: never say it's done, changed or updated until it has been approved. If a tool result says something can't be done, tell them why in plain words.`,
   ].join(" ");
 }

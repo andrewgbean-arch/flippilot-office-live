@@ -1,4 +1,5 @@
 import { Routes, Route, Navigate } from "react-router-dom";
+import ReportsTabs from "@/dealer/reports/ReportsTabs";
 import DealerLayout from "@/layouts/DealerLayout";
 import ProtectedRoute from "@/components/ProtectedRoute";
 
@@ -115,7 +116,6 @@ import DealerCRMIntelligence from "@/dealer/intelligence/DealerCRMIntelligence";
 import DealerRiskHub from "@/dealer/intelligence/DealerRiskHub";
 
 /* WORKFLOWS */
-import FinanceWorkflow from "@/dealer/workflow/FinanceWorkflow";
 import PhotosWorkflow from "@/dealer/workflow/photos/PhotosWorkflow";
 import PricingWorkflow from "@/dealer/workflow/PricingWorkflow";
 import ReconWorkflow from "@/features/dealer-ai/recon/ReconWorkflow";
@@ -200,7 +200,8 @@ export default function AnimatedRoutes() {
         <Route path="dealer/sales" element={<SalesHub />} />
         <Route path="dealer/sales/add" element={<AddLead />} />
         <Route path="dealer/sales/pipeline" element={<SalesPipeline />} />
-        <Route path="dealer/sales/crm" element={<DealerCRMIntelligence />} />
+        {/* Same page as Reports → Sales & Leads; one address now. */}
+        <Route path="dealer/sales/crm" element={<Navigate to="/dealer/intelligence/crm" replace />} />
         <Route path="dealer/sales/wanted" element={<WantedBoard />} />
         <Route path="dealer/sales/leads" element={<LeadsDashboard />} />
         <Route path="dealer/sales/leads/:id" element={<LeadDetails />} />
@@ -263,7 +264,8 @@ export default function AnimatedRoutes() {
         <Route path="dealer/staff/:id" element={<StaffDetail />} />
 
         {/* RISK */}
-        <Route path="dealer/risk" element={<DealerRiskHub />} />
+        {/* Same page as Reports → MOT & Risk; one address now. */}
+        <Route path="dealer/risk" element={<Navigate to="/dealer/intelligence/risk" replace />} />
 
         {/* INTELLIGENCE. The Market Intelligence, Pricing Brain, Master Brain
             and AI Insights screens are gone: their figures were the dealer's
@@ -272,20 +274,21 @@ export default function AnimatedRoutes() {
             the section, so an old bookmark or the home menu still lands
             somewhere real. */}
         <Route path="dealer/intelligence" element={<Navigate to="/dealer/intelligence/motors" replace />} />
-        <Route path="dealer/intelligence/motors" element={<DealerMotorsDashboard />} />
-        <Route path="dealer/intelligence/crm" element={<DealerCRMIntelligence />} />
-        <Route path="dealer/intelligence/risk" element={<DealerRiskHub />} />
+        <Route path="dealer/intelligence/motors" element={<ReportsTabs><DealerMotorsDashboard /></ReportsTabs>} />
+        <Route path="dealer/intelligence/crm" element={<ReportsTabs><DealerCRMIntelligence /></ReportsTabs>} />
+        <Route path="dealer/intelligence/risk" element={<ReportsTabs><DealerRiskHub /></ReportsTabs>} />
 
         {/* ANALYTICS */}
-        <Route path="dealer/analytics" element={<AnalyticsHub />} />
-        <Route path="dealer/analytics/sales" element={<SalesAnalytics />} />
-        <Route path="dealer/analytics/inventory" element={<InventoryAnalytics />} />
-        <Route path="dealer/analytics/lead-conversion" element={<LeadConversionAnalytics />} />
-        <Route path="dealer/analytics/staff" element={<StaffAnalytics />} />
-        <Route path="dealer/analytics/branches" element={<BranchComparison />} />
+        <Route path="dealer/analytics" element={<ReportsTabs><AnalyticsHub /></ReportsTabs>} />
+        <Route path="dealer/analytics/sales" element={<ReportsTabs><SalesAnalytics /></ReportsTabs>} />
+        <Route path="dealer/analytics/inventory" element={<ReportsTabs><InventoryAnalytics /></ReportsTabs>} />
+        <Route path="dealer/analytics/lead-conversion" element={<ReportsTabs><LeadConversionAnalytics /></ReportsTabs>} />
+        <Route path="dealer/analytics/staff" element={<ReportsTabs><StaffAnalytics /></ReportsTabs>} />
+        <Route path="dealer/analytics/branches" element={<ReportsTabs><BranchComparison /></ReportsTabs>} />
 
         {/* WORKFLOWS */}
-        <Route path="dealer/workflow/finance" element={<FinanceWorkflow />} />
+        {/* It was the Finance Calculator again, under another name. */}
+        <Route path="dealer/workflow/finance" element={<Navigate to="/dealer/finance/calculator" replace />} />
         <Route path="dealer/workflow/photos/:id" element={<PhotosWorkflow />} />
         <Route path="photo-studio" element={<PhotosWorkflow />} />
         <Route path="dealer/workflow/pricing/:id" element={<PricingWorkflow />} />

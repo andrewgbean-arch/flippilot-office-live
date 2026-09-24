@@ -31,7 +31,7 @@ export default function BranchComparison() {
 
       {branchNames.length === 0 ? (
         <p className="text-white/50">
-          No staff with a branch assigned yet. Add one from Staff → Add Staff.
+          No staff with a branch assigned yet. Add one from Team → Add Staff.
         </p>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">

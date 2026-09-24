@@ -23,7 +23,14 @@ function parseLeftSidebar() {
   const src = read("DealerSidebar.tsx");
   const marks: { at: number; kind: "section" | "item"; label: string }[] = [];
   for (const m of src.matchAll(/\n\s{6}label: "([^"]+)"/g)) marks.push({ at: m.index!, kind: "section", label: m[1]! });
-  for (const m of src.matchAll(/\{ to: "[^"]+", label: "([^"]+)" \}/g)) marks.push({ at: m.index!, kind: "item", label: m[1]! });
+  // links are written out, or name a constant (the Take the Tour entry uses TOUR_LINK)
+  for (const m of src.matchAll(/\{ to: (?:"[^"]+"|[A-Z_]+), label: "([^"]+)" \}/g)) marks.push({ at: m.index!, kind: "item", label: m[1]! });
+  // the Reports group's links come from the shared tab list (dealer/reports/reportTabs.ts)
+  const tabsAt = src.indexOf("REPORT_TABS.map");
+  if (tabsAt >= 0) {
+    const tabs = fs.readFileSync(path.join(COMPONENTS, "..", "dealer", "reports", "reportTabs.ts"), "utf8");
+    for (const m of tabs.matchAll(/\{ to: "[^"]+", label: "([^"]+)"/g)) marks.push({ at: tabsAt, kind: "item", label: m[1]! });
+  }
   marks.sort((a, b) => a.at - b.at);
   const sections: { section: string; items: string[] }[] = [];
   for (const mark of marks) {
@@ -37,7 +44,7 @@ function parseLeftSidebar() {
 describe("the app map matches the real sidebars", () => {
   it("has every left-sidebar section and link, in order, and nothing that isn't there", () => {
     const real = parseLeftSidebar();
-    expect(real.length).toBeGreaterThan(15); // the parser really found the sidebar
+    expect(real.length).toBeGreaterThan(8); // the parser really found the sidebar
     expect(APP_MAP).toEqual(real);
   });
 
@@ -60,9 +67,9 @@ describe("appMapPromptSection", () => {
   const text = appMapPromptSection();
 
   it("names each section with its links, exactly as written on screen", () => {
-    expect(text).toContain("Pilot Brain: Talk to Pilot Brain, Operations (Approvals), Strategy (Goals & Briefing)");
-    expect(text).toContain("Sales: Sales Hub, Add Lead, Leads Dashboard, Sales Pipeline, Viewing & Test Drive Requests, Wanted Cars");
-    expect(text).toContain("Bookkeeping: Bookkeeping Hub");
+    expect(text).toContain("Wendy · Pilot Brain: Ask Wendy, Approvals, Goals & Briefing, Decision Journal");
+    expect(text).toContain("Sales: Sales Overview, Leads, Add Lead, Pipeline, Viewings & Test Drives, Wanted Cars, Your Public Page, Portal Stock Feed");
+    expect(text).toContain("Money: Bookkeeping, Profit Breakdown");
   });
 
   it("covers the right sidebar too", () => {
@@ -114,8 +121,8 @@ describe("roadmapPromptSection", () => {
     expect(built).toContain("prints every assumption next to its answer");
   });
 
-  it("puts all of it on the Decisions page under Pilot Brain, for owners and managers only", () => {
-    expect(text).toContain("all on the Decisions page under Pilot Brain, for owners and managers only");
+  it("puts all of it on the Decision Journal page, for owners and managers only", () => {
+    expect(text).toContain("all on the Decision Journal page, for owners and managers only");
     expect(text).toContain("tell them it is for owners and managers only");
   });
 
@@ -199,7 +206,7 @@ describe("the roadmap and the look-inside tabs tell the same story", () => {
     expect(lookInsidePromptSection(asker("owner"))).toContain("you cannot create, change, decide or review anything in it");
   });
 
-  it("tells her where V8 lives in the app, in words that are really on the screens (the Decisions page is not in the sidebar)", () => {
+  it("tells her where V8 lives in the app, in words that are really on the screens (the sidebar link and the two buttons)", () => {
     const screens = path.join(__dirname, "..", "..", "pilotbrain");
     const chat = fs.readFileSync(path.join(screens, "PilotBrainChat.tsx"), "utf8").replace(/\r/g, "");
     const strategy = fs.readFileSync(path.join(screens, "PilotBrainStrategy.tsx"), "utf8").replace(/\r/g, "");
@@ -212,8 +219,8 @@ describe("the roadmap and the look-inside tabs tell the same story", () => {
     expect(chat).toMatch(/to="\/pilot-brain\/decisions"[^>]*>\s*Decision Journal\s*</);
     expect(strategy).toMatch(/to="\/pilot-brain\/decisions"[\s\S]{0,300}Decision Journal \(owners and managers\)/);
     expect(chat).toContain("Today's Priorities");
-    expect(text).toContain('"Decision Journal" button next to Today\'s Priorities on the Talk to Pilot Brain page');
-    expect(text).toContain('"Decision Journal (owners and managers)" link at the top of the Strategy (Goals & Briefing) page');
+    expect(text).toContain('"Decision Journal" button next to Today\'s Priorities on the Ask Wendy page');
+    expect(text).toContain('"Decision Journal (owners and managers)" link at the top of the Goals & Briefing page');
     // the list she says decisions are opened from, and the two things inside a decision she names
     expect(page).toContain("Your decisions");
     expect(text).toContain('"Your decisions" list');
@@ -221,13 +228,13 @@ describe("the roadmap and the look-inside tabs tell the same story", () => {
     expect(text).toContain("Pilot's view");
     expect(analysis + detail + simulator).toContain("Simulator");
 
-    // the way in really is missing from the sidebar, which is why the roadmap has to say it
-    const inSidebar = APP_MAP.flatMap(s => s.items).join(" | ");
-    expect(inSidebar).not.toMatch(/decision/i);
-    // and the sidebar names she quotes in that sentence are real ones
-    const pilotBrain = APP_MAP.find(s => s.section === "Pilot Brain")!.items;
-    expect(pilotBrain).toContain("Talk to Pilot Brain");
-    expect(pilotBrain).toContain("Strategy (Goals & Briefing)");
+    // since the 2026-09 menu tidy-up the sidebar has its own link too, and she says so
+    expect(text).toContain("the left sidebar (Wendy · Pilot Brain → Decision Journal)");
+    // and the sidebar names she quotes are real ones
+    const pilotBrain = APP_MAP.find(s => s.section === "Wendy · Pilot Brain")!.items;
+    expect(pilotBrain).toContain("Decision Journal");
+    expect(pilotBrain).toContain("Ask Wendy");
+    expect(pilotBrain).toContain("Goals & Briefing");
   });
 
   it("says how many simulations a decision can keep, and that is the real limit", () => {

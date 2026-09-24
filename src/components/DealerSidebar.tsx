@@ -1,25 +1,23 @@
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { useIsSupportAdmin } from "@/lib/useIsSupportAdmin";
+import { useTour } from "@/tour/TourProvider";
+import { REPORT_TABS, reportTabFor } from "@/dealer/reports/reportTabs";
+
+// A menu entry that starts the guided tour instead of opening a page.
+const TOUR_LINK = "#tour";
 
 import {
   FiHome,
-  FiBook,
   FiDollarSign,
   FiUsers,
   FiTrendingUp,
   FiActivity,
-  FiAlertTriangle,
-  FiStar,
   FiTool,
   FiSettings,
   FiChevronDown,
   FiChevronRight,
   FiGrid,
-  FiCheckSquare,
-  FiMessageSquare,
-  FiPackage,
-  FiPhoneCall,
   FiCpu,
   FiUserCheck,
 } from "react-icons/fi";
@@ -27,6 +25,7 @@ import {
 export default function DealerSidebar() {
   const { pathname } = useLocation();
   const isSupportAdmin = useIsSupportAdmin();
+  const { startTour } = useTour();
 
   const isHome =
     pathname === "/" ||
@@ -34,37 +33,55 @@ export default function DealerSidebar() {
     pathname === "/home" ||
     pathname === "/index";
 
-  const sections = [
+  // Nine groups (was twenty). Every page that existed is still reachable;
+  // pages that were exact copies of another now redirect to it (see
+  // AnimatedRoutes). pilotBrainGuide.ts mirrors this list for Wendy and its
+  // test reads this file, so keep the `label:` / `{ to, label }` shapes.
+  // "direct" groups are a single link with no sub-menu.
+  const sections: { label: string; icon: typeof FiHome; direct?: boolean; items: { to: string; label: string }[] }[] = [
     {
       label: "Dashboard",
       icon: FiHome,
-      items: [{ to: "/dealer-dashboard", label: "Dealer Dashboard" }],
+      direct: true,
+      items: [{ to: "/dealer-dashboard", label: "Dashboard" }],
     },
 
     {
-      label: "Pilot Brain",
+      label: "Wendy · Pilot Brain",
       icon: FiCpu,
       items: [
-        { to: "/pilot-brain", label: "Talk to Pilot Brain" },
-        { to: "/pilot-brain/operations", label: "Operations (Approvals)" },
-        { to: "/pilot-brain/strategy", label: "Strategy (Goals & Briefing)" },
+        { to: "/pilot-brain", label: "Ask Wendy" },
+        { to: "/pilot-brain/operations", label: "Approvals" },
+        { to: "/pilot-brain/strategy", label: "Goals & Briefing" },
+        { to: "/pilot-brain/decisions", label: "Decision Journal" },
       ],
     },
 
     {
-      label: "Jobs",
-      icon: FiCheckSquare,
+      label: "Stock",
+      icon: FiGrid,
       items: [
-        { to: "/jobs", label: "Jobs Board" },
-        { to: "/workshop-calendar", label: "Workshop Calendar" },
+        { to: "/dealer/inventory", label: "Stock Overview" },
+        { to: "/dealer/inventory/list", label: "Vehicle List" },
+        { to: "/photo-studio", label: "Photo Studio" },
+        { to: "/dealer/inventory/mot-lookup", label: "MOT Lookup" },
+        { to: "/dealer/tools", label: "Stock Tools" },
+        { to: "/import", label: "Import from CSV" },
       ],
     },
 
     {
-      label: "Consumables",
-      icon: FiPackage,
+      label: "Sales",
+      icon: FiTrendingUp,
       items: [
-        { to: "/consumables", label: "Stock & Ordering" },
+        { to: "/dealer/sales", label: "Sales Overview" },
+        { to: "/dealer/sales/leads", label: "Leads" },
+        { to: "/dealer/sales/add", label: "Add Lead" },
+        { to: "/dealer/sales/pipeline", label: "Pipeline" },
+        { to: "/appointments", label: "Viewings & Test Drives" },
+        { to: "/dealer/sales/wanted", label: "Wanted Cars" },
+        { to: "/dealer/marketing", label: "Your Public Page" },
+        { to: "/dealer/marketing/sync", label: "Portal Stock Feed" },
       ],
     },
 
@@ -73,32 +90,63 @@ export default function DealerSidebar() {
       icon: FiUserCheck,
       items: [
         { to: "/customers", label: "Customer Database" },
-      ],
-    },
-
-    {
-      label: "Contacts",
-      icon: FiPhoneCall,
-      items: [
         { to: "/contacts", label: "Suppliers & Contacts" },
       ],
     },
 
     {
-      label: "Diary",
-      icon: FiBook,
+      label: "Workshop",
+      icon: FiTool,
       items: [
-        { to: "/diary", label: "My Diary" },
+        { to: "/jobs", label: "Jobs Board" },
+        { to: "/workshop-calendar", label: "Workshop Calendar" },
+        { to: "/consumables", label: "Parts & Consumables" },
       ],
     },
 
     {
-      label: "Message Board",
-      icon: FiMessageSquare,
+      label: "Money",
+      icon: FiDollarSign,
       items: [
+        { to: "/bookkeeping", label: "Bookkeeping" },
+        { to: "/dealer/finance/profit-breakdown", label: "Profit Breakdown" },
+        { to: "/dealer/finance/calculator", label: "Finance Calculator" },
+        { to: "/dealer/finance/deal-sheet", label: "Deal Sheet" },
+        { to: "/dealer/finance/lender-comparison", label: "Lender Comparison" },
+        { to: "/dealer/finance/trade-in", label: "Trade-In Valuation" },
+        { to: "/dealer/finance/contract", label: "Contract Generator" },
+      ],
+    },
+
+    {
+      label: "Team",
+      icon: FiUsers,
+      items: [
+        { to: "/my-rota", label: "My Rota" },
+        { to: "/diary", label: "My Diary" },
         { to: "/feedback", label: "Team Message Board" },
-        { to: "/dealer/staff/message", label: "Contact a Team Member" },
-        { to: "/support", label: "Contact FlipPilot Support" },
+        { to: "/dealer/staff/message", label: "Message a Teammate" },
+        { to: "/dealer/staff", label: "Staff" },
+        { to: "/dealer/staff/planner", label: "Rota Planner" },
+        { to: "/dealer/staff/add", label: "Add Staff" },
+        { to: "/dealer/staff/permissions", label: "Who Can See What" },
+      ],
+    },
+
+    {
+      label: "Reports",
+      icon: FiActivity,
+      items: REPORT_TABS.map(({ to, label }) => ({ to, label })),
+    },
+
+    {
+      label: "Settings",
+      icon: FiSettings,
+      items: [
+        { to: "/dealer/settings", label: "Settings" },
+        { to: "/billing", label: "Billing" },
+        { to: "/support", label: "Help & Support" },
+        { to: TOUR_LINK, label: "Take the Tour" },
         // Only ever rendered once the backend has actually confirmed
         // this account is the platform admin — see useIsSupportAdmin.
         ...(isSupportAdmin
@@ -109,135 +157,13 @@ export default function DealerSidebar() {
           : []),
       ],
     },
-
-    {
-      label: "Vehicles",
-      icon: FiGrid,
-      items: [
-        { to: "/dealer/inventory", label: "Inventory Hub" },
-        { to: "/photo-studio", label: "Photo Studio" },
-        { to: "/import", label: "Import from CSV" },
-      ],
-    },
-
-    {
-      label: "Sales",
-      icon: FiTrendingUp,
-      items: [
-        { to: "/dealer/sales", label: "Sales Hub" },
-        { to: "/dealer/sales/add", label: "Add Lead" },
-        { to: "/dealer/sales/leads", label: "Leads Dashboard" },
-        { to: "/dealer/sales/pipeline", label: "Sales Pipeline" },
-        { to: "/appointments", label: "Viewing & Test Drive Requests" },
-        { to: "/dealer/sales/wanted", label: "Wanted Cars" },
-      ],
-    },
-
-    {
-      label: "Finance Suite",
-      icon: FiDollarSign,
-      items: [
-        { to: "/dealer/finance", label: "Finance Hub" },
-        { to: "/dealer/finance/calculator", label: "Finance Calculator" },
-        { to: "/dealer/finance/deal-sheet", label: "Deal Sheet" },
-        { to: "/dealer/finance/lender-comparison", label: "Lender Comparison" },
-        { to: "/dealer/finance/profit-breakdown", label: "Profit Breakdown" },
-        { to: "/dealer/finance/trade-in", label: "Trade-In Valuation" },
-        { to: "/dealer/finance/contract", label: "Contract Generator" },
-      ],
-    },
-
-    {
-      label: "Staff",
-      icon: FiUsers,
-      items: [
-        { to: "/my-rota", label: "My Rota" },
-        { to: "/dealer/staff", label: "Staff Dashboard" },
-        { to: "/dealer/staff/message", label: "Message a Teammate" },
-        { to: "/dealer/staff/add", label: "Add Staff" },
-        { to: "/dealer/staff/planner", label: "Rota Planner" },
-        { to: "/dealer/staff/permissions", label: "Permissions" },
-      ],
-    },
-
-    {
-      label: "Intelligence",
-      icon: FiActivity,
-      items: [
-        { to: "/dealer/intelligence/motors", label: "Motors Dashboard" },
-        { to: "/dealer/intelligence/crm", label: "Lead Summary" },
-        { to: "/dealer/intelligence/risk", label: "Risk Intelligence" },
-      ],
-    },
-
-    {
-      label: "Analytics",
-      icon: FiTrendingUp,
-      items: [
-        { to: "/dealer/analytics", label: "Analytics Hub" },
-        { to: "/dealer/analytics/sales", label: "Sales Analytics" },
-        { to: "/dealer/analytics/inventory", label: "Inventory Analytics" },
-        { to: "/dealer/analytics/lead-conversion", label: "Lead Conversion" },
-        { to: "/dealer/analytics/staff", label: "Staff Analytics" },
-        { to: "/dealer/analytics/branches", label: "Staff by Branch" },
-      ],
-    },
-
-    {
-      label: "Marketing",
-      icon: FiStar,
-      items: [
-        { to: "/dealer/marketing", label: "Marketing Hub" },
-        { to: "/dealer/marketing/sync", label: "Marketplace Sync" },
-      ],
-    },
-
-    {
-      label: "Bookkeeping",
-      icon: FiBook,
-      items: [
-        { to: "/bookkeeping", label: "Bookkeeping Hub" },
-      ],
-    },
-
-    {
-      label: "Risk",
-      icon: FiAlertTriangle,
-      items: [
-        { to: "/dealer/risk", label: "Risk Hub" },
-      ],
-    },
-
-    {
-      label: "Tools",
-      icon: FiTool,
-      items: [
-        { to: "/dealer/tools", label: "Tools Hub" },
-      ],
-    },
-
-    {
-      label: "Settings",
-      icon: FiSettings,
-      items: [
-        { to: "/dealer/settings", label: "Settings" },
-        { to: "/billing", label: "Billing" },
-      ],
-    },
-
-    {
-      label: "Workflows",
-      icon: FiChevronRight,
-      items: [
-        { to: "/dealer/workflow/finance", label: "Finance Workflow" },
-      ],
-    },
   ];
 
   // "You are here": the one menu item that best matches the current page
   // (longest matching address, so /dealer/sales/leads lights up Leads
   // Dashboard, not Sales Hub too), and the group it lives in.
-  const matches = (to: string) => pathname === to || pathname.startsWith(`${to}/`);
+  const reportTab = reportTabFor(pathname);
+  const matches = (to: string) => to === reportTab || pathname === to || pathname.startsWith(`${to}/`);
   let currentTo = "";
   let currentSection = "";
   for (const section of sections) {
@@ -318,6 +244,24 @@ export default function DealerSidebar() {
             const Icon = section.icon;
             const isOpen = open[section.label];
 
+            const firstItem = section.items[0];
+            if (section.direct && firstItem) {
+              const here = firstItem.to === currentTo;
+              return (
+                <Link
+                  key={section.label}
+                  to={firstItem.to}
+                  aria-current={here ? "page" : undefined}
+                  className={`flex items-center gap-2 w-full font-semibold tracking-wide px-2 py-2 rounded-md border-l-4 hover:text-yellow-300 transition ${
+                    here ? "text-yellow-300 border-yellow-400 bg-yellow-400/10" : "text-white/80 border-transparent"
+                  }`}
+                >
+                  <Icon className="text-yellow-300" />
+                  {section.label}
+                </Link>
+              );
+            }
+
             return (
               <div key={section.label}>
                 <button
@@ -335,8 +279,8 @@ export default function DealerSidebar() {
                     }
                   `}
                 >
-                  <span className="flex items-center gap-2">
-                    <Icon className="text-yellow-300" />
+                  <span className="flex items-center gap-2 text-left leading-tight">
+                    <Icon className="text-yellow-300 shrink-0" />
                     {section.label}
                   </span>
 
@@ -349,7 +293,16 @@ export default function DealerSidebar() {
 
                 {isOpen && (
                   <div className="flex flex-col mt-2 ml-4 gap-2">
-                    {section.items.map((item) => (
+                    {section.items.map((item) => item.to === TOUR_LINK ? (
+                      <button
+                        key={item.to}
+                        type="button"
+                        onClick={startTour}
+                        className="text-left px-3 py-2 rounded-lg border transition-all duration-200 text-sm bg-black/20 border-white/10 text-white/80 hover:bg-black/40 hover:text-yellow-300 hover:border-yellow-300/40"
+                      >
+                        {item.label}
+                      </button>
+                    ) : (
                       <Link
                         key={item.to}
                         to={item.to}
