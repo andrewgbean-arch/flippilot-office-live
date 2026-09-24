@@ -1,6 +1,30 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* The swirly "FlipPilot" lettering, matching the script in the FlipPilot
+   logo. Stored in the app (public/fonts), so no request goes to Google. */
+@font-face {
+  font-family: "FlipPilot Script";
+  src: url("/fonts/flippilot-script.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+.brand-script {
+  font-family: "FlipPilot Script", "Segoe Script", cursive;
+  font-weight: 400;
+  line-height: 1.15;
+  padding: 0 0.12em;
+  background: linear-gradient(180deg, #fffbe0 0%, #ffe066 35%, #ffd700 60%, #f2b600 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  /* The first two shadows thicken the fine strokes so it reads at header
+     size; the last is the soft gold glow. */
+  filter: drop-shadow(0 0 0.6px #ffd700) drop-shadow(0 0 0.6px #ffd700) drop-shadow(0 0 10px rgba(255, 215, 0, 0.45));
+}
 /* -------------------------------------------------------
    ⭐ SUPER NOVA ANIMATIONS
 ------------------------------------------------------- */
