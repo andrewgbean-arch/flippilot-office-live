@@ -133,10 +133,10 @@ export default function ToolsHub() {
         <SupernovaGlowCard>
           <h2 className="text-blue-400 font-bold text-xl mb-3">Photo Studio</h2>
           <p className="text-white/70 mb-4">
-            Photo tools are per-vehicle — pick a vehicle from your
-            inventory to manage its photo workflow.
+            See which cars still need photos, then open a car to add or
+            remove its photos.
           </p>
-          <Link to="/dealer/inventory/list" className={linkClass}>Go to Vehicle List</Link>
+          <Link to="/photo-studio" className={linkClass}>Open Photo Studio</Link>
         </SupernovaGlowCard>
 
         {/* MARKETPLACE TOOLS */}

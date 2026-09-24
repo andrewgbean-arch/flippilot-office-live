@@ -115,6 +115,7 @@ export default function DealerSidebar() {
       icon: FiGrid,
       items: [
         { to: "/dealer/inventory", label: "Inventory Hub" },
+        { to: "/photo-studio", label: "Photo Studio" },
         { to: "/import", label: "Import from CSV" },
       ],
     },
@@ -278,12 +279,13 @@ export default function DealerSidebar() {
       />
 
       {!isHome && (
-        <div className="mb-10">
-          {/* The app name, not a heading: each page carries its own h1. */}
-          <p className="text-2xl font-bold text-yellow-300 tracking-wide drop-shadow-lg">
-            Dealer OS
-          </p>
-        </div>
+        <Link to="/dealer-dashboard" className="mb-8 flex flex-col items-center" aria-label="FlipPilot Dealer OS, go to the dashboard">
+          {/* The same brand as the FlipPilot app: the gold logo with gold,
+              widely spaced capitals under it (like its SCAN · CHECK · FLIP).
+              The app name, not a heading: each page carries its own h1. */}
+          <img src="/brand/flippilot-logo.webp" alt="" width={140} height={121} className="w-[140px] h-auto drop-shadow-[0_0_18px_rgba(255,215,0,0.35)]" />
+          <p className="-mt-1 text-[13px] font-bold tracking-[0.3em] text-[#FFD700]">DEALER OS</p>
+        </Link>
       )}
 
       {isHome && (

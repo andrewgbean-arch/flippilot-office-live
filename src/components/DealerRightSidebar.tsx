@@ -8,6 +8,7 @@ import {
   FiClipboard,
   FiSearch,
   FiAlertTriangle,
+  FiCamera,
 } from "react-icons/fi";
 import { useInventory } from "@/context/InventoryProvider";
 import { useJobs } from "@/context/JobsContext";
@@ -17,6 +18,7 @@ const QUICK_LINKS = [
   { to: "/new-flip", label: "Add Vehicle", icon: FiPlusCircle },
   { to: "/dealer/sales/add", label: "Add Lead", icon: FiUserPlus },
   { to: "/dealer/inventory/list", label: "Vehicle List", icon: FiGrid },
+  { to: "/photo-studio", label: "Photo Studio", icon: FiCamera },
   { to: "/jobs", label: "Jobs Board", icon: FiCheckSquare },
   { to: "/my-rota", label: "My Rota", icon: FiCalendar },
   { to: "/consumables", label: "Consumables", icon: FiClipboard },

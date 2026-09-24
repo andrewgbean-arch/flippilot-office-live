@@ -913,18 +913,23 @@
   color: #a9b4ff;
 }
 
+/* Quiet until you mean it: a solid red button on every row made the
+   screens noisy and made deleting the easiest thing to hit. */
 .sn-btn--danger {
-  background: linear-gradient(135deg, #ff5c5c, #c62828);
-  color: #fff;
+  background: transparent;
+  color: #ff9a9a;
+  border: 1px solid rgba(255, 92, 92, 0.35);
   border-radius: 10px;
   padding: 10px 16px;
   font-weight: 600;
-  transition: box-shadow 0.25s ease, transform 0.25s ease;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
 }
 
-.sn-btn--danger:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 0 22px rgba(255, 92, 92, 0.45);
+.sn-btn--danger:hover,
+.sn-btn--danger:focus-visible {
+  background: rgba(255, 92, 92, 0.15);
+  border-color: rgba(255, 92, 92, 0.7);
+  color: #ffd0d0;
 }
 
 .sn-timeclock__error {

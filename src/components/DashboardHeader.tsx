@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { FiMenu } from "react-icons/fi";
 import { useAuth } from "@/context/AuthContext";
 import { useInventory } from "@/context/InventoryProvider";
@@ -18,6 +18,20 @@ export default function DashboardHeader({ onOpenMenu }: DashboardHeaderProps) {
 
   const { loading: inventoryLoading, refreshInventory } = useInventory();
   const [manualSyncing, setManualSyncing] = useState(false);
+  // Log Out lives in a small account menu, not beside Refresh, where it was
+  // one mis-tap away on a phone.
+  const [accountOpen, setAccountOpen] = useState(false);
+  const accountRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!accountOpen) return;
+    const close = (e: MouseEvent | KeyboardEvent) => {
+      if (e instanceof KeyboardEvent ? e.key === "Escape" : !accountRef.current?.contains(e.target as Node)) setAccountOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", close);
+    return () => { document.removeEventListener("mousedown", close); document.removeEventListener("keydown", close); };
+  }, [accountOpen]);
+  useEffect(() => setAccountOpen(false), [pathname]);
 
   const syncing = manualSyncing || inventoryLoading;
 
@@ -75,9 +89,11 @@ export default function DashboardHeader({ onOpenMenu }: DashboardHeaderProps) {
         )}
 
         {/* The brand, not a heading: each page carries its own h1. */}
-        <p className="min-w-0 truncate text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-wide drop-shadow-lg">
-          <span className="text-white">FlipPilot</span>
-          <span className="text-yellow-300 ml-2 hidden sm:inline">Dealer Hub</span>
+        {/* Same brand style as the FlipPilot app: gold (#FFD700), with the
+            product name in bold, widely spaced capitals. */}
+        <p className="min-w-0 truncate flex items-baseline gap-3 drop-shadow-lg">
+          <span className="text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-wide text-[#FFD700]">FlipPilot</span>
+          <span className="hidden sm:inline text-xs lg:text-sm font-bold tracking-[0.3em] text-[#FFD700]/90">DEALER OS</span>
         </p>
 
         {/* GOLD COSMIC STRIP */}
@@ -106,15 +122,31 @@ export default function DashboardHeader({ onOpenMenu }: DashboardHeaderProps) {
         </button>
 
         {user && (
-          <div className="flex items-center gap-2 sm:gap-3 sm:pl-4 sm:border-l border-white/10">
-            <span className="hidden md:inline max-w-[12rem] truncate text-white/70 text-sm">{user.name}</span>
+          <div ref={accountRef} className="relative sm:pl-4 sm:border-l border-white/10">
             <button
               type="button"
-              onClick={handleLogout}
-              className="min-h-[40px] px-3 rounded-lg text-xs font-semibold bg-black/50 border border-white/20 text-white/80 hover:text-red-300 hover:border-red-400/40 transition"
+              onClick={() => setAccountOpen((o) => !o)}
+              aria-haspopup="menu"
+              aria-expanded={accountOpen}
+              aria-label={`Account menu for ${user.name}`}
+              className="min-h-[40px] flex items-center gap-2 rounded-lg px-1.5 sm:px-2 hover:bg-white/5 transition"
             >
-              Log Out
+              <span className="grid place-items-center h-9 w-9 rounded-full bg-yellow-400/15 border border-yellow-400/50 text-yellow-300 text-sm font-bold">
+                {initials(user.name)}
+              </span>
+              <span className="hidden md:inline max-w-[12rem] truncate text-white/80 text-sm">{user.name}</span>
             </button>
+            {accountOpen && (
+              <div role="menu" className="absolute right-0 top-full mt-2 w-56 rounded-xl border border-yellow-400/30 bg-[#0b1230] shadow-2xl p-2 z-50">
+                <p className="px-3 py-2 text-sm text-white font-semibold truncate">{user.name}</p>
+                <p className="px-3 pb-2 text-xs text-white/50 truncate border-b border-white/10">{user.email}</p>
+                <Link role="menuitem" to="/dealer/settings" className="block mt-1 px-3 py-2 rounded-lg text-sm text-white/80 hover:bg-white/5 hover:text-yellow-300">Settings</Link>
+                <Link role="menuitem" to="/billing" className="block px-3 py-2 rounded-lg text-sm text-white/80 hover:bg-white/5 hover:text-yellow-300">Billing</Link>
+                <button role="menuitem" type="button" onClick={handleLogout} className="w-full text-left px-3 py-2 rounded-lg text-sm text-red-300 hover:bg-red-500/10">
+                  Log out
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -131,4 +163,10 @@ export default function DashboardHeader({ onOpenMenu }: DashboardHeaderProps) {
       `}</style>
     </header>
   );
+}
+
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  const letters = (parts[0]?.[0] ?? "") + (parts.length > 1 ? parts[parts.length - 1]?.[0] ?? "" : "");
+  return letters.toUpperCase() || "?";
 }

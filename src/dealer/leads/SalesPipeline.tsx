@@ -42,7 +42,7 @@ export default function SalesPipeline() {
       {/* Header */}
       <SupernovaHeroHeader
         title="Sales Pipeline"
-        subtitle="AI‑enhanced overview of your dealership’s lead progression."
+        subtitle="Where every lead is in your sales process, counted from your own records."
       />
 
       <SupernovaSectionDivider label="Pipeline Overview" />

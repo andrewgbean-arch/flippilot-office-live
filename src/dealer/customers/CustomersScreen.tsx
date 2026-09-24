@@ -186,7 +186,7 @@ export default function CustomersScreen() {
                       {c.vehicleInterests && <div className="sn-empty" style={{ fontSize: 12, marginTop: 2 }}>Interested in: {c.vehicleInterests}</div>}
                       {c.notes && <div className="sn-empty" style={{ fontSize: 12, marginTop: 2, fontStyle: "italic" }}>{c.notes}</div>}
                     </div>
-                    <button className="sn-btn sn-btn--danger" style={{ padding: "6px 12px", fontSize: 12, flexShrink: 0 }} onClick={() => handleDelete(c.id)}>
+                    <button className="sn-btn sn-btn--danger" style={{ padding: "6px 12px", fontSize: 12, flexShrink: 0 }} onClick={() => { if (window.confirm(`Remove ${c.name || "this customer"} and their consent record? This can't be undone.`)) void handleDelete(c.id); }}>
                       Remove
                     </button>
                   </div>

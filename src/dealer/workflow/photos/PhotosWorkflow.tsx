@@ -27,8 +27,8 @@ export default function PhotosWorkflow() {
   return (
     <div className="px-6 py-10 space-y-10">
       <SupernovaHeroHeader
-        title="Photos Workflow"
-        subtitle="Track photo coverage across your stock."
+        title="Photo Studio"
+        subtitle="Photo coverage across your stock, and the cars still waiting for photos."
       />
 
       <SupernovaSectionDivider label="Portfolio Photo Coverage" />

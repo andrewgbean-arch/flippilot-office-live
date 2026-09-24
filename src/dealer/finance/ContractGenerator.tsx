@@ -36,7 +36,7 @@ export default function ContractGenerator() {
 
   return (
     <div className="sn-panel sn-panel--full">
-      <h2 className="sn-panel__title">Contract Generator</h2>
+      <h1 className="sn-panel__title">Contract Generator</h1>
       <p className="sn-form-note" style={{ marginTop: 0, marginBottom: 12 }}>
         Fill in a sale agreement template to print or save as a PDF.
       </p>
@@ -172,7 +172,7 @@ export default function ContractGenerator() {
       </div>
 
       <div className="sn-contract-preview">
-        <h3 className="sn-panel__title" style={{ marginTop: 20 }}>Contract Preview</h3>
+        <h2 className="sn-panel__title" style={{ marginTop: 20 }}>Contract Preview</h2>
 
         <div className="sn-contract-doc printable-invoice">
           <p><strong>Vehicle Sale Agreement</strong></p>

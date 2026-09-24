@@ -91,7 +91,10 @@ export default function PublicDealerPage({ dealershipIdOverride }: { dealershipI
   const address = info.address?.trim() || null;
 
   return (
-    <div className="min-h-screen bg-black animate-fadeIn relative z-10 px-4 sm:px-6 py-8 sm:py-10 max-w-6xl mx-auto text-white">
+    // Full-width black behind the centred content: on a wide screen the page
+    // used to show white bands either side of it.
+    <div className="min-h-screen w-full bg-black">
+    <div className="animate-fadeIn relative z-10 px-4 sm:px-6 py-8 sm:py-10 max-w-6xl mx-auto text-white">
       <SupernovaHeroHeader
         title={info.name}
         subtitle="Vehicles for sale. Get in touch to book a viewing or test drive."
@@ -158,6 +161,7 @@ export default function PublicDealerPage({ dealershipIdOverride }: { dealershipI
           </ul>
         </section>
       )}
+    </div>
     </div>
   );
 }

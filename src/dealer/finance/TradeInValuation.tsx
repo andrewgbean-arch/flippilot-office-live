@@ -33,7 +33,7 @@ export default function TradeInValuation() {
 
   return (
     <div className="sn-panel sn-panel--full">
-      <h2 className="sn-panel__title">Trade-In Valuation</h2>
+      <h1 className="sn-panel__title">Trade-In Valuation</h1>
       <p className="sn-form-note" style={{ marginTop: 0, marginBottom: 12 }}>
         A rule-of-thumb starting point for a trade-in offer, worked out from a market value you enter.
         It is illustrative only: it does not look at the car, and it is not a valuation. Your own
@@ -118,7 +118,7 @@ export default function TradeInValuation() {
       </div>
 
       <div className="sn-deal-summary">
-        <h3 className="sn-panel__title" style={{ marginTop: 20 }}>Valuation (illustrative)</h3>
+        <h2 className="sn-panel__title" style={{ marginTop: 20 }}>Valuation (illustrative)</h2>
 
         <div className="sn-deal-row">
           <span>Vehicle</span>

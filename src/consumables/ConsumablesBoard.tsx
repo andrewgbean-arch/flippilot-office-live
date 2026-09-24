@@ -313,7 +313,7 @@ export default function ConsumablesBoard() {
                           <button
                             className="sn-btn sn-btn--danger"
                             style={{ padding: "6px 12px", fontSize: 12 }}
-                            onClick={() => removeConsumable(item.id)}
+                            onClick={() => { if (window.confirm(`Remove ${item.name} from your consumables? This can't be undone.`)) void removeConsumable(item.id); }}
                           >
                             Remove
                           </button>

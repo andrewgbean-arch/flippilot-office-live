@@ -127,7 +127,6 @@ import MOTTimeline from "@/features/dealer-ai/mot/MOTTimeline";
 
 /* MISC */
 import NewVehicle from "@/bookkeeping/vehicles/NewVehicle";
-import MotScanner from "@/bookkeeping/vehicles/MotLookup";
 import DealerPublicPage from "@/dealer/public/DealerPublicPage";
 
 /* NOT FOUND */
@@ -288,6 +287,7 @@ export default function AnimatedRoutes() {
         {/* WORKFLOWS */}
         <Route path="dealer/workflow/finance" element={<FinanceWorkflow />} />
         <Route path="dealer/workflow/photos/:id" element={<PhotosWorkflow />} />
+        <Route path="photo-studio" element={<PhotosWorkflow />} />
         <Route path="dealer/workflow/pricing/:id" element={<PricingWorkflow />} />
         <Route path="dealer/workflow/recon/:id" element={<ReconWorkflow />} />
         <Route path="dealer/workflow/mot/:id" element={<MOTWorkflow />} />
@@ -298,7 +298,8 @@ export default function AnimatedRoutes() {
 
         {/* MISC */}
         <Route path="new-flip" element={<NewVehicle />} />
-        <Route path="mot-scanner" element={<MotScanner />} />
+        {/* There were two MOT lookup screens; the older one lived here. */}
+        <Route path="mot-scanner" element={<Navigate to="/dealer/inventory/mot-lookup" replace />} />
         <Route path="marketplace" element={<DealerPublicPage />} />
 
         {/* NOT FOUND */}

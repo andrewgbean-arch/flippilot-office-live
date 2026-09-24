@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 import { SupernovaGlowCard } from "@/components/supernova/SupernovaGlowCard";
 import { SupernovaHeroHeader } from "@/components/supernova/SupernovaHeroHeader";
@@ -33,10 +33,10 @@ import PilotBrainSecurityCard from "./PilotBrainSecurityCard";
 import { BASE_URL } from "@/lib/apiBaseUrl";
 
 const STAFF_ROLE_OPTIONS: { value: "sales" | "finance" | "manager" | "general"; label: string; description: string }[] = [
-  { value: "sales", label: "Sales", description: "Leads/CRM and inventory — not bookkeeping or staff" },
-  { value: "finance", label: "Finance", description: "Bookkeeping and inventory — not staff management" },
-  { value: "manager", label: "Manager", description: "Broad access — bookkeeping, staff, inventory, leads" },
-  { value: "general", label: "General", description: "View access; can't record sales/costs or manage staff" },
+  { value: "sales", label: "Sales", description: "Leads, stock, Car Passports and Wanted Cars. Can't record in the books or manage staff." },
+  { value: "finance", label: "Finance", description: "Records purchases, costs and sales in the books. Can't manage staff or the rota." },
+  { value: "manager", label: "Manager", description: "The owner's day-to-day powers: the books, staff, rota and approving Pilot Brain's work." },
+  { value: "general", label: "General", description: "Everyday work. Can't record in the books, manage staff or approve Pilot Brain's work." },
 ];
 
 // A role's name as the owner sees it ("Manager", not "manager"), for messages.
@@ -130,8 +130,12 @@ function InviteTeammateModal({ onClose }: { onClose: () => void }) {
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
               ))}
             </select>
-            <p className="text-white/60 text-xs mb-4">
+            <p className="text-white/60 text-xs mb-1">
               {STAFF_ROLE_OPTIONS.find((opt) => opt.value === staffRole)?.description}
+            </p>
+            <p className="text-yellow-300/80 text-xs mb-4">
+              Every role can still see your stock, leads, customers, books and staff details.{" "}
+              <Link to="/dealer/staff/permissions" className="underline">Who can see what</Link>
             </p>
 
             {error && <p className="text-red-400 text-sm mb-4">{error}</p>}

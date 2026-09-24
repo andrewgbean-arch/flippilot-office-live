@@ -117,7 +117,7 @@ export default function DiaryBoard() {
                   <button
                     className="sn-btn sn-btn--danger"
                     style={{ padding: "4px 10px", fontSize: 12, flexShrink: 0 }}
-                    onClick={() => removeEntry(entry.id)}
+                    onClick={() => { if (window.confirm("Remove this diary entry? This can't be undone.")) void removeEntry(entry.id); }}
                   >
                     Remove
                   </button>

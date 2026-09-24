@@ -39,7 +39,7 @@ export default function StaffAnalytics() {
       <section className="sn-metrics-row">
         <MetricCard label="Total Staff" value={total} accent="primary" />
         <MetricCard label="Active" value={active} accent="success" />
-        <MetricCard label="Avg Days on FlipPilot" value={avgDaysOnApp} accent="gold" />
+        <MetricCard label="Avg Days Since Added" value={avgDaysOnApp} accent="gold" />
       </section>
 
       <main className="sn-grid">

@@ -36,8 +36,9 @@ describe("page titles", () => {
     const shared = [...byTitle.entries()].filter(([, routes]) => routes.length > 1).map(([title]) => title).sort();
     // "/" redirects to the dashboard; the two are one page. The lead summary
     // and the risk hub are each mounted at two addresses (the router renders
-    // the same component at both), so each shares one title.
-    expect(shared).toEqual(["Dashboard", "Lead summary", "Risk hub"]);
+    // the same component at both), so each shares one title. The old
+    // /mot-scanner address now redirects to the one MOT lookup page.
+    expect(shared).toEqual(["Dashboard", "Lead summary", "MOT lookup", "Risk hub"]);
   });
 
   it("names a page by exact route, with or without a trailing slash", () => {

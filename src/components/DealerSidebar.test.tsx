@@ -20,7 +20,7 @@ const sidebarAt = (path: string) =>
 
 // The link marked as the current page, by its visible text.
 const currentLinks = (html: string) =>
-  [...html.matchAll(/<a[^>]*aria-current="page"[^>]*>([^<]*)<\/a>/g)].map((m) => m[1].trim());
+  [...html.matchAll(/<a[^>]*aria-current="page"[^>]*>([^<]*)<\/a>/g)].map((m) => (m[1] ?? "").trim());
 
 describe("sidebar shows where you are", () => {
   it("opens the group for the current page and marks only that page", () => {

@@ -57,7 +57,7 @@ export default function AddLead() {
 
   return (
     <div className="sn-panel sn-panel--full">
-      <h2 className="sn-panel__title">Add New Lead</h2>
+      <h1 className="sn-panel__title">Add New Lead</h1>
       <p className="sn-form-note" style={{ marginTop: 0, marginBottom: 12 }}>
         Create a new customer lead and track it through your sales pipeline.
       </p>

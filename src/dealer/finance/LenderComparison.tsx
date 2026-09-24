@@ -36,7 +36,7 @@ export default function LenderComparison({
 
   return (
     <div className="sn-panel sn-panel--full">
-      <h2 className="sn-panel__title">Lender Comparison</h2>
+      <h1 className="sn-panel__title">Lender Comparison</h1>
       <p className="sn-form-note" style={{ marginTop: 0, marginBottom: 12 }}>
         Compare monthly payments for the lenders and rates you enter. Nothing is pre-filled.{" "}
         {FINANCE_DISCLAIMER}

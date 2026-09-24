@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useBookkeeping } from "./BookkeepingProvider";
 
 import BookkeepingTable from "./BookkeepingTable";
@@ -52,11 +52,16 @@ export default function BookkeepingScreen() {
   const totals = hubTotals(purchases, sales, costs);
 
   // MODAL STATE
-// MODAL STATE
-const [showPurchaseModal, setShowPurchaseModal] = useState(false);
-const [showCostModal, setShowCostModal] = useState(false);
-const [showSaleModal, setShowSaleModal] = useState(false);
-const [showTransactionModal, setShowTransactionModal] = useState(false); // ⭐ FIXED
+// MODAL STATE. The /bookkeeping/add-* addresses (the dashboard's buttons,
+// the Getting started card) arrive with state.openForm so the right form is
+// already open, instead of landing on the hub and needing a second click.
+// Only for roles that can record; others see the hub's explanation instead.
+const location = useLocation();
+const openForm = canWrite ? (location.state as { openForm?: string } | null)?.openForm : undefined;
+const [showPurchaseModal, setShowPurchaseModal] = useState(openForm === "purchase");
+const [showCostModal, setShowCostModal] = useState(openForm === "cost");
+const [showSaleModal, setShowSaleModal] = useState(openForm === "sale");
+const [showTransactionModal, setShowTransactionModal] = useState(openForm === "transaction");
 
 
   // Default pre-selection for the Cost/Sale modals (most recently

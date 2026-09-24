@@ -57,7 +57,7 @@ export default function AddStaff() {
   if (!canWrite) {
     return (
       <div className="sn-panel sn-panel--full">
-        <h2 className="sn-panel__title">Add Staff Member</h2>
+        <h1 className="sn-panel__title">Add Staff Member</h1>
         <p className="sn-form-note">
           Your account role ({user?.staffRole ?? "general"}) can view the team but not add or
           manage staff — that needs the Manager role.
@@ -68,7 +68,7 @@ export default function AddStaff() {
 
   return (
     <div className="sn-panel sn-panel--full">
-      <h2 className="sn-panel__title">Add Staff Member</h2>
+      <h1 className="sn-panel__title">Add Staff Member</h1>
 
       <div className="sn-form">
         <label htmlFor="addstaff-name">Name</label>

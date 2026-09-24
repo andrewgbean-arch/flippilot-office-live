@@ -7,5 +7,6 @@ import { Navigate } from "react-router-dom";
 // routed page. Redirecting here instead of showing static placeholder
 // text.
 export default function AddPurchaseScreen() {
-  return <Navigate to="/bookkeeping" replace />;
+  // Opens the hub with the purchase form already open (see BookkeepingScreen).
+  return <Navigate to="/bookkeeping" replace state={{ openForm: "purchase" }} />;
 }

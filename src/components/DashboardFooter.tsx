@@ -6,7 +6,7 @@ import {
   FiBell,
 } from "react-icons/fi";
 import { FaCarSide } from "react-icons/fa";
-import { FiTrendingUp } from "react-icons/fi";
+import { FiMessageCircle } from "react-icons/fi";
 import { useDealerNotifications } from "@/features/dealer-notifications/DealerNotificationsContext";
 // The notification dropdown's actual styling (.sn-alerts-dropdown etc.)
 // only ever lived in the Staff module's stylesheet, even though this
@@ -38,10 +38,12 @@ export default function DashboardFooter() {
       icon: <FaCarSide className="text-blue-300" />,
       to: "/new-flip",
     },
+    // Was "New Flip", a second button to the same Add Vehicle page. Wendy
+    // (Pilot Brain) gets the slot: one tap to ask her something.
     {
-      label: "New Flip",
-      icon: <FiTrendingUp className="text-green-300" />,
-      to: "/new-flip",
+      label: "Ask Wendy",
+      icon: <FiMessageCircle className="text-yellow-300" />,
+      to: "/pilot-brain",
     },
     // Was "AI Scan", which opened the AI Insights screen (removed: its
     // scores were constants). The MOT lookup is the real "scan": type a
@@ -83,9 +85,8 @@ export default function DashboardFooter() {
           scroll horizontally on narrow screens. */}
       <div className="flex gap-4 lg:gap-12 overflow-x-auto">
         {mainActions.map((a, i) => {
-          // Light up the button for the page you're on (the first one only,
-          // since Add Vehicle and New Flip currently open the same page).
-          const current = pathname === a.to && mainActions.findIndex((b) => b.to === a.to) === i;
+          // Light up the button for the page you're on.
+          const current = pathname === a.to;
           return (
           <Link
             key={i}

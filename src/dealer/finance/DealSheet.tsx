@@ -25,7 +25,7 @@ export default function DealSheet() {
 
   return (
     <div className="sn-panel sn-panel--full">
-      <h2 className="sn-panel__title">Deal Sheet</h2>
+      <h1 className="sn-panel__title">Deal Sheet</h1>
       <p className="sn-form-note" style={{ marginTop: 0, marginBottom: 12 }}>
         Build and review a deal summary for a customer. {FINANCE_DISCLAIMER}
       </p>
@@ -106,7 +106,7 @@ export default function DealSheet() {
       </div>
 
       <div className="sn-deal-summary">
-        <h3 className="sn-panel__title" style={{ marginTop: 20 }}>Summary (illustrative)</h3>
+        <h2 className="sn-panel__title" style={{ marginTop: 20 }}>Summary (illustrative)</h2>
 
         <div className="sn-deal-row">
           <span>Customer</span>

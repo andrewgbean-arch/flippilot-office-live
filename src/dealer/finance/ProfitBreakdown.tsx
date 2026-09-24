@@ -37,7 +37,7 @@ export default function ProfitBreakdown() {
 
   return (
     <div className="sn-panel sn-panel--full">
-      <h2 className="sn-panel__title">Profit Breakdown</h2>
+      <h1 className="sn-panel__title">Profit Breakdown</h1>
       <p className="sn-form-note" style={{ marginTop: 0, marginBottom: 12 }}>
         Work out the profit on a vehicle after costs and VAT. The VAT figure is a guide to
         check with your accountant, not a VAT return.
@@ -107,7 +107,7 @@ export default function ProfitBreakdown() {
       </div>
 
       <div className="sn-deal-summary">
-        <h3 className="sn-panel__title" style={{ marginTop: 20 }}>Breakdown</h3>
+        <h2 className="sn-panel__title" style={{ marginTop: 20 }}>Breakdown</h2>
 
         {!result.ready && (
           <p className="sn-form-note" style={{ marginTop: 0 }}>

@@ -26,7 +26,7 @@ export default function StaffDetail() {
   if (!form) {
     return (
       <div className="sn-panel sn-panel--full">
-        <h2 className="sn-panel__title">Staff Member Not Found</h2>
+        <h1 className="sn-panel__title">Staff Member Not Found</h1>
         <button className="sn-btn sn-btn--gold" onClick={() => navigate("/dealer/staff")}>
           Back to Staff Dashboard
         </button>
@@ -63,7 +63,7 @@ export default function StaffDetail() {
   return (
     <div className="sn-panel sn-panel--full">
       <div className="sn-detail-header">
-        <h2 className="sn-panel__title">{form.name || "Staff Member"}</h2>
+        <h1 className="sn-panel__title">{form.name || "Staff Member"}</h1>
         <button className="sn-btn sn-btn--ghost" onClick={() => navigate("/dealer/staff")}>
           Back
         </button>

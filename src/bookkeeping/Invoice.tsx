@@ -24,7 +24,7 @@ export default function Invoice() {
   if (!sale || !vehicle) {
     return (
       <div className="sn-panel sn-panel--full" style={{ margin: 24 }}>
-        <h2 className="sn-panel__title">No Sale Recorded</h2>
+        <h1 className="sn-panel__title">No Sale Recorded</h1>
         <p className="sn-empty">This vehicle has no recorded sale to invoice yet.</p>
         <button className="sn-btn sn-btn--ghost" onClick={() => navigate(-1)}>
           Back
@@ -47,7 +47,7 @@ export default function Invoice() {
     const badRate = figures.problem === "bad-rate";
     return (
       <div className="sn-panel sn-panel--full" style={{ margin: 24 }}>
-        <h2 className="sn-panel__title">{badRate ? "VAT Rate Not Valid" : "No Price Recorded"}</h2>
+        <h1 className="sn-panel__title">{badRate ? "VAT Rate Not Valid" : "No Price Recorded"}</h1>
         <p className="sn-empty">
           {badRate
             ? `Invoice ${sale.invoiceNumber} has no usable VAT rate, so the VAT and the total can't be worked out. Edit the sale and enter the VAT rate that applies (for example 20), then come back to print this invoice.`
@@ -104,7 +104,7 @@ export default function Invoice() {
   return (
     <div className="sn-panel sn-panel--full" style={{ margin: 24 }}>
       <div className="sn-rota-header">
-        <h2 className="sn-panel__title">Invoice {sale.invoiceNumber}</h2>
+        <h1 className="sn-panel__title">Invoice {sale.invoiceNumber}</h1>
         <div className="sn-rota-week-nav">
           <button className="sn-btn sn-btn--ghost" onClick={() => navigate(-1)}>
             ← Back

@@ -124,7 +124,8 @@ export const PAGE_TITLES: Record<string, string> = {
 
   // Misc
   "/new-flip": "Add a vehicle",
-  "/mot-scanner": "MOT scanner",
+  "/mot-scanner": "MOT lookup",
+  "/photo-studio": "Photo Studio",
   "/marketplace": "Marketplace",
 
   // Platform admin
