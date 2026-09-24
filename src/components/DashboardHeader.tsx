@@ -91,9 +91,9 @@ export default function DashboardHeader({ onOpenMenu }: DashboardHeaderProps) {
         {/* The brand, not a heading: each page carries its own h1. */}
         {/* Same brand as the FlipPilot app: the logo's swirly gold script,
             then the product name in gold, widely spaced capitals. */}
-        <p className="min-w-0 truncate flex items-baseline gap-3 drop-shadow-lg">
-          <span className="brand-script text-[2.1rem] sm:text-[2.6rem] lg:text-[3rem]">FlipPilot</span>
-          <span className="hidden sm:inline text-xs lg:text-sm font-bold tracking-[0.3em] text-[#FFD700]/90">DEALER OS</span>
+        <p className="min-w-0 truncate flex items-baseline gap-3">
+          <span className="brand-script text-[2.1rem] sm:text-[2.6rem] lg:text-[3rem]" data-text="FlipPilot">FlipPilot</span>
+          <span className="brand-caps hidden sm:inline text-xs lg:text-sm">DEALER OS</span>
         </p>
 
         {/* GOLD COSMIC STRIP */}
