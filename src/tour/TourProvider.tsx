@@ -111,6 +111,10 @@ interface TourContextType {
   // browsers): the card shows a "Tap to hear Wendy" button.
   soundBlocked: boolean;
   playSound: () => void;
+  // With sound on, the card can be hidden so only the gold outline shows while
+  // Wendy talks; Space (or a tap on the note) brings it back.
+  cardHidden: boolean;
+  setCardHidden: (hidden: boolean) => void;
 }
 
 const TourContext = createContext<TourContextType | undefined>(undefined);
@@ -135,6 +139,7 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
   const [doneChapters, setDoneChapters] = useState<Set<string>>(new Set());
   const [sound, setSound] = useState(true);
   const [paused, setPaused] = useState(false);
+  const [cardHidden, setCardHidden] = useState(false);
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
 
   const autoStartChecked = useRef(false);
@@ -208,6 +213,7 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
 
   const stopTour = useCallback(() => {
     silence();
+    setCardHidden(false);
     setIsActive(false);
     setPhase("menu");
     setTargetRect(null);
@@ -250,6 +256,7 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
 
   const showChapters = useCallback(() => {
     silence();
+    setCardHidden(false);
     setTargetRect(null);
     setPhase("menu");
   }, [silence]);
@@ -441,6 +448,24 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => silence, [silence]);
 
+  useEffect(() => {
+    if (!sound) setCardHidden(false);
+  }, [sound]);
+
+  // Space brings a hidden card back, unless someone is typing in a box.
+  useEffect(() => {
+    if (!isActive || !cardHidden) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== " " && e.code !== "Space") return;
+      const el = e.target as HTMLElement | null;
+      if (el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return;
+      e.preventDefault();
+      setCardHidden(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [isActive, cardHidden]);
+
   const chapter = current ? chapters.find(c => c.id === current.chapterId) ?? null : null;
   const chapterNumber = chapter ? chapters.findIndex(c => c.id === chapter.id) + 1 : 0;
 
@@ -477,6 +502,8 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
         togglePause,
         soundBlocked,
         playSound,
+        cardHidden,
+        setCardHidden,
       }}
     >
       {children}

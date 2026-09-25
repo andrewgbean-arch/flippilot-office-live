@@ -1,5 +1,5 @@
-import type { CSSProperties } from "react";
-import { FiCheck, FiChevronRight, FiPause, FiPlay, FiVolume2, FiVolumeX } from "react-icons/fi";
+import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
+import { FiCheck, FiChevronRight, FiEyeOff, FiMove, FiPause, FiPlay, FiVolume2, FiVolumeX } from "react-icons/fi";
 import { useAuth } from "@/context/AuthContext";
 import { useTour } from "./TourProvider";
 import type { TourChapter } from "./tourPlan";
@@ -20,6 +20,35 @@ const quiet = "bg-white/10 text-white/85 hover:bg-white/20";
 export function TourOverlay() {
   const tour = useTour();
   const { user } = useAuth();
+
+  // Where the person dragged the card to (null: its usual place beside the
+  // outlined part). It stays there for the rest of the tour, and a
+  // double-click on its handle puts it back.
+  const [dragged, setDragged] = useState<{ x: number; y: number } | null>(null);
+  const grip = useRef<{ dx: number; dy: number } | null>(null);
+  useEffect(() => {
+    if (!tour.isActive) setDragged(null);
+  }, [tour.isActive]);
+
+  function startDrag(e: ReactPointerEvent<HTMLDivElement>) {
+    if ((e.target as HTMLElement).closest("button")) return; // the handle's own buttons still click
+    const card = (e.currentTarget.closest('[role="dialog"]') as HTMLElement | null)?.getBoundingClientRect();
+    if (!card) return;
+    grip.current = { dx: e.clientX - card.left, dy: e.clientY - card.top };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  }
+  function moveDrag(e: ReactPointerEvent<HTMLDivElement>) {
+    if (!grip.current) return;
+    // kept on screen: at least 60px of the card stays reachable
+    const x = Math.min(Math.max(e.clientX - grip.current.dx, 8), window.innerWidth - 60);
+    const y = Math.min(Math.max(e.clientY - grip.current.dy, 8), window.innerHeight - 60);
+    setDragged({ x, y });
+  }
+  function endDrag(e: ReactPointerEvent<HTMLDivElement>) {
+    grip.current = null;
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+  }
+
   if (!tour.isActive) return null;
 
   // ---- the start screen: sound, the whole tour, or one chapter -------------
@@ -172,21 +201,68 @@ export function TourOverlay() {
   } else {
     cardStyle = { position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: cardWidth, zIndex: 9999 };
   }
+  if (dragged) {
+    cardStyle = { position: "fixed", left: dragged.x, top: dragged.y, width: cardWidth, zIndex: 9999, maxHeight: viewportH - dragged.y - 8, overflowY: "auto" };
+  }
 
   const endLabel = tour.isLastOfRun ? "Finish" : "Next";
+
+  // Card hidden (sound on): just the outline, and a small note to bring the
+  // card back. The note is a button too, for phones with no Space bar.
+  if (tour.sound && tour.cardHidden) {
+    return (
+      <>
+        <div style={spotlightStyle} aria-hidden />
+        <div className="fixed bottom-24 left-1/2 z-[9999] flex -translate-x-1/2 items-center gap-2 rounded-full border border-yellow-400/60 bg-[#0A1128]/95 px-2 py-1.5 shadow-[0_0_20px_rgba(255,215,0,0.35)]">
+          <button
+            onClick={() => tour.setCardHidden(false)}
+            className="rounded-full px-3 py-1 text-sm font-semibold text-yellow-300 hover:bg-yellow-400/10"
+          >
+            Press <kbd className="rounded border border-yellow-400/60 px-1.5 text-xs">Space</kbd> or tap here to bring the card back
+          </button>
+          {tour.soundBlocked && (
+            <button onClick={tour.playSound} className="rounded-full bg-yellow-400 px-3 py-1 text-sm font-bold text-black">
+              Tap to hear Wendy
+            </button>
+          )}
+          <button onClick={tour.stopTour} className="rounded-full px-3 py-1 text-sm text-white/70 hover:text-white">
+            Skip tour
+          </button>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
       <div style={spotlightStyle} aria-hidden />
       <div style={cardStyle} role="dialog" aria-label={`Tour: ${step.title}`}>
         <div className="rounded-xl border border-yellow-400/50 bg-[#0A1128] p-4 text-white shadow-[0_0_30px_rgba(255,215,0,0.35)] sm:p-5">
-          <div className="mb-2 flex items-center justify-between gap-3 text-xs font-semibold">
+          <div
+            className="-mx-2 -mt-2 mb-2 flex cursor-move touch-none select-none items-center justify-between gap-3 rounded-lg px-2 pt-2 text-xs font-semibold"
+            onPointerDown={startDrag}
+            onPointerMove={moveDrag}
+            onPointerUp={endDrag}
+            onPointerCancel={endDrag}
+            onDoubleClick={() => setDragged(null)}
+            title="Drag to move the card; double-click to put it back"
+          >
             <span className="truncate uppercase tracking-wide text-yellow-300/80">
+              <FiMove aria-hidden className="mr-1.5 inline align-[-2px] text-yellow-300/60" />
               {tour.singleRun && tour.page && !tour.chapter?.pages.some(p => p.id !== tour.page!.id) ? "" : `Chapter ${tour.chapterNumber} · `}
               {tour.page?.title}
             </span>
-            <span className="shrink-0 text-white/50">
+            <span className="flex shrink-0 items-center gap-2 text-white/50">
               {tour.place.at} of {tour.place.of}
+              {tour.sound && (
+                <button
+                  onClick={() => tour.setCardHidden(true)}
+                  title="Hide the card while Wendy talks (Space brings it back)"
+                  className="flex items-center gap-1 rounded-md border border-white/20 px-2 py-0.5 text-white/80 hover:border-yellow-400/60 hover:text-yellow-300"
+                >
+                  <FiEyeOff aria-hidden /> Hide card
+                </button>
+              )}
             </span>
           </div>
 
