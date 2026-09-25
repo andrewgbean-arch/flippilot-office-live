@@ -134,7 +134,7 @@
   "customers-intro": "98fddd11429091c9",
   "customers-add": "45fe10d2fd9979f4",
   "customers-search": "ce0e2684a23612bb",
-  "customers-consent": "0f44ff2e2dea92a6",
+  "customers-consent": "92f7f2bce5beeb04",
   "customers-no-send": "cd4f54c86a338fd7",
   "customers-remove": "0a90154c31ca3fc9",
   "contacts-intro": "4bb445eca7240562",
@@ -157,7 +157,7 @@
   "consumables-table": "ec305aa6692b785f",
   "bookkeeping-intro": "ec0520c280540e2e",
   "bookkeeping-buy-cost": "cf07cabec85ad84e",
-  "bookkeeping-sale-transaction": "9c535d015287cf57",
+  "bookkeeping-sale-transaction": "c933c79cf44b581b",
   "bookkeeping-summary": "ab2d6540c075a47d",
   "bookkeeping-ledger": "b68f51369fa017b6",
   "bookkeeping-cost-breakdown": "87e8adcaefd5b403",
@@ -276,5 +276,6 @@
   "goodbye": "d5824ff6184b1606",
   "search-intro": "0d41344a23029d9b",
   "search-box": "b7c4ed5df48753ff",
-  "search-results": "fae885b947b1a41a"
+  "search-results": "fae885b947b1a41a",
+  "pricing-workflow-figures-team": "a5e37aa398b2fa6b"
 }
