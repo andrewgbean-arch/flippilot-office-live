@@ -3,7 +3,6 @@ import type { Job } from "@/jobs/jobTypes";
 import { loadJobs, saveJobs } from "@/jobs/jobStorage.web";
 import { useAuth } from "@/context/AuthContext";
 import { useGuardedLoad } from "@/lib/useGuardedLoad";
-import { useDealerNotifications } from "@/features/dealer-notifications/DealerNotificationsContext";
 
 interface JobsContextType {
   jobs: Job[];
@@ -18,7 +17,6 @@ const JobsContext = createContext<JobsContextType | undefined>(undefined);
 export function JobsProvider({ children }: { children: React.ReactNode }) {
   const [jobs, setJobs] = useState<Job[]>([]);
   const { user } = useAuth();
-  const { addNotification } = useDealerNotifications();
 
   // Keyed on the authenticated user's dealershipId, not `[]` — see
   // InventoryProvider/LeadsContext/StaffContext for the confirmed bug
@@ -43,15 +41,8 @@ export function JobsProvider({ children }: { children: React.ReactNode }) {
     if (!guardSave()) return;
     const updated = [...jobs, newJob];
     setJobs(updated);
+    // The person it's assigned to is told by the server, in their own bell.
     await saveJobs(updated);
-
-    if (newJob.assignedToName) {
-      addNotification({
-        type: "info",
-        title: "Job Assigned",
-        message: `"${newJob.title}" assigned to ${newJob.assignedToName}.`,
-      });
-    }
   }
 
   async function updateJob(updatedJob: Job) {

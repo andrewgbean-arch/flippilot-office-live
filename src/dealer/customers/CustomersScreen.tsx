@@ -101,6 +101,15 @@ export default function CustomersScreen() {
     await load();
   }
 
+  // The "how did they consent?" note is saved when you leave the box, as well
+  // as with a change of status: a note typed for someone already Opted in used
+  // to be lost, because only the drop-down saved.
+  async function saveConsentNote(customer: Customer, channel: "emailConsent" | "whatsappConsent") {
+    const draft = (channel === "emailConsent" ? methodDrafts[customer.id]?.email : methodDrafts[customer.id]?.whatsapp) ?? "";
+    if (draft.trim() === (customer[channel].method ?? "").trim()) return;
+    await handleConsentChange(customer, channel, customer[channel].status);
+  }
+
   async function handleConsentChange(customer: Customer, channel: "emailConsent" | "whatsappConsent", status: ConsentStatus) {
     const method = channel === "emailConsent" ? methodDrafts[customer.id]?.email : methodDrafts[customer.id]?.whatsapp;
     await updateCustomer(customer.id, { [channel]: { status, method: method?.trim() || undefined } });
@@ -218,6 +227,7 @@ export default function CustomersScreen() {
                         placeholder="how did they consent?"
                         value={methodDrafts[c.id]?.email ?? ""}
                         onChange={e => setMethodDrafts(prev => ({ ...prev, [c.id]: { ...prev[c.id], email: e.target.value, whatsapp: prev[c.id]?.whatsapp ?? "" } }))}
+                        onBlur={() => void saveConsentNote(c, "emailConsent")}
                         className="sn-input"
                         style={{ fontSize: 12, padding: "2px 6px", width: 160 }}
                       />
@@ -240,6 +250,7 @@ export default function CustomersScreen() {
                         placeholder="how did they consent?"
                         value={methodDrafts[c.id]?.whatsapp ?? ""}
                         onChange={e => setMethodDrafts(prev => ({ ...prev, [c.id]: { ...prev[c.id], whatsapp: e.target.value, email: prev[c.id]?.email ?? "" } }))}
+                        onBlur={() => void saveConsentNote(c, "whatsappConsent")}
                         className="sn-input"
                         style={{ fontSize: 12, padding: "2px 6px", width: 160 }}
                       />

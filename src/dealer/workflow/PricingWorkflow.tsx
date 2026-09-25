@@ -89,6 +89,15 @@ export default function PricingWorkflow() {
         <dl>
           <Row label="Your asking price">{f.asking === null ? <span className="text-white/60">Not entered</span> : formatMoney(f.asking)}</Row>
 
+          {/* What it cost, the costs and the margin come from the books: the
+              owner, managers and finance. Everyone else is told who has them,
+              not shown "Not recorded" and "£0" for figures that do exist. */}
+          {!canRecon ? (
+            <Row label="Costs and margin">
+              <span className="text-white/60">For the owner, managers and finance.</span>
+            </Row>
+          ) : (
+          <>
           <Row label="What it cost">
             {f.cost === null ? (
               <span className="text-white/60">
@@ -131,11 +140,14 @@ export default function PricingWorkflow() {
             )}
           </Row>
 
+          </>
+          )}
+
           {f.daysInStock !== null && (
             <Row label="In stock for">{plural(f.daysInStock, "day")}</Row>
           )}
 
-          {f.sale && (
+          {f.sale && canRecon && (
             <Row label="Sold for">
               {formatMoney(f.sale.price)}
               {f.saleProfit !== null && (
@@ -149,7 +161,7 @@ export default function PricingWorkflow() {
 
         <p className="mt-4 text-sm text-white/50">
           This is arithmetic on the prices and costs you have entered, before VAT and before any cost you have not
-          logged. It is not a valuation: FlipPilot does not know what this car is worth on the market.
+          logged. It is not a valuation: for what similar cars are listed at, see the Market pricing tab on the car's page.
         </p>
       </SupernovaGlowCard>
 

@@ -42,7 +42,7 @@ export const chapter: TourChapter = {
           target: "css:main .sn-recent-lead",
           title: "Recording consent",
           narration:
-            "Each customer has an email and a WhatsApp setting: not asked, opted in or opted out. Type how they agreed first, such as verbally at purchase, then choose the setting. It's saved as soon as you choose, with the date they opted in.",
+            "Each customer has an email and a WhatsApp setting: not asked, opted in or opted out. Choose the setting and type how they agreed, such as verbally at purchase. Both are saved as you go, with the date they opted in.",
         },
         {
           id: "customers-no-send",
@@ -87,7 +87,7 @@ export const chapter: TourChapter = {
           },
         ],
         tips: [
-          "The note about how someone agreed is saved when you change the setting, so type it before you choose.",
+          "The note about how someone agreed is saved when you click away from the box, or when you change the setting.",
           "A customer's name, email and phone can't be edited on this screen once saved.",
           "If someone says no, set them to Opted out rather than deleting them, so you keep a record not to contact them.",
         ],

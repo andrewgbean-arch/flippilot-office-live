@@ -9,6 +9,7 @@ import { useInventory } from "@/context/InventoryProvider";
 import { SupernovaHeroHeader } from "@/components/supernova/SupernovaHeroHeader";
 import { SupernovaSectionDivider } from "@/components/supernova/SupernovaSectionDivider";
 import { SupernovaGlowCard } from "@/components/supernova/SupernovaGlowCard";
+import { useBookkeeping } from "@/bookkeeping/BookkeepingProvider";
 
 export default function SupplierDetail() {
   const { id } = useParams();
@@ -24,6 +25,7 @@ export default function SupplierDetail() {
   /* -------------------------------------------------------
      ⭐ Build Source Stats
   ------------------------------------------------------- */
+  const { getProfitForVehicle } = useBookkeeping();
   const stats = useMemo(() => {
     const sourcePurchases = purchases.filter(
       (p) => p.source?.toLowerCase() === sourceName.toLowerCase()
@@ -43,12 +45,8 @@ export default function SupplierDetail() {
       0
     );
 
-    const totalProfit = sourceVehicles.reduce((sum, v) => {
-      if (v?.sellPrice != null && v?.buyPrice != null) {
-        return sum + (v.sellPrice - v.buyPrice);
-      }
-      return sum;
-    }, 0);
+    // Only cars that have sold, with their costs taken off (the hub's figure).
+    const totalProfit = sourceVehicles.reduce((sum, v) => sum + (getProfitForVehicle(v!.id)?.profit ?? 0), 0);
 
     return {
       sourcePurchases,
@@ -57,7 +55,7 @@ export default function SupplierDetail() {
       totalVAT,
       totalProfit,
     };
-  }, [purchases, vehicles, sourceName]);
+  }, [purchases, vehicles, sourceName, getProfitForVehicle]);
 
   const profitColor = (profit: number) => {
     if (profit < 0) return "text-red-400";
@@ -137,10 +135,7 @@ export default function SupplierDetail() {
           </p>
         ) : (
           stats.sourceVehicles.map((v) => {
-            const profit =
-              v!.sellPrice != null && v!.buyPrice != null
-                ? v!.sellPrice - v!.buyPrice
-                : null;
+            const profit = getProfitForVehicle(v!.id)?.profit ?? null;
 
             return (
             <div

@@ -243,6 +243,25 @@ describe("Approvals (Pilot Brain operations)", () => {
   });
 });
 
+describe("jobs", () => {
+  it("tell the person a job is newly given to, in their own bell, once, and never yourself", async () => {
+    const notices = async (who: Account) =>
+      ((await request(app).get("/notifications").set(auth(who))).body.items as any[]).filter(n => n.title === "Job assigned to you");
+    const before = (await notices(staff.general)).length;
+    const job = { id: "j-assign", title: "Valet the Focus", status: "todo", assignedToUserId: staff.general.id, assignedToName: "G" };
+    expect((await request(app).put("/jobs").set(auth(staff.sales)).send({ items: [job] })).status).toBe(200);
+    const after = await notices(staff.general);
+    expect(after.length).toBe(before + 1);
+    expect(after[after.length - 1].message).toContain("Valet the Focus");
+    // saving the same list again, or a job given to yourself, adds nothing
+    await request(app).put("/jobs").set(auth(staff.sales)).send({ items: [job] });
+    await request(app).put("/jobs").set(auth(staff.general)).send({ items: [{ ...job, id: "j-self" }, job] });
+    expect((await notices(staff.general)).length).toBe(before + 1);
+    // and nobody else hears about it
+    expect((await notices(staff.sales)).length).toBe(0);
+  });
+});
+
 describe("customers", () => {
   it("can be erased, or replaced wholesale, only by the owner and managers", async () => {
     const made = await request(app).post("/customers").set(auth(staff.sales)).send({ name: "Pat Buyer", phone: "07700 900123" });

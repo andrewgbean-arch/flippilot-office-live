@@ -8,6 +8,7 @@ import { useInventory } from "@/context/InventoryProvider";
 import { SupernovaHeroHeader } from "@/components/supernova/SupernovaHeroHeader";
 import { SupernovaSectionDivider } from "@/components/supernova/SupernovaSectionDivider";
 import { SupernovaGlowCard } from "@/components/supernova/SupernovaGlowCard";
+import { useBookkeeping } from "@/bookkeeping/BookkeepingProvider";
 
 export default function SupplierAnalytics() {
   const navigate = useNavigate();
@@ -15,6 +16,9 @@ export default function SupplierAnalytics() {
   // does not exist (older purchases were saved with phantom VAT: see purchaseVat.ts).
   const purchases = useLedgerPurchases();
   const { vehicles } = useInventory();
+  // A car's profit is only known once it has sold: the same figure the
+  // Bookkeeping hub uses (sale price, less what it cost and its costs).
+  const { getProfitForVehicle, getSaleForVehicle } = useBookkeeping();
 
   /* -------------------------------------------------------
      ⭐ Build Supplier Analytics
@@ -30,6 +34,8 @@ export default function SupplierAnalytics() {
         avgSell: number;
         avgProfit: number;
         count: number;
+        soldCount: number;
+        saleTotal: number;
         vatTotal: number;
       }
     > = {};
@@ -47,16 +53,22 @@ export default function SupplierAnalytics() {
           avgSell: 0,
           avgProfit: 0,
           count: 0,
+          soldCount: 0,
+          saleTotal: 0,
           vatTotal: 0,
         };
       }
 
       const buy = p.purchasePrice ?? 0;
-      const sell = vehicle?.sellPrice ?? null;
-      const profit = sell != null ? sell - buy : 0;
+      const sold = getProfitForVehicle(p.vehicleId);
+      const sale = getSaleForVehicle(p.vehicleId);
 
       map[source].totalSpend += buy;
-      map[source].totalProfit += profit;
+      if (sold && sale) {
+        map[source].totalProfit += sold.profit;
+        map[source].saleTotal += sale.salePrice;
+        map[source].soldCount += 1;
+      }
       map[source].vatTotal += p.vatAmount ?? 0;
       map[source].count += 1;
     });
@@ -64,24 +76,13 @@ export default function SupplierAnalytics() {
     // Compute averages
     Object.values(map).forEach((s) => {
       s.avgBuy = s.totalSpend / s.count;
-      s.avgProfit = s.totalProfit / s.count;
+      s.avgProfit = s.soldCount > 0 ? s.totalProfit / s.soldCount : 0;
+      s.avgSell = s.soldCount > 0 ? s.saleTotal / s.soldCount : 0;
 
-      const sourceVehicles = purchases
-        .filter((p) => p.source === s.source)
-        .map((p) => vehicles.find((v) => v.id === p.vehicleId))
-        .filter((v) => v?.sellPrice != null);
-
-      if (sourceVehicles.length > 0) {
-        s.avgSell =
-          sourceVehicles.reduce((sum, v) => sum + (v?.sellPrice ?? 0), 0) /
-          sourceVehicles.length;
-      } else {
-        s.avgSell = 0;
-      }
     });
 
     return Object.values(map).sort((a, b) => b.totalProfit - a.totalProfit);
-  }, [purchases, vehicles]);
+  }, [purchases, vehicles, getProfitForVehicle, getSaleForVehicle]);
 
   return (
     <div className="text-white bg-[#0A1128] min-h-screen p-10 animate-fadeIn">
@@ -125,7 +126,7 @@ export default function SupplierAnalytics() {
                     </div>
 
                     <div>
-                      <p className="text-white/60 text-sm">Total Profit</p>
+                      <p className="text-white/60 text-sm">Profit on cars sold ({s.soldCount})</p>
                       <p
                         className={`font-bold ${
                           s.totalProfit < 0
@@ -147,14 +148,14 @@ export default function SupplierAnalytics() {
                     </div>
 
                     <div>
-                      <p className="text-white/60 text-sm">Avg Sell</p>
+                      <p className="text-white/60 text-sm">Avg sale price</p>
                       <p className="text-white font-bold">
                         {formatMoney(s.avgSell)}
                       </p>
                     </div>
 
                     <div>
-                      <p className="text-white/60 text-sm">Avg Profit</p>
+                      <p className="text-white/60 text-sm">Avg profit per car sold</p>
                       <p
                         className={`font-bold ${
                           s.avgProfit < 0

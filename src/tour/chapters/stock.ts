@@ -850,9 +850,18 @@ export const chapter: TourChapter = {
         {
           id: "pricing-workflow-figures",
           target: "css:main dl",
+          showIf: canSeeMoney,
           title: "Your price and costs",
           narration:
             "Here's your asking price, what the car cost, the costs logged against it, the total so far, and your margin at the asking price. It's plain arithmetic on your own figures, before VAT, not a valuation. The cost figures are for the owner, managers and finance.",
+        },
+        {
+          id: "pricing-workflow-figures-team",
+          target: "css:main dl",
+          showIf: user => !canSeeMoney(user),
+          title: "The asking price",
+          narration:
+            "Here's the car's asking price and how long it has been in stock. What it cost and its margin are kept by the owner, managers and finance, so check with one of them before you agree a lower price.",
         },
         {
           id: "pricing-workflow-next",
