@@ -190,6 +190,14 @@ export function TourOverlay() {
             </span>
           </div>
 
+          {tour.sound && tour.soundBlocked && (
+            <button
+              onClick={tour.playSound}
+              className="mb-3 flex w-full items-center justify-center gap-2 rounded-lg bg-yellow-400 px-3 py-2 text-sm font-bold text-black hover:bg-yellow-300"
+            >
+              <FiVolume2 aria-hidden /> Tap to hear Wendy
+            </button>
+          )}
           <h3 className="mb-1.5 text-lg font-bold text-yellow-300">{step.title}</h3>
           <p className="mb-4 text-sm leading-relaxed text-white/85" aria-live="polite">
             {step.narration}

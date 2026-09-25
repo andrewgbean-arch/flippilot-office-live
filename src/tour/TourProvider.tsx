@@ -107,6 +107,10 @@ interface TourContextType {
   skipPage: () => void;
   showChapters: () => void;
   togglePause: () => void;
+  // The browser refused to play sound without a tap (phones, some embedded
+  // browsers): the card shows a "Tap to hear Wendy" button.
+  soundBlocked: boolean;
+  playSound: () => void;
 }
 
 const TourContext = createContext<TourContextType | undefined>(undefined);
@@ -135,7 +139,14 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
 
   const autoStartChecked = useRef(false);
   const advanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const audio = useRef<HTMLAudioElement | null>(null);
+  // ONE player for the whole tour. Browsers only let a page make sound when it
+  // starts from a tap: a new player made a moment later (after the screen has
+  // moved) is refused, silently on iPhones and in some embedded browsers, and
+  // the browser voice is refused the same way. This player is started inside
+  // the tap that starts the tour or moves it on, and once it has played it
+  // may keep playing.
+  const player = useRef<HTMLAudioElement | null>(null);
+  const [soundBlocked, setSoundBlocked] = useState(false);
 
   // The seen flag must be written for whoever is logged in when the tour
   // ends, not whoever was when a callback was made (user starts null and
@@ -152,14 +163,30 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
       clearTimeout(advanceTimer.current);
       advanceTimer.current = null;
     }
-    if (audio.current) {
-      audio.current.onended = null;
-      audio.current.onerror = null;
-      audio.current.pause();
-      audio.current = null;
+    if (player.current) {
+      player.current.onended = null;
+      player.current.onerror = null;
+      player.current.pause();
     }
     if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
   }, []);
+
+  function getPlayer(): HTMLAudioElement | null {
+    if (typeof Audio === "undefined") return null;
+    if (!player.current) player.current = new Audio();
+    return player.current;
+  }
+
+  // Inside a tap: load this stop's recording and start it at once, which is
+  // what lets the browser play sound for the rest of the tour.
+  function startNarration(stepId: string | undefined) {
+    if (!stepId || !sound) return;
+    const audio = getPlayer();
+    if (!audio) return;
+    audio.src = narrationUrl(stepId);
+    audio.dataset.step = stepId;
+    audio.play().then(() => setSoundBlocked(false)).catch(() => {});
+  }
 
   function markSeen() {
     const id = userIdRef.current;
@@ -194,6 +221,7 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
       silence();
       if (steps.length === 0) return;
       autoStartChecked.current = true;
+      startNarration(steps[0]!.step.id);
       setPlan(steps);
       setIndex(0);
       setSingleRun(scope.chapterId !== undefined || scope.pageId !== undefined);
@@ -201,7 +229,8 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
       setIsActive(true);
       setPhase("running");
     },
-    [silence, user, firstVehicleId]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [silence, user, firstVehicleId, sound]
   );
 
   const runFullTour = useCallback(() => run({}), [run]);
@@ -237,12 +266,14 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
   const goTo = useCallback(
     (i: number) => {
       silence();
+      if (!paused) startNarration(plan[i]?.step.id);
       // a chapter the run has moved past is done
       const leaving = plan[index]?.chapterId;
       if (leaving && plan[i]?.chapterId !== leaving) setDoneChapters(prev => new Set([...prev, leaving]));
       setIndex(i);
     },
-    [silence, plan, index]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [silence, plan, index, paused, sound]
   );
 
   const nextStep = useCallback(() => {
@@ -260,7 +291,24 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
     else goTo(next);
   }, [plan, index, finishRun, goTo]);
 
-  const togglePause = useCallback(() => setPaused(p => !p), []);
+  const togglePause = useCallback(() => {
+    // carrying on is a tap too: start the sound inside it
+    if (paused && sound && player.current) player.current.play().then(() => setSoundBlocked(false)).catch(() => {});
+    setPaused(p => !p);
+  }, [paused, sound]);
+
+  const playSound = useCallback(() => {
+    const audio = getPlayer();
+    const stepId = plan[index]?.step.id;
+    if (!audio || !stepId) return;
+    if (audio.dataset.step !== stepId) {
+      audio.src = narrationUrl(stepId);
+      audio.dataset.step = stepId;
+    }
+    setPaused(false);
+    audio.play().then(() => setSoundBlocked(false)).catch(() => setSoundBlocked(true));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plan, index]);
 
   // Shows itself once per person, the first time they land on the dashboard,
   // as the start screen (never straight into talking): they choose the whole
@@ -318,25 +366,35 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
       window.speechSynthesis.speak(utter);
     };
 
-    const player = typeof Audio === "undefined" ? null : new Audio(narrationUrl(step.id));
-    if (!player) {
+    const audio = getPlayer();
+    if (!audio) {
       speakWithBrowser();
-    } else {
-      audio.current = player;
-      player.onended = onDone;
-      player.onerror = () => {
-        if (audio.current !== player) return;
-        audio.current = null;
-        speakWithBrowser();
-      };
-      player.play().catch(() => {
-        // autoplay refused or no recording: the browser voice instead
-        if (audio.current !== player) return;
-        audio.current = null;
-        speakWithBrowser();
-      });
+      return silence;
     }
-    return silence;
+    if (audio.dataset.step !== step.id) {
+      audio.src = narrationUrl(step.id);
+      audio.dataset.step = step.id;
+    }
+    let live = true;
+    audio.onended = onDone;
+    // No recording for this stop (a line added since the last recording):
+    // the browser's voice reads it instead.
+    audio.onerror = () => {
+      if (live) speakWithBrowser();
+    };
+    audio
+      .play()
+      .then(() => live && setSoundBlocked(false))
+      .catch((err: unknown) => {
+        if (!live) return;
+        // Refused without a tap: say so on the card rather than going quiet
+        // (the browser voice would be refused the same way).
+        if (err instanceof DOMException && err.name === "NotAllowedError") setSoundBlocked(true);
+      });
+    return () => {
+      live = false;
+      silence();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isActive, current?.step.id, index, sound, paused]);
 
@@ -417,6 +475,8 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
         skipPage,
         showChapters,
         togglePause,
+        soundBlocked,
+        playSound,
       }}
     >
       {children}
