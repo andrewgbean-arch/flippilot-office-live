@@ -14,6 +14,8 @@ const ledger = vi.hoisted(() => ({
   provider: null as any,
   // Whether the fake server accepts a save.
   acceptSaves: true,
+  // The cars already in stock (for the re-import test).
+  stock: [] as any[],
 }));
 
 vi.mock("react", async (importOriginal) => {
@@ -40,6 +42,7 @@ vi.mock("@/context/InventoryProvider", () => ({
   useInventory: () => ({
     // What the real inventory does: every row becomes a car with its own id and prices.
     importVehicles: (rows: any[]) => rows.map((r, i) => ({ id: `car-${r.model}-${i}`, buyPrice: r.buyPrice ?? null })),
+    vehicles: ledger.stock,
   }),
 }));
 vi.mock("@/context/ConsumablesContext", () => ({ useConsumables: () => ({ importConsumables: async () => {} }) }));
@@ -111,6 +114,23 @@ const FIVE = [
   "BMW,X1,7000,9000",
   "Fiat,500,1500,2500",
 ].join("\n");
+
+describe("importing a file with cars already in stock", () => {
+  afterEach(() => {
+    ledger.stock = [];
+  });
+
+  it("leaves out a car whose registration is already in stock, however it's spaced, and says so", async () => {
+    ledger.stock = [{ id: "old", reg: "AB18 CDE", make: "Ford", model: "Focus" }];
+    await openBooks();
+    const csv = ["Make,Model,Reg,Buy Price", "Ford,Focus,AB18CDE,5000", "Audi,A3,KX19 AUD,4500", "Audi,A3,kx19aud,4500"].join(String.fromCharCode(10));
+    await importCsv(csv, "Import 3 Vehicles");
+    // one new car (the A3 once), no purchase for the Focus already there
+    expect(ledger.doc.purchases!.map((p) => p.purchasePrice)).toEqual([4500]);
+    expect(screenText(screen!.result)).toContain("Imported 1 vehicle.");
+    expect(screenText(screen!.result)).toContain("Left out 2 cars already in your stock");
+  });
+});
 
 describe("importing priced cars into the real books", () => {
   it("keeps ALL five purchases, on the screen and on the server (it used to keep one)", async () => {

@@ -18,6 +18,7 @@ import { useAuth } from "@/context/AuthContext";
 import { canWriteBookkeeping } from "@/lib/permissions";
 import { formatMoney } from "@/lib/formatMoney";
 import { hubTotals, leftOutNote } from "./profitTotals";
+import TransactionsList from "./TransactionsList";
 
 function SummaryTile({
   label,
@@ -148,6 +149,10 @@ const [showTransactionModal, setShowTransactionModal] = useState(openForm === "t
       {/* LEDGER TABLE */}
       <SupernovaSectionDivider label="Ledger" />
       <BookkeepingTable />
+
+      <div className="mt-8">
+        <TransactionsList />
+      </div>
 
       {/* ANALYTICS */}
       <SupernovaSectionDivider label="Analytics" />

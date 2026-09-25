@@ -129,6 +129,12 @@ export default function registerBillingRoute(app: Express) {
   // require the owner role — a plain staff account (sales/general/etc)
   // must not be able to cancel the subscription or reach the real
   // Stripe billing portal for the dealership's card details.
+  // What can actually be bought right now, so the Billing screen only offers
+  // Pilot Brain when checkout would really include it (its Stripe price is set).
+  app.get("/billing/options", requireAuth, requireOwner, (_req, res) => {
+    res.json({ ok: true, pilotBrainAvailable: Boolean(getPilotBrainPriceId()) });
+  });
+
   app.post("/billing/create-checkout-session", requireAuth, requireOwner, async (req, res) => {
     try {
       const user = (req as Request & { user: AuthUser }).user;

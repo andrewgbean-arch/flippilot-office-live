@@ -24,6 +24,9 @@ export default function AddTransactionModal({
   const [category, setCategory] = useState("");
   const [amount, setAmount] = useState("");
   const [notes, setNotes] = useState("");
+  // Every transaction used to be dated today: last week's rent couldn't be
+  // recorded as last week's.
+  const [date, setDate] = useState(() => new Date().toLocaleDateString("en-CA"));
 
   // The amount is REQUIRED and must be above £0: a blank used to be saved as a £0
   // transaction, and "£1,200" was read as nothing.
@@ -43,7 +46,7 @@ export default function AddTransactionModal({
       type,
       category,
       amount: amountRead.value,
-      date: new Date().toISOString().slice(0, 10),
+      date: /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : new Date().toLocaleDateString("en-CA"),
       notes,
     };
 
@@ -97,6 +100,14 @@ export default function AddTransactionModal({
               {amountError}
             </p>
           )}
+
+          <label htmlFor="addtransactionmodal-date" className="text-white/60 text-sm -mb-2">Date</label>
+          <input id="addtransactionmodal-date"
+            type="date"
+            className="bg-black/40 border border-white/20 p-3 rounded-lg text-white"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+          />
 
           <label htmlFor="addtransactionmodal-notes" className="text-white/60 text-sm -mb-2">Notes</label>
           <textarea id="addtransactionmodal-notes"

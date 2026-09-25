@@ -40,7 +40,7 @@ export const chapter: TourChapter = {
           target: "button:Add Sale",
           title: "Sales and running costs",
           narration:
-            "Add Sale records a car going out: pick it, enter the price and the buyer, and I mark it sold in stock and give it the next invoice number. Add Transaction is for money not tied to one car, like rent or insurance. It's saved in your books, but this screen doesn't list those yet.",
+            "Add Sale records a car going out: pick it, enter the price and the buyer, and I mark it sold in stock and give it the next invoice number. Add Transaction is for money not tied to one car, like rent or insurance. They're listed further down, under Other income and expenses.",
         },
         {
           id: "bookkeeping-summary",
@@ -110,13 +110,13 @@ export const chapter: TourChapter = {
             steps: [
               "Click Add Transaction.",
               "Choose Expense or Income and type a Category.",
-              "Enter the Amount and any Notes, then click Save Transaction. It is dated today.",
+              "Enter the Amount, the Date and any Notes, then click Save Transaction.",
             ],
           },
         ],
         tips: [
           "Click any row in the ledger to see that car's purchase, costs, sale, profit and invoice.",
-          "Transactions are saved to your books, but this screen doesn't list them or count them in its figures yet.",
+          "Transactions are listed under Other income and expenses. They belong to the business, so they aren't counted in any car's profit.",
           "The VAT figures are a working guide: check your VAT return with your accountant.",
         ],
       },

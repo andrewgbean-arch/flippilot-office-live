@@ -24,6 +24,16 @@ export default function BillingScreen() {
   // visible, unchecked-if-they-want choice, not a dark pattern (no
   // pre-ticked box hidden below the fold — it's right here).
   const [includePilotBrain, setIncludePilotBrain] = useState(true);
+  // Whether checkout can really add Pilot Brain (its price is set up on the
+  // server). Until we know, or when it can't, the box isn't offered: ticking
+  // it used to change nothing, and the dealer believed they'd bought it.
+  const [pilotBrainAvailable, setPilotBrainAvailable] = useState(false);
+  useEffect(() => {
+    fetch(`${BASE_URL}/billing/options`, { headers: authHeaders() })
+      .then(res => res.json())
+      .then(data => setPilotBrainAvailable(data?.ok === true && data.pilotBrainAvailable === true))
+      .catch(() => setPilotBrainAvailable(false));
+  }, []);
 
   useEffect(() => {
     fetch(`${BASE_URL}/dealership/me`, { headers: authHeaders() })
@@ -41,7 +51,7 @@ export default function BillingScreen() {
       const res = await fetch(`${BASE_URL}/billing/create-checkout-session`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({ includePilotBrain }),
+        body: JSON.stringify({ includePilotBrain: pilotBrainAvailable && includePilotBrain }),
       });
       const data = await res.json();
       if (!data.ok) {
@@ -172,6 +182,7 @@ export default function BillingScreen() {
           </>
         ) : (
           <>
+            {pilotBrainAvailable && (
             <label className="flex items-start gap-3 bg-black/30 border border-white/10 rounded-lg p-3 cursor-pointer">
               <input
                 type="checkbox"
@@ -184,6 +195,7 @@ export default function BillingScreen() {
                 Watches your leads and stock, explains what's happening and why, and can compare your prices with dealer listings. A fraction of the cost of a part-time member of staff.
               </span>
             </label>
+            )}
             <button
               onClick={handleSubscribe}
               disabled={actionLoading}

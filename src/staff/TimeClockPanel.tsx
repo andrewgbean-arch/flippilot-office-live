@@ -6,6 +6,15 @@ function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
+const isToday = (iso: string) => new Date(iso).toDateString() === new Date().toDateString();
+
+// "08:32" today, "Tue 23 Sep, 08:32" on an earlier day: a shift left open
+// from yesterday must not read as this morning.
+function formatClockIn(iso: string): string {
+  if (isToday(iso)) return formatTime(iso);
+  return `${new Date(iso).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}, ${formatTime(iso)}`;
+}
+
 function hoursWorked(entry: TimeEntry): string {
   const start = new Date(entry.clockIn).getTime();
   const end = entry.clockOut ? new Date(entry.clockOut).getTime() : Date.now();
@@ -18,8 +27,10 @@ export default function TimeClockPanel() {
   const [busy, setBusy] = useState(false);
 
   const todayKey = new Date().toDateString();
+  // Today's shifts, plus anyone still clocked in from an earlier day (so the
+  // log agrees with "Clocked in since…" rather than saying nobody is in).
   const todaysEntries = entries
-    .filter(e => new Date(e.clockIn).toDateString() === todayKey)
+    .filter(e => new Date(e.clockIn).toDateString() === todayKey || e.clockOut === null)
     .sort((a, b) => new Date(b.clockIn).getTime() - new Date(a.clockIn).getTime());
 
   async function handleClick() {
@@ -38,7 +49,8 @@ export default function TimeClockPanel() {
         <div className="sn-timeclock__status">
           {myOpenEntry ? (
             <span className="sn-timeclock__badge sn-timeclock__badge--in">
-              Clocked in since {formatTime(myOpenEntry.clockIn)}
+              Clocked in since {formatClockIn(myOpenEntry.clockIn)}
+              {!isToday(myOpenEntry.clockIn) && " (did you forget to clock out?)"}
             </span>
           ) : (
             <span className="sn-timeclock__badge sn-timeclock__badge--out">Not clocked in</span>
@@ -71,7 +83,7 @@ export default function TimeClockPanel() {
               {todaysEntries.map(e => (
                 <tr key={e.id}>
                   <td>{e.userName}</td>
-                  <td>{formatTime(e.clockIn)}</td>
+                  <td>{formatClockIn(e.clockIn)}</td>
                   <td>{e.clockOut ? formatTime(e.clockOut) : "In progress"}</td>
                   <td>{hoursWorked(e)}h</td>
                 </tr>

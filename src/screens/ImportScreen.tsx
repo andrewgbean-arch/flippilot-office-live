@@ -41,7 +41,7 @@ const CONSUMABLE_FIELDS: FieldSpec[] = [
 ];
 
 export default function ImportScreen() {
-  const { importVehicles } = useInventory();
+  const { importVehicles, vehicles: stock } = useInventory();
   const { importConsumables } = useConsumables();
   const { addPurchases } = useBookkeeping();
 
@@ -59,6 +59,10 @@ export default function ImportScreen() {
     // Cars that were imported with a buy price whose purchase record could NOT be
     // saved to the books.
     purchasesNotSaved: number;
+    // Cars left out because a car with the same registration is already in
+    // stock (or earlier in the same file): importing a file twice used to add
+    // every car again.
+    alreadyInStock: number;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(false);
@@ -138,9 +142,22 @@ export default function ImportScreen() {
       let unreadablePrices = 0;
       let unreadableCounts = 0;
       let purchasesNotSaved = 0;
+      let alreadyInStock = 0;
 
       if (type === "vehicles") {
-        const payload = usable.map((r) => {
+        const plate = (text: unknown) => (typeof text === "string" ? text.replace(/\s+/g, "").toUpperCase() : "");
+        const seen = new Set((stock ?? []).flatMap((v) => [plate(v.reg), plate(v.mot?.reg)]).filter(Boolean));
+        const fresh = usable.filter((r) => {
+          const reg = plate(r.values.reg);
+          if (!reg) return true; // no registration: nothing to match on, so it's added
+          if (seen.has(reg)) {
+            alreadyInStock += 1;
+            return false;
+          }
+          seen.add(reg);
+          return true;
+        });
+        const payload = fresh.map((r) => {
           // A price that reads ("£5,000", "5,000") is kept; blank stays unset;
           // one that is typed but unreadable is left unset and COUNTED. A year or
           // mileage is read the same way ("45,000" reads; "45k" is counted).
@@ -206,11 +223,12 @@ export default function ImportScreen() {
       }
 
       setResult({
-        imported: usable.length,
+        imported: usable.length - alreadyInStock,
         skipped: builtRows.length - usable.length,
         unreadablePrices,
         unreadableCounts,
         purchasesNotSaved,
+        alreadyInStock,
       });
     } catch (err) {
       setError("Import failed — check the backend is reachable and try again.");
@@ -397,6 +415,8 @@ export default function ImportScreen() {
               <p className="text-green-300 font-semibold">
                 Imported {result.imported} {type === "vehicles" ? "vehicle" : "item"}{result.imported === 1 ? "" : "s"}.
                 {result.skipped > 0 && ` Skipped ${result.skipped} row${result.skipped === 1 ? "" : "s"} missing required fields.`}
+                {result.alreadyInStock > 0 &&
+                  ` Left out ${result.alreadyInStock} car${result.alreadyInStock === 1 ? "" : "s"} already in your stock (same registration).`}
               </p>
               {unreadablePriceSummary(result.unreadablePrices) && (
                 <p role="status" className="text-yellow-300 text-sm mt-2">
