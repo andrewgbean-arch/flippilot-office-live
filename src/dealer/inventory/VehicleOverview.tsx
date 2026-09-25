@@ -36,6 +36,8 @@ import {
   vehicleTitle,
 } from "./vehicleListModel";
 import { formatMoney } from "@/lib/formatMoney";
+import { useAuth } from "@/context/AuthContext";
+import { canSeeMoney } from "@/lib/permissions";
 
 const TAB_LABELS = {
   overview: "Overview",
@@ -97,6 +99,12 @@ export default function VehicleOverview() {
 
   const purchase = purchases.find((p) => p.vehicleId === vehicleId);
   const sale = sales.find((s) => s.vehicleId === vehicleId);
+
+  // Costs and Profit come from the Bookkeeping ledger: the owner, managers and
+  // finance only (the server doesn't send anyone else the ledger).
+  const { user } = useAuth();
+  const money = canSeeMoney(user);
+  const shownTabs = (Object.keys(TAB_LABELS) as (keyof typeof TAB_LABELS)[]).filter((t) => money || (t !== "costs" && t !== "profit"));
 
   // ?tab=edit (Photo Studio's "Add photos") opens straight on that tab.
   const [searchParams] = useSearchParams();
@@ -275,7 +283,7 @@ export default function VehicleOverview() {
       <dl className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Fact label={hdrPrice.label} value={formatPrice(hdrPrice.amount) ?? "Not set"} />
         {hdrSold ? (
-          <Fact label="Sold on" value={formatDate(sale?.date) ?? "Not in your books"} />
+          <Fact label="Sold on" value={formatDate(sale?.date) ?? (money ? "Not in your books" : "Sold")} />
         ) : (
           <Fact
             label="Days in stock"
@@ -298,7 +306,7 @@ export default function VehicleOverview() {
         aria-label="Vehicle sections"
         className="mb-6 flex flex-wrap gap-2"
       >
-        {(Object.keys(TAB_LABELS) as (keyof typeof TAB_LABELS)[]).map((t) => (
+        {shownTabs.map((t) => (
           <button
             key={t}
             type="button"
@@ -426,7 +434,7 @@ export default function VehicleOverview() {
             <SupernovaSectionDivider label="Purchase / Sale" />
             <p>
               <span className="text-white/60">Purchase Price:</span>{" "}
-              {formatPrice(purchasePrice) ?? "Not set"}
+              {money ? formatPrice(purchasePrice) ?? "Not set" : "Owner, managers and finance only"}
             </p>
             <p>
               <span className="text-white/60">{sale ? "Sale Price" : "Asking Price"}:</span>{" "}
@@ -526,10 +534,10 @@ export default function VehicleOverview() {
       )}
 
       {/* COSTS TAB */}
-      {tab === "costs" && <CostsTab vehicleId={vehicleId} />}
+      {tab === "costs" && money && <CostsTab vehicleId={vehicleId} />}
 
       {/* PROFIT TAB */}
-      {tab === "profit" && (
+      {tab === "profit" && money && (
         <ProfitTab
           vehicleId={vehicleId}
           purchasePrice={purchasePrice}

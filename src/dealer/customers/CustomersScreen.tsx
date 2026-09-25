@@ -8,6 +8,8 @@ import {
   type ConsentStatus,
 } from "@/lib/customersApi";
 import "@/staff/StaffDashboard.css";
+import { useAuth } from "@/context/AuthContext";
+import { canManageStaff } from "@/lib/permissions";
 
 const CONSENT_LABEL: Record<ConsentStatus, string> = {
   not_asked: "Not asked",
@@ -105,6 +107,9 @@ export default function CustomersScreen() {
     await load();
   }
 
+  const { user } = useAuth();
+  const canRemove = canManageStaff(user);
+
   async function handleDelete(id: string) {
     await deleteCustomer(id);
     await load();
@@ -186,9 +191,12 @@ export default function CustomersScreen() {
                       {c.vehicleInterests && <div className="sn-empty" style={{ fontSize: 12, marginTop: 2 }}>Interested in: {c.vehicleInterests}</div>}
                       {c.notes && <div className="sn-empty" style={{ fontSize: 12, marginTop: 2, fontStyle: "italic" }}>{c.notes}</div>}
                     </div>
-                    <button className="sn-btn sn-btn--danger" style={{ padding: "6px 12px", fontSize: 12, flexShrink: 0 }} onClick={() => { if (window.confirm(`Remove ${c.name || "this customer"} and their consent record? This can't be undone.`)) void handleDelete(c.id); }}>
-                      Remove
-                    </button>
+                    {/* Removing (erasing) a customer is for the owner and managers. */}
+                    {canRemove && (
+                      <button className="sn-btn sn-btn--danger" style={{ padding: "6px 12px", fontSize: 12, flexShrink: 0 }} onClick={() => { if (window.confirm(`Remove ${c.name || "this customer"} and their consent record? This can't be undone.`)) void handleDelete(c.id); }}>
+                        Remove
+                      </button>
+                    )}
                   </div>
 
                   <div style={{ display: "flex", gap: 16, flexWrap: "wrap", paddingTop: 8, borderTop: "1px solid rgba(255,255,255,0.08)" }}>

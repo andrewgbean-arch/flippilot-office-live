@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { Express, Request } from "express";
 import { readTenantCollection, writeTenantCollection } from "../db";
 import { requireStaffRole, type AuthUser } from "../auth";
+import { canManageStaff } from "../roleAccess";
 
 export interface TimeEntry {
   id: string;
@@ -22,9 +23,17 @@ function authedUser(req: Request): AuthUser {
 // (fixing a missed clock-out, adjusting a mistaken punch) are gated to
 // manager/owner, same tier as PUT /staff.
 export default function registerTimekeepingRoute(app: Express) {
+  // The owner and managers see everyone's hours (they run the rota and pay).
+  // Everyone else sees their own, plus who is in today: anyone still clocked
+  // in, or who clocked in within the last day, which is what the Time Clock's
+  // "Today's Log" shows.
   app.get("/timekeeping", (req, res) => {
     const user = authedUser(req);
-    res.json({ ok: true, items: readTenantCollection<TimeEntry>(user.dealershipId, "timekeeping") });
+    const items = readTenantCollection<TimeEntry>(user.dealershipId, "timekeeping");
+    if (canManageStaff(user)) return res.json({ ok: true, items });
+    const since = Date.now() - 24 * 60 * 60 * 1000;
+    const visible = items.filter(e => e.userId === user.id || e.clockOut === null || Date.parse(e.clockIn) >= since);
+    res.json({ ok: true, items: visible });
   });
 
   app.post("/timekeeping/clock-in", (req, res) => {

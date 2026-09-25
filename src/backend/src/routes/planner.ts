@@ -8,6 +8,7 @@ import {
 } from "../db";
 import { requireStaffRole, type AuthUser } from "../auth";
 import { itemsFromBody } from "../wholeListGuard";
+import { canManageStaff } from "../roleAccess";
 
 export type EmploymentType = "full_time" | "part_time";
 export type WeekDay = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
@@ -27,6 +28,11 @@ export interface WorkPattern {
 
 export type LeaveType = "holiday" | "sick" | "other";
 export type LeaveStatus = "pending" | "approved" | "declined";
+
+function withoutLeaveNote(leave: LeaveRequest): LeaveRequest {
+  const { notes: _notes, ...rest } = leave;
+  return rest;
+}
 
 export interface LeaveRequest {
   id: string;
@@ -136,9 +142,13 @@ export default function registerPlannerRoutes(app: Express) {
   // LEAVE — holiday needs manager sign-off before it blocks the rota;
   // sick is a record of something that's already happening, not a
   // request, so it's approved immediately.
+  // Everyone sees who is off and when (the rota needs it); the note on
+  // someone else's request (often why they are off sick) is for them, the
+  // owner and managers.
   app.get("/leave", (req, res) => {
     const user = authedUser(req);
-    res.json({ ok: true, items: readTenantCollection<LeaveRequest>(user.dealershipId, "leave") });
+    const items = readTenantCollection<LeaveRequest>(user.dealershipId, "leave");
+    res.json({ ok: true, items: canManageStaff(user) ? items : items.map(l => (l.userId === user.id ? l : withoutLeaveNote(l))) });
   });
 
   app.post("/leave", (req, res) => {

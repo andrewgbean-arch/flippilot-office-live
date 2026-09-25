@@ -29,7 +29,7 @@ vi.mock("react", async (importOriginal) => {
   };
   return { ...patched, default: patched };
 });
-vi.mock("@/context/AuthContext", () => ({ useAuth: () => ({ user: { dealershipId: "dealer-a" } }) }));
+vi.mock("@/context/AuthContext", () => ({ useAuth: () => ({ user: { dealershipId: "dealer-a", role: "owner" } }) }));
 vi.mock("@/bookkeeping/BookkeepingProvider", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/bookkeeping/BookkeepingProvider")>();
   return { ...actual, useBookkeeping: () => state.provider.result.props.value };

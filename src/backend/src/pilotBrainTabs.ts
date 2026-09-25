@@ -27,6 +27,7 @@ import type { AuthUser } from "./auth";
 import { oneLine } from "./engines/promptText";
 import { recordedPrice } from "./engines/recordedPrice";
 import { decisionState, parseConfidence, MAX_EXPECTATIONS, type BossDecision, type FigureUnit, type Outcome } from "./decisionTypes";
+import { canSeeMoney } from "./roleAccess";
 
 export type TabId =
   | "inventory"
@@ -99,10 +100,9 @@ function compact(o: Rec): Rec {
   return out;
 }
 
-// Money fields are for the people who already manage the money.
-export function canSeeMoney(user: AuthUser): boolean {
-  return user.role === "owner" || user.staffRole === "manager" || user.staffRole === "finance";
-}
+// Money fields are for the people who already manage the money (roleAccess.ts
+// holds the rule for the whole server).
+export { canSeeMoney };
 
 // The Decision Journal is for the people who make the decisions: owners and
 // managers. This is the same rule as requireStaffRole("manager") on the
@@ -233,7 +233,7 @@ const TABS: TabDef[] = [
     id: "inventory",
     where: "Stock → Stock Overview",
     contains:
-      "each car's registration, year, make, model, mileage, colour, condition, status, asking and trade price, when it was added, MOT expiry and status, fuel type (buy price only for owners, managers and finance)",
+      "each car's registration, year, make, model, mileage, colour, condition, status, asking price, when it was added, MOT expiry and status, fuel type (buy and trade price only for owners, managers and finance)",
     allowed: everyone,
     project(user, source) {
       const money = canSeeMoney(user);
@@ -252,12 +252,13 @@ const TABS: TabDef[] = [
             condition: text(v.condition, 30),
             status: text(v.status, 20),
             askingPrice: num(v.priceRetail),
-            tradePrice: num(v.priceTrade),
             addedAt: dateText(v.createdAt),
             motExpiry: text(mot.expiry, 12),
             motStatus: text(mot.motStatus, 12),
             fuel: text(mot.fuelType, 20),
-            ...(money ? { buyPrice: num(v.buyPrice) ?? num(v.purchasePrice), expectedSale: num(v.expectedSale) } : {}),
+            // The trade price is where the app keeps what the car cost, so it is
+            // money too, like the buy price.
+            ...(money ? { buyPrice: num(v.buyPrice) ?? num(v.purchasePrice), tradePrice: num(v.priceTrade), expectedSale: num(v.expectedSale) } : {}),
           }),
         };
       });

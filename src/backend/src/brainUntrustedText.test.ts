@@ -618,7 +618,7 @@ describe("Pilot Brain treats outside text as data", () => {
       // Eight days with no decision: the watcher now names them in what Pilot Brain reads
       writeTenantCollection(owner.dealershipId, "leads", leads.map(l => ({ ...l, createdAt: daysAgoIso(8) })));
 
-      expect(hasHiddenText(buildBusinessSummary(owner.dealershipId))).toBe(false);
+      expect(hasHiddenText(buildBusinessSummary(owner.dealershipId, true))).toBe(false);
       const calls = stubAnthropic();
       expect((await chat(owner.token)).status).toBe(200);
       const prompt: string = calls[0].system;

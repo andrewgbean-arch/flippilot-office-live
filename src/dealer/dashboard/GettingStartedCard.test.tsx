@@ -45,17 +45,19 @@ describe("Getting started card", () => {
     expect(html).toContain("Hide this");
   });
 
-  it("does not offer the Decision Journal to sales staff", () => {
+  it("does not offer the Decision Journal, or a sale they are not sent the books for, to sales staff", () => {
     auth.user = { id: "u2", role: "staff", staffRole: "sales" };
     const html = render();
-    expect(html).toContain("0 of 3 done");
+    expect(html).toContain("0 of 2 done");
     expect(html).not.toContain("Write one decision down");
+    expect(html).not.toContain("Record a sale");
   });
 
   it("ticks off what has been done and disappears once everything has", () => {
     inventory.vehicles = [{ id: "v1", status: "in_stock", images: ["a.jpg"], mot: { expiry: "2027-06-01", advisories: [] } }];
     books.sales = [{ id: "s1", vehicleId: "v1", salePrice: 5000, date: "2026-09-01" }];
-    auth.user = { id: "u2", role: "staff", staffRole: "sales" };
+    // finance: sent the books, but not the Decision Journal
+    auth.user = { id: "u2", role: "staff", staffRole: "finance" };
     let html = render();
     expect(html).toContain("2 of 3 done");
     expect(html).toContain("1 sale recorded.");

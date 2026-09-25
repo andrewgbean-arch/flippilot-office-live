@@ -51,6 +51,8 @@ vi.mock("@/context/InventoryProvider", () => ({
   }),
 }));
 vi.mock("@/bookkeeping/BookkeepingProvider", () => ({ useBookkeeping: () => state.ledger }));
+// The owner: removing a car is for the owner and managers.
+vi.mock("@/context/AuthContext", () => ({ useAuth: () => ({ user: { id: "u1", role: "owner", dealershipId: "d1" } }) }));
 
 import { mount, type Mounted } from "@/lib/testing/hookRuntime";
 import EditVehicle from "./EditVehicle";

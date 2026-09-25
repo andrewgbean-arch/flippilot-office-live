@@ -30,7 +30,7 @@ vi.mock("react", async importOriginal => {
   };
   return { ...patched, default: patched };
 });
-vi.mock("@/context/AuthContext", () => ({ useAuth: () => ({ user: { dealershipId: "dealer-a" } }) }));
+vi.mock("@/context/AuthContext", () => ({ useAuth: () => ({ user: { dealershipId: "dealer-a", role: "owner" } }) }));
 // The screens read the ledger from the LIVE provider mounted below.
 vi.mock("@/bookkeeping/BookkeepingProvider", async importOriginal => {
   const actual = await importOriginal<typeof import("@/bookkeeping/BookkeepingProvider")>();

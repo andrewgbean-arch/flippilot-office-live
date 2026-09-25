@@ -34,14 +34,16 @@ const EMPTY_BOOKKEEPING: BookkeepingDoc = {
 // array collections since BookkeepingProvider already treats these six
 // fields as one cohesive record.
 export default function registerBookkeepingRoute(app: Express) {
-  app.get("/bookkeeping", (req, res) => {
+  // The ledger (what every car cost, every sale, every general transaction,
+  // wages included if a dealer records them here) is for the owner, managers
+  // and finance: the same people who write it.
+  app.get("/bookkeeping", requireStaffRole("finance", "manager"), (req, res) => {
     const data = readTenantDoc(dealershipId(req), "bookkeeping", EMPTY_BOOKKEEPING);
     res.json({ ok: true, ...EMPTY_BOOKKEEPING, ...data });
   });
 
   // Recording purchases/costs/sales/VAT is finance/manager/owner
-  // territory — a "sales" or general staff account can see the books
-  // but not write to them.
+  // territory, like reading them.
   app.put("/bookkeeping", requireStaffRole("finance", "manager"), (req, res) => {
     // A whole-ledger replace: every list must actually be in the request,
     // or a partial or broken body would blank the ones it left out.

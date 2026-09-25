@@ -30,6 +30,7 @@ import {
   FiMessageCircle,
 } from "react-icons/fi";
 import { formatMoney } from "@/lib/formatMoney";
+import { canSeeMoney } from "@/lib/permissions";
 
 type Props = {
   brain?: any;
@@ -136,10 +137,13 @@ export default function DealerDashboard({ brain }: Props) {
   // this month, and what needs a reply today. All computed from the
   // same real bookkeeping/leads/appointments data used elsewhere in
   // this app, not a separate "AI" framing of it.
+  // Sales live in the Bookkeeping ledger, which only the owner, managers and
+  // finance are sent. Everyone else sees the stock side (a car marked sold is
+  // out of stock) instead of a profit and a sold count that would read £0 and 0.
+  const money = canSeeMoney(user);
   const soldVehicleIds = new Set(sales.map((s) => s.vehicleId));
-  const stockValue = safeVehicles
-    .filter((v) => !soldVehicleIds.has(v.id))
-    .reduce((sum, v) => sum + (v.priceRetail ?? 0), 0);
+  const inStock = money ? safeVehicles.filter((v) => !soldVehicleIds.has(v.id)) : unsold(safeVehicles);
+  const stockValue = inStock.reduce((sum, v) => sum + (v.priceRetail ?? 0), 0);
 
   const monthPrefix = new Date().toISOString().slice(0, 7); // "2026-09"
   const salesThisMonth = sales.filter((s) => s.date?.startsWith(monthPrefix));
@@ -192,7 +196,7 @@ export default function DealerDashboard({ brain }: Props) {
   const quickActions: { label: string; to: string; icon: ReactNode; tour?: string }[] = [
     { label: "Add Vehicle", to: "/new-flip", icon: <FiPlusCircle />, tour: "tour-add-vehicle" },
     { label: "Add Lead", to: "/dealer/sales/add", icon: <FiUserPlus /> },
-    { label: "Record a Sale", to: "/bookkeeping/add-sale", icon: <FiDollarSign /> },
+    ...(money ? [{ label: "Record a Sale", to: "/bookkeeping/add-sale", icon: <FiDollarSign /> }] : []),
     { label: "Ask Wendy", to: "/pilot-brain", icon: <FiMessageCircle /> },
   ];
 
@@ -236,7 +240,7 @@ export default function DealerDashboard({ brain }: Props) {
           full row instead of sitting alone beside an empty gap. */}
       <div
         data-tour="tour-headline-stats"
-        className="grid grid-cols-2 md:grid-cols-5 gap-3 sm:gap-4 [&>*:last-child:nth-child(odd)]:col-span-2 md:[&>*:last-child:nth-child(odd)]:col-span-1"
+        className={`grid grid-cols-2 ${money ? "md:grid-cols-5" : "md:grid-cols-4"} gap-3 sm:gap-4 [&>*:last-child:nth-child(odd)]:col-span-2 md:[&>*:last-child:nth-child(odd)]:col-span-1`}
       >
         <HeroStat
           label="Stock Value"
@@ -245,20 +249,32 @@ export default function DealerDashboard({ brain }: Props) {
           accent="green"
           onClick={() => navigate("/dealer/inventory/list")}
         />
-        <HeroStat
-          label="Profit This Month"
-          value={formatMoney(profitThisMonth, { pence: "auto" })}
-          icon={<FiTrendingUp />}
-          accent={profitThisMonth >= 0 ? "green" : "red"}
-          onClick={() => navigate("/bookkeeping")}
-        />
-        <HeroStat
-          label="Sold This Month"
-          value={salesThisMonth.length}
-          icon={<FiCheckSquare />}
-          accent="blue"
-          onClick={() => navigate("/bookkeeping")}
-        />
+        {money ? (
+          <>
+            <HeroStat
+              label="Profit This Month"
+              value={formatMoney(profitThisMonth, { pence: "auto" })}
+              icon={<FiTrendingUp />}
+              accent={profitThisMonth >= 0 ? "green" : "red"}
+              onClick={() => navigate("/bookkeeping")}
+            />
+            <HeroStat
+              label="Sold This Month"
+              value={salesThisMonth.length}
+              icon={<FiCheckSquare />}
+              accent="blue"
+              onClick={() => navigate("/bookkeeping")}
+            />
+          </>
+        ) : (
+          <HeroStat
+            label="Cars in Stock"
+            value={inStock.length}
+            icon={<FiCheckSquare />}
+            accent="blue"
+            onClick={() => navigate("/dealer/inventory/list")}
+          />
+        )}
         <HeroStat
           label="Open Leads"
           value={openLeads.length}

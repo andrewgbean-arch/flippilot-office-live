@@ -17,6 +17,7 @@ import { purchaseVatSettings } from "./purchaseVat";
 import { loadBookkeeping, saveBookkeeping, type BookkeepingDoc } from "./bookkeepingStorage.web";
 import { useAuth } from "@/context/AuthContext";
 import { useGuardedLoad } from "@/lib/useGuardedLoad";
+import { canSeeMoney } from "@/lib/permissions";
 
 interface BookkeepingContextValue {
   costs: CostEntry[];
@@ -107,7 +108,9 @@ export function BookkeepingProvider({ children }: BookkeepingProviderProps) {
   const { loading, guardSave } = useGuardedLoad<BookkeepingDoc>({
     id: "bookkeeping",
     label: "bookkeeping records",
-    key: user?.dealershipId,
+    // The ledger is only sent to the owner, managers and finance; for anyone
+    // else there is nothing to load (and so nothing can be saved from here).
+    key: canSeeMoney(user) ? user?.dealershipId : undefined,
     load: loadBookkeeping,
     apply: doc => {
       setCosts(doc.costs);

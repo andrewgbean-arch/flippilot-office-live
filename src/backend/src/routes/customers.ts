@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import { Express, Request } from "express";
 import { readTenantCollection, writeTenantCollection } from "../db";
 import { itemsFromBody } from "../wholeListGuard";
-import type { AuthUser } from "../auth";
+import { requireStaffRole, type AuthUser } from "../auth";
 
 // A real customer database, deliberately separate from both Leads
 // (the sales pipeline — no consent concept, no life after "won"/"lost")
@@ -76,8 +76,10 @@ export default function registerCustomersRoute(app: Express) {
   });
 
   // Full-array replace, matching the same pattern used by
-  // leads/contacts — bulk edits from a table-style UI go through here.
-  app.put("/customers", (req, res) => {
+  // leads/contacts. It can remove any number of customers at once, so it is
+  // for the owner and managers, like removing one (the web app adds and edits
+  // customers one at a time, below).
+  app.put("/customers", requireStaffRole("manager"), (req, res) => {
     const user = authedUser(req);
     const items = itemsFromBody<Customer>(req, res);
     if (!items) return;
@@ -164,8 +166,10 @@ export default function registerCustomersRoute(app: Express) {
   });
 
   // A customer's real right to erasure under UK GDPR — a working
-  // delete here isn't just tidiness, it's a compliance requirement.
-  app.delete("/customers/:id", (req, res) => {
+  // delete here isn't just tidiness, it's a compliance requirement. The owner
+  // or a manager carries it out, so a customer record can't be wiped by
+  // anyone who happens to be logged in.
+  app.delete("/customers/:id", requireStaffRole("manager"), (req, res) => {
     const user = authedUser(req);
     const items = readCustomers(user.dealershipId);
     writeCustomers(user.dealershipId, items.filter(c => c.id !== req.params.id));

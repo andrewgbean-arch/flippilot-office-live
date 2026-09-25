@@ -1,12 +1,23 @@
 import { Express, Request } from "express";
 import { deleteVehiclePhotosFor, readTenantCollection, writeTenantCollection } from "../db";
 import type { AuthUser } from "../auth";
-import { applyVehicleChanges, mergeVehicleSave, parseChanges, parseDeletedIds, vehicleId } from "../inventoryMerge";
+import { applyVehicleChanges, mergeVehicleSave, parseChanges, parseDeletedIds, vehicleId, type VehicleChange } from "../inventoryMerge";
 import { keepHostedPhotos, publicOrigin } from "./photos";
 import { announceWantedArrivals } from "./wanted";
+import { canManageStaff, canSeeMoney, keepStoredVehicleMoney, VEHICLE_MONEY_FIELDS, withoutVehicleMoney } from "../roleAccess";
 
 function dealershipId(req: Request): string {
   return (req as Request & { user: AuthUser }).user.dealershipId;
+}
+
+function userOf(req: Request): AuthUser {
+  return (req as Request & { user: AuthUser }).user;
+}
+
+// The stock as this person may see it: without what each car cost, unless
+// they can see the money (roleAccess.ts).
+function stockFor(user: AuthUser, cars: unknown[]): unknown[] {
+  return canSeeMoney(user) ? cars : cars.map(withoutVehicleMoney);
 }
 
 // Was hardcoded mock data (Ford Fiesta / BMW 1 Series), then a single
@@ -15,7 +26,7 @@ function dealershipId(req: Request): string {
 // before this in server.ts, so req.user is always populated here).
 export default function registerInventoryRoute(app: Express) {
   app.get("/inventory", (req, res) => {
-    res.json({ ok: true, items: readTenantCollection(dealershipId(req), "vehicles") });
+    res.json({ ok: true, items: stockFor(userOf(req), readTenantCollection(dealershipId(req), "vehicles")) });
   });
 
   // Saving is an UPSERT plus field-level edits (see inventoryMerge.ts), never
@@ -66,6 +77,13 @@ export default function registerInventoryRoute(app: Express) {
     if (!parsed.ok) {
       return res.status(400).json({ ok: false, error: parsed.error });
     }
+    const user = userOf(req);
+    // Taking a car out of stock, with its pictures, is for the owner and
+    // managers. Refused before anything is written, so nothing half-happens.
+    if (deleted.ids.length > 0 && !canManageStaff(user)) {
+      return res.status(403).json({ ok: false, error: "Only a manager or the owner can remove a car from stock." });
+    }
+    const money = canSeeMoney(user);
 
     // ---- read, merge, apply, protect, write: no await from here to the write ----
     const origin = publicOrigin(req);
@@ -73,12 +91,26 @@ export default function registerInventoryRoute(app: Express) {
 
     // Photos added from a phone survive a save from a screen that hadn't
     // seen them yet (see keepHostedPhotos).
-    const sent = keepHostedPhotos(id, items, origin);
-    const merged = mergeVehicleSave(readTenantCollection<unknown>(id, "vehicles"), sent, deletedSet);
+    const stored = readTenantCollection<unknown>(id, "vehicles");
+    // Someone who can't see what a car cost can't change it either: a whole
+    // car they send keeps the stored money fields (they never saw them, so
+    // whatever they sent is blank or stale), and their field edits to those
+    // fields are dropped. A car they add is new, so what they typed for it
+    // stands.
+    const storedById = new Map(stored.map(car => [vehicleId(car), car] as const));
+    const itemsAllowed = money
+      ? items
+      : items.map(car => {
+          const carId = vehicleId(car);
+          return carId !== null && storedById.has(carId) ? keepStoredVehicleMoney(car, storedById.get(carId)) : car;
+        });
+    const changesAllowed = money ? parsed.changes : parsed.changes.map(withoutMoneyEdits);
+    const sent = keepHostedPhotos(id, itemsAllowed, origin);
+    const merged = mergeVehicleSave(stored, sent, deletedSet);
 
     // The field-level edits go onto the merged list, which is the car as it
     // stands now, including anything the whole-car part of this request did.
-    const applied = applyVehicleChanges(merged, parsed.changes, deletedSet);
+    const applied = applyVehicleChanges(merged, changesAllowed, deletedSet);
 
     // A change that set or removed `images` came from a screen that may not
     // have seen a photo a phone added (or one deleted since), just like a
@@ -93,8 +125,15 @@ export default function registerInventoryRoute(app: Express) {
     // Tell the team if a car has just arrived that people are waiting for. The
     // stock is already saved, and this can never make the save fail.
     announceWantedArrivals(id);
-    res.json({ ok: true, items: cars, changed: applied.changed, notFound: applied.notFound });
+    res.json({ ok: true, items: stockFor(user, cars), changed: applied.changed, notFound: applied.notFound });
   });
+}
+
+// A field-level edit with the money fields taken out (see PUT /inventory).
+function withoutMoneyEdits(change: VehicleChange): VehicleChange {
+  const set = change.set ? Object.fromEntries(Object.entries(change.set).filter(([field]) => !VEHICLE_MONEY_FIELDS.includes(field))) : undefined;
+  const unset = change.unset ? change.unset.filter(field => !VEHICLE_MONEY_FIELDS.includes(field)) : undefined;
+  return { id: change.id, ...(set ? { set } : {}), ...(unset ? { unset } : {}) };
 }
 
 // keepHostedPhotos, for just the cars whose ids are listed. Everything else

@@ -1129,7 +1129,7 @@ describe("RBAC — the exact scenario manually verified live earlier this sessio
     expect(res.status).toBe(403);
   });
 
-  it("a sales-role account is blocked from writing bookkeeping (403) but can still read it (200)", async () => {
+  it("a sales-role account is blocked from writing bookkeeping (403), and from reading it too (403)", async () => {
     const salesToken = await joinAsSales();
 
     const writeRes = await request(app)
@@ -1138,8 +1138,9 @@ describe("RBAC — the exact scenario manually verified live earlier this sessio
       .send({ costs: [], purchases: [], sales: [], transactions: [], suppliers: [], categories: [] });
     expect(writeRes.status).toBe(403);
 
+    // the books are for the owner, managers and finance (roleAccess.ts)
     const readRes = await request(app).get("/bookkeeping").set("Authorization", `Bearer ${salesToken}`);
-    expect(readRes.status).toBe(200);
+    expect(readRes.status).toBe(403);
   });
 
   it("a sales-role account is blocked from managing staff", async () => {
@@ -1962,7 +1963,7 @@ describe("appointment outcomes — what actually happened, not just that it was 
     });
 
     writeTenantCollection(id, "appointments", [past(5, { status: "confirmed" })]);
-    const before = buildBusinessSummary(id);
+    const before = buildBusinessSummary(id, true);
     expect(before).toContain("Appointment outcomes (last 90 days): none recorded yet");
     expect(before).toContain("1 past appointment in that window still has no recorded outcome");
 
@@ -1971,7 +1972,7 @@ describe("appointment outcomes — what actually happened, not just that it was 
       past(6, { outcome: "showed" }),
       past(7, { outcome: "no_show" }),
     ]);
-    const after = buildBusinessSummary(id);
+    const after = buildBusinessSummary(id, true);
     expect(after).toContain("3 recorded");
     expect(after).toContain("2 attended (1 showed, 1 bought), 1 no-show");
     expect(after).toContain("show rate 67%");
@@ -2025,7 +2026,7 @@ describe("Pilot Brain snapshot — lead sources and per-car profit", () => {
       ],
     });
 
-    const summary = buildBusinessSummary(id);
+    const summary = buildBusinessSummary(id, true);
 
     // lead sources — "AutoTrader" and "auto trader" are one source
     expect(summary).toContain("Lead sources (leads created in the last 90 days): 4 in all — 2 won, 1 lost, 1 still open.");
@@ -2049,7 +2050,7 @@ describe("Pilot Brain snapshot — lead sources and per-car profit", () => {
 
   it("says plainly that there is nothing yet on a brand-new dealership", async () => {
     const dealer = await signup("snapshot-lead-margin-empty");
-    const summary = buildBusinessSummary(dealer.user.dealershipId);
+    const summary = buildBusinessSummary(dealer.user.dealershipId, true);
     expect(summary).toContain("Lead sources: no leads recorded yet.");
     expect(summary).toContain("no sales recorded in that window.");
   });
@@ -2058,8 +2059,8 @@ describe("Pilot Brain snapshot — lead sources and per-car profit", () => {
     const dealer = await signup("snapshot-lead-margin-odd");
     const id = dealer.user.dealershipId;
     writeTenantDoc(id, "bookkeeping", {}); // a document with none of its lists
-    expect(() => buildBusinessSummary(id)).not.toThrow();
-    expect(buildBusinessSummary(id)).toContain("no sales recorded in that window.");
+    expect(() => buildBusinessSummary(id, true)).not.toThrow();
+    expect(buildBusinessSummary(id, true)).toContain("no sales recorded in that window.");
 
     // a sale whose car was since deleted from inventory
     writeTenantDoc(id, "bookkeeping", {
@@ -2067,7 +2068,7 @@ describe("Pilot Brain snapshot — lead sources and per-car profit", () => {
       sales: [{ id: "s", vehicleId: "gone", salePrice: 1500, date: day(3) }],
       costs: [],
     });
-    expect(buildBusinessSummary(id)).toContain("- A vehicle no longer in inventory: bought £1,000 (no costs recorded), sold £1,500, profit £500 (33.3%)");
+    expect(buildBusinessSummary(id, true)).toContain("- A vehicle no longer in inventory: bought £1,000 (no costs recorded), sold £1,500, profit £500 (33.3%)");
   });
 
   it("never mixes one dealership's leads and sales into another's snapshot", async () => {
@@ -2082,8 +2083,8 @@ describe("Pilot Brain snapshot — lead sources and per-car profit", () => {
       costs: [],
     });
 
-    expect(buildBusinessSummary(a.user.dealershipId)).toContain("Only At Dealer A");
-    const other = buildBusinessSummary(b.user.dealershipId);
+    expect(buildBusinessSummary(a.user.dealershipId, true)).toContain("Only At Dealer A");
+    const other = buildBusinessSummary(b.user.dealershipId, true);
     expect(other).not.toContain("Only At Dealer A");
     expect(other).toContain("Lead sources: no leads recorded yet.");
     expect(other).not.toContain("£999");
@@ -2150,7 +2151,7 @@ describe("Pilot Brain snapshot — lead sources and per-car profit", () => {
       { id: "x3", type: "lead_followup", status: "approved", title: "Old one", payload: {} },
     ]);
 
-    const summary = buildBusinessSummary(id);
+    const summary = buildBusinessSummary(id, true);
 
     // what the right-hand sidebar's "at a glance" panel shows, counted the same way
     expect(summary).toContain("Open jobs (not yet done): 2");
@@ -2173,7 +2174,7 @@ describe("Pilot Brain snapshot — lead sources and per-car profit", () => {
 
   it("says plainly that there is nothing yet on a brand-new dealership", async () => {
     const dealer = await signup("snapshot-more-lines-empty");
-    const summary = buildBusinessSummary(dealer.user.dealershipId);
+    const summary = buildBusinessSummary(dealer.user.dealershipId, true);
     expect(summary).toContain("Open jobs (not yet done): 0");
     expect(summary).toContain("Pending booking requests (still awaiting a reply): 0");
     expect(summary).not.toContain("Stock list");
@@ -2539,7 +2540,7 @@ describe("Pilot Brain and a brand-new dealership", () => {
     expect(calls[0].system).toContain("MISMATCHED SAMPLES");
     expect(calls[0].system).toContain("Never call Boss's price a mistake, a data-entry error or a smoking gun on the strength of one lookup");
     expect(calls[0].system).toContain('"Getting started" card on the Dashboard');
-    const snapshot = buildBusinessSummary(owner.user.dealershipId);
+    const snapshot = buildBusinessSummary(owner.user.dealershipId, true);
     expect(snapshot).toContain("Starting state: BRAND NEW");
     expect(snapshot).toContain("Sales recorded in Bookkeeping (all time): 0");
     expect(snapshot).toContain("Booking outcomes recorded (all time): 0; past bookings still to mark: 0");
@@ -2549,7 +2550,7 @@ describe("Pilot Brain and a brand-new dealership", () => {
       { id: "v1", make: "Ford", model: "Fiesta", status: "in_stock", images: [], mot: { expiry: "" } },
       { id: "v2", make: "Ford", model: "Focus", status: "in_stock", images: ["a.jpg"], mot: { expiry: "2027-06-01" } },
     ]);
-    const withCars = buildBusinessSummary(owner.user.dealershipId);
+    const withCars = buildBusinessSummary(owner.user.dealershipId, true);
     expect(withCars).toContain("Starting state: BRAND NEW");
     expect(withCars).toContain("Vehicles in stock with no MOT expiry date: 1 of 2");
 
@@ -2558,7 +2559,7 @@ describe("Pilot Brain and a brand-new dealership", () => {
       { id: "a1", type: "viewing", status: "confirmed", requestedDate: past, requestedTime: "10:00" },
       { id: "a2", type: "viewing", status: "completed", requestedDate: past, requestedTime: "11:00", outcome: "showed", outcomeAt: new Date().toISOString() },
     ]);
-    const afterOutcome = buildBusinessSummary(owner.user.dealershipId);
+    const afterOutcome = buildBusinessSummary(owner.user.dealershipId, true);
     expect(afterOutcome).not.toContain("Starting state: BRAND NEW");
     expect(afterOutcome).toContain("Booking outcomes recorded (all time): 1; past bookings still to mark: 1");
   });
@@ -2657,25 +2658,31 @@ describe("Pilot Brain — the prompt is sent in blocks the model can cache", () 
     expect(calls[1].messages.length).toBeGreaterThan(calls[0].messages.length);
   });
 
-  it("the shared block is the same bytes for another dealership and for a teammate; the dealership block is shared only within the dealership", async () => {
+  it("the shared block is the same bytes for another dealership and for a teammate; the dealership block is shared only within the dealership, in a money and a no-money version", async () => {
     const owner = await signup("cache-a");
     const other = await signup("cache-b");
     const sales = await joinStaff(owner.token, "sales");
+    const manager = await joinStaff(owner.token, "manager");
     const calls = stubAnthropicRaw();
     await chat(owner.token, "Hello");
     await chat(other.token, "Hello");
     await chat(sales.token, "Hello");
-    expect(calls).toHaveLength(3);
-    const [a, b, s] = calls;
+    await chat(manager.token, "Hello");
+    expect(calls).toHaveLength(4);
+    const [a, b, s, m] = calls;
     expect(b.system[0].text).toBe(a.system[0].text);
     expect(s.system[0].text).toBe(a.system[0].text);
     // Another dealership: its own evidence, never the first one's.
     expect(b.system[1].text).not.toBe(a.system[1].text);
     expect(b.system[1].text).not.toContain("cache-a");
     expect(a.system[1].text).not.toContain("cache-b");
-    // A teammate in the same dealership shares its evidence block; only the
-    // person's block and the role-specific instructions differ.
-    expect(s.system[1].text).toBe(a.system[1].text);
+    // A teammate who sees the money shares the owner's evidence block; one who
+    // doesn't gets the one without the money (still shared by everyone like
+    // them), and the person's block and role-specific instructions differ.
+    expect(m.system[1].text).toBe(a.system[1].text);
+    expect(s.system[1].text).not.toBe(a.system[1].text);
+    expect(s.system[1].text).toContain("MONEY FIGURES:");
+    expect(a.system[1].text).not.toContain("MONEY FIGURES:");
     expect(s.system[2].text).toContain(`The user talking to you is ${sales.user.name}`);
     expect(s.system[2].text).not.toBe(a.system[2].text);
     expect(s.system[3].text).toContain("Their role doesn't let them open");
@@ -2780,7 +2787,7 @@ describe("Pilot Brain — preparing changes for approval", () => {
       payload: { kind: "vehicle", recordId: "v1", field: "priceRetail", previousValue: 12995, newValue: 12695 },
     });
     // and it shows up in her own view of what's waiting
-    expect(buildBusinessSummary(id)).toContain("waiting for an owner or manager to approve in Operations: 1 (1 record change).");
+    expect(buildBusinessSummary(id, true)).toContain("waiting for an owner or manager to approve in Operations: 1 (1 record change).");
   });
 
   it("only changes the record when an owner approves, and undoing puts the old value back", async () => {
@@ -2888,7 +2895,7 @@ describe("Pilot Brain — preparing changes for approval", () => {
     expect(JSON.stringify(calls[1].messages)).not.toContain("07700900123");
     const [action] = await actionsOf(owner.token);
     expect(action.title).toContain("Secret Lead Name");
-    expect(buildBusinessSummary(id)).not.toContain("Secret Lead Name");
+    expect(buildBusinessSummary(id, true)).not.toContain("Secret Lead Name");
 
     await request(app).post(`/pilot-brain/actions/${action.id}/approve`).set(auth(owner.token));
     expect((readTenantCollection<any>(id, "leads") as any[])[0]).toMatchObject({ status: "contacted", name: "Secret Lead Name", phone: "07700900123" });
@@ -4694,7 +4701,7 @@ describe("Pilot Brain — what it is and isn't given", () => {
       car("p4", { images: [] }),
       car("p5", { status: "sold", images: null }), // sold: not counted
     ]);
-    const summary = buildBusinessSummary(dealershipId);
+    const summary = buildBusinessSummary(dealershipId, true);
     expect(summary).toContain("Vehicles in stock: 4");
     expect(summary).toContain("Vehicles in stock with no photos: 2 of 4");
 
@@ -4706,10 +4713,10 @@ describe("Pilot Brain — what it is and isn't given", () => {
   it("says nothing about photos when there is no stock, and 0 when every car has one", async () => {
     const { dealershipId } = await setup();
     writeTenantCollection(dealershipId, "vehicles", []);
-    expect(buildBusinessSummary(dealershipId)).not.toContain("with no photos");
+    expect(buildBusinessSummary(dealershipId, true)).not.toContain("with no photos");
 
     writeTenantCollection(dealershipId, "vehicles", [car("q1", { images: ["data:image/png;base64,AAAA"] }), car("q2", { images: ["data:image/png;base64,BBBB"] })]);
-    expect(buildBusinessSummary(dealershipId)).toContain("Vehicles in stock with no photos: 0 of 2");
+    expect(buildBusinessSummary(dealershipId, true)).toContain("Vehicles in stock with no photos: 0 of 2");
   });
 
   it("is told about the real areas of the product it used to deny — timekeeping, customers, private messages", async () => {
@@ -5291,7 +5298,7 @@ describe("Wanted requests — a stranger asks a dealer to watch for a car", () =
     it("is never handed to Pilot Brain, which reads a dealership's business summary", async () => {
       const { id } = await setup("wanted-brain");
       await ask(id, { name: "Zed Unmistakable", email: "zed.unmistakable@example.co.uk", phone: "07700 900555", note: "UNMISTAKABLE-NOTE" });
-      const summary = JSON.stringify(buildBusinessSummary(id));
+      const summary = JSON.stringify(buildBusinessSummary(id, true));
       for (const secret of ["Zed", "Unmistakable", "UNMISTAKABLE", "07700 900555", "zed."]) expect(summary).not.toContain(secret);
     });
   });

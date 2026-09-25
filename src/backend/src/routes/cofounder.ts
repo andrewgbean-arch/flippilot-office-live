@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { Express, Request } from "express";
 import { readCollection, readTenantCollection, writeTenantCollection, readTenantDoc } from "../db";
 import { requireAuth, requireStaffRole, type AuthUser, type Dealership } from "../auth";
+import { canSeeMoney, isMoneyGoalMetric } from "../roleAccess";
 import {
   computeGoalProgress,
   computeStrategicHealth,
@@ -93,11 +94,25 @@ export function computeAllGoalProgress(dealershipId: string, now: number): GoalP
   });
 }
 
+// A revenue or profit goal as someone who can't see the money gets it: whether
+// it is on track and how far along (a percentage), but not the pounds, and not
+// the label, which is often the target itself ("£50k profit"). Everyone else,
+// and every other kind of goal, gets it whole.
+export function goalForViewer(progress: GoalProgress, money: boolean): GoalProgress {
+  if (money || !isMoneyGoalMetric(progress.goal.metric)) return progress;
+  return {
+    ...progress,
+    currentValue: null,
+    goal: { ...progress.goal, targetValue: null, label: progress.goal.metric === "profit" ? "Profit goal" : "Revenue goal" },
+  } as unknown as GoalProgress;
+}
+
 export default function registerCofounderRoute(app: Express) {
   app.get("/pilot-brain/goals", requireAuth, (req, res) => {
     const user = authUser(req);
     const progress = computeAllGoalProgress(user.dealershipId, Date.now());
-    res.json({ ok: true, goals: progress });
+    const money = canSeeMoney(user);
+    res.json({ ok: true, goals: progress.map(g => goalForViewer(g, money)) });
   });
 
   // Setting a real business goal is a strategic decision — owner/manager
@@ -145,6 +160,10 @@ export default function registerCofounderRoute(app: Express) {
     const validMetrics: GoalMetric[] = ["revenue", "profit", "stockCount", "leadsAdded", "salesCount"];
     if (!validMetrics.includes(metric) || typeof changePercent !== "number") {
       return res.status(400).json({ ok: false, error: "metric and changePercent (number) are required" });
+    }
+    // A what-if on revenue or profit starts from this month's real figure.
+    if (isMoneyGoalMetric(metric) && !canSeeMoney(user)) {
+      return res.status(403).json({ ok: false, error: "Revenue and profit figures are for the owner, managers and finance." });
     }
 
     const now = Date.now();
@@ -205,7 +224,7 @@ export default function registerCofounderRoute(app: Express) {
       greatestOpportunity,
       greatestRisk,
       recommendedFocus: priorities[0] ?? null,
-      goalProgress,
+      goalProgress: goalProgress.map(g => goalForViewer(g, canSeeMoney(user))),
     });
   });
 }

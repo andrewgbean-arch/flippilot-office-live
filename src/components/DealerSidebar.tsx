@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { useIsSupportAdmin } from "@/lib/useIsSupportAdmin";
 import { useTour } from "@/tour/TourProvider";
 import { REPORT_TABS, reportTabFor } from "@/dealer/reports/reportTabs";
+import { useAuth } from "@/context/AuthContext";
+import { canOpenPage } from "@/lib/pageAccess";
 
 // A menu entry that starts the guided tour instead of opening a page.
 const TOUR_LINK = "#tour";
@@ -26,6 +28,7 @@ export default function DealerSidebar() {
   const { pathname } = useLocation();
   const isSupportAdmin = useIsSupportAdmin();
   const { startTour } = useTour();
+  const { user } = useAuth();
 
   const isHome =
     pathname === "/" ||
@@ -38,7 +41,7 @@ export default function DealerSidebar() {
   // AnimatedRoutes). pilotBrainGuide.ts mirrors this list for Wendy and its
   // test reads this file, so keep the `label:` / `{ to, label }` shapes.
   // "direct" groups are a single link with no sub-menu.
-  const sections: { label: string; icon: typeof FiHome; direct?: boolean; items: { to: string; label: string }[] }[] = [
+  const allSections: { label: string; icon: typeof FiHome; direct?: boolean; items: { to: string; label: string }[] }[] = [
     {
       label: "Dashboard",
       icon: FiHome,
@@ -158,6 +161,12 @@ export default function DealerSidebar() {
       ],
     },
   ];
+
+  // Only what this person's role can open (pageAccess.ts); a group left with
+  // nothing in it goes too.
+  const sections = allSections
+    .map((section) => ({ ...section, items: section.items.filter((item) => item.to === TOUR_LINK || canOpenPage(user, item.to)) }))
+    .filter((section) => section.items.length > 0);
 
   // "You are here": the one menu item that best matches the current page
   // (longest matching address, so /dealer/sales/leads lights up Leads

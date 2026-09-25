@@ -44,11 +44,14 @@ async function signup(label: string): Promise<Account> {
   return { token: res.body.token as string, dealershipId: res.body.user.dealershipId as string };
 }
 
+// A manager, so this second person is sent the same stock as the owner (sales
+// staff aren't sent what each car cost: that's roleGates.test.ts). These tests
+// are about two people saving at once, not about roles.
 async function joinStaff(ownerToken: string): Promise<{ token: string }> {
   const invite = await request(app)
     .post("/dealership/invite")
     .set("Authorization", `Bearer ${ownerToken}`)
-    .send({ inviteeName: "Second Screen", staffRole: "sales" });
+    .send({ inviteeName: "Second Screen", staffRole: "manager" });
   const join = await request(app)
     .post("/auth/join")
     .send({

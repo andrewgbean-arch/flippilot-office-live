@@ -4,6 +4,9 @@ import { MemoryRouter } from "react-router-dom";
 
 vi.mock("@/lib/useIsSupportAdmin", () => ({ useIsSupportAdmin: () => false }));
 vi.mock("@/tour/TourProvider", () => ({ useTour: () => ({ startTour: () => {} }) }));
+// The owner by default: everything in the menu. The role tests below change it.
+const auth = vi.hoisted(() => ({ user: { id: "u1", role: "owner", dealershipId: "d1" } as Record<string, string> }));
+vi.mock("@/context/AuthContext", () => ({ useAuth: () => ({ user: auth.user }) }));
 
 import DealerSidebar from "./DealerSidebar";
 import DashboardFooter from "./DashboardFooter";
@@ -63,6 +66,57 @@ describe("sidebar shows where you are", () => {
 
   it("marks nothing on a page the menu does not know", () => {
     expect(currentLinks(sidebarAt("/some/unknown/page"))).toEqual([]);
+  });
+});
+
+describe("the menu only offers what the person's role can open", () => {
+  // A group's links are only drawn while it is open, so each check stands on
+  // a page inside the group it looks at.
+  const as = (staffRole: string | null) => {
+    auth.user = staffRole ? { id: "u2", role: "staff", staffRole, dealershipId: "d1" } : { id: "u1", role: "owner", dealershipId: "d1" };
+  };
+  const links = (path: string) => [...sidebarAt(path).matchAll(/href="([^"]+)"/g)].map((m) => m[1]);
+
+  it("gives the owner everything", () => {
+    as(null);
+    expect(links("/dealer/finance/calculator")).toEqual(expect.arrayContaining(["/bookkeeping", "/dealer/finance/profit-breakdown"]));
+    expect(links("/my-rota")).toContain("/dealer/staff/add");
+    expect(links("/dealer/settings")).toContain("/billing");
+    expect(links("/dealer/sales/leads")).toContain("/dealer/sales/wanted");
+  });
+
+  it("keeps the books, staff admin and billing from sales staff, but leaves them the customer finance tools", () => {
+    as("sales");
+    const money = links("/dealer/finance/calculator");
+    expect(money).not.toContain("/bookkeeping");
+    expect(money).not.toContain("/dealer/finance/profit-breakdown");
+    expect(money).toContain("/dealer/finance/deal-sheet");
+    expect(links("/my-rota")).not.toContain("/dealer/staff/add");
+    expect(links("/my-rota")).toContain("/dealer/staff/permissions");
+    expect(links("/dealer/settings")).not.toContain("/billing");
+    expect(links("/dealer/sales/leads")).toContain("/dealer/sales/wanted");
+  });
+
+  it("gives finance the books but not billing or staff admin", () => {
+    as("finance");
+    expect(links("/dealer/finance/calculator")).toContain("/bookkeeping");
+    expect(links("/dealer/settings")).not.toContain("/billing");
+    expect(links("/my-rota")).not.toContain("/dealer/staff/add");
+    expect(links("/dealer/sales/leads")).not.toContain("/dealer/sales/wanted");
+  });
+
+  it("gives managers the books and staff admin, but billing stays with the owner", () => {
+    as("manager");
+    expect(links("/dealer/finance/calculator")).toContain("/bookkeeping");
+    expect(links("/my-rota")).toContain("/dealer/staff/add");
+    expect(links("/dealer/settings")).not.toContain("/billing");
+  });
+
+  it("still lists every group for general staff, with Wanted Cars left out", () => {
+    as("general");
+    expect(links("/dealer/sales/leads")).not.toContain("/dealer/sales/wanted");
+    expect(links("/dealer/sales/leads")).toContain("/dealer/sales/leads");
+    as(null);
   });
 });
 

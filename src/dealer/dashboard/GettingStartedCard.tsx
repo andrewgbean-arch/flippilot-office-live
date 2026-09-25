@@ -9,6 +9,7 @@ import { useAuth } from "@/context/AuthContext";
 import { fetchDecisions } from "@/lib/decisionsApi";
 import { canUseDecisions } from "@/pilotbrain/decisions/decisionFormat";
 import { dismissGettingStarted, gettingStartedComplete, gettingStartedItems, isGettingStartedDismissed } from "./gettingStarted";
+import { canSeeMoney } from "@/lib/permissions";
 
 // "Getting started": the four things a new dealership does so Pilot Brain
 // has something real to work with. Each line ticks itself off from the real
@@ -43,6 +44,7 @@ export default function GettingStartedCard() {
     appointments,
     decisionsTotal,
     canUseDecisions: allowed,
+    canSeeMoney: canSeeMoney(user),
     now: new Date(),
   });
   if (dismissed || gettingStartedComplete(items)) return null;

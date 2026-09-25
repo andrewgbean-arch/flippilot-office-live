@@ -110,12 +110,15 @@ describe("who can open what", () => {
     }
   });
 
-  it("hides the buy price and expected sale from anyone who can't see money", () => {
+  it("hides the buy price, trade price and expected sale from anyone who can't see money", () => {
     const asSales = ok(lookInside(sales, source, { tab: "inventory" })).records[0]!;
     expect(asSales).not.toHaveProperty("buyPrice");
     expect(asSales).not.toHaveProperty("expectedSale");
+    // the app keeps what a car cost in the trade price too
+    expect(asSales).not.toHaveProperty("tradePrice");
     const asManager = ok(lookInside(manager, source, { tab: "inventory" })).records.find(r => r.reg === "AB12CDE")!;
     expect(asManager.buyPrice).toBe(9000);
+    expect(asManager.tradePrice).toBe(11000);
     expect(asManager.expectedSale).toBe(12500);
   });
 });

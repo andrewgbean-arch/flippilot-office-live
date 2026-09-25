@@ -23,7 +23,7 @@ const sale = (): SaleEntry => ({ id: `s-${++nextId}`, vehicleId: "v", salePrice:
 const booking = (over: Partial<Appointment> = {}): Appointment =>
   ({ id: `a-${++nextId}`, type: "viewing", status: "confirmed", requestedDate: dateKey(-2), requestedTime: "10:00", ...over }) as unknown as Appointment;
 
-const base = { vehicles: [] as Vehicle[], sales: [] as SaleEntry[], appointments: [] as Appointment[], decisionsTotal: null, canUseDecisions: true, now: NOW };
+const base = { vehicles: [] as Vehicle[], sales: [] as SaleEntry[], appointments: [] as Appointment[], decisionsTotal: null, canUseDecisions: true, canSeeMoney: true, now: NOW };
 const byKey = (items: ReturnType<typeof gettingStartedItems>) => Object.fromEntries(items.map(i => [i.key, i])) as Record<GettingStartedKey, GettingStartedItem>;
 
 describe("Getting started: what a brand-new dealership sees", () => {
@@ -43,6 +43,12 @@ describe("Getting started: what a brand-new dealership sees", () => {
   it("leaves the decision item out for staff who cannot open the journal", () => {
     const items = gettingStartedItems({ ...base, canUseDecisions: false });
     expect(items.map(i => i.key)).toEqual(["sale", "outcomes", "cars"]);
+  });
+
+  it("leaves the sale item out for staff who are not sent the books, rather than showing it undone", () => {
+    // sales, general: no ledger, so no sales to count (and no Add Sale to open)
+    const items = gettingStartedItems({ ...base, canUseDecisions: false, canSeeMoney: false });
+    expect(items.map(i => i.key)).toEqual(["outcomes", "cars"]);
   });
 });
 

@@ -83,7 +83,7 @@ export const RIGHT_SIDEBAR_GLANCE = ["Open Jobs", "Pending Bookings", "MOT Atten
 export function appMapPromptSection(): string {
   const left = APP_MAP.map(s => `${s.section}: ${s.items.join(", ")}`).join("; ");
   return [
-    `WHERE THINGS LIVE IN FLIPPILOT — the left sidebar, exactly as Boss sees it (each section opens to the links listed; a few links may not show for every staff role): ${left}.`,
+    `WHERE THINGS LIVE IN FLIPPILOT — the left sidebar, exactly as Boss sees it (each section opens to the links listed; a few links show only for some roles: Bookkeeping, Profit Breakdown and a car's Costs and Profit tabs for the owner, managers and finance; Add Staff for the owner and managers; Wanted Cars for sales, managers and the owner; Billing for the owner alone. If the person asking can't open a page, say who can rather than sending them to it): ${left}.`,
     `The right-hand sidebar has quick links (${RIGHT_SIDEBAR_QUICK_LINKS.join(", ")}) and an at-a-glance panel showing ${RIGHT_SIDEBAR_GLANCE.join(", ")} — the snapshot below carries the same information.`,
     `When Boss asks where to find something or how to do it, point to the exact sidebar section and link name from this list, and never invent a screen or menu that isn't here. Knowing where a screen is doesn't mean you can see what's inside it: the customer database, wages, private messages and pictures stay off-limits to you, as set out below.`,
   ].join(" ");

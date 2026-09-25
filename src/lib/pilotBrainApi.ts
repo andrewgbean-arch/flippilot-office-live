@@ -315,7 +315,9 @@ export type GoalMetric = "revenue" | "profit" | "stockCount" | "leadsAdded" | "s
 export interface BusinessGoal {
   id: string;
   metric: GoalMetric;
-  targetValue: number;
+  // null on a revenue or profit goal for someone who can't see the money:
+  // the server leaves the pounds out (and gives it a plain label).
+  targetValue: number | null;
   period: "monthly" | "quarterly";
   label: string;
   createdAt: string;
@@ -324,7 +326,7 @@ export interface BusinessGoal {
 
 export interface GoalProgress {
   goal: BusinessGoal;
-  currentValue: number;
+  currentValue: number | null;
   percent: number;
   onTrack: boolean;
 }

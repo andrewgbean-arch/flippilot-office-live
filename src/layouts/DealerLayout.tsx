@@ -15,6 +15,7 @@ import InventoryLoadErrorBanner from "../components/InventoryLoadErrorBanner";
 
 import { useInventory } from "@/context/InventoryProvider";
 import { computeDealerHudStats } from "@/lib/dealerHudStats";
+import PageAccessGate from "@/components/PageAccessGate";
 
 export default function DealerLayout() {
   const { pathname } = useLocation();
@@ -109,7 +110,9 @@ export default function DealerLayout() {
                 it sticking around; the sidebar/header stay up either
                 way since they're outside this boundary. */}
             <ErrorBoundary key={pathname} fullScreen={false}>
-              <Outlet />
+              <PageAccessGate>
+                <Outlet />
+              </PageAccessGate>
             </ErrorBoundary>
           </div>
         </main>

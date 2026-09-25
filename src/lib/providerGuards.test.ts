@@ -13,7 +13,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 // storageLoaders.test.ts) and the server (tested in the backend's
 // wholeListGuards.test.ts): the glue that decides whether to save.
 
-const auth = vi.hoisted(() => ({ user: null as { dealershipId: string } | null }));
+// The owner by default: the bookkeeping ledger is only loaded for the owner,
+// managers and finance (see the sales-staff test below).
+const auth = vi.hoisted(() => ({ user: null as { dealershipId: string; role?: string; staffRole?: string } | null }));
 
 vi.mock("react", async importOriginal => {
   const actual = await importOriginal<typeof import("react")>();
@@ -168,7 +170,7 @@ let mounted: Mounted<{ children?: unknown }, any> | null = null;
 
 beforeEach(() => {
   server = new FakeServer();
-  auth.user = { dealershipId: "dealer-a" };
+  auth.user = { dealershipId: "dealer-a", role: "owner" };
   vi.stubGlobal("fetch", server.fetch);
   vi.spyOn(console, "error").mockImplementation(() => {});
   vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -544,7 +546,7 @@ describe.each(SPECS)("$name: a failed load is never taken for an empty list", sp
     await open(spec);
 
     // A different dealership logs in over the same tab; its data is slow.
-    auth.user = { dealershipId: "dealer-b" };
+    auth.user = { dealershipId: "dealer-b", role: "owner" };
     const release = server.hold(spec.reads[0]!);
     mounted!.rerender();
     await settle();
@@ -564,7 +566,7 @@ describe.each(SPECS)("$name: a failed load is never taken for an empty list", sp
     await open(spec);
     expect(spec.memory(ctx()).length).toBeGreaterThan(0);
 
-    auth.user = { dealershipId: "dealer-b" };
+    auth.user = { dealershipId: "dealer-b", role: "owner" };
     const release = server.hold(spec.reads[0]!);
     mounted!.rerender();
     await settle();
@@ -578,7 +580,7 @@ describe.each(SPECS)("$name: a failed load is never taken for an empty list", sp
     spec.seed(server);
     await open(spec); // the first dealership loaded fine
 
-    auth.user = { dealershipId: "dealer-b" };
+    auth.user = { dealershipId: "dealer-b", role: "owner" };
     server.failNext(spec.reads[0]!, "html502");
     mounted!.rerender();
     await settle();
@@ -598,7 +600,7 @@ describe.each(SPECS)("$name: a failed load is never taken for an empty list", sp
 
     // Dealer B logs in and has nothing yet; B's own load answers straight away.
     server.data.clear();
-    auth.user = { dealershipId: "dealer-b" };
+    auth.user = { dealershipId: "dealer-b", role: "owner" };
     mounted!.rerender();
     await settle();
     expect(spec.memory(ctx())).toEqual([]);
@@ -616,6 +618,23 @@ describe.each(SPECS)("$name: a failed load is never taken for an empty list", sp
     await editOf(spec, spec.primary)(ctx());
     await settle();
     expect(server.puts().length).toBeGreaterThan(0);
+  });
+});
+
+describe("bookkeeping: staff who are not sent the books", () => {
+  it("never ask for them, raise no load error, and can never save a ledger", async () => {
+    auth.user = { dealershipId: "dealer-a", role: "staff", staffRole: "sales" };
+    const spec = SPECS.find(s => s.name === "bookkeeping")!;
+    spec.seed(server);
+    const before = snapshot(spec);
+    await open(spec);
+
+    expect(server.calls.some(c => c.path === "/bookkeeping")).toBe(false);
+    expect(getLoadFailures().map(f => f.id)).not.toContain("bookkeeping");
+
+    await ctx().updateSale("s1", { buyer: "Pat Buyer" });
+    await settle();
+    expect(snapshot(spec)).toEqual(before);
   });
 });
 

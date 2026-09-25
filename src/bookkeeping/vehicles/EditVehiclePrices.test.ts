@@ -9,6 +9,8 @@ const state = vi.hoisted(() => ({
   updates: [] as { id: string; patch: any }[],
   navigated: [] as string[],
   car: null as any,
+  // the owner, unless a test says otherwise
+  user: { id: "u1", role: "owner", dealershipId: "d1" } as Record<string, string>,
 }));
 
 vi.mock("react", async (importOriginal) => {
@@ -36,6 +38,7 @@ vi.mock("@/context/InventoryProvider", () => ({
 vi.mock("@/bookkeeping/BookkeepingProvider", () => ({
   useBookkeeping: () => ({ sales: [], purchases: [], costs: [] }),
 }));
+vi.mock("@/context/AuthContext", () => ({ useAuth: () => ({ user: state.user }) }));
 
 import { mount, type Mounted } from "@/lib/testing/hookRuntime";
 import { byLabel, alerts, screenText, findAll } from "@/lib/testing/elementTree";
@@ -82,6 +85,7 @@ beforeEach(() => {
   state.updates = [];
   state.navigated = [];
   state.car = car();
+  state.user = { id: "u1", role: "owner", dealershipId: "d1" };
 });
 afterEach(() => mounted?.unmount());
 
@@ -140,6 +144,31 @@ describe("saving the prices", () => {
     expect(byLabel(screen(), "Trade Price (£)")!.props.value).toBe("");
     await save();
     expect(savedPatch()).toMatchObject({ priceTrade: null, priceRetail: null });
+  });
+});
+
+describe("sales and general staff", () => {
+  // The server neither sends them what a car cost nor takes it from them, and
+  // only the owner and managers can remove a car: the form matches.
+  it.each(["sales", "general"])("%s: no Trade Price, no Live Profit, no Delete, and a save never sends a trade price", async (staffRole) => {
+    state.user = { id: "u2", role: "staff", staffRole, dealershipId: "d1" };
+    state.car = car({ priceTrade: undefined });
+    await open();
+    expect(byLabel(screen(), "Trade Price (£)")).toBeFalsy();
+    expect(screenText(screen())).not.toContain("Live Profit");
+    expect(findAll(screen(), (el) => el.props.label === "Delete Vehicle")).toHaveLength(0);
+    await retail("8,500");
+    await save();
+    expect(savedPatch().priceRetail).toBe(8500);
+    expect(savedPatch()).not.toHaveProperty("priceTrade");
+  });
+
+  it("finance keeps the Trade Price and Live Profit, but not Delete", async () => {
+    state.user = { id: "u3", role: "staff", staffRole: "finance", dealershipId: "d1" };
+    await open();
+    expect(byLabel(screen(), "Trade Price (£)")).toBeTruthy();
+    expect(screenText(screen())).toContain("Live Profit");
+    expect(findAll(screen(), (el) => el.props.label === "Delete Vehicle")).toHaveLength(0);
   });
 });
 

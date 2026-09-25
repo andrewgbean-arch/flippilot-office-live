@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 import { Express, Request } from "express";
 import { readTenantCollection, writeTenantCollection } from "../db";
-import type { AuthUser } from "../auth";
+import { requireStaffRole, type AuthUser } from "../auth";
 
 export type NotificationType = "info" | "success" | "warning" | "error";
 
@@ -47,7 +47,10 @@ export default function registerNotificationsRoute(app: Express) {
   // other real account in their own dealership — the same trust tier
   // as creating a job or a lead (operational coordination), not
   // privileged data like bookkeeping or the staff roster.
-  app.post("/notifications", (req, res) => {
+  // Sending someone a notification is how the rota and leave screens tell a
+  // person about a manager's decision, so it is for the owner and managers:
+  // anyone else could otherwise put words in the bell of any teammate.
+  app.post("/notifications", requireStaffRole("manager"), (req, res) => {
     const user = authedUser(req);
     const { userId, title, message, type } = req.body ?? {};
     if (typeof userId !== "string" || typeof title !== "string" || typeof message !== "string") {

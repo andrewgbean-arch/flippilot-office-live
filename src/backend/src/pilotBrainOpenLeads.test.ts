@@ -16,7 +16,7 @@ describe("Pilot Brain's Open leads headline", () => {
     const dealershipId = `open-leads-test-${crypto.randomUUID()}`;
     writeTenantCollection(dealershipId, "vehicles", []);
     writeTenantCollection(dealershipId, "leads", leads);
-    return buildBusinessSummary(dealershipId);
+    return buildBusinessSummary(dealershipId, true);
   }
 
   it("does not count website MOT bookings as open leads", () => {

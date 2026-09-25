@@ -19,6 +19,8 @@ import PhotoEditorModal from "@/lib/PhotoEditorModal";
 import { deleteVehiclePhoto, hostedPhotoId } from "@/lib/vehiclePhotosApi";
 import { createUndoableAction, type UndoableAction } from "@/lib/undoableAction";
 import { readOptionalMoney } from "@/lib/parseMoney";
+import { useAuth } from "@/context/AuthContext";
+import { canManageStaff, canSeeMoney } from "@/lib/permissions";
 
 interface EditVehicleProps {
   vehicleId: string;
@@ -28,6 +30,12 @@ export default function EditVehicle({ vehicleId }: EditVehicleProps) {
   const navigate = useNavigate();
   const { vehicles, updateVehicle, deleteVehicle } = useInventory();
   const { sales, purchases, costs } = useBookkeeping();
+  // What a car cost (the trade price) and its profit are for the owner,
+  // managers and finance; the server doesn't send anyone else the trade price,
+  // and ignores it from them. Removing a car is for the owner and managers.
+  const { user } = useAuth();
+  const money = canSeeMoney(user);
+  const canRemove = canManageStaff(user);
   // Deleting a car leaves its Bookkeeping entries behind with no car to belong
   // to, so the confirmation says so first (nothing is blocked).
   const bookkeepingWarning = bookkeepingDeleteWarning(
@@ -253,7 +261,7 @@ export default function EditVehicle({ vehicleId }: EditVehicleProps) {
       year: year ? Number(year) : null,
       mileage: mileage ? Number(mileage) : null,
 
-      priceTrade: tradeRead.value,
+      ...(money ? { priceTrade: tradeRead.value } : {}),
       priceRetail: retailRead.value,
       // New Vehicle and the CSV import write the asking price to BOTH priceRetail and
       // sellPrice. Until the car is sold, sellPrice is just that same asking price, so
@@ -331,8 +339,10 @@ export default function EditVehicle({ vehicleId }: EditVehicleProps) {
         <SupernovaSectionDivider label="Pricing" />
 
         <SupernovaGlowCard>
-          <div className="grid grid-cols-2 gap-4">
-            <SupernovaInput label="Trade Price (£)" value={priceTrade} onChange={setPriceTrade} inputMode="decimal" placeholder="Leave blank if not priced" />
+          <div className={`grid gap-4 ${money ? "grid-cols-2" : "grid-cols-1"}`}>
+            {money && (
+              <SupernovaInput label="Trade Price (£)" value={priceTrade} onChange={setPriceTrade} inputMode="decimal" placeholder="Leave blank if not priced" />
+            )}
             <SupernovaInput label="Retail Price (£)" value={priceRetail} onChange={setPriceRetail} inputMode="decimal" placeholder="Leave blank if not priced" />
           </div>
           {tradeError && (
@@ -358,6 +368,7 @@ export default function EditVehicle({ vehicleId }: EditVehicleProps) {
             </select>
           </div>
 
+          {money && (
           <div className="mt-6">
             <p className="text-white/80 text-sm mb-1">Live Profit</p>
 
@@ -377,6 +388,7 @@ export default function EditVehicle({ vehicleId }: EditVehicleProps) {
               {profit == null ? "Enter buy & sell to see profit" : `${formatMoney(profit)} profit`}
             </p>
           </div>
+          )}
         </SupernovaGlowCard>
 
         {/* ⭐ Notes */}
@@ -479,10 +491,12 @@ export default function EditVehicle({ vehicleId }: EditVehicleProps) {
           {saveError && <p className="text-red-400 text-sm">{saveError}</p>}
           <SupernovaGlowButton label={saving ? "Saving…" : "Save Vehicle"} onClick={saveVehicle} />
 
-          <SupernovaGlowButton
-            label="Delete Vehicle"
-            onClick={() => setShowDeleteConfirm(true)}
-          />
+          {canRemove && (
+            <SupernovaGlowButton
+              label="Delete Vehicle"
+              onClick={() => setShowDeleteConfirm(true)}
+            />
+          )}
         </div>
       </div>
 

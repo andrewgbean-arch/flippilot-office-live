@@ -3,11 +3,18 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useStaff } from "./StaffContext";
 import type { StaffRecord, StaffRole } from "./staffTypes";
 import "./StaffDashboard.css";
+import { useAuth } from "@/context/AuthContext";
+import { canManageStaff } from "@/lib/permissions";
 
 export default function StaffDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { staff, updateStaff } = useStaff();
+  // Staff records are changed by the owner and managers (the server refuses
+  // anyone else), who are also the only ones sent the NI number, address and
+  // notes. Everyone else gets a read-only view without them.
+  const { user } = useAuth();
+  const canEdit = canManageStaff(user);
 
   const existing = staff.find(s => s.id === id);
 
@@ -69,7 +76,10 @@ export default function StaffDetail() {
         </button>
       </div>
 
-      <div className="sn-form">
+      {!canEdit && (
+        <p className="sn-form-note">Only managers and the owner can change staff records.</p>
+      )}
+      <fieldset className="sn-form" disabled={!canEdit} style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
         <label htmlFor="staffdetail-name">Name</label>
         <input id="staffdetail-name"
           className="sn-input"
@@ -114,6 +124,8 @@ export default function StaffDetail() {
           onChange={e => update("phone", e.target.value)}
         />
 
+        {canEdit && (
+          <>
         <label htmlFor="staffdetail-national-insurance-number">National Insurance Number</label>
         <input id="staffdetail-national-insurance-number"
           className="sn-input"
@@ -129,6 +141,8 @@ export default function StaffDetail() {
           onChange={e => update("address", e.target.value)}
           rows={3}
         />
+          </>
+        )}
 
         <label htmlFor="staffdetail-skills-comma-separated">Skills (comma separated)</label>
         <input id="staffdetail-skills-comma-separated"
@@ -138,23 +152,29 @@ export default function StaffDetail() {
           placeholder="e.g. Valuations, Finance, MOT prep"
         />
 
-        <label htmlFor="staffdetail-notes">Notes</label>
-        <textarea id="staffdetail-notes"
-          className="sn-input sn-textarea"
-          value={form.notes ?? ""}
-          onChange={e => update("notes", e.target.value)}
-          rows={3}
-        />
+        {canEdit && (
+          <>
+            <label htmlFor="staffdetail-notes">Notes</label>
+            <textarea id="staffdetail-notes"
+              className="sn-input sn-textarea"
+              value={form.notes ?? ""}
+              onChange={e => update("notes", e.target.value)}
+              rows={3}
+            />
+          </>
+        )}
 
         {error && <p className="sn-form-note" style={{ color: "#ff8080" }}>{error}</p>}
 
-        <div className="sn-detail-actions">
-          <button className="sn-btn sn-btn--gold" onClick={handleSave}>
-            Save Changes
-          </button>
-          {saved && <span className="sn-saved-note">Saved</span>}
-        </div>
-      </div>
+        {canEdit && (
+          <div className="sn-detail-actions">
+            <button className="sn-btn sn-btn--gold" onClick={handleSave}>
+              Save Changes
+            </button>
+            {saved && <span className="sn-saved-note">Saved</span>}
+          </div>
+        )}
+      </fieldset>
     </div>
   );
 }

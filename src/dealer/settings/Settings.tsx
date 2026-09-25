@@ -31,6 +31,7 @@ import { buildInviteShare, canShareNatively, inviteShareMode, shareInvite } from
 import PilotBrainSecurityCard from "./PilotBrainSecurityCard";
 
 import { BASE_URL } from "@/lib/apiBaseUrl";
+import { canSeeMoney } from "@/lib/permissions";
 
 const STAFF_ROLE_OPTIONS: { value: "sales" | "finance" | "manager" | "general"; label: string; description: string }[] = [
   { value: "sales", label: "Sales", description: "Leads, stock, Car Passports and Wanted Cars. Can't record in the books or manage staff." },
@@ -645,11 +646,15 @@ export default function Settings() {
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showManageTeamModal, setShowManageTeamModal] = useState(false);
 
+  // The books and what each car cost are for the owner, managers and finance
+  // (the server sends nobody else either), so only they get those downloads.
+  const money = canSeeMoney(user);
+
   function exportVehicles() {
-    const headers = ["Make", "Model", "Registration", "Year", "Mileage", "Colour", "Buy Price", "Sell Price", "MOT Expiry"];
+    const headers = ["Make", "Model", "Registration", "Year", "Mileage", "Colour", ...(money ? ["Buy Price"] : []), "Sell Price", "MOT Expiry"];
     const rows = vehicles.map((v) => [
       v.make, v.model, v.reg ?? "", v.year ?? "", v.mileage ?? "",
-      v.colour ?? "", v.priceTrade ?? "", v.priceRetail ?? "", v.mot?.expiry ?? "",
+      v.colour ?? "", ...(money ? [v.priceTrade ?? ""] : []), v.priceRetail ?? "", v.mot?.expiry ?? "",
     ]);
     downloadCSV(dated("flippilot-vehicles"), toCSV(headers, rows));
   }
@@ -751,9 +756,13 @@ export default function Settings() {
 
           <div className="flex flex-wrap gap-2">
             <SupernovaGlowButton label={`Vehicles (${vehicles.length})`} onClick={exportVehicles} />
-            <SupernovaGlowButton label={`Purchases (${purchases.length})`} onClick={exportPurchases} />
-            <SupernovaGlowButton label={`Costs (${costs.length})`} onClick={exportCosts} />
-            <SupernovaGlowButton label={`Sales (${sales.length})`} onClick={exportSales} />
+            {money && (
+              <>
+                <SupernovaGlowButton label={`Purchases (${purchases.length})`} onClick={exportPurchases} />
+                <SupernovaGlowButton label={`Costs (${costs.length})`} onClick={exportCosts} />
+                <SupernovaGlowButton label={`Sales (${sales.length})`} onClick={exportSales} />
+              </>
+            )}
           </div>
         </SupernovaGlowCard>
 

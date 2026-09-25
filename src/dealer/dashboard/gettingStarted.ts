@@ -30,6 +30,9 @@ export interface GettingStartedInput {
   decisionsTotal: number | null;
   // Owners and managers only: the Decision Journal answers 403 to everyone else.
   canUseDecisions: boolean;
+  // The owner, managers and finance: sales live in the Bookkeeping ledger,
+  // which nobody else is sent, so for them there is nothing to count.
+  canSeeMoney: boolean;
   now: Date;
 }
 
@@ -44,7 +47,7 @@ export function pastBookingsToMark(appointments: readonly Appointment[], now: Da
 }
 
 export function gettingStartedItems(input: GettingStartedInput): GettingStartedItem[] {
-  const { vehicles, sales, appointments, decisionsTotal, canUseDecisions, now } = input;
+  const { vehicles, sales, appointments, decisionsTotal, canUseDecisions, canSeeMoney, now } = input;
 
   const saleCount = sales.length;
   const sale: GettingStartedItem = {
@@ -88,7 +91,7 @@ export function gettingStartedItems(input: GettingStartedInput): GettingStartedI
     to: forSale.length === 0 ? "/new-flip" : "/dealer/inventory/list",
   };
 
-  const items = [sale, outcomes, cars];
+  const items = canSeeMoney ? [sale, outcomes, cars] : [outcomes, cars];
   if (canUseDecisions) {
     items.push({
       key: "decision",

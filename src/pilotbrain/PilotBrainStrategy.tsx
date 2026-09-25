@@ -11,6 +11,16 @@ import {
   type ExecutiveBriefing,
 } from "@/lib/pilotBrainApi";
 import "@/staff/StaffDashboard.css";
+import { formatMoney } from "@/lib/formatMoney";
+
+// "£8,200 of £20,000", "14 of 20", or, for a money goal the viewer isn't sent
+// the pounds of, just who can see them.
+function goalFigures(g: GoalProgress): string {
+  if (g.currentValue === null || g.goal.targetValue === null) return "Figures: owner, managers and finance only";
+  const money = g.goal.metric === "revenue" || g.goal.metric === "profit";
+  const show = (n: number) => (money ? formatMoney(n) : n.toLocaleString("en-GB"));
+  return `${show(g.currentValue)} of ${show(g.goal.targetValue)}`;
+}
 
 const METRIC_LABEL: Record<GoalMetric, string> = {
   revenue: "Revenue (£)",
@@ -162,7 +172,7 @@ export default function PilotBrainStrategy() {
                       <div style={{ width: `${Math.min(100, g.percent)}%`, background: g.onTrack ? "#4ade80" : "#fb923c", height: "100%" }} />
                     </div>
                     <div style={{ color: "#f5f7ff50", fontSize: 12, marginTop: 6 }}>
-                      {g.currentValue.toLocaleString()} of {g.goal.targetValue.toLocaleString()} — {g.goal.period}
+                      {goalFigures(g)} — {g.goal.period}
                     </div>
                     {canManage && (
                       <button onClick={() => handleDeleteGoal(g.goal.id)} style={{ fontSize: 11, color: "#f5f7ff50", marginTop: 6, background: "none", border: "none", cursor: "pointer" }}>

@@ -153,7 +153,8 @@ async function analyse<T extends Answer>(plan: Plan<T>, req: Request, res: Respo
   try {
     // The records the model sees and the counts that cap its confidence are
     // read together, so they describe the same moment.
-    const summary = buildBusinessSummary(dealershipId);
+    // Decisions are for the owner and managers only, who can see the money.
+    const summary = buildBusinessSummary(dealershipId, true);
     const evidence = readEvidence(dealershipId, nowMs);
     const prompt = plan.prompt(decision, summary);
     const seen = fingerprint(decision);
