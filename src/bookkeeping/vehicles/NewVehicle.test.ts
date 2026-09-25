@@ -13,6 +13,8 @@ const spies = vi.hoisted(() => ({
   addManualVehicle: null as null | ((data: any) => any),
   addPurchase: null as null | ((entry: any) => void),
   navigate: null as null | ((to: string) => void),
+  // the owner unless a test says otherwise (only money roles get a Buy Price)
+  user: { id: "u1", role: "owner", dealershipId: "d1" } as Record<string, string>,
 }));
 
 vi.mock("react", async (importOriginal) => {
@@ -36,6 +38,7 @@ vi.mock("@/context/InventoryProvider", () => ({
 vi.mock("@/bookkeeping/BookkeepingProvider", () => ({
   useBookkeeping: () => ({ addPurchase: (e: any) => spies.addPurchase!(e) }),
 }));
+vi.mock("@/context/AuthContext", () => ({ useAuth: () => ({ user: spies.user }) }));
 
 import { mount, type Mounted } from "@/lib/testing/hookRuntime";
 import { byId, byLabel, buttonByText, typeInto, alerts, screenText, findAll } from "@/lib/testing/elementTree";
@@ -81,8 +84,26 @@ beforeEach(() => {
   };
   spies.addPurchase = (e) => void purchases.push(e);
   spies.navigate = (to) => void navigated.push(to);
+  spies.user = { id: "u1", role: "owner", dealershipId: "d1" };
 });
 afterEach(() => mounted?.unmount());
+
+describe("sales and general staff (who don't keep the books)", () => {
+  it.each(["sales", "general"])("%s: no Buy Price box, no Live Profit, and the car saves with nothing sent to the books", async (staffRole) => {
+    spies.user = { id: "u2", role: "staff", staffRole, dealershipId: "d1" };
+    await open();
+    expect(byLabel(screen(), "Buy Price (£)")).toBeFalsy();
+    expect(screenText(screen())).not.toContain("Live Profit");
+    await fillCar();
+    await sell("7,995");
+    await save();
+    expect(vehicles).toHaveLength(1);
+    expect(vehicles[0].buyPrice).toBeNull();
+    expect(vehicles[0].sellPrice).toBe(7995);
+    expect(purchases).toHaveLength(0);
+    expect(navigated).toEqual(["/dealer/inventory/car-1"]);
+  });
+});
 
 describe("the Buy Price is required and must be above £0", () => {
   it("a blank Buy Price saves nothing and says so, with the message it always had", async () => {
