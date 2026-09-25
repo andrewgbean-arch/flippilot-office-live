@@ -2,7 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useRef, useSt
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { useInventory } from "@/context/InventoryProvider";
-import { TOUR_STEPS, stepRoute } from "./tourSteps";
+import { TOUR_STEPS, stepRoute, type TourStep } from "./tourSteps";
 import { TourOverlay } from "./TourOverlay";
 
 function seenKey(userId: string) {
