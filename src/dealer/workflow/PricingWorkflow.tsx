@@ -11,6 +11,8 @@ import { SupernovaGlowCard } from "@/components/supernova/SupernovaGlowCard";
 import { SupernovaSectionDivider } from "@/components/supernova/SupernovaSectionDivider";
 import { SupernovaGlowButton } from "@/components/supernova/SupernovaGlowButton";
 import { computePricingFacts } from "./pricingFacts";
+import { useAuth } from "@/context/AuthContext";
+import { canSeeMoney } from "@/lib/permissions";
 
 // One row of "label ... value".
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
@@ -30,6 +32,8 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 // Not Found" for any car with no Bookkeeping purchase; now it shows what
 // exists and says what is missing.
 export default function PricingWorkflow() {
+  // Recon is a money page (its costs go in the books): owner, managers, finance.
+  const canRecon = canSeeMoney(useAuth().user);
   const { id } = useParams();
   const vehicleId = id as string;
   const navigate = useNavigate();
@@ -153,10 +157,12 @@ export default function PricingWorkflow() {
       <SupernovaSectionDivider label="Next Steps" />
 
       <div className="flex flex-wrap gap-4">
-        <SupernovaGlowButton
-          label="Recon Workflow"
-          onClick={() => navigate(`/dealer/workflow/recon/${vehicleId}`)}
-        />
+        {canRecon && (
+          <SupernovaGlowButton
+            label="Recon Workflow"
+            onClick={() => navigate(`/dealer/workflow/recon/${vehicleId}`)}
+          />
+        )}
 
         <SupernovaGlowButton
           label="Photos Workflow"

@@ -13,6 +13,8 @@ const PAGE_NEEDS: { prefix: string; need: PageNeed }[] = [
   { prefix: "/dealer/finance/profit-breakdown", need: "money" },
   { prefix: "/dealer/workflow/recon", need: "money" },
   { prefix: "/dealer/staff/add", need: "staff" },
+  // the server answers 403 to everyone else (requireStaffRole("manager"))
+  { prefix: "/pilot-brain/decisions", need: "staff" },
   { prefix: "/dealer/sales/wanted", need: "wanted" },
   { prefix: "/billing", need: "owner" },
 ];

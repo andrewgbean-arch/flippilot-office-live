@@ -4,6 +4,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 
 const state = vi.hoisted(() => ({ vehicles: [] as any[] }));
+// The owner, so every button a role can have is on screen.
+vi.mock("@/context/AuthContext", () => ({ useAuth: () => ({ user: { id: "u1", role: "owner", dealershipId: "d1" } }) }));
 vi.mock("@/context/InventoryProvider", () => ({
   useInventory: () => ({ vehicles: state.vehicles }),
 }));

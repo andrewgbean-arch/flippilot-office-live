@@ -103,6 +103,7 @@ export default function PilotBrainOperations() {
 
       <div style={{ maxWidth: 800, margin: "0 auto", padding: "24px" }}>
         <button
+          data-tour="tour-prepare-work"
           onClick={handlePrepare}
           disabled={preparing}
           className="sn-btn sn-btn--gold"

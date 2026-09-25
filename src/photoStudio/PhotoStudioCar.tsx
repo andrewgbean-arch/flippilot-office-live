@@ -473,7 +473,7 @@ export default function PhotoStudioCar() {
 
           {/* SIDE PANEL */}
           <aside className="space-y-4">
-            <section className="rounded-2xl border border-yellow-400/30 bg-black/30 p-4">
+            <section data-tour="tour-social-posts" className="rounded-2xl border border-yellow-400/30 bg-black/30 p-4">
               <p className="brand-caps text-xs mb-2">SOCIAL MEDIA POST</p>
               <p className="text-sm text-white/70 mb-3">This photo with the price and your name, sized for Facebook and Instagram. Downloads to your device.</p>
               <div className="flex gap-2">

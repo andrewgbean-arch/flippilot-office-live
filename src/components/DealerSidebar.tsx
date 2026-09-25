@@ -248,7 +248,7 @@ export default function DealerSidebar() {
       )}
 
       {!isHome && (
-        <nav className="flex flex-col gap-4 overflow-y-auto pr-2 custom-scroll">
+        <nav data-tour="tour-sidebar" className="flex flex-col gap-4 overflow-y-auto pr-2 custom-scroll">
           {sections.map((section) => {
             const Icon = section.icon;
             const isOpen = open[section.label];

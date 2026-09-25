@@ -92,7 +92,7 @@ export default function DealerRightSidebar() {
             Quick Links
           </h2>
 
-          <div className="space-y-1 relative z-10">
+          <div data-tour="tour-quick-links" className="space-y-1 relative z-10">
             {QUICK_LINKS.map(({ to, label, icon: Icon }) => (
               <button
                 key={to}

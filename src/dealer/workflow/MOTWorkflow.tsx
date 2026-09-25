@@ -12,6 +12,8 @@ import { SupernovaGlowButton } from "@/components/supernova/SupernovaGlowButton"
 import { motAiEngine, MOT_RULE_OF_THUMB } from "@/engines/motAiEngine";
 import { motState, formatDate } from "@/dealer/inventory/vehicleListModel";
 import MotTestCard, { sortMotHistoryDesc } from "@/components/motors/MotTestCard";
+import { useAuth } from "@/context/AuthContext";
+import { canSeeMoney } from "@/lib/permissions";
 
 const STATE_COLOUR = {
   expired: "text-red-400",
@@ -23,6 +25,8 @@ const STATE_COLOUR = {
 const OUTLOOK_LABEL = { good: "Good", fair: "Fair", poor: "Poor" } as const;
 
 export default function MOTWorkflow() {
+  // Recon is a money page (its costs go in the books): owner, managers, finance.
+  const canRecon = canSeeMoney(useAuth().user);
   const { id } = useParams();
   const vehicleId = id as string;
   const navigate = useNavigate();
@@ -201,9 +205,11 @@ export default function MOTWorkflow() {
       <SupernovaSectionDivider label="Next Steps" />
 
       <div className="flex gap-4">
-        <SupernovaGlowButton onClick={() => navigate(`/dealer/workflow/recon/${vehicleId}`)}>
-          Recon Workflow
-        </SupernovaGlowButton>
+        {canRecon && (
+          <SupernovaGlowButton onClick={() => navigate(`/dealer/workflow/recon/${vehicleId}`)}>
+            Recon Workflow
+          </SupernovaGlowButton>
+        )}
 
         <SupernovaGlowButton onClick={() => navigate(`/dealer/workflow/pricing/${vehicleId}`)}>
           Pricing Workflow

@@ -129,8 +129,10 @@ export default function SalesPipeline() {
           accent={conversionRate >= 40 ? "yellow" : conversionRate >= 20 ? "blue" : "red"}
         />
 
+        {/* This used to say "AI analysis suggests…": it was fixed text, not
+            anything worked out from the leads. The rate above is the real part. */}
         <p className="text-white/70 mt-3">
-          AI analysis suggests focusing on hot leads and viewing follow‑ups to increase conversions.
+          The share of your leads marked sold. Ask Wendy which leads to chase first.
         </p>
       </SupernovaGlowCard>
 

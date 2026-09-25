@@ -14,6 +14,8 @@ const inventory = vi.hoisted(() => ({ vehicles: [] as unknown[], loading: false 
 const leadStore = vi.hoisted(() => ({ leads: [] as unknown[], loading: false }));
 const books = vi.hoisted(() => ({ costs: [] as unknown[], purchases: [] as unknown[], sales: [] as unknown[] }));
 
+// The owner, so every button a role can have is on screen.
+vi.mock("@/context/AuthContext", () => ({ useAuth: () => ({ user: { id: "u1", role: "owner", dealershipId: "d1" } }) }));
 vi.mock("@/context/InventoryProvider", () => ({
   useInventory: () => ({ vehicles: inventory.vehicles, loading: inventory.loading }),
 }));

@@ -62,6 +62,7 @@ export default function DashboardFooter() {
 
   return (
     <div
+      data-tour="tour-bottom-bar"
       className="
         fixed bottom-0 left-0 w-full z-50
         lg:pl-60 lg:pr-60
@@ -110,7 +111,7 @@ export default function DashboardFooter() {
       </div>
 
       {/* RIGHT — ALERTS */}
-      <div className="relative">
+      <div data-tour="tour-bell" className="relative">
         <div
           className="flex items-center gap-3 cursor-pointer"
           onClick={() => setShowAlerts(prev => !prev)}

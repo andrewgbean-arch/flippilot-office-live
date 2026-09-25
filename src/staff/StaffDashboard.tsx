@@ -3,6 +3,8 @@ import { useStaff } from "./StaffContext";
 import type { StaffRecord } from "./staffTypes";
 import TimeClockPanel from "./TimeClockPanel";
 import "./StaffDashboard.css";
+import { useAuth } from "@/context/AuthContext";
+import { canManageStaff } from "@/lib/permissions";
 
 interface Props {
   brain?: any;
@@ -11,6 +13,9 @@ interface Props {
 export function StaffDashboard({}: Props) {
   const { staff, removeStaff } = useStaff();
   const navigate = useNavigate();
+  // Removing someone from the staff list is for the owner and managers (the
+  // server refuses anyone else's save).
+  const canRemove = canManageStaff(useAuth().user);
 
   // Local staff metrics
   const active = staff.filter(s => s.active);
@@ -90,15 +95,9 @@ export function StaffDashboard({}: Props) {
           <h2 className="sn-panel__title">Active Staff</h2>
           <div className="sn-staff-grid">
             {active.map(s => (
-              <StaffCard key={s.id} staff={s} onRemove={removeStaff} onOpen={handleOpen} />
+              <StaffCard key={s.id} staff={s} onRemove={canRemove ? removeStaff : undefined} onOpen={handleOpen} />
             ))}
           </div>
-        </section>
-
-        {/* ACTIVITY HEATMAP */}
-        <section className="sn-panel sn-panel--full">
-          <h2 className="sn-panel__title">Activity Heatmap</h2>
-          <ActivityHeatmap staff={staff} />
         </section>
 
       </main>
@@ -166,13 +165,14 @@ function StaffCard({
   onOpen,
 }: {
   staff: StaffRecord;
-  onRemove: (id: string) => Promise<string | null>;
+  // left out for people who can't remove staff: no Remove button then
+  onRemove?: ((id: string) => Promise<string | null>) | undefined;
   onOpen: (id: string) => void;
 }) {
   async function handleRemoveClick(e: React.MouseEvent) {
     e.stopPropagation();
-    if (window.confirm(`Remove ${staff.name || "this staff member"}? This can't be undone.`)) {
-      const error = await onRemove(staff.id);
+    if (onRemove && window.confirm(`Remove ${staff.name || "this staff member"}? This can't be undone.`)) {
+      const error = await onRemove!(staff.id);
       if (error) window.alert(error);
     }
   }
@@ -202,12 +202,14 @@ function StaffCard({
         >
           View / Edit
         </button>
-        <button
-          className="sn-staff-card__remove"
-          onClick={handleRemoveClick}
-        >
-          Remove
-        </button>
+        {onRemove && (
+          <button
+            className="sn-staff-card__remove"
+            onClick={handleRemoveClick}
+          >
+            Remove
+          </button>
+        )}
       </div>
     </article>
   );
@@ -247,17 +249,3 @@ function BranchPerformance({ staff }: { staff: StaffRecord[] }) {
    ACTIVITY HEATMAP
 ---------------------------- */
 
-function ActivityHeatmap({ staff }: { staff: StaffRecord[] }) {
-  const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-
-  return (
-    <div className="sn-heatmap">
-      {days.map(day => (
-        <div key={day} className="sn-heatmap__cell">
-          <span className="sn-heatmap__label">{day}</span>
-          <div className="sn-heatmap__level" />
-        </div>
-      ))}
-    </div>
-  );
-}

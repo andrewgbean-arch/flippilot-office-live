@@ -141,7 +141,9 @@ export default function DashboardHeader({ onOpenMenu }: DashboardHeaderProps) {
                 <p className="px-3 py-2 text-sm text-white font-semibold truncate">{user.name}</p>
                 <p className="px-3 pb-2 text-xs text-white/50 truncate border-b border-white/10">{user.email}</p>
                 <Link role="menuitem" to="/dealer/settings" className="block mt-1 px-3 py-2 rounded-lg text-sm text-white/80 hover:bg-white/5 hover:text-yellow-300">Settings</Link>
-                <Link role="menuitem" to="/billing" className="block px-3 py-2 rounded-lg text-sm text-white/80 hover:bg-white/5 hover:text-yellow-300">Billing</Link>
+                {user?.role === "owner" && (
+                  <Link role="menuitem" to="/billing" className="block px-3 py-2 rounded-lg text-sm text-white/80 hover:bg-white/5 hover:text-yellow-300">Billing</Link>
+                )}
                 <button role="menuitem" type="button" onClick={handleLogout} className="w-full text-left px-3 py-2 rounded-lg text-sm text-red-300 hover:bg-red-500/10">
                   Log out
                 </button>

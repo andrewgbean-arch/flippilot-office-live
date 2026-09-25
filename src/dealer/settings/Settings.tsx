@@ -701,7 +701,12 @@ export default function Settings() {
             public marketplace page.
           </p>
 
-          <SupernovaGlowButton label="Edit Dealer Profile" onClick={() => setShowProfileModal(true)} />
+          {/* only the owner can save it (PUT /dealership/me is owner-only) */}
+          {user?.role === "owner" ? (
+            <SupernovaGlowButton label="Edit Dealer Profile" onClick={() => setShowProfileModal(true)} />
+          ) : (
+            <p className="text-sm text-white/60">Only the owner can change these.</p>
+          )}
         </SupernovaGlowCard>
 
         {/* Account & Security */}

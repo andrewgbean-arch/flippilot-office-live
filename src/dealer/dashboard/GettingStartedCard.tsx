@@ -52,6 +52,7 @@ export default function GettingStartedCard() {
   const doneCount = items.filter(i => i.done).length;
 
   return (
+    <div data-tour="tour-getting-started">
     <SupernovaCard
       title="Getting started"
       icon={<FiFlag />}
@@ -89,5 +90,6 @@ export default function GettingStartedCard() {
         ))}
       </ul>
     </SupernovaCard>
+    </div>
   );
 }

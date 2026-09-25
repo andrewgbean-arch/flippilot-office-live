@@ -1,64 +1,124 @@
 import type { CSSProperties } from "react";
+import { FiCheck, FiChevronRight, FiPause, FiPlay, FiVolume2, FiVolumeX } from "react-icons/fi";
+import { useAuth } from "@/context/AuthContext";
 import { useTour } from "./TourProvider";
+import type { TourChapter } from "./tourPlan";
 
 const PADDING = 8;
 
+// Roughly how long Wendy takes to read it, for the start screen.
+export function minutesFor(chapters: readonly TourChapter[]): number {
+  const words = chapters.reduce((n, c) => n + c.steps.reduce((m, s) => m + s.narration.split(/\s+/).length, 0), 0);
+  return Math.max(1, Math.round(words / 150 + chapters.reduce((n, c) => n + c.steps.length, 0) * 0.02));
+}
+
+const gold = "bg-yellow-400 text-black hover:bg-yellow-300";
+const quiet = "bg-white/10 text-white/85 hover:bg-white/20";
+
 export function TourOverlay() {
-  const { isActive, step, stepIndex, totalSteps, hasSound, targetRect, nextStep, prevStep, stopTour, answerSoundPrompt } =
-    useTour();
+  const tour = useTour();
+  const { user } = useAuth();
+  if (!tour.isActive) return null;
 
-  if (!isActive) return null;
-
-  // Sound prompt — shown once, before anything navigates or speaks, so
-  // the answer is known before the first step ever tries to act on it.
-  if (hasSound === null) {
+  // ---- the start screen: sound, the whole tour, or one chapter -------------
+  if (tour.phase === "menu") {
+    const firstName = (user?.name ?? "").trim().split(/\s+/)[0];
+    const anyDone = tour.doneChapters.size > 0;
     return (
-      <div
-        style={{ position: "fixed", inset: 0, zIndex: 9999 }}
-        className="flex items-center justify-center"
-      >
-        <div className="bg-[#0A1128] border border-yellow-400/40 rounded-xl p-6 shadow-[0_0_30px_rgba(255,215,0,0.35)] text-white max-w-sm mx-4 text-center">
-          <h3 className="text-lg font-bold text-yellow-300 mb-2">Before we start…</h3>
-          <p className="text-white/80 text-sm mb-5">
-            Do you have sound? If so, this tour will talk you through everything — otherwise
-            we'll show you around with text instead.
-          </p>
-          <div className="flex justify-center gap-3">
-            <button
-              onClick={() => answerSoundPrompt(false)}
-              className="px-4 py-2 rounded bg-white/10 text-white/80 hover:bg-white/20 text-sm font-semibold transition"
-            >
-              No sound — use text
-            </button>
-            <button
-              onClick={() => answerSoundPrompt(true)}
-              className="px-4 py-2 rounded bg-yellow-400 text-black hover:bg-yellow-300 text-sm font-bold transition"
-            >
-              Yes, I have sound
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-3" role="dialog" aria-modal="true" aria-labelledby="tour-menu-title">
+        <div className="flex max-h-[92vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-yellow-400/50 bg-[#0A1128] text-white shadow-[0_0_40px_rgba(255,215,0,0.35)]">
+          <div className="px-5 pt-5 sm:px-6">
+            <p className="brand-caps text-[11px]">GUIDED TOUR</p>
+            <h2 id="tour-menu-title" className="mt-1 text-xl font-bold text-yellow-300">
+              {anyDone ? "Pick another chapter" : `Welcome${firstName ? `, ${firstName}` : ""}. Let Wendy show you around`}
+            </h2>
+            <p className="mt-1 text-sm text-white/70">
+              Watch it all, or pick just the part you need. You can skip a section or stop at any point, and come back any
+              time from Settings → Take the Tour.
+            </p>
+
+            <div className="mt-4 grid grid-cols-2 gap-2" role="radiogroup" aria-label="Sound">
+              <button
+                role="radio"
+                aria-checked={tour.sound}
+                onClick={() => tour.setSound(true)}
+                className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition ${tour.sound ? gold : quiet}`}
+              >
+                <FiVolume2 aria-hidden /> Wendy talks me through
+              </button>
+              <button
+                role="radio"
+                aria-checked={!tour.sound}
+                onClick={() => tour.setSound(false)}
+                className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition ${!tour.sound ? gold : quiet}`}
+              >
+                <FiVolumeX aria-hidden /> Just the words
+              </button>
+            </div>
+
+            <button onClick={tour.runFullTour} className={`mt-3 w-full rounded-lg px-4 py-3 text-base font-bold transition ${gold}`}>
+              Take the full tour · about {minutesFor(tour.chapters)} minutes
             </button>
           </div>
-          <button onClick={stopTour} className="mt-4 text-white/60 hover:text-white/70 text-xs transition">
-            Skip tour
-          </button>
+
+          <p className="mt-4 px-5 text-xs font-semibold uppercase tracking-wider text-white/50 sm:px-6">Or pick a chapter</p>
+          <ol className="mt-2 flex-1 space-y-1.5 overflow-y-auto px-3 pb-3 sm:px-4">
+            {tour.chapters.map((chapter, i) => {
+              const done = tour.doneChapters.has(chapter.id);
+              return (
+                <li key={chapter.id}>
+                  <button
+                    onClick={() => tour.runChapter(chapter.id)}
+                    className="flex w-full items-center gap-3 rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-left transition hover:border-yellow-400/60 hover:bg-yellow-400/10"
+                  >
+                    <span
+                      className={`grid h-7 w-7 shrink-0 place-items-center rounded-full text-xs font-bold ${done ? "bg-green-500 text-black" : "bg-yellow-400/15 text-yellow-300"}`}
+                      aria-hidden
+                    >
+                      {done ? <FiCheck /> : i + 1}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block font-semibold text-white">
+                        {chapter.title}
+                        {done && <span className="sr-only"> (watched)</span>}
+                      </span>
+                      <span className="block text-xs text-white/60">{chapter.blurb}</span>
+                    </span>
+                    <span className="shrink-0 text-xs text-white/50">{chapter.steps.length} stops</span>
+                    <FiChevronRight className="shrink-0 text-yellow-300" aria-hidden />
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
+
+          <div className="flex items-center justify-between border-t border-white/10 px-5 py-3 sm:px-6">
+            <span className="text-xs text-white/50">Settings → Take the Tour brings this back.</span>
+            <button onClick={tour.stopTour} className="rounded-lg px-3 py-1.5 text-sm font-semibold text-white/80 hover:bg-white/10">
+              {anyDone ? "Done" : "Skip tour"}
+            </button>
+          </div>
         </div>
       </div>
     );
   }
 
-  if (!step) return null;
+  const current = tour.current;
+  if (!current) return null;
+  const { step } = current;
 
-  // Spotlight only — no dark scrim behind it. A gold outline around
-  // whatever's being highlighted, the rest of the real app stays fully
-  // visible and normal-coloured.
-  const spotlightStyle: CSSProperties = targetRect
+  // ---- a step: the gold outline on the real thing, and the card -------------
+  const rect = tour.targetRect;
+  const spotlightStyle: CSSProperties = rect
     ? {
         position: "fixed",
-        top: targetRect.top - PADDING,
-        left: targetRect.left - PADDING,
-        width: targetRect.width + PADDING * 2,
-        height: targetRect.height + PADDING * 2,
+        top: rect.top - PADDING,
+        left: rect.left - PADDING,
+        width: rect.width + PADDING * 2,
+        height: rect.height + PADDING * 2,
         borderRadius: 12,
         border: "3px solid #FFD700",
+        // an outline only, no dark scrim: the rest of the app stays as it is
         boxShadow: "0 0 20px rgba(255,215,0,0.6)",
         pointerEvents: "none",
         zIndex: 9998,
@@ -66,119 +126,84 @@ export function TourOverlay() {
       }
     : { display: "none" };
 
-  const isLast = stepIndex === totalSteps - 1;
-  const isFirst = stepIndex === 0;
-
-  // Voice-only mode: no text card at all, just the spotlight flowing
-  // from item to item, plus a small always-present skip pill — the
-  // one piece of UI that has to survive removing everything else, so
-  // there's still a way out of the tour without needing sound.
-  if (hasSound) {
-    return (
-      <>
-        <div style={spotlightStyle} />
-        <div
-          style={{ position: "fixed", bottom: 20, left: "50%", transform: "translateX(-50%)", zIndex: 9999 }}
-          className="flex items-center gap-3 bg-[#0A1128] border border-yellow-400/40 rounded-full px-4 py-2 shadow-[0_0_20px_rgba(255,215,0,0.3)]"
-        >
-          <span className="text-yellow-300/70 text-xs font-semibold">
-            {stepIndex + 1} / {totalSteps}
-          </span>
-          <button onClick={stopTour} className="text-white/60 hover:text-white text-xs font-semibold transition">
-            Skip tour
-          </button>
-        </div>
-      </>
-    );
-  }
-
-  // No-sound mode: today's original text card and manual controls,
-  // just without the dark background behind it.
+  // Phones: the card is a sheet along the bottom. Wider screens: beside the
+  // highlighted thing, never partly off the screen (a card is position: fixed,
+  // so page scroll can't bring a hidden Next button back).
   const viewportW = window.innerWidth;
   const viewportH = window.innerHeight;
-  const calloutWidth = Math.min(360, viewportW - 32);
-
-  // Reserve a budget for the card's own height so it's never placed
-  // partly below the viewport — a target taller than the screen (e.g.
-  // the whole Dealer Modules grid) can have targetRect.bottom or .top
-  // land off-screen, which used to push the Next button out of view
-  // with no way to reach it (the card is position: fixed, so page
-  // scroll doesn't move it). Confirmed live: step 5 of the tour.
-  const CARD_BUDGET = 260;
-  const EDGE_MARGIN = 16;
-
-  let calloutStyle: CSSProperties;
-  if (targetRect) {
-    const spaceBelow = viewportH - targetRect.bottom;
-    const placeBelow = spaceBelow > 220 || targetRect.top < 220;
-    const left = Math.min(Math.max(targetRect.left, 16), viewportW - calloutWidth - 16);
-    calloutStyle = placeBelow
-      ? {
-          position: "fixed",
-          top: Math.min(
-            targetRect.bottom + PADDING + 12,
-            viewportH - CARD_BUDGET - EDGE_MARGIN
-          ),
-          left,
-          width: calloutWidth,
-          maxHeight: viewportH - EDGE_MARGIN * 2,
-          overflowY: "auto",
-          zIndex: 9999,
-        }
-      : {
-          position: "fixed",
-          bottom: Math.max(viewportH - (targetRect.top - PADDING - 12), EDGE_MARGIN),
-          left,
-          width: calloutWidth,
-          maxHeight: viewportH - EDGE_MARGIN * 2,
-          overflowY: "auto",
-          zIndex: 9999,
-        };
+  const phone = viewportW < 640;
+  const cardWidth = Math.min(380, viewportW - 32);
+  const CARD_BUDGET = 300;
+  const EDGE = 16;
+  let cardStyle: CSSProperties;
+  if (phone) {
+    cardStyle = { position: "fixed", left: 8, right: 8, bottom: 8, zIndex: 9999, maxHeight: "60vh", overflowY: "auto" };
+  } else if (rect) {
+    const placeBelow = viewportH - rect.bottom > CARD_BUDGET || rect.top < CARD_BUDGET;
+    const left = Math.min(Math.max(rect.left, EDGE), viewportW - cardWidth - EDGE);
+    cardStyle = placeBelow
+      ? { position: "fixed", top: Math.min(rect.bottom + PADDING + 12, viewportH - CARD_BUDGET - EDGE), left, width: cardWidth, zIndex: 9999 }
+      : { position: "fixed", bottom: Math.max(viewportH - (rect.top - PADDING - 12), EDGE), left, width: cardWidth, zIndex: 9999 };
+    cardStyle.maxHeight = viewportH - EDGE * 2;
+    cardStyle.overflowY = "auto";
   } else {
-    calloutStyle = {
-      position: "fixed",
-      top: "50%",
-      left: "50%",
-      transform: "translate(-50%, -50%)",
-      width: calloutWidth,
-      maxHeight: viewportH - EDGE_MARGIN * 2,
-      overflowY: "auto",
-      zIndex: 9999,
-    };
+    cardStyle = { position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: cardWidth, zIndex: 9999 };
   }
+
+  const endLabel = tour.isLastOfRun ? (tour.singleChapter ? "Finish chapter" : "Finish") : "Next";
 
   return (
     <>
-      <div style={spotlightStyle} />
-      <div style={calloutStyle}>
-        <div className="bg-[#0A1128] border border-yellow-400/40 rounded-xl p-5 shadow-[0_0_30px_rgba(255,215,0,0.35)] text-white">
-          <span className="text-yellow-300/70 text-xs font-semibold uppercase tracking-wide block mb-2">
-            Step {stepIndex + 1} of {totalSteps}
-          </span>
+      <div style={spotlightStyle} aria-hidden />
+      <div style={cardStyle} role="dialog" aria-label={`Tour: ${step.title}`}>
+        <div className="rounded-xl border border-yellow-400/50 bg-[#0A1128] p-4 text-white shadow-[0_0_30px_rgba(255,215,0,0.35)] sm:p-5">
+          <div className="mb-2 flex items-center justify-between gap-3 text-xs font-semibold">
+            <span className="truncate uppercase tracking-wide text-yellow-300/80">
+              Chapter {tour.chapterNumber} · {tour.chapter?.title}
+            </span>
+            <span className="shrink-0 text-white/50">
+              {tour.place.at} of {tour.place.of}
+            </span>
+          </div>
 
-          <h3 className="text-lg font-bold text-yellow-300 mb-2">{step.title}</h3>
-          <p className="text-white/80 text-sm mb-4">{step.narration}</p>
+          <h3 className="mb-1.5 text-lg font-bold text-yellow-300">{step.title}</h3>
+          <p className="mb-4 text-sm leading-relaxed text-white/85" aria-live="polite">
+            {step.narration}
+          </p>
 
-          <div className="flex items-center justify-between">
-            <button onClick={stopTour} className="text-white/50 hover:text-white/80 text-sm transition">
-              Skip tour
-            </button>
-            <div className="flex gap-2">
-              {!isFirst && (
-                <button
-                  onClick={prevStep}
-                  className="px-3 py-1.5 rounded bg-white/10 text-white/80 hover:bg-white/20 text-sm font-semibold transition"
-                >
-                  Back
-                </button>
-              )}
-              <button
-                onClick={nextStep}
-                className="px-4 py-1.5 rounded bg-yellow-400 text-black hover:bg-yellow-300 text-sm font-bold transition"
-              >
-                {isLast ? "Finish" : "Next"}
+          <div className="flex items-center gap-2">
+            {!tour.isFirst && (
+              <button onClick={tour.prevStep} className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition ${quiet}`}>
+                Back
               </button>
-            </div>
+            )}
+            {tour.sound && (
+              <button
+                onClick={tour.togglePause}
+                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold transition ${quiet}`}
+                aria-label={tour.paused ? "Carry on talking" : "Pause"}
+              >
+                {tour.paused ? <FiPlay aria-hidden /> : <FiPause aria-hidden />}
+                {tour.paused ? "Play" : "Pause"}
+              </button>
+            )}
+            <button onClick={tour.nextStep} className={`ml-auto rounded-lg px-4 py-1.5 text-sm font-bold transition ${gold}`}>
+              {endLabel}
+            </button>
+          </div>
+
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-white/10 pt-3 text-sm">
+            <button onClick={tour.skipSection} className="font-semibold text-yellow-300 hover:text-yellow-200">
+              Skip this section →
+            </button>
+            <span className="flex gap-3">
+              <button onClick={tour.showChapters} className="text-white/70 hover:text-white">
+                Chapters
+              </button>
+              <button onClick={tour.stopTour} className="text-white/70 hover:text-white">
+                Skip tour
+              </button>
+            </span>
           </div>
         </div>
       </div>

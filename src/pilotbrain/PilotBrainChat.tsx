@@ -491,7 +491,7 @@ export default function PilotBrainChat() {
           </button>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+        <div data-tour="tour-wendy-reports" style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
           <button
             onClick={runBriefing}
             disabled={reportLoading !== null}

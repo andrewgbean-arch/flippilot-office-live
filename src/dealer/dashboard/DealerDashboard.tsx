@@ -325,7 +325,9 @@ export default function DealerDashboard({ brain }: Props) {
 
       {/* WENDY: what she is watching, and the market check, side by side */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
-        <PilotBrainWatcherCard />
+        <div data-tour="tour-watcher">
+          <PilotBrainWatcherCard />
+        </div>
         <PilotBrainMarketCard />
       </div>
 

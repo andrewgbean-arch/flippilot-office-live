@@ -1,45 +1,59 @@
-import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { useInventory } from "@/context/InventoryProvider";
-import { TOUR_STEPS, stepRoute, type TourStep } from "./tourSteps";
+import { TOUR_CHAPTERS } from "./tourSteps";
+import { chaptersFor, nextChapterStart, placeInChapter, planFor, type PlannedStep, type TourChapter } from "./tourPlan";
 import { TourOverlay } from "./TourOverlay";
 
 function seenKey(userId: string) {
   return `flippilot_tour_seen_${userId}`;
 }
 
-// A rough words-per-minute estimate used only as a safety-net timer —
-// some browsers/voices never fire SpeechSynthesisUtterance's onend
-// event reliably, so a voice-only tour that waited on it alone could
-// get stuck on one step forever. The real advance still happens on
-// onend when it does fire; this just guarantees it can't hang.
-// Deliberately conservative (110wpm, not a natural-speech-rate 150) —
-// confirmed live that real TTS narration for a handful of steps ran
-// longer than a 150wpm estimate predicted, so this timer occasionally
-// won the race against the real onend and cut the last word or two
-// off mid-sentence. Erring toward "fires a little late" is the safe
-// direction, since onend still advances immediately the moment real
-// speech actually finishes — this timer firing early is the only way
-// to audibly cut narration short.
+// Wendy's recorded narration for a step (see scripts/record-tour.mjs). A step
+// with no recording yet, or a browser that won't play it, falls back to the
+// browser's own voice, so the tour always talks when sound is on.
+export function narrationUrl(stepId: string): string {
+  return `/tour/audio/${stepId}.mp3`;
+}
+
+// A safety net for the browser voice only: some browsers never say when they
+// have finished speaking, and the tour must not sit on one step for ever. Slow
+// on purpose (110 words a minute): firing early is the only way to cut Wendy
+// off mid-sentence, and the real "finished" still moves on the moment it comes.
 function estimateSpeechMs(text: string): number {
   const words = text.split(/\s+/).length;
   return Math.max(3000, (words / 110) * 60 * 1000 + 2000);
 }
 
+// "menu": the start screen / chapter list. "running": walking through steps.
+type Phase = "menu" | "running";
+
 interface TourContextType {
   isActive: boolean;
-  step: TourStep | null;
-  stepIndex: number;
-  totalSteps: number;
+  phase: Phase;
+  chapters: TourChapter[]; // what this person is offered
+  doneChapters: ReadonlySet<string>;
+  current: PlannedStep | null;
+  chapter: TourChapter | null;
+  chapterNumber: number; // 1-based, among the chapters offered
+  place: { at: number; of: number };
+  isFirst: boolean;
+  isLastOfRun: boolean;
+  singleChapter: boolean;
   targetRect: DOMRect | null;
-  // null = not yet answered (the "Do you have sound?" prompt is showing)
-  hasSound: boolean | null;
+  sound: boolean;
+  paused: boolean;
   startTour: () => void;
   stopTour: () => void;
+  setSound: (on: boolean) => void;
+  runFullTour: () => void;
+  runChapter: (chapterId: string) => void;
   nextStep: () => void;
   prevStep: () => void;
-  answerSoundPrompt: (hasSound: boolean) => void;
+  skipSection: () => void;
+  showChapters: () => void;
+  togglePause: () => void;
 }
 
 const TourContext = createContext<TourContextType | undefined>(undefined);
@@ -51,218 +65,277 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
 
   const firstVehicleId = vehicles[0]?.id ?? null;
+  const chapters = useMemo(() => chaptersFor(TOUR_CHAPTERS, user, firstVehicleId), [user, firstVehicleId]);
 
   const [isActive, setIsActive] = useState(false);
-  const [stepIndex, setStepIndex] = useState(0);
-  const [hasSound, setHasSound] = useState<boolean | null>(null);
+  const [phase, setPhase] = useState<Phase>("menu");
+  const [plan, setPlan] = useState<PlannedStep[]>([]);
+  const [index, setIndex] = useState(0);
+  const [singleChapter, setSingleChapter] = useState(false);
+  const [doneChapters, setDoneChapters] = useState<Set<string>>(new Set());
+  const [sound, setSound] = useState(true);
+  const [paused, setPaused] = useState(false);
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
 
   const autoStartChecked = useRef(false);
   const advanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const audio = useRef<HTMLAudioElement | null>(null);
 
-  // stopTour/nextStep are memoized (so they're stable to pass around as
-  // callbacks) but still need to read whichever user is CURRENTLY
-  // logged in when they're actually called, not whichever user existed
-  // when the callback was first created — user starts null and only
-  // resolves after the async /auth/me call, so a callback that closed
-  // over `user` directly from its own dependency array would silently
-  // keep using that first, empty value forever. Caught live: the seen
-  // flag never actually got written, so skipping/finishing the tour
-  // didn't stop it re-starting on the next reload.
+  // The seen flag must be written for whoever is logged in when the tour
+  // ends, not whoever was when a callback was made (user starts null and
+  // arrives after /auth/me). Caught live once: the flag never got written.
   const userIdRef = useRef<string | undefined>(user?.id);
   useEffect(() => {
     userIdRef.current = user?.id;
   }, [user?.id]);
 
-  const step = isActive && hasSound !== null ? TOUR_STEPS[stepIndex] ?? null : null;
+  const current = phase === "running" ? plan[index] ?? null : null;
 
-  function clearAdvanceTimer() {
+  const silence = useCallback(() => {
     if (advanceTimer.current) {
       clearTimeout(advanceTimer.current);
       advanceTimer.current = null;
     }
-  }
-
-  const stopSpeaking = useCallback(() => {
-    clearAdvanceTimer();
-    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+    if (audio.current) {
+      audio.current.onended = null;
+      audio.current.onerror = null;
+      audio.current.pause();
+      audio.current = null;
+    }
+    if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
   }, []);
 
   function markSeen() {
     const id = userIdRef.current;
-    if (id) localStorage.setItem(seenKey(id), "1");
+    try {
+      if (id) localStorage.setItem(seenKey(id), "1");
+    } catch {
+      // storage refused: the tour may offer itself again, nothing worse
+    }
   }
 
   const startTour = useCallback(() => {
-    setStepIndex(0);
-    setHasSound(null);
+    silence();
+    setPhase("menu");
+    setPaused(false);
     setIsActive(true);
-  }, []);
+  }, [silence]);
 
   const stopTour = useCallback(() => {
-    stopSpeaking();
+    silence();
     setIsActive(false);
-    setHasSound(null);
+    setPhase("menu");
     setTargetRect(null);
     markSeen();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stopSpeaking]);
+  }, [silence]);
+
+  const run = useCallback(
+    (steps: PlannedStep[], single: boolean) => {
+      silence();
+      if (steps.length === 0) return;
+      setPlan(steps);
+      setIndex(0);
+      setSingleChapter(single);
+      setPaused(false);
+      setPhase("running");
+    },
+    [silence]
+  );
+
+  const runFullTour = useCallback(() => run(planFor(TOUR_CHAPTERS, user, firstVehicleId), false), [run, user, firstVehicleId]);
+  const runChapter = useCallback(
+    (chapterId: string) => run(planFor(TOUR_CHAPTERS, user, firstVehicleId, chapterId), true),
+    [run, user, firstVehicleId]
+  );
+
+  const showChapters = useCallback(() => {
+    silence();
+    setTargetRect(null);
+    setPhase("menu");
+  }, [silence]);
+
+  // Reaching the end of a run: a single chapter goes back to the chapter list
+  // (ticked), the full tour finishes.
+  const finishRun = useCallback(() => {
+    setDoneChapters(prev => new Set([...prev, ...plan.map(p => p.chapterId)]));
+    if (singleChapter) showChapters();
+    else stopTour();
+  }, [plan, singleChapter, showChapters, stopTour]);
+
+  const goTo = useCallback(
+    (i: number) => {
+      silence();
+      // a chapter the run has moved past is done
+      const leaving = plan[index]?.chapterId;
+      if (leaving && plan[i]?.chapterId !== leaving) setDoneChapters(prev => new Set([...prev, leaving]));
+      setIndex(i);
+    },
+    [silence, plan, index]
+  );
 
   const nextStep = useCallback(() => {
-    clearAdvanceTimer();
-    setStepIndex((i) => {
-      if (i + 1 >= TOUR_STEPS.length) {
-        stopTour();
-        return i;
-      }
-      return i + 1;
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stopTour]);
+    if (index + 1 >= plan.length) finishRun();
+    else goTo(index + 1);
+  }, [index, plan.length, finishRun, goTo]);
 
   const prevStep = useCallback(() => {
-    clearAdvanceTimer();
-    setStepIndex((i) => Math.max(0, i - 1));
-  }, []);
+    if (index > 0) goTo(index - 1);
+  }, [index, goTo]);
 
-  // Answering the prompt is what actually kicks the walkthrough off —
-  // nothing navigates or speaks before this, so a dealer who hasn't
-  // decided yet isn't hearing narration for a step they can't see the
-  // point of.
-  const answerSoundPrompt = useCallback((sound: boolean) => {
-    setHasSound(sound);
-  }, []);
+  const skipSection = useCallback(() => {
+    const next = nextChapterStart(plan, index);
+    if (next === null) finishRun();
+    else goTo(next);
+  }, [plan, index, finishRun, goTo]);
 
-  // Auto-start once per real user, the first time they land on the
-  // real dashboard — never re-fires once they've seen it (or skipped
-  // it) on this browser. Per-browser rather than a real backend field:
-  // a new staff member on a different device seeing it again once more
-  // is a fine trade-off for not needing a backend change just to track
-  // "has seen the tour".
+  const togglePause = useCallback(() => setPaused(p => !p), []);
+
+  // Shows itself once per person, the first time they land on the dashboard,
+  // as the start screen (never straight into talking): they choose the whole
+  // tour, a chapter, or to skip it.
   useEffect(() => {
     if (autoStartChecked.current) return;
     if (!user?.id) return;
     if (location.pathname !== "/dealer-dashboard") return;
     autoStartChecked.current = true;
-    const seen = localStorage.getItem(seenKey(user.id)) === "1";
+    let seen = false;
+    try {
+      seen = localStorage.getItem(seenKey(user.id)) === "1";
+    } catch {
+      seen = false;
+    }
     if (!seen) startTour();
   }, [user?.id, location.pathname, startTour]);
 
-  // Drives navigation, narration, and (in voice-only mode) auto-advance
-  // for the active step — runs whenever the step changes or the sound
-  // preference is answered, not on every render.
+  // The latest nextStep, for the timers below (a timer set during one step
+  // must move on from THAT step, whatever has re-rendered since).
+  const nextRef = useRef(nextStep);
   useEffect(() => {
-    if (!isActive || hasSound === null || !step) return;
+    nextRef.current = nextStep;
+  }, [nextStep]);
 
-    const resolvedRoute = stepRoute(step, firstVehicleId, user);
-    if (resolvedRoute === null) {
-      // e.g. the vehicle-record step with no vehicle in stock yet to
-      // show, or Bookkeeping for someone whose role can't open it — skip
-      // straight past it rather than navigating nowhere.
-      nextStep();
-      return;
-    }
+  // Each step: go to its page, then (with sound on and not paused) play
+  // Wendy's recording, and move on a moment after she finishes.
+  useEffect(() => {
+    if (!isActive || !current) return;
+    if (location.pathname !== current.route) navigate(current.route);
+    if (!sound || paused) return;
 
-    if (location.pathname !== resolvedRoute) {
-      navigate(resolvedRoute);
-    }
-
-    if (!hasSound) return; // card + manual buttons, no narration
-
-    if (!("speechSynthesis" in window)) {
-      // No speech support at all despite asking for sound — still flow
-      // item to item rather than silently freezing on step one forever.
-      advanceTimer.current = setTimeout(nextStep, estimateSpeechMs(step.narration));
-      return;
-    }
-
-    window.speechSynthesis.cancel();
-    const utter = new SpeechSynthesisUtterance(step.narration);
-    utter.rate = 1;
-    utter.pitch = 1;
-    utter.onend = () => {
-      // Clear the safety-net timer below before replacing it — otherwise
-      // its id just gets overwritten here while it's still scheduled,
-      // and it fires again later on its own, advancing an extra step.
-      clearAdvanceTimer();
-      advanceTimer.current = setTimeout(nextStep, 400);
+    const step = current.step;
+    const advance = () => nextRef.current();
+    const onDone = () => {
+      if (advanceTimer.current) clearTimeout(advanceTimer.current);
+      advanceTimer.current = setTimeout(advance, 700);
     };
-    // Some browsers never fire onend for a given voice/utterance — this
-    // guarantees the tour still moves on rather than hanging on one
-    // step indefinitely.
-    advanceTimer.current = setTimeout(nextStep, estimateSpeechMs(step.narration) + 2500);
-    window.speechSynthesis.speak(utter);
-
-    return () => {
+    const speakWithBrowser = () => {
+      if (!("speechSynthesis" in window)) {
+        advanceTimer.current = setTimeout(advance, estimateSpeechMs(step.narration));
+        return;
+      }
       window.speechSynthesis.cancel();
-      clearAdvanceTimer();
+      const utter = new SpeechSynthesisUtterance(step.narration);
+      utter.onend = onDone;
+      advanceTimer.current = setTimeout(advance, estimateSpeechMs(step.narration) + 2500);
+      window.speechSynthesis.speak(utter);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isActive, hasSound, step?.id, firstVehicleId]);
 
-  // Finds the current step's real target element after navigation.
-  // The destination page may not have finished mounting the instant
-  // navigate() resolves, so this polls briefly rather than assuming
-  // the element exists on the very next render.
+    const player = typeof Audio === "undefined" ? null : new Audio(narrationUrl(step.id));
+    if (!player) {
+      speakWithBrowser();
+    } else {
+      audio.current = player;
+      player.onended = onDone;
+      player.onerror = () => {
+        if (audio.current !== player) return;
+        audio.current = null;
+        speakWithBrowser();
+      };
+      player.play().catch(() => {
+        // autoplay refused or no recording: the browser voice instead
+        if (audio.current !== player) return;
+        audio.current = null;
+        speakWithBrowser();
+      });
+    }
+    return silence;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isActive, current?.step.id, index, sound, paused]);
+
+  // Finds the step's spotlight target once its page has drawn, and keeps the
+  // outline on it through scrolling and resizing.
   useEffect(() => {
-    if (!isActive || !step) {
+    if (!isActive || !current || !current.step.target) {
       setTargetRect(null);
       return;
     }
+    const target = current.step.target;
+    const find = () =>
+      document.querySelector(target.startsWith("css:") ? target.slice(4) : `[data-tour="${target}"]`);
 
     let cancelled = false;
     let attempts = 0;
-
     function locate() {
       if (cancelled) return;
-      const el = document.querySelector(`[data-tour="${step!.target}"]`);
+      const el = find();
       if (el) {
-        setTargetRect(el.getBoundingClientRect());
         el.scrollIntoView({ behavior: "smooth", block: "center" });
-      } else if (attempts < 20) {
+        setTargetRect(el.getBoundingClientRect());
+      } else if (attempts < 40) {
         attempts++;
         requestAnimationFrame(locate);
       } else {
         setTargetRect(null);
       }
     }
-
     setTargetRect(null);
     requestAnimationFrame(locate);
 
-    // Keeps the spotlight aligned with its target through layout
-    // shifts (a card loading in above it, a window resize) while the
-    // step is active, rather than freezing at a now-stale position.
     function reposition() {
-      const el = document.querySelector(`[data-tour="${step!.target}"]`);
+      const el = find();
       if (el) setTargetRect(el.getBoundingClientRect());
     }
     window.addEventListener("resize", reposition);
     window.addEventListener("scroll", reposition, true);
-
     return () => {
       cancelled = true;
       window.removeEventListener("resize", reposition);
       window.removeEventListener("scroll", reposition, true);
     };
-  }, [isActive, step?.id, location.pathname]);
+  }, [isActive, current?.step.id, location.pathname]);
 
-  useEffect(() => stopSpeaking, [stopSpeaking]);
+  useEffect(() => silence, [silence]);
+
+  const chapter = current ? chapters.find(c => c.id === current.chapterId) ?? null : null;
+  const chapterNumber = chapter ? chapters.findIndex(c => c.id === chapter.id) + 1 : 0;
 
   return (
     <TourContext.Provider
       value={{
         isActive,
-        step,
-        stepIndex,
-        totalSteps: TOUR_STEPS.length,
+        phase,
+        chapters,
+        doneChapters,
+        current,
+        chapter,
+        chapterNumber,
+        place: current ? placeInChapter(plan, index) : { at: 0, of: 0 },
+        isFirst: index === 0,
+        isLastOfRun: index === plan.length - 1,
+        singleChapter,
         targetRect,
-        hasSound,
+        sound,
+        paused,
         startTour,
         stopTour,
+        setSound,
+        runFullTour,
+        runChapter,
         nextStep,
         prevStep,
-        answerSoundPrompt,
+        skipSection,
+        showChapters,
+        togglePause,
       }}
     >
       {children}
