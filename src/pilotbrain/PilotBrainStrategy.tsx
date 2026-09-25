@@ -88,7 +88,9 @@ export default function PilotBrainStrategy() {
   }
 
   async function handleDeleteGoal(id: string) {
-    await deleteGoal(id);
+    if (!window.confirm("Remove this goal? Its progress can't be brought back.")) return;
+    const removed = await deleteGoal(id);
+    if (!removed.ok) window.alert(removed.error ?? "That goal couldn't be removed. Check your connection and try again.");
     await load();
   }
 

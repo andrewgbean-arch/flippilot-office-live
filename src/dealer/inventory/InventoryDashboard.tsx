@@ -11,8 +11,12 @@ import {
   withoutAskingPrice,
   withoutPhotos,
 } from "./stockFacts";
+import { useAuth } from "@/context/AuthContext";
+import { canSeeMoney } from "@/lib/permissions";
 
 export default function InventoryDashboard() {
+  // Parts & Labour Log shows costs: the owner, managers and finance.
+  const money = canSeeMoney(useAuth().user);
   const { vehicles } = useInventory();
   const navigate = useNavigate();
 
@@ -106,12 +110,14 @@ export default function InventoryDashboard() {
             MOT Lookup
           </button>
 
-          <button
-            onClick={() => navigate("/dealer/inventory/parts-labour")}
-            className="px-5 py-3 bg-yellow-500 text-black font-semibold rounded-lg hover:bg-yellow-400 transition"
-          >
-            Parts & Labour Log
-          </button>
+          {money && (
+            <button
+              onClick={() => navigate("/dealer/inventory/parts-labour")}
+              className="px-5 py-3 bg-yellow-500 text-black font-semibold rounded-lg hover:bg-yellow-400 transition"
+            >
+              Parts & Labour Log
+            </button>
+          )}
 
         </div>
       </SupernovaGlowCard>

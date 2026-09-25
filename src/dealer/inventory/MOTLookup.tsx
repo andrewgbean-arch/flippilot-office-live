@@ -88,8 +88,13 @@ export default function MOTLookup() {
 
     if (!result) return;
 
+    // Plates are saved with a space ("AB18 CDE") and typed either way: compare
+    // without spaces, and against the MOT record's plate too, or a car already
+    // in stock is offered as a new one (a duplicate).
+    const plate = (text: string | null | undefined) => (text ?? "").replace(/\s+/g, "").toUpperCase();
+    const typed = plate(reg);
     const match = inventoryVehicles.find(
-      (v) => v.reg?.toUpperCase() === reg.trim().toUpperCase()
+      (v) => plate(v.reg) === typed || plate(v.mot?.reg) === typed
     );
 
     if (match) {

@@ -206,7 +206,9 @@ export default function registerOperatorRoute(app: Express) {
         type: "lead_followup",
         status: "prepared",
         title: `Follow up with ${lead.name}`,
-        description: `Open ${Math.floor(daysSince(lead.createdAt, now))} day(s) without contact.`,
+        // Days since the lead came in: the app doesn't record when someone
+        // last spoke to them, so it must not claim "without contact".
+        description: `Still open ${Math.floor(daysSince(lead.createdAt, now))} day(s) after it came in. Check its notes before chasing.`,
         reason: `Lead is still in an open status and hasn't moved forward — the same real staleness signal the Watcher already flags.`,
         payload: { leadId: lead.id, leadName: lead.name, draftMessage },
         preparedAt: new Date(now).toISOString(),

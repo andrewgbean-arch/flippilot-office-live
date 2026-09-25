@@ -29,9 +29,11 @@ export interface WorkPattern {
 export type LeaveType = "holiday" | "sick" | "other";
 export type LeaveStatus = "pending" | "approved" | "declined";
 
+// Someone else's leave as the rest of the team sees it: that they're off, not
+// why (a sick day is health information), and no note.
 function withoutLeaveNote(leave: LeaveRequest): LeaveRequest {
   const { notes: _notes, ...rest } = leave;
-  return rest;
+  return rest.type === "sick" ? { ...rest, type: "other" } : rest;
 }
 
 export interface LeaveRequest {

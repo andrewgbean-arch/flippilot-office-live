@@ -12,6 +12,9 @@ const PAGE_NEEDS: { prefix: string; need: PageNeed }[] = [
   { prefix: "/bookkeeping", need: "money" },
   { prefix: "/dealer/finance/profit-breakdown", need: "money" },
   { prefix: "/dealer/workflow/recon", need: "money" },
+  // a car's parts and labour costs, and a purchase source's figures, are the books
+  { prefix: "/dealer/inventory/parts-labour", need: "money" },
+  { prefix: "/supplier", need: "money" },
   { prefix: "/dealer/staff/add", need: "staff" },
   // the server answers 403 to everyone else (requireStaffRole("manager"))
   { prefix: "/pilot-brain/decisions", need: "staff" },

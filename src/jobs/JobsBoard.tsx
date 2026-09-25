@@ -33,8 +33,10 @@ function JobCard({ job, onEdit }: { job: Job; onEdit: (job: Job) => void }) {
     });
   }
 
-  const isOverdue =
-    job.dueDate && job.status !== "done" && new Date(job.dueDate).getTime() < Date.now();
+  // Overdue once the due day has passed: comparing the date with "now" made a
+  // job due today overdue from midnight.
+  const todayKey = new Date().toLocaleDateString("en-CA");
+  const isOverdue = !!job.dueDate && job.status !== "done" && job.dueDate.slice(0, 10) < todayKey;
 
   return (
     <div className="bg-black/40 border border-white/10 rounded-lg p-3 mb-3">

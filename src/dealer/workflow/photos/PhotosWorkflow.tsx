@@ -82,7 +82,7 @@ export default function PhotosWorkflow() {
                     <div className="grid h-full place-items-center text-white/40 text-sm">No photos yet</div>
                   )}
                   <span className={`absolute right-2 top-2 rounded-md px-2 py-0.5 text-xs font-bold ${count === 0 ? "bg-orange-500 text-white" : count < SHOT_LIST.length ? "bg-black/70 text-yellow-300" : "bg-green-600 text-white"}`}>
-                    {count}/{SHOT_LIST.length} shots
+                    {count} {count === 1 ? "photo" : "photos"}
                   </span>
                 </div>
                 <div className="p-3">

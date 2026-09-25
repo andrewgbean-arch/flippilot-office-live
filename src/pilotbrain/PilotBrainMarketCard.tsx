@@ -57,6 +57,12 @@ export default function PilotBrainMarketCard() {
 
       {loading && <p className="text-white/60 text-sm">Checking real comparable listings — this fans out to a few real API calls, give it a moment…</p>}
 
+      {checked && !loading && !result && (
+        <p className="text-sm text-red-300">
+          The market check couldn't run just now. It needs Pilot Brain on your plan; if you have it, try again in a minute.
+        </p>
+      )}
+
       {result && !loading && (
         <div className="space-y-4">
           <div className="grid grid-cols-3 gap-2 text-center">

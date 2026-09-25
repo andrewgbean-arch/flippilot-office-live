@@ -6,6 +6,8 @@ import { fetchPilotBrainMessages, sendPilotBrainMessage, fetchSpeech, fetchMorni
 import { authHeaders } from "@/lib/authToken";
 import { BASE_URL } from "@/lib/apiBaseUrl";
 import "@/staff/StaffDashboard.css";
+import { useAuth } from "@/context/AuthContext";
+import { canManageStaff } from "@/lib/permissions";
 
 // Wendy's replies come back as markdown; AssistantMarkdown.tsx renders it
 // (and is where the rules on images and links live — see the comment there).
@@ -60,6 +62,8 @@ function pickFemaleVoice(synth: SpeechSynthesis): SpeechSynthesisVoice | undefin
 // versions) — the backend's own system prompt tells the model the
 // same thing, so it won't pretend to do more than this version does.
 export default function PilotBrainChat() {
+  // The Decision Journal is for owners and managers (the server refuses others).
+  const canUseDecisionJournal = canManageStaff(useAuth().user);
   const [messages, setMessages] = useState<PilotBrainMessage[]>([]);
   const [loading, setLoading] = useState(true);
   // "Ask Wendy about this page" (the help panel) arrives with ?ask=<question>:
@@ -438,7 +442,7 @@ export default function PilotBrainChat() {
   }
 
   return (
-    <div className="sn-dashboard sn-dashboard--cosmic" style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
+    <div className="sn-dashboard sn-dashboard--cosmic" style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 16rem)", minHeight: 480 }}>
       <header className="sn-hero" style={{ flexShrink: 0 }}>
         <div className="sn-hero__glow" />
         <div className="sn-hero__content" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
@@ -539,9 +543,11 @@ export default function PilotBrainChat() {
             {reportLoading === "priorities" ? "Thinking…" : "Today's Priorities"}
           </button>
 
-          <Link to="/pilot-brain/decisions" className="sn-btn" style={{ fontSize: 12, padding: "4px 10px", marginLeft: 8, textDecoration: "none" }}>
-            Decision Journal
-          </Link>
+          {canUseDecisionJournal && (
+            <Link to="/pilot-brain/decisions" className="sn-btn" style={{ fontSize: 12, padding: "4px 10px", marginLeft: 8, textDecoration: "none" }}>
+              Decision Journal
+            </Link>
+          )}
 
           {messages.length > 0 && (
             <button

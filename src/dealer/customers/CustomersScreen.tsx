@@ -111,7 +111,8 @@ export default function CustomersScreen() {
   const canRemove = canManageStaff(user);
 
   async function handleDelete(id: string) {
-    await deleteCustomer(id);
+    const result = await deleteCustomer(id);
+    if (!result.ok) window.alert(result.error ?? "That customer couldn't be removed. Try again.");
     await load();
   }
 

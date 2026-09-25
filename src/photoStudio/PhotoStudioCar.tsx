@@ -485,7 +485,7 @@ export default function PhotoStudioCar() {
             <section className="rounded-2xl border border-white/10 bg-black/30 p-4">
               <p className="brand-caps text-xs mb-2">SHOT LIST</p>
               <p className="text-sm text-white/70 mb-2">
-                The pictures buyers look for. This car has {images.length} of the {SHOT_LIST.length} recommended.
+                The {SHOT_LIST.length} pictures buyers look for. This car has {images.length} {images.length === 1 ? "photo" : "photos"} so far.
               </p>
               <ol className="space-y-1 text-sm text-white/80 list-decimal list-inside">
                 {SHOT_LIST.map((s) => <li key={s}>{s}</li>)}

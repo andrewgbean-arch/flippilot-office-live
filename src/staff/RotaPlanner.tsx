@@ -322,7 +322,8 @@ export default function RotaPlanner() {
           </section>
         )}
 
-        {/* LEAVE BALANCES */}
+        {/* LEAVE BALANCES: everyone's holiday and sick days, so managers and the owner only */}
+        {isManager && (
         <section className="sn-panel sn-panel--full">
           <h2 className="sn-panel__title">Leave Balances — {currentYear}</h2>
           <p className="sn-timeclock__subtitle">
@@ -377,6 +378,7 @@ export default function RotaPlanner() {
             </div>
           )}
         </section>
+        )}
 
         {/* LEAVE */}
         <section className="sn-panel sn-panel--full">

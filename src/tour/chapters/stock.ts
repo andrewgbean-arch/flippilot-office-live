@@ -323,7 +323,7 @@ export const chapter: TourChapter = {
           showIf: user => !canSeeMoney(user),
           title: "Prices and VAT",
           narration:
-            "Sell Price is the asking price everyone sees. The form still asks for a Buy Price, but only the owner, managers and finance keep what a car cost, so it isn't saved from your login: let them know the figure. Pick Margin Scheme for most used cars, or Standard if there was a VAT invoice.",
+            "Sell Price is the asking price everyone sees. What the car cost is kept by the owner, managers and finance, so there's no Buy Price box for you: let one of them know the figure. Pick Margin Scheme for most used cars, or Standard if there was a VAT invoice.",
         },
         {
           id: "add-vehicle-notes",

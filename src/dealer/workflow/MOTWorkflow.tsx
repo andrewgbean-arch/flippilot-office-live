@@ -34,6 +34,18 @@ export default function MOTWorkflow() {
   const { vehicles } = useInventory();
   const vehicle = vehicles.find((v) => v.id === vehicleId);
 
+  if (vehicle && !vehicle.mot) {
+    return (
+      <div className="p-10 text-white">
+        <h1 className="text-2xl font-bold text-yellow-300">No MOT record yet</h1>
+        <p className="text-white/70 mt-2">
+          There's no MOT information for this car. Look its registration up to fetch its MOT history.
+        </p>
+        <SupernovaGlowButton onClick={() => navigate("/dealer/inventory/mot-lookup")}>MOT Lookup</SupernovaGlowButton>
+      </div>
+    );
+  }
+
   if (!vehicle || !vehicle.mot) {
     return (
       <div className="p-10 text-white">

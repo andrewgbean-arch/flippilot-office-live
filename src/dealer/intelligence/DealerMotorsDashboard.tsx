@@ -15,6 +15,8 @@ import {
 import { useInventory } from "@/context/InventoryProvider";
 import { computeMotorsModel } from "./motorsModel";
 import { formatMoney, plural } from "./stockFacts";
+import { useAuth } from "@/context/AuthContext";
+import { canSeeMoney } from "@/lib/permissions";
 
 // How many "no MOT date" cars to name before saying "and N more".
 const NO_DATE_NAMES = 12;
@@ -26,6 +28,8 @@ const NO_DATE_NAMES = 12;
 // days show 2x higher risk of price suppression" on every card, a statistic
 // with no source.
 export default function DealerMotorsDashboard() {
+  // Trade prices only reach the owner, managers and finance.
+  const money = canSeeMoney(useAuth().user);
   const { vehicles, loading } = useInventory();
 
   const m = computeMotorsModel(vehicles, new Date());
@@ -75,10 +79,12 @@ export default function DealerMotorsDashboard() {
                   <FiPercent aria-hidden="true" /> Average margin at asking price
                 </div>
                 <p className="mt-1">
-                  {m.marginAverage === null ? "Not enough prices entered" : `${formatMoney(m.marginAverage)} a car`}
+                  {!money ? "Owner, managers and finance only" : m.marginAverage === null ? "Not enough prices entered" : `${formatMoney(m.marginAverage)} a car`}
                 </p>
                 <p className="text-white/50 text-xs mt-1">
-                  {m.marginAverage === null
+                  {!money
+                    ? "Worked out from trade prices, which only they are sent."
+                    : m.marginAverage === null
                     ? "Needs a trade price and an asking price on at least one car."
                     : `Asking price minus trade price, over the ${plural(m.marginCounted, "car")} with both entered.`}
                 </p>

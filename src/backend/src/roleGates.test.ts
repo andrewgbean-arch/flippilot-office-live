@@ -201,10 +201,14 @@ describe("leave", () => {
     const asSales = (await request(app).get("/leave").set(auth(staff.sales))).body.items;
     expect(asSales).toHaveLength(2);
     expect(asSales.find((l: any) => l.id === "l1")).not.toHaveProperty("notes");
+    // that a colleague is off, not that they are off sick
+    expect(asSales.find((l: any) => l.id === "l1").type).toBe("other");
     expect(asSales.find((l: any) => l.id === "l2").notes).toBe("dentist");
+    expect(asSales.find((l: any) => l.id === "l2").type).toBe("sick"); // their own
 
     const asManager = (await request(app).get("/leave").set(auth(staff.manager))).body.items;
     expect(asManager.find((l: any) => l.id === "l1").notes).toBe("flu");
+    expect(asManager.find((l: any) => l.id === "l1").type).toBe("sick");
   });
 });
 
@@ -220,6 +224,22 @@ describe("clock times", () => {
     const ids = async (who: Account) => ((await request(app).get("/timekeeping").set(auth(who))).body.items as any[]).map(e => e.id).sort();
     expect(await ids(staff.sales)).toEqual(["t-old-mine", "t-open-other", "t-today-other"]);
     expect(await ids(staff.manager)).toEqual(["t-old-mine", "t-old-other", "t-open-other", "t-today-other"]);
+  });
+});
+
+describe("Approvals (Pilot Brain operations)", () => {
+  it("shows a cost waiting for a category only to money roles, and lets only the owner and managers prepare work", async () => {
+    const action = (id: string, type: string) => ({
+      id, type, status: "prepared", title: id, description: "£123 valet cost has no category set yet.", reason: "r",
+      payload: {}, preparedAt: new Date().toISOString(),
+    });
+    writeTenantCollection(owner.dealershipId, "pilotBrainActions", [action("a-cost", "bookkeeping_categorize"), action("a-lead", "lead_followup")]);
+    const ids = async (who: Account) => ((await request(app).get("/pilot-brain/actions").set(auth(who))).body.actions as any[]).map(a => a.id).sort();
+    expect(await ids(staff.sales)).toEqual(["a-lead"]);
+    expect(await ids(staff.general)).toEqual(["a-lead"]);
+    expect(await ids(staff.finance)).toEqual(["a-cost", "a-lead"]);
+    expect((await request(app).post("/pilot-brain/actions/prepare").set(auth(staff.sales))).status).toBe(403);
+    expect((await request(app).post("/pilot-brain/actions/prepare").set(auth(staff.finance))).status).toBe(403);
   });
 });
 

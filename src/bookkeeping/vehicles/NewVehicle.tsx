@@ -18,6 +18,8 @@ import { useBookkeeping } from "@/bookkeeping/BookkeepingProvider";
 import { calculateVat } from "@/bookkeeping/vatUtils";
 import { purchaseVatSettings } from "@/bookkeeping/purchaseVat";
 import { readMoney, readOptionalMoney } from "@/lib/parseMoney";
+import { useAuth } from "@/context/AuthContext";
+import { canSeeMoney } from "@/lib/permissions";
 
 export default function NewVehicle() {
   const navigate = useNavigate();
@@ -56,6 +58,11 @@ export default function NewVehicle() {
   // optional: blank (or 0) is stored as unset, never as £0, but if something IS
   // typed it must be readable.
   const [submitted, setSubmitted] = useState(false);
+  // Only the owner, managers and finance keep what a car cost (the server
+  // drops it from anyone else, and they can't write the books), so for
+  // everyone else there is no Buy Price box and nothing is sent to the books.
+  const { user } = useAuth();
+  const money = canSeeMoney(user);
   const buyRead = readMoney(buyPrice, { positive: true, blankMessage: "Enter a Buy Price before saving." });
   const sellRead = readOptionalMoney(sellPrice);
   const buyError = buyRead.ok ? null : buyRead.message;
@@ -134,7 +141,7 @@ export default function NewVehicle() {
       setSaveError("Enter at least a Make and Model (or a Vehicle Title) before saving.");
       return;
     }
-    if (!buyRead.ok) {
+    if (money && !buyRead.ok) {
       setSubmitted(true);
       setSaveError(buyRead.reason === "blank" ? buyRead.message : `Buy Price: ${buyRead.message}`);
       return;
@@ -144,7 +151,7 @@ export default function NewVehicle() {
       return;
     }
 
-    const buy = buyRead.value;
+    const buy = money && buyRead.ok ? buyRead.value : null;
     // Blank stays unset (null), never £0.
     const sell = sellRead.value;
 
@@ -156,7 +163,7 @@ export default function NewVehicle() {
       vatIncluded
     );
 
-    const breakdown = calculateVat(buy, {
+    const breakdown = calculateVat(buy ?? 0, {
       vatRate: purchaseVatRate,
       vatIncluded: purchaseVatIncluded,
       vatReclaimable: true,
@@ -177,7 +184,7 @@ export default function NewVehicle() {
       vatScheme,
     });
 
-    addPurchase({
+    if (buy !== null) addPurchase({
       id: crypto.randomUUID(),
       vehicleId: newVehicle.id,
       purchasePrice: buy,
@@ -254,7 +261,8 @@ export default function NewVehicle() {
         <SupernovaSectionDivider label="Pricing & Source" />
 
         <SupernovaGlowCard>
-          <div className="grid grid-cols-2 gap-4">
+          <div className={`grid gap-4 ${money ? "grid-cols-2" : "grid-cols-1"}`}>
+            {money && (
             <SupernovaInput
               label="Buy Price (£)"
               value={buyPrice}
@@ -262,6 +270,7 @@ export default function NewVehicle() {
               inputMode="decimal"
               placeholder="e.g. 4500 or £4,500.00"
             />
+            )}
             <SupernovaInput
               label="Sell Price (£)"
               value={sellPrice}
@@ -270,7 +279,7 @@ export default function NewVehicle() {
               placeholder="Leave blank if not priced yet"
             />
           </div>
-          {showBuyError && (
+          {money && showBuyError && (
             <p role="alert" className="text-red-400 text-sm mt-2">
               Buy Price: {buyError}
             </p>
@@ -350,6 +359,7 @@ export default function NewVehicle() {
             </>
           )}
 
+          {money && (
           <div className="mt-6">
             <p className="text-white/80 text-sm mb-1">Live Profit</p>
 
@@ -374,6 +384,7 @@ export default function NewVehicle() {
                 : `${formatMoney(profit)} profit`}
             </p>
           </div>
+          )}
         </SupernovaGlowCard>
 
         <SupernovaSectionDivider label="Notes" />
