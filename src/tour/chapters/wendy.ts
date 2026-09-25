@@ -128,6 +128,7 @@ export const chapter: TourChapter = {
         {
           id: "approvals-prepare",
           target: "tour-prepare-work",
+          showIf: user => canManageStaff(user),
           title: "Prepare Today's Work",
           narration:
             "Press Prepare Today's Work and I look through your records for four kinds of job: a cost with no category, a lead that's still open a day or more after it came in, a day on the rota nobody is covering, and a booking nobody answered. For follow-ups I write a draft message, but I never send it.",
@@ -153,7 +154,7 @@ export const chapter: TourChapter = {
           showIf: user => !canManageStaff(user),
           title: "Looking, not approving",
           narration:
-            "You can see everything I've prepared here, but approving or rejecting it needs an owner or manager. If something looks right to you, have a word with one of them.",
+            "You can see what I've prepared here, but asking me to prepare the day's work, and approving or rejecting it, is for an owner or manager. If something looks right to you, have a word with one of them.",
         },
       ],
       guide: {
@@ -200,7 +201,7 @@ export const chapter: TourChapter = {
           "A lead is suggested when it is still open a day or more after it came in, even if someone has already spoken to them, so check the lead's notes before you chase.",
         ],
         access:
-          "Anyone can see this page and press Prepare Today's Work. Only the owner and managers can approve, reject or undo.",
+          "Anyone can see this page. Only the owner and managers can press Prepare Today's Work, and approve, reject or undo. A cost waiting for a category is only shown to the owner, managers and finance, as it shows what the cost was.",
       },
     },
 

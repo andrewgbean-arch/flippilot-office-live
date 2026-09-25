@@ -41,7 +41,7 @@ async function main() {
 
   mkdirSync(OUT, { recursive: true });
   const manifest: Record<string, string> = existsSync(MANIFEST) ? JSON.parse(readFileSync(MANIFEST, "utf8")) : {};
-  const steps = TOUR_CHAPTERS.flatMap(c => c.steps);
+  const steps = TOUR_CHAPTERS.flatMap(c => c.pages.flatMap(p => p.steps));
   const todo = steps.filter(
     s => (only ? only.has(s.id) : true) && (manifest[s.id] !== fingerprint(s.narration) || !existsSync(join(OUT, `${s.id}.mp3`)))
   );

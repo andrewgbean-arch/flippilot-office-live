@@ -10,7 +10,7 @@ export default function MarketingHub() {
     <div className="px-6 py-10 space-y-10">
       <SupernovaHeroHeader
         title="Marketing Hub"
-        subtitle="Branding, listings, visibility and customer engagement."
+        subtitle="Your public store page, and your stock on the portals."
       />
 
       <SupernovaSectionDivider label="Dealer Public Page" />

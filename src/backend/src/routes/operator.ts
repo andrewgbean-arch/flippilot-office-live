@@ -18,6 +18,7 @@ import { callClaude } from "./pilotBrain";
 import { DEFAULT_ROTA_SETTINGS, type Shift, type WorkPattern, type LeaveRequest, type RotaSettings } from "./planner";
 import type { Appointment } from "./publicBooking";
 import { formatPounds } from "../money";
+import { canSeeMoney } from "../roleAccess";
 
 // Pilot Brain V6 (The Operator) — the Action Orchestrator, Approval
 // Centre, Workflow Engine, Audit Engine, and Rollback Engine (Modules
@@ -131,9 +132,14 @@ function daysSince(iso: string, now: number): number {
 export default function registerOperatorRoute(app: Express) {
   // Module 14 (Operations Dashboard) reads this — every action, every
   // real status, in one list.
+  // A cost waiting for a category shows what it cost, which is money: only
+  // the owner, managers and finance are sent those (roleAccess.ts).
   app.get("/pilot-brain/actions", requireAuth, (req, res) => {
     const user = authUser(req);
-    const actions = readActions(user.dealershipId).sort((a, b) => b.preparedAt.localeCompare(a.preparedAt));
+    const money = canSeeMoney(user);
+    const actions = readActions(user.dealershipId)
+      .filter(a => money || a.type !== "bookkeeping_categorize")
+      .sort((a, b) => b.preparedAt.localeCompare(a.preparedAt));
     res.json({ ok: true, actions });
   });
 
@@ -143,7 +149,10 @@ export default function registerOperatorRoute(app: Express) {
   // what "Pilot, run today's operations" actually triggers — there's
   // no scheduler in this app, so it runs on real request, not
   // literally in the background.
-  app.post("/pilot-brain/actions/prepare", requireAuth, async (req, res) => {
+  // Preparing the day's work drafts messages with the AI (up to ten calls a
+  // press) and reads the books, and only the owner and managers can approve
+  // what it prepares, so they are the ones who start it.
+  app.post("/pilot-brain/actions/prepare", requireAuth, requireStaffRole("manager"), async (req, res) => {
     const user = authUser(req);
     const existing = readActions(user.dealershipId);
     const activeKeys = new Set(

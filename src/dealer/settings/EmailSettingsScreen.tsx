@@ -102,15 +102,6 @@ export default function EmailSettingsScreen() {
         subtitle="Connect your own real SendGrid account — your emails, your domain, your bill, not FlipPilot's."
       />
 
-      <a
-        href="https://claude.ai/artifact/42nDBbGByqMbgY2phykwR8"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="inline-flex items-center gap-2 text-yellow-300 text-sm mb-6 hover:text-yellow-200 underline underline-offset-2"
-      >
-        Full step-by-step setup guide (opens in a new tab) →
-      </a>
-
       {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
       {success && <p className="text-green-400 text-sm mb-4">{success}</p>}
 

@@ -64,7 +64,7 @@ export default function AffordabilitySummaryCard({ vehicle, buyer, theme }: Prop
               fontSize: 12,
             }}
           >
-            AI
+            ESTIMATE
           </span>
         </div>
       </div>
@@ -94,7 +94,7 @@ export default function AffordabilitySummaryCard({ vehicle, buyer, theme }: Prop
         </div>
 
         <div style={{ color: theme.muted, marginTop: 6 }}>
-          Higher score = easier approval and stronger deal closing probability.
+          A rough guide from the figures entered, not a lender's decision. Higher is easier to finance.
         </div>
 
         <div

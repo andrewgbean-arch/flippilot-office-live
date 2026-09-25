@@ -54,7 +54,7 @@ export default function ToolsHub() {
       {/* BADGE */}
       <div className="mb-10">
         <span className="inline-block px-4 py-2 bg-black/40 border border-yellow-400 rounded-lg text-yellow-300 text-sm">
-          Unified Tools Hub • AI • Photo • Vehicle • Dealer Ops
+          Shortcuts • Photos • Vehicles • Dealer Ops
         </span>
       </div>
 

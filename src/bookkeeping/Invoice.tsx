@@ -195,7 +195,7 @@ export default function Invoice() {
         </div>
 
         <p style={{ marginTop: 20, fontSize: 12, color: "#555" }}>
-          This vehicle is sold with a valid MOT (where applicable) unless otherwise stated. All prices are in GBP.
+          All prices are in GBP.
         </p>
       </div>
     </div>

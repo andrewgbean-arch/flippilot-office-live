@@ -135,7 +135,7 @@ function InviteTeammateModal({ onClose }: { onClose: () => void }) {
               {STAFF_ROLE_OPTIONS.find((opt) => opt.value === staffRole)?.description}
             </p>
             <p className="text-yellow-300/80 text-xs mb-4">
-              Every role can still see your stock, leads, customers, books and staff details.{" "}
+              Every role sees your stock, leads and customers; the books and staff details depend on the role.{" "}
               <Link to="/dealer/staff/permissions" className="underline">Who can see what</Link>
             </p>
 
@@ -697,8 +697,8 @@ export default function Settings() {
         <SupernovaGlowCard>
           <h2 className="text-yellow-300 font-bold text-xl mb-3">Dealer Profile</h2>
           <p className="text-white/70 mb-4">
-            Manage dealership name, phone, and address — shown on your
-            public marketplace page.
+            Your dealership's name, phone and address, shown on your public
+            store and booking pages and on your invoices.
           </p>
 
           {/* only the owner can save it (PUT /dealership/me is owner-only) */}
@@ -778,8 +778,8 @@ export default function Settings() {
           <SupernovaGlowCard>
             <h2 className="text-yellow-300 font-bold text-xl mb-3">Email Sending</h2>
             <p className="text-white/70 mb-4">
-              Connect your own SendGrid account so FlipPilot can send real emails on your behalf — your domain, your
-              bill, not shared with other dealers.
+              Connect your own SendGrid account, ready for FlipPilot to send emails from your own address. For now
+              it sends a test email only; your domain, your bill, not shared with other dealers.
             </p>
 
             <SupernovaGlowButton label="Manage Email Sending" onClick={() => navigate("/dealer/settings/email")} />

@@ -58,7 +58,7 @@ export default function SalesPipeline() {
             accent="yellow"
           />
           <p className="text-white/60 text-sm">
-            {pipeline.new} fresh lead{pipeline.new === 1 ? "" : "s"} entering your pipeline today.
+            {pipeline.new} lead{pipeline.new === 1 ? "" : "s"} marked New, not yet contacted.
           </p>
         </SupernovaGlowCard>
 
@@ -84,7 +84,7 @@ export default function SalesPipeline() {
             accent="red"
           />
           <p className="text-white/60 text-sm">
-            {pipeline.hot} high‑intent lead{pipeline.hot === 1 ? "" : "s"} showing strong buying signals.
+            {pipeline.hot} lead{pipeline.hot === 1 ? "" : "s"} marked Negotiating.
           </p>
         </SupernovaGlowCard>
 

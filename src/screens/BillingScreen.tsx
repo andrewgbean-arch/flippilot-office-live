@@ -181,7 +181,7 @@ export default function BillingScreen() {
               />
               <span className="text-sm text-white/80">
                 <span className="font-semibold text-yellow-300">Include Pilot Brain</span> — your always-on business companion.
-                Watches your leads and stock, explains what's happening and why, and checks real market pricing. A fraction of the cost of a part-time member of staff.
+                Watches your leads and stock, explains what's happening and why, and can compare your prices with dealer listings. A fraction of the cost of a part-time member of staff.
               </span>
             </label>
             <button

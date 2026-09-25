@@ -102,21 +102,25 @@ export default function PilotBrainOperations() {
       </header>
 
       <div style={{ maxWidth: 800, margin: "0 auto", padding: "24px" }}>
-        <button
-          data-tour="tour-prepare-work"
-          onClick={handlePrepare}
-          disabled={preparing}
-          className="sn-btn sn-btn--gold"
-          style={{ marginBottom: 20 }}
-        >
-          {preparing ? "Reviewing your business…" : "Prepare Today's Work"}
-        </button>
+        {/* owners and managers only (the server refuses anyone else): it
+            drafts with the AI, and they are the ones who approve the result */}
+        {canApprove && (
+          <button
+            data-tour="tour-prepare-work"
+            onClick={handlePrepare}
+            disabled={preparing}
+            className="sn-btn sn-btn--gold"
+            style={{ marginBottom: 20 }}
+          >
+            {preparing ? "Reviewing your business…" : "Prepare Today's Work"}
+          </button>
+        )}
 
         {error && <p style={{ color: "#ff8080", fontSize: 13, marginBottom: 16 }}>{error}</p>}
 
         {!canApprove && (
           <p style={{ color: "#f5f7ff80", fontSize: 13, marginBottom: 16 }}>
-            You can see what Pilot Brain has prepared, but approving or rejecting work needs a manager or owner account.
+            You can see what Pilot Brain has prepared, but preparing the day's work, and approving or rejecting it, needs a manager or owner account.
           </p>
         )}
 
