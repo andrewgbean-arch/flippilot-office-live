@@ -115,6 +115,8 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
   }
 
   const startTour = useCallback(() => {
+    // opened by hand: the first-visit check below must never fire on top of it
+    autoStartChecked.current = true;
     silence();
     setPhase("menu");
     setPaused(false);
@@ -197,6 +199,13 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (autoStartChecked.current) return;
     if (!user?.id) return;
+    // A tour already open (started from Settings, say) walks onto the
+    // dashboard for its first step: that is not a first visit, and must not
+    // throw them back to the start screen.
+    if (isActive) {
+      autoStartChecked.current = true;
+      return;
+    }
     if (location.pathname !== "/dealer-dashboard") return;
     autoStartChecked.current = true;
     let seen = false;
@@ -206,7 +215,7 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
       seen = false;
     }
     if (!seen) startTour();
-  }, [user?.id, location.pathname, startTour]);
+  }, [user?.id, location.pathname, startTour, isActive]);
 
   // The latest nextStep, for the timers below (a timer set during one step
   // must move on from THAT step, whatever has re-rendered since).
@@ -270,8 +279,14 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     const target = current.step.target;
-    const find = () =>
-      document.querySelector(target.startsWith("css:") ? target.slice(4) : `[data-tour="${target}"]`);
+    // Only something actually on screen: the side columns are hidden on a
+    // phone, and outlining a hidden element would draw a box around nothing.
+    const find = () => {
+      const el = document.querySelector(target.startsWith("css:") ? target.slice(4) : `[data-tour="${target}"]`);
+      if (!el) return null;
+      const box = el.getBoundingClientRect();
+      return box.width > 0 && box.height > 0 ? el : null;
+    };
 
     let cancelled = false;
     let attempts = 0;
