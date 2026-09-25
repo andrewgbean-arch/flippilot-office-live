@@ -42,10 +42,13 @@ export default function PageHelp() {
         type="button"
         onClick={() => setOpen(true)}
         aria-haspopup="dialog"
-        className="fixed bottom-24 right-4 z-40 flex items-center gap-2 rounded-full border border-yellow-400/70 bg-[#0A1128]/95 px-4 py-2.5 text-sm font-bold text-yellow-300 shadow-[0_0_18px_rgba(255,215,0,0.45)] transition hover:bg-yellow-400 hover:text-black lg:right-[18rem]"
+        aria-label="Help with this page"
+        title="Help with this page"
+        className="fixed bottom-[4.5rem] right-3 z-40 flex h-11 w-11 items-center justify-center gap-2 rounded-full border border-yellow-400/70 bg-[#0A1128]/95 text-sm font-bold text-yellow-300 shadow-[0_0_18px_rgba(255,215,0,0.45)] transition hover:bg-yellow-400 hover:text-black sm:bottom-24 sm:right-4 sm:h-auto sm:w-auto sm:px-4 sm:py-2.5 lg:right-[18rem]"
       >
-        <FiHelpCircle aria-hidden className="text-lg" />
-        <span>Help with this page</span>
+        {/* A small "?" on a phone, where the full label would cover the page's own buttons. */}
+        <FiHelpCircle aria-hidden className="text-2xl sm:text-lg" />
+        <span className="hidden sm:inline">Help with this page</span>
       </button>
 
       {/* Drawn at the top of the page, not inside the page area: that area is

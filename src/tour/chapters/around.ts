@@ -172,7 +172,7 @@ export const chapter: TourChapter = {
           {
             question: "How do I get help with a screen?",
             steps: [
-              "Press the gold Help with this page button in the bottom right corner.",
+              "Press the gold Help with this page button in the bottom right corner. On a phone it is a gold question mark.",
               "Choose Show me how to use this page and Wendy walks you round it.",
               "Or choose Ask Wendy about this page: her chat opens with a question typed in, ready for you to send or change.",
               "Or read the written guide further down the panel.",

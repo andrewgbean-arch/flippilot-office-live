@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { FiMic, FiMicOff, FiVolume2, FiVolumeX } from "react-icons/fi";
+import { FiChevronDown, FiChevronUp, FiMic, FiMicOff, FiVolume2, FiVolumeX } from "react-icons/fi";
 import AssistantMarkdown from "./AssistantMarkdown";
 import { fetchPilotBrainMessages, sendPilotBrainMessage, fetchSpeech, fetchMorningBriefing, fetchPerformanceReview, fetchTodaysPriorities, clearPilotBrainConversation, fetchVoices, type PilotVoice, type PilotBrainMessage, type ReviewPeriod } from "@/lib/pilotBrainApi";
 import { authHeaders } from "@/lib/authToken";
@@ -8,6 +8,7 @@ import { BASE_URL } from "@/lib/apiBaseUrl";
 import "@/staff/StaffDashboard.css";
 import { useAuth } from "@/context/AuthContext";
 import { canManageStaff } from "@/lib/permissions";
+import { useTour } from "@/tour/TourProvider";
 
 // Wendy's replies come back as markdown; AssistantMarkdown.tsx renders it
 // (and is where the rules on images and links live — see the comment there).
@@ -71,6 +72,11 @@ export default function PilotBrainChat() {
   const [searchParams] = useSearchParams();
   const [input, setInput] = useState(() => (searchParams.get("ask") ?? "").slice(0, 500));
   const [sending, setSending] = useState(false);
+  // On a phone the voice and report buttons fold away so the conversation
+  // gets the screen. They open while the tour runs, as it points at them.
+  const [toolsOpen, setToolsOpen] = useState(false);
+  const tour = useTour();
+  const showTools = toolsOpen || tour.isActive;
   const [error, setError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -451,6 +457,7 @@ export default function PilotBrainChat() {
             <p className="sn-hero__subtitle">Your business companion. Ask it anything about how things are going.</p>
           </div>
 
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           {window.speechSynthesis && (
             <button
               onClick={toggleVoiceOutput}
@@ -468,8 +475,20 @@ export default function PilotBrainChat() {
               {voiceOutput ? "Wendy: On" : "Wendy: Off"}
             </button>
           )}
+          <button
+            type="button"
+            onClick={() => setToolsOpen(o => !o)}
+            aria-expanded={showTools}
+            aria-controls="pilot-brain-tools"
+            className="sn-btn sm:!hidden"
+            style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, padding: "4px 10px" }}
+          >
+            Voice and reports {showTools ? <FiChevronUp aria-hidden /> : <FiChevronDown aria-hidden />}
+          </button>
+          </div>
         </div>
 
+        <div id="pilot-brain-tools" className={showTools ? "" : "hidden sm:block"}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
           <label htmlFor="pilot-brain-voice-choice" style={{ color: "#f5f7ff80", fontSize: 12 }}>
             Voice:
@@ -566,9 +585,10 @@ export default function PilotBrainChat() {
             </button>
           )}
         </div>
+        </div>
       </header>
 
-      <div style={{ flex: 1, overflowY: "auto", padding: "0 24px", maxWidth: 800, width: "100%", margin: "0 auto" }}>
+      <div className="px-3 sm:px-6" style={{ flex: 1, overflowY: "auto", maxWidth: 800, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
         {loading ? (
           <p className="sn-empty">Loading…</p>
         ) : messages.length === 0 ? (
@@ -578,9 +598,9 @@ export default function PilotBrainChat() {
             {messages.map(m => (
               <div
                 key={m.id}
+                className="max-w-[92%] sm:max-w-[80%]"
                 style={{
                   alignSelf: m.role === "user" ? "flex-end" : "flex-start",
-                  maxWidth: "80%",
                   background: m.role === "user" ? "rgba(255,215,0,0.12)" : "rgba(255,255,255,0.06)",
                   border: `1px solid ${m.role === "user" ? "rgba(255,215,0,0.3)" : "rgba(255,255,255,0.1)"}`,
                   borderRadius: 12,
@@ -595,9 +615,9 @@ export default function PilotBrainChat() {
             ))}
             {sending && (
               <div
+                className="max-w-[92%] sm:max-w-[80%]"
                 style={{
                   alignSelf: "flex-start",
-                  maxWidth: "80%",
                   background: "rgba(255,255,255,0.06)",
                   border: "1px solid rgba(255,255,255,0.1)",
                   borderRadius: 12,
@@ -625,12 +645,13 @@ export default function PilotBrainChat() {
             onKeyDown={handleKeyDown}
             rows={2}
             placeholder="Talk to Pilot Brain… (Enter to send, Shift+Enter for a new line)"
-            style={{ flex: 1, resize: "none" }}
+            style={{ flex: 1, minWidth: 0, resize: "none" }}
           />
           {SpeechRecognitionCtor && (
             <button
               onClick={toggleListening}
               title={listening ? "Stop dictating" : "Speak your message"}
+              aria-label={listening ? "Stop dictating" : "Speak your message"}
               className="sn-btn"
               style={{
                 alignSelf: "flex-end",
@@ -646,7 +667,7 @@ export default function PilotBrainChat() {
             className="sn-btn sn-btn--gold"
             onClick={handleSend}
             disabled={sending || !input.trim()}
-            style={{ alignSelf: "flex-end" }}
+            style={{ alignSelf: "flex-end", minWidth: 0 }}
           >
             Send
           </button>

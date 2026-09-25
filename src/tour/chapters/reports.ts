@@ -665,7 +665,7 @@ export const chapter: TourChapter = {
           {
             question: "How do I ask how to do something?",
             steps: [
-              "Click the gold Help with this page button on the screen you're stuck on.",
+              "Click the gold Help with this page button on the screen you're stuck on. On a phone it is a gold question mark.",
               "Choose Ask Wendy about this page, or read the written guide.",
             ],
           },
