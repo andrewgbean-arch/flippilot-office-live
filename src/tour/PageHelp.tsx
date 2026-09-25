@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { FiHelpCircle, FiMessageCircle, FiPlayCircle, FiX, FiMap } from "react-icons/fi";
 import { useTour } from "./TourProvider";
@@ -47,7 +48,9 @@ export default function PageHelp() {
         <span>Help with this page</span>
       </button>
 
-      {open && (
+      {/* Drawn at the top of the page, not inside the page area: that area is
+          layered below the side columns, which would sit on top of the panel. */}
+      {open && createPortal(
         <div className="fixed inset-0 z-[9990] flex justify-end bg-black/50" onClick={() => setOpen(false)}>
           <aside
             role="dialog"
@@ -146,7 +149,8 @@ export default function PageHelp() {
               )}
             </div>
           </aside>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
