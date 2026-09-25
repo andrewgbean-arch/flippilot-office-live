@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from "uuid";
 import { FlipRecord } from "@/features/vehicles/models/FlipRecord";
 import { calcFlipScore } from "@/features/vehicles/utils/calcFlipScore";
 import { useDealerNotifications } from "@/features/dealer-notifications/DealerNotificationsContext";
+import { formatMoney } from "@/lib/formatMoney";
 
 // ⭐ Web-safe haptic fallback
 const triggerHaptic = () => {
@@ -88,7 +89,7 @@ export const VehicleHistoryProvider = ({ children }: { children: ReactNode }) =>
         addNotification({
           type: "SYSTEM",
           title: "Profit Milestone",
-          message: `Dealer milestone reached: £${m.toLocaleString()}`,
+          message: `Dealer milestone reached: ${formatMoney(m)}`,
         });
       }
     });

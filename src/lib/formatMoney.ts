@@ -20,15 +20,18 @@ const pence = new Intl.NumberFormat("en-GB", {
 
 export interface MoneyOptions {
   // Show pence ("£1,234.50"). Default is whole pounds, which is what a summary
-  // wants; invoices and anything a customer signs want pence.
-  pence?: boolean;
+  // wants; invoices and anything a customer signs want pence. "auto" shows pence
+  // only when there are some: "£6,940.30" but "£7,000".
+  pence?: boolean | "auto";
 }
 
 // "—" for anything that isn't a real number (missing, NaN, infinity) so a screen
 // never prints "£NaN" or "£undefined".
 export function formatMoney(amount: number | null | undefined, options: MoneyOptions = {}): string {
   if (typeof amount !== "number" || !Number.isFinite(amount)) return "—";
-  const text = (options.pence ? pence : whole).format(amount);
+  const showPence =
+    options.pence === "auto" ? Math.round(amount * 100) % 100 !== 0 : options.pence === true;
+  const text = (showPence ? pence : whole).format(amount);
   // A small loss that rounds to nothing must not read "-£0".
   return text.replace(/^-(£0(?:\.00)?)$/, "$1");
 }

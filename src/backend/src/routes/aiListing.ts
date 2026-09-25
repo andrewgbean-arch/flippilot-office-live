@@ -1,6 +1,7 @@
 import { Express, Request } from "express";
 import rateLimit from "express-rate-limit";
 import type { AuthUser } from "../auth";
+import { formatPounds } from "../money";
 
 // Unlike this backend's other rate-limited routes, the cost here isn't
 // abuse volume on a free endpoint — it's real money. Once a real
@@ -46,7 +47,7 @@ function buildPrompt(v: VehicleDescriptionInput): string {
     v.condition ? `Condition: ${v.condition}` : null,
     v.motStatus ? `MOT status: ${v.motStatus}` : null,
     v.motExpiry ? `MOT expiry: ${v.motExpiry}` : null,
-    v.priceRetail != null ? `Asking price: £${v.priceRetail.toLocaleString()}` : null,
+    v.priceRetail != null ? `Asking price: ${formatPounds(v.priceRetail)}` : null,
     v.notes ? `Dealer notes: ${v.notes}` : null,
   ].filter(Boolean).join("\n");
 

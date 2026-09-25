@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useInventory } from "@/context/InventoryProvider";
 import { useLeads } from "@/context/LeadsContext";
 import "@/staff/StaffDashboard.css";
+import { formatMoney } from "@/lib/formatMoney";
 
 // Real search across the two things a dealer actually looks people/cars
 // up by day to day — a vehicle's reg/make/model, or a lead's name/
@@ -75,7 +76,7 @@ export default function SearchScreen() {
                     {v.reg && <span className="sn-staff-card__role">{v.reg}</span>}
                   </div>
                   {v.priceRetail ? (
-                    <div className="sn-staff-card__branch">£{v.priceRetail.toLocaleString()}</div>
+                    <div className="sn-staff-card__branch">{formatMoney(v.priceRetail, { pence: "auto" })}</div>
                   ) : null}
                 </div>
               ))}

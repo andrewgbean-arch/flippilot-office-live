@@ -29,6 +29,7 @@ import {
   FiUserPlus,
   FiMessageCircle,
 } from "react-icons/fi";
+import { formatMoney } from "@/lib/formatMoney";
 
 type Props = {
   brain?: any;
@@ -239,14 +240,14 @@ export default function DealerDashboard({ brain }: Props) {
       >
         <HeroStat
           label="Stock Value"
-          value={`£${stockValue.toLocaleString()}`}
+          value={formatMoney(stockValue)}
           icon={<FiDollarSign />}
           accent="green"
           onClick={() => navigate("/dealer/inventory/list")}
         />
         <HeroStat
           label="Profit This Month"
-          value={`£${profitThisMonth.toLocaleString()}`}
+          value={formatMoney(profitThisMonth, { pence: "auto" })}
           icon={<FiTrendingUp />}
           accent={profitThisMonth >= 0 ? "green" : "red"}
           onClick={() => navigate("/bookkeeping")}

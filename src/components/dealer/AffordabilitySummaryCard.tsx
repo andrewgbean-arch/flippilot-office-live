@@ -2,6 +2,7 @@ import React from "react";
 import { motion } from "framer-motion";
 import { affordabilityEngine, BuyerProfile } from "@/features/dealer-ai/AffordabilityEngine";
 import { FlipRecord } from "@/features/vehicles/models/FlipRecord";
+import { formatMoney } from "@/lib/formatMoney";
 
 type Props = {
   vehicle: FlipRecord;
@@ -89,7 +90,7 @@ export default function AffordabilitySummaryCard({ vehicle, buyer, theme }: Prop
         </div>
 
         <div style={{ color: theme.white, marginTop: 10 }}>
-          Recommended Deposit: £{recommendedDeposit}
+          Recommended Deposit: {formatMoney(recommendedDeposit)}
         </div>
 
         <div style={{ color: theme.muted, marginTop: 6 }}>

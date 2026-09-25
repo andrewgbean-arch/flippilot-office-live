@@ -7,6 +7,7 @@ import AffordabilitySummaryCard from "@/components/dealer/AffordabilitySummaryCa
 import type { FlipRecord } from "@/features/vehicles/models/FlipRecord";
 import type { BuyerProfile } from "@/features/dealer-ai/AffordabilityEngine";
 import "@/staff/StaffDashboard.css";
+import { formatMoney } from "@/lib/formatMoney";
 
 const AFFORDABILITY_THEME = {
   card: "#0A0F1F",
@@ -157,7 +158,7 @@ export default function LeadDetails() {
           <option value="">— None selected —</option>
           {vehicles.map(v => (
             <option key={v.id} value={v.id}>
-              {v.make} {v.model} — £{(v.priceRetail ?? 0).toLocaleString()}
+              {v.make} {v.model} — {v.priceRetail ? formatMoney(v.priceRetail, { pence: "auto" }) : "no price set"}
             </option>
           ))}
         </select>

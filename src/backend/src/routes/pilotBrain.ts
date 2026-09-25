@@ -64,6 +64,7 @@ import {
 } from "../engines/superBrainEngine";
 import type { StaffNotification } from "./notifications";
 import { toMemoryLine } from "../untrustedText";
+import { formatPounds } from "../money";
 
 interface BookkeepingDoc {
   purchases: { vehicleId: string; purchasePrice: number; date: string }[];
@@ -330,7 +331,7 @@ export function buildBusinessSummary(dealershipId: string): string {
     ...(inStock.length > 0 ? [`Vehicles in stock with no MOT expiry date: ${withoutMotDate} of ${inStock.length}`] : []),
     `Vehicles in stock: ${inStock.length}`,
     ...(inStock.length > 0 ? [`Vehicles in stock with no photos: ${withoutPhotos} of ${inStock.length}`] : []),
-    `Total stock value: £${totalValue.toLocaleString()}`,
+    `Total stock value: ${formatPounds(totalValue)}`,
     `Vehicles with MOT expiring within 30 days (or already expired): ${motRisk}`,
     `Open leads: ${openLeads}`,
     // The same two figures the right-hand sidebar's "at a glance" panel shows,
@@ -576,7 +577,7 @@ function buildSuperBrainSummary(data: ReturnType<typeof runSuperBrainForDealersh
   }
 
   if (data.forecast) {
-    lines.push(`Revenue forecast: £${data.forecast.projectedRevenue.toLocaleString()} over the next ${data.forecast.timeframeDays} days (confidence: ${data.forecast.confidence}, based on ${data.forecast.basis}). This is a simple real trend projection, not a guarantee — present it that way.`);
+    lines.push(`Revenue forecast: ${formatPounds(Math.round(data.forecast.projectedRevenue))} over the next ${data.forecast.timeframeDays} days (confidence: ${data.forecast.confidence}, based on ${data.forecast.basis}). This is a simple real trend projection, not a guarantee — present it that way.`);
   } else {
     lines.push(`Revenue forecast: not enough real sales history yet to project — say so honestly if asked, don't estimate.`);
   }

@@ -19,6 +19,8 @@
 // this stack, and eBay's API doesn't expose competitor identity in a
 // usable way — there's no real data to build even a framework around.
 
+import { formatPounds } from "../money";
+
 export interface MarketSnapshot {
   id: string;
   make: string;
@@ -174,12 +176,12 @@ export function findMarketOpportunities(pricingIntel: PricingIntelligence[]): Ma
     if (p.deltaPercent <= -8) {
       opportunities.push({
         title: `${p.make} ${p.model} may be underpriced`,
-        detail: `Listed at £${p.askingPrice.toLocaleString()}, ${Math.abs(p.deltaPercent)}% below the real market average of £${p.marketAverage.toLocaleString()}.`,
+        detail: `Listed at ${formatPounds(p.askingPrice)}, ${Math.abs(p.deltaPercent)}% below the real market average of ${formatPounds(Math.round(p.marketAverage))}.`,
       });
     } else if (p.deltaPercent >= 8) {
       opportunities.push({
         title: `${p.make} ${p.model} may be overpriced`,
-        detail: `Listed at £${p.askingPrice.toLocaleString()}, ${p.deltaPercent}% above the real market average of £${p.marketAverage.toLocaleString()} — likely suppressing enquiries.`,
+        detail: `Listed at ${formatPounds(p.askingPrice)}, ${p.deltaPercent}% above the real market average of ${formatPounds(Math.round(p.marketAverage))} — likely suppressing enquiries.`,
       });
     }
   }

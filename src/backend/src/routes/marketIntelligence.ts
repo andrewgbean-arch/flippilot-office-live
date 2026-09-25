@@ -18,6 +18,7 @@ import {
   type TrendResult,
   type PlatformInsight,
 } from "../engines/marketEngine";
+import { formatPounds } from "../money";
 
 export interface StoredMarketData {
   health: MarketHealth | null; // null when no real market data has ever been recorded
@@ -214,7 +215,7 @@ export function buildMarketSummaryFromStorage(dealershipId: string): string {
     const trend = getTrend(snapshots, v.make, v.model, now);
     const deltaPercent = v.priceRetail ? Math.round(((v.priceRetail - latest.avgPrice) / latest.avgPrice) * 1000) / 10 : null;
 
-    let line = `${v.make} ${v.model}: real market average £${latest.avgPrice.toLocaleString()} as of ${latest.capturedAt.slice(0, 10)} (${latest.sampleSize} comparable listings)`;
+    let line = `${v.make} ${v.model}: real market average ${formatPounds(Math.round(latest.avgPrice))} as of ${latest.capturedAt.slice(0, 10)} (${latest.sampleSize} comparable listings)`;
     if (deltaPercent != null) line += `, your price is ${deltaPercent >= 0 ? "+" : ""}${deltaPercent}% vs that`;
     if (trend.direction !== "insufficient_data") line += `, demand trend: ${trend.direction}`;
     lines.push(line);

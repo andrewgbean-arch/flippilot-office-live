@@ -18,6 +18,7 @@ import {
   type Tone,
 } from "./carPassportModel";
 import type { AvailablePassport, PassportDealer, PassportMot, PublicPassport, SoldPassport } from "./passportTypes";
+import { formatMoney } from "@/lib/formatMoney";
 
 const TONE: Record<Tone, string> = {
   good: "border-emerald-400/40 bg-emerald-400/10 text-emerald-200",
@@ -220,9 +221,9 @@ function MarketSection({ p }: { p: AvailablePassport }) {
             <span className="absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-black bg-yellow-400" style={{ left: `${s.bar.askingPct}%` }} />
           </div>
           <div className="mt-2 flex justify-between text-xs text-white/70">
-            <span>Lowest £{s.bar.lowest.toLocaleString("en-GB")}</span>
-            <span>Average £{p.market.averageAsking.toLocaleString("en-GB")}</span>
-            <span>Highest £{s.bar.highest.toLocaleString("en-GB")}</span>
+            <span>Lowest {formatMoney(s.bar.lowest)}</span>
+            <span>Average {formatMoney(p.market.averageAsking)}</span>
+            <span>Highest {formatMoney(s.bar.highest)}</span>
           </div>
           <p className="mt-2 text-xs text-white/70">
             <span className="mr-1 inline-block h-2.5 w-2.5 rounded-full bg-yellow-400 align-middle" /> This car

@@ -23,6 +23,15 @@ describe("formatMoney", () => {
     expect(formatMoney(0.1 + 0.2, { pence: true })).toBe("£0.30");
   });
 
+  it("shows pence only when there are some, when asked to decide", () => {
+    // the dashboard used to print "£6,940.3": the trailing pence digit was lost
+    expect(formatMoney(6940.3, { pence: "auto" })).toBe("£6,940.30");
+    expect(formatMoney(7000, { pence: "auto" })).toBe("£7,000");
+    expect(formatMoney(7000.004, { pence: "auto" })).toBe("£7,000");
+    expect(formatMoney(-12.5, { pence: "auto" })).toBe("-£12.50");
+    expect(formatMoney(0.1 + 0.2, { pence: "auto" })).toBe("£0.30");
+  });
+
   it("never prints a negative zero", () => {
     expect(formatMoney(-0.2)).toBe("£0");
     expect(formatMoney(-0)).toBe("£0");

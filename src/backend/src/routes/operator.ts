@@ -17,6 +17,7 @@ import { tenantRecordStore } from "../pilotBrainTools";
 import { callClaude } from "./pilotBrain";
 import { DEFAULT_ROTA_SETTINGS, type Shift, type WorkPattern, type LeaveRequest, type RotaSettings } from "./planner";
 import type { Appointment } from "./publicBooking";
+import { formatPounds } from "../money";
 
 // Pilot Brain V6 (The Operator) — the Action Orchestrator, Approval
 // Centre, Workflow Engine, Audit Engine, and Rollback Engine (Modules
@@ -163,7 +164,7 @@ export default function registerOperatorRoute(app: Express) {
         title: `Categorise a ${cost.type} cost as "${suggestedCategory}"`,
         // A stored cost can lack a usable amount (an old record, a raw API call); say so
         // plainly instead of throwing, which used to end the whole server process.
-        description: `${typeof cost.amount === "number" && Number.isFinite(cost.amount) ? `£${cost.amount.toLocaleString()} ` : "A "}${cost.type} cost${cost.label ? ` ("${cost.label}")` : ""} has no category set yet.`,
+        description: `${typeof cost.amount === "number" && Number.isFinite(cost.amount) ? `${formatPounds(cost.amount)} ` : "A "}${cost.type} cost${cost.label ? ` ("${cost.label}")` : ""} has no category set yet.`,
         reason: `Cost type "${cost.type}" maps to "${suggestedCategory}" — a consistent real rule, not a per-record guess.`,
         payload: { costId: cost.id, vehicleId: cost.vehicleId, currentCategory: cost.category ?? null, suggestedCategory },
         preparedAt: new Date(now).toISOString(),

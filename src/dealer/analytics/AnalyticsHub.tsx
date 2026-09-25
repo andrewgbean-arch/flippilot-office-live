@@ -2,6 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { useInventory } from "@/context/InventoryProvider";
 import { askingPriceSummary, averageDaysInStock, unsold } from "@/dealer/inventory/stockFacts";
 import "@/staff/StaffDashboard.css";
+import { formatMoney } from "@/lib/formatMoney";
 
 // Every card here describes what its page really shows. The hub used to
 // advertise "AI-recommended pricing" and "aggregate demand and sentiment"; those
@@ -54,11 +55,11 @@ export default function AnalyticsHub() {
         <div className="bg-flipDark border border-gold rounded-xl p-6 shadow-blueGlow hover:shadow-goldGlow transition">
           <h2 className="text-xl font-semibold text-gold mb-2">Average Price</h2>
           <p className="text-white text-4xl font-bold">
-            {prices ? `£${prices.average.toLocaleString()}` : "–"}
+            {prices ? formatMoney(prices.average) : "–"}
           </p>
           <p className="text-white/60 mt-1">
             {prices
-              ? `Asking prices, £${prices.lowest.toLocaleString()} – £${prices.highest.toLocaleString()} across ${prices.count} priced car${prices.count === 1 ? "" : "s"}`
+              ? `Asking prices, ${formatMoney(prices.lowest)} – ${formatMoney(prices.highest)} across ${prices.count} priced car${prices.count === 1 ? "" : "s"}`
               : "No priced stock yet"}
           </p>
         </div>

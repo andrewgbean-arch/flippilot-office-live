@@ -6,6 +6,7 @@ import AddCostModal from "@/bookkeeping/AddCostModal";
 import { SupernovaHeroHeader } from "@/components/supernova/SupernovaHeroHeader";
 import { SupernovaSectionDivider } from "@/components/supernova/SupernovaSectionDivider";
 import { SupernovaGlowCard } from "@/components/supernova/SupernovaGlowCard";
+import { formatMoney } from "@/lib/formatMoney";
 
 // This page used to be a hardcoded placeholder ("Welcome to your dealer
 // inventory... We will connect your storage next", 0 everywhere) that
@@ -129,12 +130,12 @@ export default function PartsLabourLog() {
                       {c.notes && <p className="text-white/50 text-sm">{c.notes}</p>}
                       <p className="text-white/60 text-xs">{c.date}</p>
                     </div>
-                    <p className="text-yellow-400 font-bold">£{c.amount.toLocaleString()}</p>
+                    <p className="text-yellow-400 font-bold">{formatMoney(c.amount, { pence: true })}</p>
                   </div>
                 ))}
                 <div className="flex justify-between pt-3 border-t border-white/10 font-bold text-white/80">
                   <span>Total</span>
-                  <span>£{total.toLocaleString()}</span>
+                  <span>{formatMoney(total, { pence: true })}</span>
                 </div>
               </div>
             )}

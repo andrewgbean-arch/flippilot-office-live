@@ -35,6 +35,7 @@ import {
   shownPrice,
   vehicleTitle,
 } from "./vehicleListModel";
+import { formatMoney } from "@/lib/formatMoney";
 
 const TAB_LABELS = {
   overview: "Overview",
@@ -482,8 +483,8 @@ export default function VehicleOverview() {
                         // underlying number is genuinely correct.
                         const priceText =
                           ebayComps.soldCount === 1
-                            ? `Guide price £${ebayComps.average.toLocaleString()}`
-                            : `Guide price £${ebayComps.lowest.toLocaleString()} – £${ebayComps.highest.toLocaleString()} (avg £${ebayComps.average.toLocaleString()})`;
+                            ? `Guide price ${formatMoney(ebayComps.average)}`
+                            : `Guide price ${formatMoney(ebayComps.lowest)} – ${formatMoney(ebayComps.highest)} (avg ${formatMoney(ebayComps.average)})`;
                         return `${priceText} — from ${ebayComps.soldCount} real eBay dealer listing${ebayComps.soldCount === 1 ? " (a single comp — treat as a rough steer, not a confident range)" : "s"}${qualifiers.length ? ` (${qualifiers.join(", ")})` : " (year/mileage unconfirmed from listing titles)"}. These are asking prices a seller set to sell quickly, not confirmed sale prices — real retail value may run higher.`;
                       })()
                     : ebayChecked
@@ -506,8 +507,8 @@ export default function VehicleOverview() {
                 {googleGuide && (
                   <p className="text-white/80 text-sm">
                     {googleGuide.sourceCount === 1
-                      ? `Guide price £${googleGuide.average.toLocaleString()}`
-                      : `Guide price £${googleGuide.lowest.toLocaleString()} – £${googleGuide.highest.toLocaleString()} (avg £${googleGuide.average.toLocaleString()})`}
+                      ? `Guide price ${formatMoney(googleGuide.average)}`
+                      : `Guide price ${formatMoney(googleGuide.lowest)} – ${formatMoney(googleGuide.highest)} (avg ${formatMoney(googleGuide.average)})`}
                     {" "}— from {googleGuide.sourceCount} real price mention{googleGuide.sourceCount === 1 ? " (a single mention — treat as a rough steer, not a confident range)" : "s"}
                     {googleGuide.sources.length ? ` across ${googleGuide.sources.join(", ")}` : ""}.
                   </p>

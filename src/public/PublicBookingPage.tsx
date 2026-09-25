@@ -8,6 +8,7 @@ import {
   type PublicVehicle,
 } from "./publicBookingApi";
 import BookingContactFields from "./BookingContactFields";
+import { formatMoney } from "@/lib/formatMoney";
 
 type BookingType = "viewing" | "test_drive" | "mot";
 
@@ -178,7 +179,7 @@ export default function PublicBookingPage() {
                     {v.reg ? `${v.reg} — ` : ""}
                     {v.make} {v.model}
                     {v.year ? `, ${v.year}` : ""}
-                    {v.priceRetail ? ` — £${v.priceRetail.toLocaleString()}` : ""}
+                    {v.priceRetail ? ` — ${formatMoney(v.priceRetail, { pence: "auto" })}` : ""}
                   </option>
                 ))}
               </select>

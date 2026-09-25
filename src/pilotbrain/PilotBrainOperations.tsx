@@ -9,6 +9,7 @@ import {
   type OperatorAction,
 } from "@/lib/pilotBrainApi";
 import "@/staff/StaffDashboard.css";
+import { formatMoney } from "@/lib/formatMoney";
 
 const STATUS_STYLE: Record<string, string> = {
   prepared: "border-yellow-400/40 bg-yellow-500/10 text-yellow-200",
@@ -33,7 +34,7 @@ const STATUS_LABEL: Record<string, string> = {
 // a price in pounds, anything else as written, and "not set" for empty.
 function formatEditValue(fieldLabel: unknown, value: unknown): string {
   if (value === null || value === undefined || value === "") return "not set";
-  if (fieldLabel === "asking price" && typeof value === "number") return `£${value.toLocaleString("en-GB")}`;
+  if (fieldLabel === "asking price" && typeof value === "number") return formatMoney(value, { pence: "auto" });
   return String(value);
 }
 

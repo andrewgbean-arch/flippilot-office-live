@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useConsumables } from "@/context/ConsumablesContext";
 import type { Consumable } from "./consumableTypes";
+import { formatMoney } from "@/lib/formatMoney";
 
 interface StockMovementModalProps {
   item: Consumable;
@@ -165,7 +166,7 @@ export default function StockMovementModal({ item, onClose }: StockMovementModal
                 </div>
                 <div className="text-right text-white/50 text-xs">
                   <div>{m.date}</div>
-                  {m.cost != null && <div>£{m.cost.toFixed(2)}</div>}
+                  {m.cost != null && <div>{formatMoney(m.cost, { pence: true })}</div>}
                   {m.createdBy && <div>{m.createdBy}</div>}
                 </div>
               </div>

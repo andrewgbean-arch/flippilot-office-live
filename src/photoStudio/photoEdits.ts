@@ -5,6 +5,8 @@
 // The maths (crop box, straighten zoom, brightness/contrast, the quality
 // checks) is kept in plain functions so it can be tested without a browser.
 
+import { formatMoney } from "@/lib/formatMoney";
+
 export type AspectPreset = "original" | "4:3" | "16:9" | "1:1";
 
 export type BannerKind = "none" | "just-arrived" | "reduced" | "low-miles" | "reserved" | "sold" | "price-strip";
@@ -256,7 +258,7 @@ function drawBannerInner(ctx: CanvasRenderingContext2D, W: number, H: number, ki
     ctx.textAlign = "left";
     ctx.fillStyle = "#FFD700";
     ctx.font = `800 ${u * 6.4}px ${FONT}`;
-    const price = facts.price ? `£${facts.price.toLocaleString("en-GB")}` : "Ask for price";
+    const price = facts.price ? formatMoney(facts.price, { pence: "auto" }) : "Ask for price";
     ctx.fillText(price, u * 3.5, H - bh / 2);
     const bits = [facts.year ? String(facts.year) : null, facts.mileage ? `${facts.mileage.toLocaleString("en-GB")} miles` : null].filter(Boolean);
     if (bits.length) {
@@ -515,7 +517,7 @@ export function renderSocialPost(photo: HTMLCanvasElement | HTMLImageElement, f:
 
   ctx.fillStyle = "#FFD700";
   ctx.font = `900 ${L.priceSize}px ${FONT}`;
-  ctx.fillText(f.price ? `£${f.price.toLocaleString("en-GB")}` : "Ask for price", W / 2, L.price);
+  ctx.fillText(f.price ? formatMoney(f.price, { pence: "auto" }) : "Ask for price", W / 2, L.price);
 
   ctx.fillStyle = "rgba(255,255,255,0.85)";
   ctx.font = `600 38px ${FONT}`;

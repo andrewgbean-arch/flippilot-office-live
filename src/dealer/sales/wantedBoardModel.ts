@@ -5,6 +5,7 @@
 // with the message ready to read and send (or change) themselves.
 import { mailtoHref } from "@/lib/mailto";
 import type { WantedItem, WantedMatch } from "@/lib/wantedApi";
+import { formatMoney } from "@/lib/formatMoney";
 
 const DAY_MS = 86_400_000;
 
@@ -15,14 +16,14 @@ export function wantText(item: Pick<WantedItem, "make" | "model" | "note">): str
 }
 
 export function budgetText(maxPrice: number | undefined): string | null {
-  return maxPrice === undefined ? null : `Up to £${maxPrice.toLocaleString("en-GB")}`;
+  return maxPrice === undefined ? null : `Up to ${formatMoney(maxPrice)}`;
 }
 
 // "Ford Fiesta (£995 over their budget)" / "2019 Ford Fiesta, £8,495".
 export function matchText(m: WantedMatch): string {
-  const price = m.price !== null ? `£${m.price.toLocaleString("en-GB")}` : "no price yet";
+  const price = m.price !== null ? formatMoney(m.price, { pence: "auto" }) : "no price yet";
   return m.overBudgetBy !== undefined
-    ? `${m.label}, ${price} (£${m.overBudgetBy.toLocaleString("en-GB")} over their budget)`
+    ? `${m.label}, ${price} (${formatMoney(m.overBudgetBy, { pence: "auto" })} over their budget)`
     : `${m.label}, ${price}`;
 }
 

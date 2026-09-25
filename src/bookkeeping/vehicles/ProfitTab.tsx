@@ -3,6 +3,7 @@ import { useBookkeeping } from "@/bookkeeping/BookkeepingProvider";
 import { useInventory } from "@/context/InventoryProvider";
 import { formatPrice } from "@/dealer/inventory/vehicleListModel";
 import { profitBeforeSaleVat, riskCheck } from "./profitFigures";
+import { formatMoney } from "@/lib/formatMoney";
 
 // A price of 0 or none at all means "not set" (see profitFigures.ts); the
 // caller passes null rather than a 0 that would read as "it cost nothing".
@@ -82,7 +83,7 @@ export default function ProfitTab({
         <div className="bg-black/40 border border-white/10 p-4 rounded-xl">
           <h3 className="text-white/60 text-sm">Net Cost (ex VAT)</h3>
           <p className="text-white text-2xl font-bold">
-            £{totalNet.toLocaleString()}
+            {formatMoney(totalNet, { pence: true })}
           </p>
         </div>
 
@@ -90,7 +91,7 @@ export default function ProfitTab({
         <div className="bg-black/40 border border-white/10 p-4 rounded-xl">
           <h3 className="text-white/60 text-sm">VAT (non‑reclaimable)</h3>
           <p className="text-yellow-300 text-2xl font-bold">
-            £{totalVat.toLocaleString()}
+            {formatMoney(totalVat, { pence: true })}
           </p>
         </div>
 
@@ -98,7 +99,7 @@ export default function ProfitTab({
         <div className="bg-black/40 border border-white/10 p-4 rounded-xl">
           <h3 className="text-white/60 text-sm">Total Cost (gross)</h3>
           <p className="text-white text-2xl font-bold">
-            £{totalGross.toLocaleString()}
+            {formatMoney(totalGross, { pence: true })}
           </p>
         </div>
 
@@ -119,7 +120,7 @@ export default function ProfitTab({
                   profit >= 0 ? "text-green-300" : "text-red-400"
                 }`}
               >
-                {profit < 0 ? "-" : ""}£{Math.abs(profit).toLocaleString()}
+                {formatMoney(profit, { pence: true })}
               </p>
               <p className="text-white/50 text-xs mt-1">
                 Sale price less the purchase price and all costs above. Any VAT

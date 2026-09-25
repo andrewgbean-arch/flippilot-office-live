@@ -13,6 +13,7 @@ import { SupernovaGlowButton } from "@/components/supernova/SupernovaGlowButton"
 import { SupernovaInput } from "@/components/supernova/SupernovaInput";
 import { averageSpendOnSoldCars } from "./reconSpend";
 import { readMoney } from "@/lib/parseMoney";
+import { formatMoney } from "@/lib/formatMoney";
 
 export default function ReconWorkflow() {
   const { id } = useParams();
@@ -212,7 +213,7 @@ const handleRemoveRecon = async (item: (typeof reconItems)[number]) => {
             <div>
               <p className="text-white/60 text-sm">Total Recon Cost</p>
               <p className="text-yellow-300 font-bold text-xl">
-                £{totalRecon.toLocaleString()}
+                {formatMoney(totalRecon, { pence: true })}
               </p>
             </div>
 
@@ -231,7 +232,7 @@ const handleRemoveRecon = async (item: (typeof reconItems)[number]) => {
               <div>
                 <p className="text-white/60 text-sm">Your average spend per sold car</p>
                 <p className="text-white font-bold text-xl">
-                  £{Math.round(soldSpend.average).toLocaleString("en-GB")}
+                  {formatMoney(soldSpend.average)}
                 </p>
                 <p className="text-white/50 text-xs mt-1">
                   Costs logged against {soldSpend.counted} sold cars.
@@ -349,7 +350,7 @@ const handleRemoveRecon = async (item: (typeof reconItems)[number]) => {
 
                   <div className="flex items-center gap-4">
                     <p className="text-yellow-300 font-bold text-xl">
-                      £{item.amount}
+                      {formatMoney(item.amount, { pence: true })}
                     </p>
                     <button
                       onClick={() => handleRemoveRecon(item)}
