@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import ReportsTabs from "@/dealer/reports/ReportsTabs";
+import PhotoStudioCar from "@/photoStudio/PhotoStudioCar";
 import DealerLayout from "@/layouts/DealerLayout";
 import ProtectedRoute from "@/components/ProtectedRoute";
 
@@ -291,6 +292,7 @@ export default function AnimatedRoutes() {
         <Route path="dealer/workflow/finance" element={<Navigate to="/dealer/finance/calculator" replace />} />
         <Route path="dealer/workflow/photos/:id" element={<PhotosWorkflow />} />
         <Route path="photo-studio" element={<PhotosWorkflow />} />
+        <Route path="photo-studio/:vehicleId" element={<PhotoStudioCar />} />
         <Route path="dealer/workflow/pricing/:id" element={<PricingWorkflow />} />
         <Route path="dealer/workflow/recon/:id" element={<ReconWorkflow />} />
         <Route path="dealer/workflow/mot/:id" element={<MOTWorkflow />} />

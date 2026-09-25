@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import { useInventory } from "@/context/InventoryProvider";
 import { useBookkeeping } from "@/bookkeeping/BookkeepingProvider";
@@ -97,7 +97,12 @@ export default function VehicleOverview() {
   const purchase = purchases.find((p) => p.vehicleId === vehicleId);
   const sale = sales.find((s) => s.vehicleId === vehicleId);
 
-  const [tab, setTab] = useState<keyof typeof TAB_LABELS>("overview");
+  // ?tab=edit (Photo Studio's "Add photos") opens straight on that tab.
+  const [searchParams] = useSearchParams();
+  const askedTab = searchParams.get("tab");
+  const [tab, setTab] = useState<keyof typeof TAB_LABELS>(
+    askedTab && askedTab in TAB_LABELS ? (askedTab as keyof typeof TAB_LABELS) : "overview"
+  );
 
   // Real dealer-only, same-year, mileage-comparable eBay listings for
   // this exact vehicle (see backend/src/ebayCarMarket.ts) — fetched
@@ -337,6 +342,12 @@ export default function VehicleOverview() {
                     ))}
                   </div>
                 )}
+                <Link
+                  to={`/photo-studio/${vehicle.id}`}
+                  className="mt-3 inline-flex items-center gap-2 rounded-lg bg-yellow-400 px-4 py-2 text-sm font-bold text-black hover:bg-yellow-300"
+                >
+                  Edit in Photo Studio
+                </Link>
               </div>
             ) : (
               <div className="text-center py-10">

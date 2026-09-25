@@ -5,6 +5,8 @@ import { SupernovaSectionDivider } from "@/components/supernova/SupernovaSection
 import { SupernovaGlowCard } from "@/components/supernova/SupernovaGlowCard";
 
 import { useInventory } from "@/context/InventoryProvider";
+import { unsold } from "@/dealer/inventory/stockFacts";
+import { SHOT_LIST } from "@/photoStudio/photoEdits";
 
 // "Overall Photo Quality / Lighting Score / Background Cleanliness" used
 // to be hardcoded to 78/65/82 regardless of any vehicle's actual photos
@@ -19,10 +21,14 @@ import { useInventory } from "@/context/InventoryProvider";
 export default function PhotosWorkflow() {
   const { vehicles } = useInventory();
 
-  const withPhotos = vehicles.filter((v) => (v.images?.length ?? 0) > 0);
-  const missingPhotos = vehicles.filter((v) => (v.images?.length ?? 0) === 0);
-  const totalPhotos = vehicles.reduce((sum, v) => sum + (v.images?.length ?? 0), 0);
-  const avgPhotos = vehicles.length > 0 ? (totalPhotos / vehicles.length).toFixed(1) : "0";
+  // Cars still for sale only: sold cars don't need photos any more, and
+  // counting them made coverage look far worse than it is.
+  const forSale = unsold(vehicles);
+  const withPhotos = forSale.filter((v) => (v.images?.length ?? 0) > 0);
+  const totalPhotos = forSale.reduce((sum, v) => sum + (v.images?.length ?? 0), 0);
+  const avgPhotos = forSale.length > 0 ? (totalPhotos / forSale.length).toFixed(1) : "0";
+  // The ones needing photos most first.
+  const byNeed = [...forSale].sort((a, b) => (a.images?.length ?? 0) - (b.images?.length ?? 0));
 
   return (
     <div className="px-6 py-10 space-y-10">
@@ -31,53 +37,63 @@ export default function PhotosWorkflow() {
         subtitle="Photo coverage across your stock, and the cars still waiting for photos."
       />
 
-      <SupernovaSectionDivider label="Portfolio Photo Coverage" />
+      <SupernovaSectionDivider label="Photos on your stock" />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-white/70">
         <SupernovaGlowCard>
-          <p className="text-white/60 text-sm">Vehicles With Photos</p>
+          <p className="text-white/60 text-sm">Cars in stock with photos</p>
           <p className="text-yellow-300 font-bold text-2xl mt-1">
-            {withPhotos.length}/{vehicles.length}
+            {withPhotos.length}/{forSale.length}
           </p>
         </SupernovaGlowCard>
 
         <SupernovaGlowCard>
-          <p className="text-white/60 text-sm">Total Photos</p>
+          <p className="text-white/60 text-sm">Photos on cars in stock</p>
           <p className="text-yellow-300 font-bold text-2xl mt-1">{totalPhotos}</p>
         </SupernovaGlowCard>
 
         <SupernovaGlowCard>
-          <p className="text-white/60 text-sm">Avg Photos per Vehicle</p>
+          <p className="text-white/60 text-sm">Average per car</p>
           <p className="text-yellow-300 font-bold text-2xl mt-1">{avgPhotos}</p>
         </SupernovaGlowCard>
       </div>
 
-      <SupernovaSectionDivider label="Vehicles Missing Photos" />
+      <SupernovaSectionDivider label="Your stock · open a car to edit its photos" />
 
-      <SupernovaGlowCard>
-        {vehicles.length === 0 ? (
-          <p className="text-white/60">Add vehicles to your inventory to track photo coverage.</p>
-        ) : missingPhotos.length === 0 ? (
-          <p className="text-white/60">Every vehicle has at least one photo.</p>
-        ) : (
-          <div className="space-y-4">
-            {missingPhotos.map((v) => (
+      {forSale.length === 0 ? (
+        <SupernovaGlowCard>
+          <p className="text-white/60">Add vehicles to your stock and their photos appear here.</p>
+        </SupernovaGlowCard>
+      ) : (
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
+          {byNeed.map((v) => {
+            const count = v.images?.length ?? 0;
+            const main = v.images?.[0];
+            return (
               <Link
                 key={v.id}
-                to={`/dealer/inventory/${v.id}`}
-                className="block p-4 bg-black/40 border border-white/10 rounded-lg hover:bg-black/60 transition"
+                to={`/photo-studio/${v.id}`}
+                className="group block rounded-xl overflow-hidden border border-white/10 bg-black/40 hover:border-yellow-400/70 hover:shadow-[0_0_16px_rgba(255,215,0,0.35)] transition"
               >
-                <div className="text-white font-semibold">
-                  {v.make} {v.model}
+                <div className="relative h-32 bg-black/60">
+                  {main ? (
+                    <img src={main} alt="" loading="lazy" className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="grid h-full place-items-center text-white/40 text-sm">No photos yet</div>
+                  )}
+                  <span className={`absolute right-2 top-2 rounded-md px-2 py-0.5 text-xs font-bold ${count === 0 ? "bg-orange-500 text-white" : count < SHOT_LIST.length ? "bg-black/70 text-yellow-300" : "bg-green-600 text-white"}`}>
+                    {count}/{SHOT_LIST.length} shots
+                  </span>
                 </div>
-                <div className="text-white/60 text-xs">
-                  No photos yet — click to add some from its Edit tab.
+                <div className="p-3">
+                  <div className="text-white font-semibold truncate">{[v.year, v.make, v.model].filter(Boolean).join(" ")}</div>
+                  <div className="text-xs text-yellow-300/80 group-hover:text-yellow-300">Open in Photo Studio →</div>
                 </div>
               </Link>
-            ))}
-          </div>
-        )}
-      </SupernovaGlowCard>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

@@ -35,3 +35,27 @@ export async function deleteVehiclePhoto(
     return { ok: false, error: "Couldn't reach the server to remove a photo" };
   }
 }
+
+// Saves a new photo for a vehicle (Photo Studio's edited copies). The server
+// stores it and adds its address to the end of the vehicle's `images`,
+// which it returns so the caller can put it where it belongs.
+export async function uploadVehiclePhoto(
+  vehicleId: string,
+  dataUrl: string
+): Promise<{ ok: true; url: string; images: string[] } | { ok: false; error: string }> {
+  try {
+    const res = await fetch(`${BASE_URL}/inventory/${encodeURIComponent(vehicleId)}/photos`, {
+      method: "POST",
+      headers: { ...authHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify({ dataUrl }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && typeof data?.photo?.url === "string") {
+      return { ok: true, url: data.photo.url, images: Array.isArray(data.images) ? data.images : [] };
+    }
+    return { ok: false, error: data?.error ?? "Couldn't save the photo" };
+  } catch (err) {
+    console.error("uploadVehiclePhoto: backend unreachable", err);
+    return { ok: false, error: "Couldn't reach the server to save the photo" };
+  }
+}

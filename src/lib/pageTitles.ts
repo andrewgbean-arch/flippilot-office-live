@@ -126,6 +126,7 @@ export const PAGE_TITLES: Record<string, string> = {
   "/new-flip": "Add a vehicle",
   "/mot-scanner": "MOT lookup",
   "/photo-studio": "Photo Studio",
+  "/photo-studio/:vehicleId": "Photo Studio: vehicle",
   "/marketplace": "Marketplace",
 
   // Platform admin
