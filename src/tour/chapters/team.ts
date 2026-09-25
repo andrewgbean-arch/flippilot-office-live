@@ -401,6 +401,8 @@ export const chapter: TourChapter = {
         {
           id: "rota-planner-balances",
           target: "heading:Leave Balances",
+          // everyone's holiday and sick days: managers and the owner only
+          showIf: user => canManageStaff(user),
           title: "Holiday balances",
           narration:
             "Leave Balances shows each person's yearly entitlement, holiday taken, what's left and sick days. Entitlement starts at 28 days, and managers and the owner can change it for each person.",
@@ -410,7 +412,7 @@ export const chapter: TourChapter = {
           target: "heading:Holiday",
           title: "Leave requests",
           narration:
-            "Here's all the holiday and sick leave. Anyone can click Request Leave for themselves. Managers and the owner see Approve and Decline on each pending request, and approved leave shows on the rota straight away.",
+            "Here's who is off and when. Anyone can click Request Leave for themselves. Managers and the owner see why someone is off, and Approve and Decline on each pending request, and approved leave shows on the rota straight away.",
         },
       ],
       guide: {
