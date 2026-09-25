@@ -1,7 +1,7 @@
-// What a tour run actually walks through, for one person: the chapters and
-// steps their role can open, with the ones that have nothing to show (a car's
-// page when there is no stock yet) left out. Kept free of React so the rules
-// can be tested on their own.
+// What a tour run actually walks through, for one person: the chapters (the
+// menu's groups), the screens in each, and the stops on each screen, keeping
+// only what their role can open and what there is to show (a car's screens
+// need a car in stock). Kept free of React so the rules can be tested.
 
 import type { AuthUser } from "@/context/AuthContext";
 import { canOpenPage } from "@/lib/pageAccess";
@@ -10,74 +10,128 @@ export interface TourRouteContext {
   firstVehicleId: string | null;
 }
 
+export type TourRoute = string | ((ctx: TourRouteContext) => string | null);
+
 export interface TourStep {
-  id: string; // also the name of its recorded narration: /tour/audio/<id>.mp3
-  // A fixed address, or one worked out from the dealer's own data (a car's
-  // page); null means "nothing to show here, skip this step".
-  route: string | ((ctx: TourRouteContext) => string | null);
-  // What to spotlight: a data-tour="..." id, or "css:<selector>", or "" for a
-  // card on its own in the middle of the screen.
+  id: string; // also the name of its recording: /tour/audio/<id>.mp3
+  // What to outline:
+  //   "tour-x"          an element with data-tour="tour-x"
+  //   "css:<selector>"  the first element matching a CSS selector
+  //   "heading:<text>"  the card or section around the heading that starts with <text>
+  //   "button:<text>"   the button or link whose text starts with <text>
+  //   ""                nothing: the card sits in the middle of the screen
   target: string;
   title: string;
   narration: string;
-  // Extra rule on top of "can this person open the page", for a step that
-  // only makes sense for some people (the money tiles, say).
+  // Only on this screen's tour, for some people (the money tiles, say).
+  showIf?: (user: AuthUser | null) => boolean;
+}
+
+// The written help for one screen, shown in its "Help with this page" panel.
+export interface PageGuide {
+  summary: string; // what the screen is for, two or three sentences
+  // "How do I…?" with numbered steps, in the order someone would do them
+  howTo: { question: string; steps: string[] }[];
+  tips?: string[];
+  // who can use what here, in plain words (left out when everyone can do everything)
+  access?: string;
+}
+
+export interface TourPage {
+  id: string;
+  title: string; // as it appears in the menu
+  route: TourRoute;
+  steps: TourStep[];
+  guide?: PageGuide;
   showIf?: (user: AuthUser | null) => boolean;
 }
 
 export interface TourChapter {
   id: string;
   title: string;
-  blurb: string; // one line on the chapter menu
-  steps: TourStep[];
+  blurb: string;
+  pages: TourPage[];
 }
 
 export interface PlannedStep {
   chapterId: string;
+  pageId: string;
   step: TourStep;
   route: string;
 }
 
-// Where a step takes this person, or null to skip it.
-export function stepRoute(step: TourStep, firstVehicleId: string | null, user: AuthUser | null): string | null {
-  if (step.showIf && !step.showIf(user)) return null;
-  const route = typeof step.route === "function" ? step.route({ firstVehicleId }) : step.route;
+export function pageRoute(page: TourPage, firstVehicleId: string | null, user: AuthUser | null): string | null {
+  if (page.showIf && !page.showIf(user)) return null;
+  const route = typeof page.route === "function" ? page.route({ firstVehicleId }) : page.route;
   return route !== null && canOpenPage(user, route) ? route : null;
 }
 
-// The chapters this person gets, each with only the steps they get; a chapter
-// left with no steps isn't offered at all.
-export function chaptersFor(chapters: readonly TourChapter[], user: AuthUser | null, firstVehicleId: string | null): TourChapter[] {
-  return chapters
-    .map(chapter => ({ ...chapter, steps: chapter.steps.filter(step => stepRoute(step, firstVehicleId, user) !== null) }))
-    .filter(chapter => chapter.steps.length > 0);
+function stepsFor(page: TourPage, user: AuthUser | null): TourStep[] {
+  return page.steps.filter(step => !step.showIf || step.showIf(user));
 }
 
-// The steps of a run, in order: every chapter (the full tour), or just one.
-export function planFor(
-  chapters: readonly TourChapter[],
-  user: AuthUser | null,
-  firstVehicleId: string | null,
-  onlyChapterId?: string
-): PlannedStep[] {
+// The chapters this person gets, with only the screens (and stops) they get.
+export function chaptersFor(chapters: readonly TourChapter[], user: AuthUser | null, firstVehicleId: string | null): TourChapter[] {
+  return chapters
+    .map(chapter => ({
+      ...chapter,
+      pages: chapter.pages
+        .filter(page => pageRoute(page, firstVehicleId, user) !== null)
+        .map(page => ({ ...page, steps: stepsFor(page, user) }))
+        .filter(page => page.steps.length > 0),
+    }))
+    .filter(chapter => chapter.pages.length > 0);
+}
+
+export interface RunScope {
+  chapterId?: string;
+  pageId?: string;
+}
+
+// The stops of a run, in order: everything, one chapter, or one screen.
+export function planFor(chapters: readonly TourChapter[], user: AuthUser | null, firstVehicleId: string | null, scope: RunScope = {}): PlannedStep[] {
   return chaptersFor(chapters, user, firstVehicleId)
-    .filter(chapter => onlyChapterId === undefined || chapter.id === onlyChapterId)
+    .filter(chapter => scope.chapterId === undefined || chapter.id === scope.chapterId)
     .flatMap(chapter =>
-      chapter.steps.map(step => ({ chapterId: chapter.id, step, route: stepRoute(step, firstVehicleId, user)! }))
+      chapter.pages
+        .filter(page => scope.pageId === undefined || page.id === scope.pageId)
+        .flatMap(page => {
+          const route = pageRoute(page, firstVehicleId, user)!;
+          return page.steps.map(step => ({ chapterId: chapter.id, pageId: page.id, step, route }));
+        })
     );
 }
 
-// "Skip this section": the first step of the next chapter, or null at the end.
-export function nextChapterStart(plan: readonly PlannedStep[], index: number): number | null {
-  const here = plan[index]?.chapterId;
-  for (let i = index + 1; i < plan.length; i++) if (plan[i]!.chapterId !== here) return i;
+// "Skip this screen": the first stop of the next screen, or null at the end.
+export function nextPageStart(plan: readonly PlannedStep[], index: number): number | null {
+  const here = plan[index]?.pageId;
+  for (let i = index + 1; i < plan.length; i++) if (plan[i]!.pageId !== here) return i;
   return null;
 }
 
-// Where a step sits inside its chapter: "2 of 5".
-export function placeInChapter(plan: readonly PlannedStep[], index: number): { at: number; of: number } {
-  const here = plan[index]?.chapterId;
-  const inChapter = plan.filter(p => p.chapterId === here);
-  const at = plan.slice(0, index + 1).filter(p => p.chapterId === here).length;
-  return { at, of: inChapter.length };
+// Where a stop sits on its screen: "2 of 5".
+export function placeOnPage(plan: readonly PlannedStep[], index: number): { at: number; of: number } {
+  const here = plan[index]?.pageId;
+  return {
+    at: plan.slice(0, index + 1).filter(p => p.pageId === here).length,
+    of: plan.filter(p => p.pageId === here).length,
+  };
+}
+
+// Does a screen's route pattern match an address? "/dealer/inventory/:car"
+// style routes are written as functions, so they match by their fixed part.
+export function pageForPath(chapters: readonly TourChapter[], path: string, firstVehicleId: string | null, user: AuthUser | null): TourPage | null {
+  const clean = path.replace(/\/+$/, "") || "/";
+  let best: TourPage | null = null;
+  for (const chapter of chaptersFor(chapters, user, firstVehicleId)) {
+    for (const page of chapter.pages) {
+      const route = pageRoute(page, firstVehicleId, user);
+      if (!route) continue;
+      if (route === clean) return page;
+      // a car's screen: the same screen for any car
+      const pattern = route.replace(firstVehicleId ?? "\u0000", "[^/]+");
+      if (firstVehicleId && pattern !== route && new RegExp(`^${pattern}$`).test(clean)) best = page;
+    }
+  }
+  return best;
 }

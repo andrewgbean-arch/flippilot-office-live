@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { FiMic, FiMicOff, FiVolume2, FiVolumeX } from "react-icons/fi";
 import AssistantMarkdown from "./AssistantMarkdown";
 import { fetchPilotBrainMessages, sendPilotBrainMessage, fetchSpeech, fetchMorningBriefing, fetchPerformanceReview, fetchTodaysPriorities, clearPilotBrainConversation, fetchVoices, type PilotVoice, type PilotBrainMessage, type ReviewPeriod } from "@/lib/pilotBrainApi";
@@ -62,7 +62,10 @@ function pickFemaleVoice(synth: SpeechSynthesis): SpeechSynthesisVoice | undefin
 export default function PilotBrainChat() {
   const [messages, setMessages] = useState<PilotBrainMessage[]>([]);
   const [loading, setLoading] = useState(true);
-  const [input, setInput] = useState("");
+  // "Ask Wendy about this page" (the help panel) arrives with ?ask=<question>:
+  // it is typed in for them to send or change, never sent on its own.
+  const [searchParams] = useSearchParams();
+  const [input, setInput] = useState(() => (searchParams.get("ask") ?? "").slice(0, 500));
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);

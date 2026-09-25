@@ -16,6 +16,7 @@ import InventoryLoadErrorBanner from "../components/InventoryLoadErrorBanner";
 import { useInventory } from "@/context/InventoryProvider";
 import { computeDealerHudStats } from "@/lib/dealerHudStats";
 import PageAccessGate from "@/components/PageAccessGate";
+import PageHelp from "@/tour/PageHelp";
 
 export default function DealerLayout() {
   const { pathname } = useLocation();
@@ -114,6 +115,7 @@ export default function DealerLayout() {
                 <Outlet />
               </PageAccessGate>
             </ErrorBoundary>
+            <PageHelp />
           </div>
         </main>
 

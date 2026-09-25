@@ -7,9 +7,11 @@ import type { TourChapter } from "./tourPlan";
 const PADDING = 8;
 
 // Roughly how long Wendy takes to read it, for the start screen.
+const stepsOf = (chapter: TourChapter) => chapter.pages.flatMap(p => p.steps);
 export function minutesFor(chapters: readonly TourChapter[]): number {
-  const words = chapters.reduce((n, c) => n + c.steps.reduce((m, s) => m + s.narration.split(/\s+/).length, 0), 0);
-  return Math.max(1, Math.round(words / 150 + chapters.reduce((n, c) => n + c.steps.length, 0) * 0.02));
+  const steps = chapters.flatMap(stepsOf);
+  const words = steps.reduce((n, s) => n + s.narration.split(/\s+/).length, 0);
+  return Math.max(1, Math.round(words / 150 + steps.length * 0.02));
 }
 
 const gold = "bg-yellow-400 text-black hover:bg-yellow-300";
@@ -59,9 +61,30 @@ export function TourOverlay() {
             <button onClick={tour.runFullTour} className={`mt-3 w-full rounded-lg px-4 py-3 text-base font-bold transition ${gold}`}>
               Take the full tour · about {minutesFor(tour.chapters)} minutes
             </button>
+
+            <label htmlFor="tour-pick-screen" className="mt-3 block text-xs font-semibold uppercase tracking-wider text-white/50">
+              Or tour one screen
+            </label>
+            <select
+              id="tour-pick-screen"
+              value=""
+              onChange={e => e.target.value && tour.runPage(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2.5 text-sm text-white"
+            >
+              <option value="">Pick a screen…</option>
+              {tour.chapters.map(chapter => (
+                <optgroup key={chapter.id} label={chapter.title}>
+                  {chapter.pages.map(page => (
+                    <option key={page.id} value={page.id}>
+                      {page.title} · {page.steps.length} {page.steps.length === 1 ? "stop" : "stops"}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
           </div>
 
-          <p className="mt-4 px-5 text-xs font-semibold uppercase tracking-wider text-white/50 sm:px-6">Or pick a chapter</p>
+          <p className="mt-4 px-5 text-xs font-semibold uppercase tracking-wider text-white/50 sm:px-6">Or watch a chapter</p>
           <ol className="mt-2 flex-1 space-y-1.5 overflow-y-auto px-3 pb-3 sm:px-4">
             {tour.chapters.map((chapter, i) => {
               const done = tour.doneChapters.has(chapter.id);
@@ -84,7 +107,7 @@ export function TourOverlay() {
                       </span>
                       <span className="block text-xs text-white/60">{chapter.blurb}</span>
                     </span>
-                    <span className="shrink-0 text-xs text-white/50">{chapter.steps.length} stops</span>
+                    <span className="shrink-0 text-xs text-white/50">{chapter.pages.length} {chapter.pages.length === 1 ? "screen" : "screens"}</span>
                     <FiChevronRight className="shrink-0 text-yellow-300" aria-hidden />
                   </button>
                 </li>
@@ -150,7 +173,7 @@ export function TourOverlay() {
     cardStyle = { position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: cardWidth, zIndex: 9999 };
   }
 
-  const endLabel = tour.isLastOfRun ? (tour.singleChapter ? "Finish chapter" : "Finish") : "Next";
+  const endLabel = tour.isLastOfRun ? "Finish" : "Next";
 
   return (
     <>
@@ -159,7 +182,8 @@ export function TourOverlay() {
         <div className="rounded-xl border border-yellow-400/50 bg-[#0A1128] p-4 text-white shadow-[0_0_30px_rgba(255,215,0,0.35)] sm:p-5">
           <div className="mb-2 flex items-center justify-between gap-3 text-xs font-semibold">
             <span className="truncate uppercase tracking-wide text-yellow-300/80">
-              Chapter {tour.chapterNumber} · {tour.chapter?.title}
+              {tour.singleRun && tour.page && !tour.chapter?.pages.some(p => p.id !== tour.page!.id) ? "" : `Chapter ${tour.chapterNumber} · `}
+              {tour.page?.title}
             </span>
             <span className="shrink-0 text-white/50">
               {tour.place.at} of {tour.place.of}
@@ -193,8 +217,8 @@ export function TourOverlay() {
           </div>
 
           <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-white/10 pt-3 text-sm">
-            <button onClick={tour.skipSection} className="font-semibold text-yellow-300 hover:text-yellow-200">
-              Skip this section →
+            <button onClick={tour.skipPage} className="font-semibold text-yellow-300 hover:text-yellow-200">
+              {tour.isLastOfRun || tour.place.of === 0 ? "Skip" : "Skip this screen →"}
             </button>
             <span className="flex gap-3">
               <button onClick={tour.showChapters} className="text-white/70 hover:text-white">
@@ -210,3 +234,4 @@ export function TourOverlay() {
     </>
   );
 }
+

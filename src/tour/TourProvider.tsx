@@ -3,8 +3,16 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { useInventory } from "@/context/InventoryProvider";
 import { TOUR_CHAPTERS } from "./tourSteps";
-import { chaptersFor, nextChapterStart, placeInChapter, planFor, type PlannedStep, type TourChapter } from "./tourPlan";
+import { chaptersFor, nextPageStart, pageForPath, placeOnPage, planFor, type PlannedStep, type RunScope, type TourChapter, type TourPage } from "./tourPlan";
 import { TourOverlay } from "./TourOverlay";
+
+type CarLike = { id: string; status?: string | null; images?: string[] | null; mot?: { history?: unknown[] | null } | null };
+
+export function showcaseCarId(vehicles: readonly CarLike[]): string | null {
+  const inStock = vehicles.filter(v => String(v.status ?? "").toLowerCase() !== "sold");
+  const rich = inStock.find(v => (v.images?.length ?? 0) > 1 && (v.mot?.history?.length ?? 0) > 0);
+  return (rich ?? inStock.find(v => (v.images?.length ?? 0) > 0) ?? inStock[0] ?? vehicles[0])?.id ?? null;
+}
 
 function seenKey(userId: string) {
   return `flippilot_tour_seen_${userId}`;
@@ -26,6 +34,47 @@ function estimateSpeechMs(text: string): number {
   return Math.max(3000, (words / 110) * 60 * 1000 + 2000);
 }
 
+// Only something actually on screen counts: the side columns are hidden on a
+// phone, and outlining a hidden element would draw a box around nothing.
+function shown(el: Element | null | undefined): Element | null {
+  if (!el) return null;
+  const box = el.getBoundingClientRect();
+  return box.width > 0 && box.height > 0 ? el : null;
+}
+
+const norm = (t: string | null | undefined) => (t ?? "").replace(/\s+/g, " ").trim().toLowerCase();
+
+// The card a heading belongs to: the nearest box around it with a border or a
+// background of its own, inside the page (never the page itself).
+function cardAround(el: Element): Element {
+  const main = document.querySelector("main");
+  for (let node = el.parentElement; node && node !== main && node !== document.body; node = node.parentElement) {
+    const css = getComputedStyle(node);
+    const bordered = parseFloat(css.borderTopWidth) > 0 || parseFloat(css.borderLeftWidth) > 0;
+    const filled = css.backgroundColor !== "rgba(0, 0, 0, 0)" && css.backgroundColor !== "transparent";
+    if ((bordered || filled) && node.children.length > 1) return node;
+  }
+  return el.parentElement ?? el;
+}
+
+// Finds what a stop outlines (see TourStep.target in tourPlan.ts).
+export function findTarget(target: string): Element | null {
+  if (target.startsWith("css:")) return shown(document.querySelector(target.slice(4)));
+  if (target.startsWith("heading:")) {
+    const want = norm(target.slice(8));
+    const scope = document.querySelector("main") ?? document.body;
+    const heading = [...scope.querySelectorAll("h1,h2,h3,h4,.brand-caps,.sn-panel__title")].find(
+      h => shown(h) && norm(h.textContent).startsWith(want)
+    );
+    return heading ? shown(heading.tagName === "H1" ? heading : cardAround(heading)) : null;
+  }
+  if (target.startsWith("button:")) {
+    const want = norm(target.slice(7));
+    return shown([...document.querySelectorAll("button,a[href],[role=tab]")].find(b => shown(b) && norm(b.textContent).startsWith(want)));
+  }
+  return shown(document.querySelector(`[data-tour="${target}"]`));
+}
+
 // "menu": the start screen / chapter list. "running": walking through steps.
 type Phase = "menu" | "running";
 
@@ -37,10 +86,12 @@ interface TourContextType {
   current: PlannedStep | null;
   chapter: TourChapter | null;
   chapterNumber: number; // 1-based, among the chapters offered
-  place: { at: number; of: number };
+  page: TourPage | null; // the screen being toured
+  place: { at: number; of: number }; // the stop, on its screen
+  thisPage: TourPage | null; // the screen the person is on now, if it has a tour
   isFirst: boolean;
   isLastOfRun: boolean;
-  singleChapter: boolean;
+  singleRun: boolean; // one chapter or one screen, rather than everything
   targetRect: DOMRect | null;
   sound: boolean;
   paused: boolean;
@@ -49,9 +100,11 @@ interface TourContextType {
   setSound: (on: boolean) => void;
   runFullTour: () => void;
   runChapter: (chapterId: string) => void;
+  runPage: (pageId: string) => void;
+  tourThisPage: () => void;
   nextStep: () => void;
   prevStep: () => void;
-  skipSection: () => void;
+  skipPage: () => void;
   showChapters: () => void;
   togglePause: () => void;
 }
@@ -64,14 +117,17 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const firstVehicleId = vehicles[0]?.id ?? null;
+  // The car the tour shows off: one still in stock with photos and an MOT
+  // record if there is one, so every stop on a car's screens has something
+  // to point at; otherwise any car still in stock; otherwise any car.
+  const firstVehicleId = useMemo(() => showcaseCarId(vehicles), [vehicles]);
   const chapters = useMemo(() => chaptersFor(TOUR_CHAPTERS, user, firstVehicleId), [user, firstVehicleId]);
 
   const [isActive, setIsActive] = useState(false);
   const [phase, setPhase] = useState<Phase>("menu");
   const [plan, setPlan] = useState<PlannedStep[]>([]);
   const [index, setIndex] = useState(0);
-  const [singleChapter, setSingleChapter] = useState(false);
+  const [singleRun, setSingleRun] = useState(false);
   const [doneChapters, setDoneChapters] = useState<Set<string>>(new Set());
   const [sound, setSound] = useState(true);
   const [paused, setPaused] = useState(false);
@@ -133,23 +189,35 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
   }, [silence]);
 
   const run = useCallback(
-    (steps: PlannedStep[], single: boolean) => {
+    (scope: RunScope) => {
+      const steps = planFor(TOUR_CHAPTERS, user, firstVehicleId, scope);
       silence();
       if (steps.length === 0) return;
+      autoStartChecked.current = true;
       setPlan(steps);
       setIndex(0);
-      setSingleChapter(single);
+      setSingleRun(scope.chapterId !== undefined || scope.pageId !== undefined);
       setPaused(false);
+      setIsActive(true);
       setPhase("running");
     },
-    [silence]
+    [silence, user, firstVehicleId]
   );
 
-  const runFullTour = useCallback(() => run(planFor(TOUR_CHAPTERS, user, firstVehicleId), false), [run, user, firstVehicleId]);
-  const runChapter = useCallback(
-    (chapterId: string) => run(planFor(TOUR_CHAPTERS, user, firstVehicleId, chapterId), true),
-    [run, user, firstVehicleId]
+  const runFullTour = useCallback(() => run({}), [run]);
+  const runChapter = useCallback((chapterId: string) => run({ chapterId }), [run]);
+  const runPage = useCallback((pageId: string) => run({ pageId }), [run]);
+
+  // The screen the person is looking at, if the tour covers it.
+  const thisPage = useMemo(
+    () => pageForPath(TOUR_CHAPTERS, location.pathname, firstVehicleId, user),
+    [location.pathname, firstVehicleId, user]
   );
+
+  const tourThisPage = useCallback(() => {
+    if (thisPage) runPage(thisPage.id);
+    else startTour();
+  }, [thisPage, runPage, startTour]);
 
   const showChapters = useCallback(() => {
     silence();
@@ -157,13 +225,14 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
     setPhase("menu");
   }, [silence]);
 
-  // Reaching the end of a run: a single chapter goes back to the chapter list
-  // (ticked), the full tour finishes.
+  // Reaching the end of a run: one chapter goes back to the chapter list
+  // (ticked); one screen, or the whole tour, just finishes.
   const finishRun = useCallback(() => {
     setDoneChapters(prev => new Set([...prev, ...plan.map(p => p.chapterId)]));
-    if (singleChapter) showChapters();
+    const oneChapter = singleRun && new Set(plan.map(p => p.pageId)).size > 1;
+    if (oneChapter) showChapters();
     else stopTour();
-  }, [plan, singleChapter, showChapters, stopTour]);
+  }, [plan, singleRun, showChapters, stopTour]);
 
   const goTo = useCallback(
     (i: number) => {
@@ -185,8 +254,8 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
     if (index > 0) goTo(index - 1);
   }, [index, goTo]);
 
-  const skipSection = useCallback(() => {
-    const next = nextChapterStart(plan, index);
+  const skipPage = useCallback(() => {
+    const next = nextPageStart(plan, index);
     if (next === null) finishRun();
     else goTo(next);
   }, [plan, index, finishRun, goTo]);
@@ -279,14 +348,7 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     const target = current.step.target;
-    // Only something actually on screen: the side columns are hidden on a
-    // phone, and outlining a hidden element would draw a box around nothing.
-    const find = () => {
-      const el = document.querySelector(target.startsWith("css:") ? target.slice(4) : `[data-tour="${target}"]`);
-      if (!el) return null;
-      const box = el.getBoundingClientRect();
-      return box.width > 0 && box.height > 0 ? el : null;
-    };
+    const find = () => findTarget(target);
 
     let cancelled = false;
     let attempts = 0;
@@ -334,10 +396,12 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
         current,
         chapter,
         chapterNumber,
-        place: current ? placeInChapter(plan, index) : { at: 0, of: 0 },
+        page: current ? chapter?.pages.find(p => p.id === current.pageId) ?? null : null,
+        place: current ? placeOnPage(plan, index) : { at: 0, of: 0 },
+        thisPage,
         isFirst: index === 0,
         isLastOfRun: index === plan.length - 1,
-        singleChapter,
+        singleRun,
         targetRect,
         sound,
         paused,
@@ -346,9 +410,11 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
         setSound,
         runFullTour,
         runChapter,
+        runPage,
+        tourThisPage,
         nextStep,
         prevStep,
-        skipSection,
+        skipPage,
         showChapters,
         togglePause,
       }}
