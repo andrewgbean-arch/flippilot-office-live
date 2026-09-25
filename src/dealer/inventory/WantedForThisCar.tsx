@@ -2,23 +2,29 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { loadWanted } from "@/lib/wantedApi";
 import { waitingForCar, waitingSentence } from "@/dealer/sales/wantedBoardModel";
+import { useAuth } from "@/context/AuthContext";
+import { canSeeWanted } from "@/lib/permissions";
 
 // On a car's page: how many people have asked to be told about a car like this,
 // with a way to see who. Shows nothing at all when nobody is waiting, and also
-// nothing (rather than an error) for staff who aren't allowed to see the list.
+// nothing for staff who aren't allowed to see the list (who aren't asked for it,
+// so there is no refused request either).
 export default function WantedForThisCar({ vehicleId }: { vehicleId: string }) {
   const [count, setCount] = useState(0);
+  const { user } = useAuth();
+  const allowed = canSeeWanted(user);
 
   useEffect(() => {
     let cancelled = false;
     setCount(0);
+    if (!allowed) return;
     loadWanted().then(res => {
       if (!cancelled && res.ok && res.data) setCount(waitingForCar(res.data.items, vehicleId).length);
     });
     return () => {
       cancelled = true;
     };
-  }, [vehicleId]);
+  }, [vehicleId, allowed]);
 
   if (count === 0) return null;
   return (
