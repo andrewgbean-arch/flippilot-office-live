@@ -1,3 +1,6 @@
+import type { AuthUser } from "@/context/AuthContext";
+import { canOpenPage } from "@/lib/pageAccess";
+
 // One walkthrough of the real app, spanning multiple real pages. Each
 // step names a route (the tour navigates there itself — the dealer
 // never has to find their own way through the sidebar mid-tour) and a
@@ -21,6 +24,14 @@ export interface TourRouteContext {
   firstVehicleId: string | null;
 }
 
+// Where a step takes this person, or null to skip it: no car to show yet, or
+// a page their role can't open (Bookkeeping for sales staff, say), which would
+// only show them a lock panel.
+export function stepRoute(step: TourStep, firstVehicleId: string | null, user: AuthUser | null): string | null {
+  const route = typeof step.route === "function" ? step.route({ firstVehicleId }) : step.route;
+  return route !== null && canOpenPage(user, route) ? route : null;
+}
+
 export const TOUR_STEPS: TourStep[] = [
   {
     id: "welcome",
@@ -36,7 +47,7 @@ export const TOUR_STEPS: TourStep[] = [
     target: "tour-headline-stats",
     title: "Your numbers, at a glance",
     narration:
-      "These five tiles show your real stock value, profit this month, sales, open leads, and today's appointments — all computed live from your own data. Click any tile to jump straight to it.",
+      "These tiles show your real stock value, open leads and today's appointments, plus profit and sales this month if you look after the money — all computed live from your own data. Click any tile to jump straight to it.",
   },
   {
     id: "todays-actions",

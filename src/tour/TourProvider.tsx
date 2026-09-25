@@ -2,12 +2,8 @@ import React, { createContext, useCallback, useContext, useEffect, useRef, useSt
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { useInventory } from "@/context/InventoryProvider";
-import { TOUR_STEPS, type TourStep } from "./tourSteps";
+import { TOUR_STEPS, stepRoute } from "./tourSteps";
 import { TourOverlay } from "./TourOverlay";
-
-function resolveRoute(step: TourStep, firstVehicleId: string | null): string | null {
-  return typeof step.route === "function" ? step.route({ firstVehicleId }) : step.route;
-}
 
 function seenKey(userId: string) {
   return `flippilot_tour_seen_${userId}`;
@@ -158,10 +154,11 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!isActive || hasSound === null || !step) return;
 
-    const resolvedRoute = resolveRoute(step, firstVehicleId);
+    const resolvedRoute = stepRoute(step, firstVehicleId, user);
     if (resolvedRoute === null) {
       // e.g. the vehicle-record step with no vehicle in stock yet to
-      // show — skip straight past it rather than navigating nowhere.
+      // show, or Bookkeeping for someone whose role can't open it — skip
+      // straight past it rather than navigating nowhere.
       nextStep();
       return;
     }

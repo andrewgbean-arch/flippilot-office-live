@@ -236,7 +236,7 @@ export default function DealerDashboard({ brain }: Props) {
       </div>
 
       {/* HEADLINE NUMBERS */}
-      {/* On a phone the five tiles sit two to a row; the odd one out spans the
+      {/* On a phone the tiles (five, or four without the money) sit two to a row; the odd one out spans the
           full row instead of sitting alone beside an empty gap. */}
       <div
         data-tour="tour-headline-stats"

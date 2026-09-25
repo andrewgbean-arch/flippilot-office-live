@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { TOUR_STEPS, type TourStep } from "./tourSteps";
+import { TOUR_STEPS, stepRoute, type TourStep } from "./tourSteps";
+import type { AuthUser } from "@/context/AuthContext";
 
 // Every new dealer now starts with no vehicles, and the tour runs on
 // their first login. A step that points at something on a vehicle's row
@@ -31,5 +32,22 @@ describe("tour steps that need a vehicle", () => {
 
   it("the vehicle list itself is still shown with no stock — the page exists, only the row buttons don't", () => {
     expect(resolveRoute(step("vehicle-list"), null)).toBe("/dealer/inventory/list");
+  });
+});
+
+describe("tour steps on pages a role can't open", () => {
+  const owner = { id: "o", email: "o@x", name: "O", role: "owner", dealershipId: "d" } as AuthUser;
+  const sales = { ...owner, role: "staff", staffRole: "sales" } as AuthUser;
+
+  it("skips Bookkeeping for sales staff instead of showing them a lock panel", () => {
+    expect(stepRoute(step("bookkeeping"), "abc", sales)).toBeNull();
+    expect(stepRoute(step("bookkeeping-actions"), "abc", sales)).toBeNull();
+  });
+
+  it("keeps every step for the owner, and every other step for sales staff", () => {
+    for (const s of TOUR_STEPS) {
+      expect(stepRoute(s, "abc", owner), s.id).not.toBeNull();
+      if (!s.id.startsWith("bookkeeping")) expect(stepRoute(s, "abc", sales), s.id).not.toBeNull();
+    }
   });
 });
