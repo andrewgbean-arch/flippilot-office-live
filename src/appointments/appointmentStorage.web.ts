@@ -3,14 +3,17 @@ import type { Appointment, AppointmentStatus, AppointmentOutcome } from "./appoi
 
 import { BASE_URL } from "@/lib/apiBaseUrl";
 
-export async function loadAppointments(): Promise<Appointment[]> {
+// null when the list couldn't be read (offline, server error, signed out).
+// That is never "no bookings": the screen keeps what it already shows.
+export async function loadAppointments(): Promise<Appointment[] | null> {
   try {
     const res = await fetch(`${BASE_URL}/appointments`, { headers: authHeaders() });
+    if (!res.ok) return null;
     const data = await res.json();
-    return Array.isArray(data.items) ? data.items : [];
+    return Array.isArray(data.items) ? data.items : null;
   } catch (err) {
     console.error("loadAppointments: backend unreachable", err);
-    return [];
+    return null;
   }
 }
 
@@ -25,7 +28,7 @@ export interface AppointmentEdit {
 export async function updateAppointment(
   id: string,
   patch: AppointmentEdit
-): Promise<{ ok: boolean; error?: string; items: Appointment[] }> {
+): Promise<{ ok: boolean; error?: string; items: Appointment[] | null }> {
   try {
     const res = await fetch(`${BASE_URL}/appointments/${id}`, {
       method: "PUT",
@@ -33,9 +36,9 @@ export async function updateAppointment(
       body: JSON.stringify(patch),
     });
     const data = await res.json();
-    return { ok: res.ok, error: data.error, items: Array.isArray(data.items) ? data.items : [] };
+    return { ok: res.ok, error: data.error, items: Array.isArray(data.items) ? data.items : null };
   } catch (err) {
     console.error("updateAppointment: backend unreachable", err);
-    return { ok: false, error: "Network error", items: [] };
+    return { ok: false, error: "Network error", items: null };
   }
 }

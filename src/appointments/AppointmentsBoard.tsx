@@ -23,7 +23,9 @@ const TYPE_LABEL: Record<Appointment["type"], string> = {
 };
 
 export default function AppointmentsBoard() {
-  const { appointments, loading, update } = useAppointments();
+  const { appointments, loading, update, refresh } = useAppointments();
+  // Opening this screen always shows the latest requests.
+  useEffect(() => { void refresh(); }, [refresh]);
   const { user } = useAuth();
   const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
