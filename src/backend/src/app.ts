@@ -55,26 +55,36 @@ import { requireApprovedDealership, requireActiveSubscription, requirePilotBrain
 // binding to an actual port or needing the dev server running.
 const app = express();
 
-// Deployed on Render, every request arrives via Render's reverse proxy,
-// so the address that actually opens the connection is the proxy's, not
-// the visitor's. Left at Express's default (`false`), req.ip is that
-// proxy address for everyone — and every rate limiter below and in
-// routes/ keys on req.ip, so ALL users on the platform shared one
-// bucket (10 logins per 15 minutes across every dealer combined, 20
-// signups an hour platform-wide). express-rate-limit flagged it in
-// Render's logs as ERR_ERL_UNEXPECTED_X_FORWARDED_FOR.
+// Every rate limiter below and in routes/ keys on req.ip, and what req.ip
+// returns is decided by this setting, so it has to match the real chain of
+// proxies in front of the app. On Render there are TWO, Cloudflare and then
+// Render's own router, and each adds to X-Forwarded-For. Read off production
+// (2026-09-21, with a temporary diagnostic route), a request arrives as:
 //
-// The value is a hop count, deliberately not `true`: a client can send
-// its own X-Forwarded-For and proxies append to it, so the leftmost
-// entry (what `true` trusts) is client-controlled and would let anyone
-// dodge a limit by rotating a fake value. Trusting exactly 1 hop means
-// req.ip is the entry the proxy itself appended — the address it really
-// saw connect — which a client can't forge. Too HIGH a count would walk
-// back into client-supplied entries (the dangerous direction); too low
-// only makes buckets coarser. If Render's chain is ever more than one
-// proxy, raise this to match rather than guessing higher.
+//     X-Forwarded-For: <anything the client sent>, <visitor>, <Cloudflare address>
+//
+// Cloudflare appends the visitor; Render's router then appends the Cloudflare
+// address it saw connect, and that address changes from one request to the
+// next. The value is a hop count taken from the right, with the socket peer
+// (Render's router) as the first hop:
+//   - unset (false): req.ip is Render's router for everybody, so ALL users on
+//     the platform shared one bucket (10 logins per 15 minutes across every
+//     dealer combined). express-rate-limit logged it as
+//     ERR_ERL_UNEXPECTED_X_FORWARDED_FOR.
+//   - 1: req.ip is the rotating Cloudflare address. One visitor was spread over
+//     many buckets, so login guessing got many times its intended budget while
+//     strangers shared buckets. Measured live; this is what shipped first.
+//   - 2: req.ip is the entry Cloudflare recorded, the visitor. Correct.
+//   - true, or 3 and up: reaches the entries the client wrote itself, so anyone
+//     could pick their own bucket by rotating a fake X-Forwarded-For.
+//
+// This assumes every request really passes through both proxies. One that
+// reached Render's router without going through Cloudflare would carry one
+// entry fewer, and this would pick up a client-written one. If Render's origin
+// can ever be reached around Cloudflare, switch to listing the trusted proxy
+// address ranges instead of counting hops.
 // (rateLimit.test.ts pins this behaviour.)
-app.set("trust proxy", 1);
+app.set("trust proxy", 2);
 
 app.use(cors());
 
@@ -269,26 +279,6 @@ registerWantedRoute(app);
 // stopping it being scraped at scale.
 registerDVLA(app);
 registerSyndicationRoute(app);
-
-// TEMPORARY DIAGNOSTIC — removed again in the very next commit. The live
-// rate limiters were measured spreading one visitor across several buckets, so
-// the `trust proxy` hop count above is too low, but nothing in the app shows
-// what Render actually delivers. This hands the caller back the forwarding
-// headers of THEIR OWN request (nothing about anyone else, nothing from the
-// server), so the right count can be read off real data instead of guessed.
-app.get("/diag/client-ip", (req, res) => {
-  res.set("Cache-Control", "no-store");
-  res.json({
-    trustProxy: app.get("trust proxy"),
-    ip: req.ip,
-    ips: req.ips,
-    xForwardedFor: req.headers["x-forwarded-for"] ?? null,
-    cfConnectingIp: req.headers["cf-connecting-ip"] ?? null,
-    trueClientIp: req.headers["true-client-ip"] ?? null,
-    forwarded: req.headers["forwarded"] ?? null,
-    xForwardedProto: req.headers["x-forwarded-proto"] ?? null,
-  });
-});
 
 // The last stop for anything a route throws or rejects (asyncErrors.ts makes a
 // rejected async handler arrive here instead of killing the process). Answer in JSON
