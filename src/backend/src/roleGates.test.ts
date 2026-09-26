@@ -262,6 +262,51 @@ describe("jobs", () => {
   });
 });
 
+describe("removing leads and jobs", () => {
+  const lead = (id: string) => ({ id, name: `Lead ${id}`, status: "new" });
+  const job = (id: string) => ({ id, title: `Job ${id}`, status: "todo" });
+  const leadIds = async () => ((await request(app).get("/leads").set(auth(owner))).body.items as any[]).map(l => l.id).sort();
+  const jobIds = async () => ((await request(app).get("/jobs").set(auth(owner))).body.items as any[]).map(j => j.id).sort();
+
+  it("lets everyone add and update leads, but only sales, managers and the owner remove one", async () => {
+    await request(app).put("/leads").set(auth(owner)).send({ items: [lead("a"), lead("b")] });
+    // general staff and finance can add and update...
+    expect((await request(app).put("/leads").set(auth(staff.general)).send({ items: [lead("a"), { ...lead("b"), status: "contacted" }, lead("c")] })).status).toBe(200);
+    expect((await request(app).put("/leads").set(auth(staff.finance)).send({ items: [lead("a"), lead("b"), lead("c"), lead("d")] })).status).toBe(200);
+    // ...but not remove, and nothing at all is saved when they try
+    for (const who of [staff.general, staff.finance]) {
+      const res = await request(app).put("/leads").set(auth(who)).send({ items: [lead("a"), lead("b"), { ...lead("c"), status: "won" }] });
+      expect(res.status).toBe(403);
+      expect(res.body.error).toMatch(/Only sales, managers and the owner can remove a lead/);
+    }
+    expect(await leadIds()).toEqual(["a", "b", "c", "d"]);
+    const c = ((await request(app).get("/leads").set(auth(owner))).body.items as any[]).find(l => l.id === "c");
+    expect(c.status).toBe("new");
+    // an empty list is removing every lead
+    expect((await request(app).put("/leads").set(auth(staff.general)).send({ items: [] })).status).toBe(403);
+    expect(await leadIds()).toEqual(["a", "b", "c", "d"]);
+    // sales, a manager and the owner can
+    expect((await request(app).put("/leads").set(auth(staff.sales)).send({ items: [lead("a"), lead("b"), lead("c")] })).status).toBe(200);
+    expect((await request(app).put("/leads").set(auth(staff.manager)).send({ items: [lead("a"), lead("b")] })).status).toBe(200);
+    expect((await request(app).put("/leads").set(auth(owner)).send({ items: [lead("a")] })).status).toBe(200);
+    expect(await leadIds()).toEqual(["a"]);
+  });
+
+  it("lets everyone add, edit and move jobs, but only managers and the owner delete one", async () => {
+    await request(app).put("/jobs").set(auth(owner)).send({ items: [job("x"), job("y")] });
+    expect((await request(app).put("/jobs").set(auth(staff.general)).send({ items: [job("x"), { ...job("y"), status: "done" }, job("z")] })).status).toBe(200);
+    for (const who of [staff.general, staff.sales, staff.finance]) {
+      const res = await request(app).put("/jobs").set(auth(who)).send({ items: [job("x"), job("z")] });
+      expect(res.status).toBe(403);
+      expect(res.body.error).toMatch(/Only managers and the owner can delete a job/);
+    }
+    expect(await jobIds()).toEqual(["x", "y", "z"]);
+    expect((await request(app).put("/jobs").set(auth(staff.manager)).send({ items: [job("x"), job("z")] })).status).toBe(200);
+    expect((await request(app).put("/jobs").set(auth(owner)).send({ items: [job("x")] })).status).toBe(200);
+    expect(await jobIds()).toEqual(["x"]);
+  });
+});
+
 describe("customers", () => {
   it("can be erased, or replaced wholesale, only by the owner and managers", async () => {
     const made = await request(app).post("/customers").set(auth(staff.sales)).send({ name: "Pat Buyer", phone: "07700 900123" });

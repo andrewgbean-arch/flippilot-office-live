@@ -7,15 +7,18 @@ import { useGuardedLoad } from "@/lib/useGuardedLoad";
 interface JobsContextType {
   jobs: Job[];
   loading: boolean;
-  addJob: (job: Job) => Promise<void>;
-  updateJob: (job: Job) => Promise<void>;
-  removeJob: (id: string) => Promise<void>;
+  // Each resolves to false when nothing was saved; saveError says why.
+  addJob: (job: Job) => Promise<boolean>;
+  updateJob: (job: Job) => Promise<boolean>;
+  removeJob: (id: string) => Promise<boolean>;
+  saveError: string | null;
 }
 
 const JobsContext = createContext<JobsContextType | undefined>(undefined);
 
 export function JobsProvider({ children }: { children: React.ReactNode }) {
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const { user } = useAuth();
 
   // Keyed on the authenticated user's dealershipId, not `[]` — see
@@ -37,30 +40,36 @@ export function JobsProvider({ children }: { children: React.ReactNode }) {
     clear: () => setJobs([]),
   });
 
-  async function addJob(newJob: Job) {
-    if (!guardSave()) return;
-    const updated = [...jobs, newJob];
+  // Each write re-reads the server's current list and saves it back with
+  // the one change, like leads. Saving the list as it was when this screen
+  // loaded quietly deleted any job a teammate had added since. A failed
+  // re-read is never "no jobs": nothing is written.
+  async function change(apply: (current: Job[]) => Job[]): Promise<boolean> {
+    if (!guardSave()) return false;
+    const current = await loadJobs();
+    if (current === null) {
+      setSaveError("Couldn't read the latest jobs, so nothing was saved. Please try again.");
+      return false;
+    }
+    const updated = apply(current);
+    const res = await saveJobs(updated);
+    if (!res.ok) {
+      setSaveError(res.error ?? "That couldn't be saved.");
+      setJobs(current);
+      return false;
+    }
+    setSaveError(null);
     setJobs(updated);
-    // The person it's assigned to is told by the server, in their own bell.
-    await saveJobs(updated);
+    return true;
   }
 
-  async function updateJob(updatedJob: Job) {
-    if (!guardSave()) return;
-    const updated = jobs.map(j => (j.id === updatedJob.id ? updatedJob : j));
-    setJobs(updated);
-    await saveJobs(updated);
-  }
-
-  async function removeJob(id: string) {
-    if (!guardSave()) return;
-    const updated = jobs.filter(j => j.id !== id);
-    setJobs(updated);
-    await saveJobs(updated);
-  }
+  // The person it's assigned to is told by the server, in their own bell.
+  const addJob = (newJob: Job) => change(current => [...current, newJob]);
+  const updateJob = (updatedJob: Job) => change(current => current.map(j => (j.id === updatedJob.id ? updatedJob : j)));
+  const removeJob = (id: string) => change(current => current.filter(j => j.id !== id));
 
   return (
-    <JobsContext.Provider value={{ jobs, loading, addJob, updateJob, removeJob }}>
+    <JobsContext.Provider value={{ jobs, loading, addJob, updateJob, removeJob, saveError }}>
       {children}
     </JobsContext.Provider>
   );

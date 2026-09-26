@@ -145,6 +145,7 @@ export const chapter: TourChapter = {
             steps: ["Press Remove on the lead's card.", "Confirm when asked. This can't be undone."],
           },
         ],
+        access: "Everyone can add and update leads. Only sales, managers and the owner can remove one, so the Remove button only shows for them.",
         tips: [
           "The affordability check is a rough guide: it assumes a four year loan at an estimated rate based on the credit score you enter. Nothing is worked out until income is filled in.",
           "A booking from your public page creates a lead with the source Website Booking, or updates the existing lead with the same phone number or email.",

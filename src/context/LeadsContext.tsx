@@ -14,12 +14,15 @@ interface LeadsContextType {
   addLead: (lead: Lead) => Promise<boolean>;
   updateLead: (lead: Lead) => Promise<boolean>;
   removeLead: (id: string) => Promise<boolean>;
+  // Why the last save didn't go through (cleared by the next one that does).
+  saveError: string | null;
 }
 
 const LeadsContext = createContext<LeadsContextType | undefined>(undefined);
 
 export function LeadsProvider({ children }: { children: React.ReactNode }) {
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const { addNotification } = useDealerNotifications();
   const { user } = useAuth();
 
@@ -53,12 +56,23 @@ export function LeadsProvider({ children }: { children: React.ReactNode }) {
     return current;
   }
 
+  // Shows the list only once the server has kept it.
+  async function save(updated: Lead[]): Promise<boolean> {
+    const res = await saveLeads(updated);
+    if (!res.ok) {
+      setSaveError(res.error ?? "That couldn't be saved.");
+      return false;
+    }
+    setSaveError(null);
+    setLeads(updated);
+    return true;
+  }
+
   async function addLead(newLead: Lead) {
     const current = await readCurrentLeads();
     if (current === null) return false;
     const updated = [...current, newLead];
-    await saveLeads(updated);
-    setLeads(updated);
+    if (!(await save(updated))) return false;
 
     addNotification({
       type: "SALE",
@@ -72,22 +86,18 @@ export function LeadsProvider({ children }: { children: React.ReactNode }) {
     const current = await readCurrentLeads();
     if (current === null) return false;
     const updated = current.map(l => (l.id === updatedLead.id ? updatedLead : l));
-    await saveLeads(updated);
-    setLeads(updated);
-    return true;
+    return save(updated);
   }
 
   async function removeLead(id: string) {
     const current = await readCurrentLeads();
     if (current === null) return false;
     const updated = current.filter(l => l.id !== id);
-    await saveLeads(updated);
-    setLeads(updated);
-    return true;
+    return save(updated);
   }
 
   return (
-    <LeadsContext.Provider value={{ leads, loading, refreshLeads: reload, addLead, updateLead, removeLead }}>
+    <LeadsContext.Provider value={{ leads, loading, refreshLeads: reload, addLead, updateLead, removeLead, saveError }}>
       {children}
     </LeadsContext.Provider>
   );

@@ -231,6 +231,7 @@ export const chapter: TourChapter = {
           "Press Workshop Calendar at the top to see this week's workshop bookings.",
           "Delete can't be undone. Move finished work to Done instead, so there's a record of it.",
         ],
+        access: "Everyone can add, edit and move jobs. Only managers and the owner can delete one, so the Delete button only shows for them.",
       },
     },
 

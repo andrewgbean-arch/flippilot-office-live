@@ -35,3 +35,14 @@ export function canSeeWanted(user: AuthUser | null): boolean {
   if (user.role === "owner") return true;
   return user.staffRole === "sales" || user.staffRole === "manager";
 }
+
+// Taking a lead off the list: sales, managers and the owner (the server checks too).
+export function canDeleteLeads(user: AuthUser | null): boolean {
+  return canSeeWanted(user);
+}
+
+// Deleting a job: managers and the owner (the server checks too).
+export function canDeleteJobs(user: AuthUser | null): boolean {
+  if (!user) return false;
+  return user.role === "owner" || user.staffRole === "manager";
+}

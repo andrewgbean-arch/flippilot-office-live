@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useJobs } from "@/context/JobsContext";
+import { useAuth } from "@/context/AuthContext";
+import { canDeleteJobs } from "@/lib/permissions";
 import type { Job, JobStatus } from "./jobTypes";
 import AddJobModal from "./AddJobModal";
 
@@ -21,7 +23,7 @@ const PRIORITY_COLOR: Record<string, string> = {
   high: "text-red-400",
 };
 
-function JobCard({ job, onEdit }: { job: Job; onEdit: (job: Job) => void }) {
+function JobCard({ job, onEdit, mayDelete }: { job: Job; onEdit: (job: Job) => void; mayDelete: boolean }) {
   const { updateJob, removeJob } = useJobs();
   const navigate = useNavigate();
 
@@ -95,19 +97,24 @@ function JobCard({ job, onEdit }: { job: Job; onEdit: (job: Job) => void }) {
         >
           Edit
         </button>
-        <button
-          onClick={() => { if (window.confirm(`Delete the job "${job.title}"? This can't be undone.`)) void removeJob(job.id); }}
-          className="text-xs px-2 py-1 rounded bg-red-500/10 hover:bg-red-500/20 text-red-300 ml-auto"
-        >
-          Delete
-        </button>
+        {mayDelete && (
+          <button
+            onClick={() => { if (window.confirm(`Delete the job "${job.title}"? This can't be undone.`)) void removeJob(job.id); }}
+            className="text-xs px-2 py-1 rounded bg-red-500/10 hover:bg-red-500/20 text-red-300 ml-auto"
+          >
+            Delete
+          </button>
+        )}
       </div>
     </div>
   );
 }
 
 export default function JobsBoard() {
-  const { jobs, loading } = useJobs();
+  const { jobs, loading, saveError } = useJobs();
+  const { user } = useAuth();
+  // Deleting a job is for managers and the owner; everyone else can still move and edit them.
+  const mayDelete = canDeleteJobs(user);
   const navigate = useNavigate();
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingJob, setEditingJob] = useState<Job | null>(null);
@@ -128,6 +135,12 @@ export default function JobsBoard() {
         </button>
         <GoldButton onPress={() => setShowAddModal(true)}>Add Job</GoldButton>
       </div>
+
+      {saveError && (
+        <p role="alert" className="max-w-6xl mx-auto mb-4 rounded-lg border border-red-400/40 bg-red-500/10 px-4 py-2 text-sm text-red-200">
+          {saveError}
+        </p>
+      )}
 
       <SupernovaSectionDivider label="Board" />
 
@@ -150,7 +163,7 @@ export default function JobsBoard() {
                   colJobs
                     .slice()
                     .reverse()
-                    .map(job => <JobCard key={job.id} job={job} onEdit={setEditingJob} />)
+                    .map(job => <JobCard key={job.id} job={job} onEdit={setEditingJob} mayDelete={mayDelete} />)
                 )}
               </SupernovaGlowCard>
             );

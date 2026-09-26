@@ -4,6 +4,7 @@ import { readCollection, readTenantCollection, writeTenantCollection } from "../
 import type { StaffNotification } from "./notifications";
 import { itemsFromBody } from "../wholeListGuard";
 import type { AuthUser } from "../auth";
+import { canDeleteJobs, droppedIds } from "../roleAccess";
 
 function dealershipId(req: Request): string {
   return (req as Request & { user: AuthUser }).user.dealershipId;
@@ -11,10 +12,9 @@ function dealershipId(req: Request): string {
 
 // Day-to-day jobs/tasks — "book car in for MOT", "chase up lead",
 // "clean showroom" — assignable to a real staff account (via /team),
-// optionally linked to a specific vehicle. Deliberately open to any
-// authenticated staff to create/update/complete, same as leads — this
-// is operational coordination, not the financial/staff-management data
-// that PUT /bookkeeping and PUT /staff are gated on.
+// optionally linked to a specific vehicle. Open to any authenticated staff
+// to create/update/complete, same as leads (operational coordination);
+// deleting one is for managers and the owner.
 export default function registerJobsRoute(app: Express) {
   app.get("/jobs", (req, res) => {
     res.json({ ok: true, items: readTenantCollection(dealershipId(req), "jobs") });
@@ -25,6 +25,10 @@ export default function registerJobsRoute(app: Express) {
     if (!items) return;
     const user = (req as Request & { user: AuthUser }).user;
     const before = readTenantCollection<Record<string, unknown>>(user.dealershipId, "jobs");
+    // A job missing from the list is a job being deleted: managers and the owner only.
+    if (!canDeleteJobs(user) && droppedIds(before, items).length > 0) {
+      return res.status(403).json({ ok: false, error: "Only managers and the owner can delete a job. Nothing was saved." });
+    }
     writeTenantCollection(dealershipId(req), "jobs", items);
     tellNewAssignees(user, before, items);
     res.json({ ok: true, items });

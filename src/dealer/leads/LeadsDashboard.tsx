@@ -1,5 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { useLeads } from "@/context/LeadsContext";
+import { useAuth } from "@/context/AuthContext";
+import { canDeleteLeads } from "@/lib/permissions";
 import type { Lead, LeadStatus } from "./leadTypes";
 import "@/staff/StaffDashboard.css";
 
@@ -14,7 +16,10 @@ const STATUS_LABELS: Record<LeadStatus, string> = {
 };
 
 export default function LeadsDashboard() {
-  const { leads, removeLead } = useLeads();
+  const { leads, removeLead, saveError } = useLeads();
+  const { user } = useAuth();
+  // Removing a lead is for sales, managers and the owner.
+  const mayRemove = canDeleteLeads(user);
   const navigate = useNavigate();
 
   const active = leads.filter(l => l.status !== "won" && l.status !== "lost");
@@ -28,7 +33,7 @@ export default function LeadsDashboard() {
   function handleRemove(e: React.MouseEvent, lead: Lead) {
     e.stopPropagation();
     if (window.confirm(`Remove ${lead.name || "this lead"}? This can't be undone.`)) {
-      removeLead(lead.id);
+      void removeLead(lead.id);
     }
   }
 
@@ -55,6 +60,7 @@ export default function LeadsDashboard() {
       <main className="sn-grid">
         <section className="sn-panel sn-panel--full">
           <h2 className="sn-panel__title">All Leads</h2>
+          {saveError && <p role="alert" style={{ color: "#fca5a5", fontSize: 13, margin: "0 0 12px" }}>{saveError}</p>}
 
           {leads.length === 0 ? (
             <p className="sn-empty">No leads yet. Add one to get started.</p>
@@ -65,7 +71,7 @@ export default function LeadsDashboard() {
                   key={lead.id}
                   lead={lead}
                   onOpen={handleOpen}
-                  onRemove={handleRemove}
+                  onRemove={mayRemove ? handleRemove : undefined}
                 />
               ))}
             </div>
@@ -100,7 +106,7 @@ function LeadCard({
 }: {
   lead: Lead;
   onOpen: (id: string) => void;
-  onRemove: (e: React.MouseEvent, lead: Lead) => void;
+  onRemove: ((e: React.MouseEvent, lead: Lead) => void) | undefined;
 }) {
   return (
     <article className="sn-staff-card">
@@ -121,9 +127,11 @@ function LeadCard({
         <button className="sn-staff-card__view" onClick={() => onOpen(lead.id)}>
           View / Edit
         </button>
-        <button className="sn-staff-card__remove" onClick={(e) => onRemove(e, lead)}>
-          Remove
-        </button>
+        {onRemove && (
+          <button className="sn-staff-card__remove" onClick={(e) => onRemove(e, lead)}>
+            Remove
+          </button>
+        )}
       </div>
     </article>
   );

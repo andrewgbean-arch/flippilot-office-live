@@ -6,6 +6,8 @@
 //   - staff personal details (NI number, home address, private notes) and
 //     sick-leave reasons are for the owner and managers;
 //   - removing a car from stock is for the owner and managers;
+//   - removing a lead is for sales, managers and the owner; removing a job is
+//     for managers and the owner (everyone can still add and update both);
 //   - everyone can see the stock itself: the car, its asking price, its MOT.
 //
 // Every server check reads these helpers, so a rule is changed here or nowhere.
@@ -17,6 +19,26 @@ type Who = Pick<AuthUser, "role" | "staffRole">;
 // The Bookkeeping ledger and every figure built from it.
 export function canSeeMoney(user: Who): boolean {
   return user.role === "owner" || user.staffRole === "manager" || user.staffRole === "finance";
+}
+
+// Taking a lead off the list: the people who sell cars.
+export function canDeleteLeads(user: Who): boolean {
+  return user.role === "owner" || user.staffRole === "manager" || user.staffRole === "sales";
+}
+
+// Taking a job off the board: the people who run the day.
+export function canDeleteJobs(user: Who): boolean {
+  return user.role === "owner" || user.staffRole === "manager";
+}
+
+/**
+ * The ids a whole-list save would drop: in what's stored, missing from what
+ * was sent. (Records with no id can't be told apart, so they're not counted.)
+ */
+export function droppedIds(before: readonly unknown[], after: readonly unknown[]): string[] {
+  const idOf = (r: unknown) => (r && typeof r === "object" && typeof (r as { id?: unknown }).id === "string" ? (r as { id: string }).id : null);
+  const kept = new Set(after.map(idOf).filter((id): id is string => id !== null));
+  return before.map(idOf).filter((id): id is string => id !== null && !kept.has(id));
 }
 
 // Staff records, the rota, leave and clock times: the people who manage people.
