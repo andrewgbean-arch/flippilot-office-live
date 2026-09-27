@@ -13,6 +13,24 @@ type Dealership = {
   pilotBrainEnabled?: boolean;
 };
 
+type CreditTransaction = {
+  id: string;
+  at: string;
+  kind: "grant" | "spend" | "topup" | "refund";
+  amountPence: number;
+  description: string;
+};
+
+type CreditSummary = {
+  balancePence: number;
+  rateCardPence: { webLookup: number; voiceReply: number };
+  monthlyGrantPence: number;
+  recentTransactions: CreditTransaction[];
+};
+
+const TOPUP_AMOUNTS_PENCE = [1000, 2500, 5000] as const;
+const money = (pence: number) => `£${(pence / 100).toFixed(2)}`;
+
 export default function BillingScreen() {
   const [params] = useSearchParams();
   const [dealership, setDealership] = useState<Dealership | null>(null);
@@ -28,12 +46,43 @@ export default function BillingScreen() {
   // server). Until we know, or when it can't, the box isn't offered: ticking
   // it used to change nothing, and the dealer believed they'd bought it.
   const [pilotBrainAvailable, setPilotBrainAvailable] = useState(false);
+  const [credit, setCredit] = useState<CreditSummary | null>(null);
+  const [topUpLoading, setTopUpLoading] = useState<number | null>(null);
   useEffect(() => {
     fetch(`${BASE_URL}/billing/options`, { headers: authHeaders() })
       .then(res => res.json())
       .then(data => setPilotBrainAvailable(data?.ok === true && data.pilotBrainAvailable === true))
       .catch(() => setPilotBrainAvailable(false));
   }, []);
+
+  useEffect(() => {
+    fetch(`${BASE_URL}/pilot-brain/credit`, { headers: authHeaders() })
+      .then(res => (res.ok ? res.json() : null))
+      .then(data => setCredit(data?.ok ? data : null))
+      .catch(() => setCredit(null));
+  }, [params]);
+
+  async function handleTopUp(amountPence: number) {
+    setTopUpLoading(amountPence);
+    setError(null);
+    try {
+      const res = await fetch(`${BASE_URL}/pilot-brain/credit/topup`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ amountPence }),
+      });
+      const data = await res.json();
+      if (!data.ok) {
+        setError(data.error ?? "Couldn't start top-up checkout");
+        setTopUpLoading(null);
+        return;
+      }
+      window.location.href = data.url;
+    } catch {
+      setError("Couldn't reach the server");
+      setTopUpLoading(null);
+    }
+  }
 
   useEffect(() => {
     fetch(`${BASE_URL}/dealership/me`, { headers: authHeaders() })
@@ -206,6 +255,61 @@ export default function BillingScreen() {
           </>
         )}
       </div>
+
+      {credit && (
+        <div className="bg-black/40 border border-yellow-400/20 rounded-2xl p-6 space-y-4">
+          <div>
+            <h2 className="text-xl font-bold text-yellow-300">Pilot Brain usage credit</h2>
+            <p className="text-white/50 text-sm mt-1">
+              Pays for a live web lookup ({money(credit.rateCardPence.webLookup)} each) and a spoken reply ({money(credit.rateCardPence.voiceReply)} each) — figures are estimates until real costs are measured, and will be adjusted. Ordinary text chat with Pilot Brain isn't metered here.
+            </p>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <span className="text-white/70">Credit remaining</span>
+            <span className={`text-lg font-bold ${credit.balancePence > 0 ? "text-emerald-300" : "text-red-300"}`}>
+              {money(credit.balancePence)}
+            </span>
+          </div>
+
+          {credit.monthlyGrantPence > 0 && (
+            <p className="text-white/40 text-xs">Renews with {money(credit.monthlyGrantPence)} on the 1st of each month.</p>
+          )}
+          {credit.monthlyGrantPence === 0 && (
+            <p className="text-white/40 text-xs">
+              No monthly credit yet — that starts once Pilot Brain is a paid part of your subscription. Top up below to try voice or a web lookup now.
+            </p>
+          )}
+
+          <div className="flex flex-wrap gap-3">
+            {TOPUP_AMOUNTS_PENCE.map(amountPence => (
+              <button
+                key={amountPence}
+                onClick={() => handleTopUp(amountPence)}
+                disabled={topUpLoading !== null}
+                className="px-4 py-2 rounded-lg bg-black/50 border border-yellow-400/40 text-yellow-300 font-semibold hover:bg-black/70 transition disabled:opacity-50"
+              >
+                {topUpLoading === amountPence ? "Starting…" : `Top up ${money(amountPence)}`}
+              </button>
+            ))}
+          </div>
+
+          {credit.recentTransactions.length > 0 && (
+            <div className="pt-2 border-t border-white/10 space-y-1">
+              <p className="text-white/50 text-xs uppercase tracking-wide">Recent activity</p>
+              {credit.recentTransactions.slice(0, 8).map(t => (
+                <div key={t.id} className="flex items-center justify-between text-sm">
+                  <span className="text-white/60">{t.description}</span>
+                  <span className={t.amountPence < 0 ? "text-white/60" : "text-emerald-300"}>
+                    {t.amountPence < 0 ? "-" : "+"}
+                    {money(Math.abs(t.amountPence))}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

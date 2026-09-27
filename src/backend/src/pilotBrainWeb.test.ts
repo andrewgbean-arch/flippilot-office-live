@@ -322,6 +322,7 @@ describe("webAccessPromptSection", () => {
     expect(webAccessPromptSection("off")).toContain("owner hasn't switched it on");
     expect(webAccessPromptSection("capped")).toContain("allowance has been used up");
     expect(webAccessPromptSection("unavailable")).toContain("isn't available right now");
+    expect(webAccessPromptSection("noCredit")).toContain("usage credit has run out");
   });
 });
 

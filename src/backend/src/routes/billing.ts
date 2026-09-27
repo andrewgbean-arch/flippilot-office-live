@@ -3,6 +3,7 @@ import Stripe from "stripe";
 import { readCollection, writeCollection } from "../db";
 import { requireAuth, requireOwner, type AuthUser, type Dealership } from "../auth";
 import { appLink } from "../appUrl";
+import { addTopUp, isValidTopUpAmount, TOPUP_AMOUNTS_PENCE } from "../pilotBrainCredit";
 
 
 // Read at call time, not module load — same dotenv-ordering reasoning
@@ -78,6 +79,21 @@ export async function handleStripeWebhook(req: Request, res: Response) {
     case "checkout.session.completed": {
       const session = event.data.object as Stripe.Checkout.Session;
       const dealershipId = session.metadata?.dealershipId;
+
+      // A one-off usage-credit top-up (see /pilot-brain/credit/topup below) —
+      // never a subscription, so it must be told apart before the
+      // subscription branch below, which would otherwise ignore it (no
+      // session.subscription) and do nothing at all.
+      if (dealershipId && session.metadata?.purpose === "pilotBrainCreditTopup") {
+        const amountPence = Number(session.metadata?.amountPence);
+        if (isValidTopUpAmount(amountPence)) {
+          addTopUp(dealershipId, amountPence, session.id);
+        } else {
+          console.error("billing webhook: top-up session had no valid amountPence", session.id);
+        }
+        break;
+      }
+
       if (dealershipId && session.subscription) {
         // Real subscription items, not checkout-time intent — a dealer
         // could in theory have their checkout line items differ from
@@ -169,6 +185,49 @@ export default function registerBillingRoute(app: Express) {
       res.json({ ok: true, url: session.url });
     } catch (err: any) {
       console.error("create-checkout-session failed:", err.message);
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
+  // A one-off top-up of Pilot Brain's usage credit (web lookups + voice) —
+  // a real card charge, not a subscription, so its own Checkout mode
+  // ("payment") and its own branch in the webhook above. No Stripe Price
+  // needs configuring for this: the amount is built inline from the
+  // dealer's choice, restricted to the three amounts actually offered.
+  app.post("/pilot-brain/credit/topup", requireAuth, requireOwner, async (req, res) => {
+    try {
+      const amountPence = Number(req.body?.amountPence);
+      if (!isValidTopUpAmount(amountPence)) {
+        return res.status(400).json({ ok: false, error: `Choose one of: ${TOPUP_AMOUNTS_PENCE.map(p => `£${p / 100}`).join(", ")}` });
+      }
+      const user = (req as Request & { user: AuthUser }).user;
+      const dealership = findDealership(user.dealershipId);
+      if (!dealership) {
+        return res.status(404).json({ ok: false, error: "Dealership not found" });
+      }
+
+      const session = await getStripe().checkout.sessions.create({
+        mode: "payment",
+        payment_method_types: ["card"],
+        line_items: [
+          {
+            price_data: {
+              currency: "gbp",
+              unit_amount: amountPence,
+              product_data: { name: "FlipPilot Pilot Brain usage credit top-up" },
+            },
+            quantity: 1,
+          },
+        ],
+        ...(dealership.stripeCustomerId ? { customer: dealership.stripeCustomerId } : { customer_email: user.email }),
+        metadata: { dealershipId: dealership.id, purpose: "pilotBrainCreditTopup", amountPence: String(amountPence) },
+        success_url: appLink("/billing?topupSuccess=true"),
+        cancel_url: appLink("/billing?topupCanceled=true"),
+      });
+
+      res.json({ ok: true, url: session.url });
+    } catch (err: any) {
+      console.error("pilot-brain/credit/topup failed:", err.message);
       res.status(500).json({ ok: false, error: err.message });
     }
   });

@@ -18,6 +18,7 @@ import {
   webSearchesRemaining,
   webUsageToday,
   WEB_SEARCH_DAILY_CAP,
+  type WebAccessMode,
 } from "../pilotBrainWeb";
 import { runWatcher, type WatcherResult } from "../engines/watcherEngine";
 import { investigate, findOpportunities, type InvestigationReport, type Opportunity } from "../engines/advisorEngine";
@@ -66,6 +67,8 @@ import type { StaffNotification } from "./notifications";
 import { toMemoryLine } from "../untrustedText";
 import { formatPounds } from "../money";
 import { canSeeMoney, isMoneyGoalMetric } from "../roleAccess";
+import { canAfford, creditSummary, refundCredit, spendCredit } from "../pilotBrainCredit";
+import { readTasterState, recordTasterBriefing, recordTasterQuestion, tasterQuestionsRemaining, TASTER_QUESTIONS } from "../pilotBrainTaster";
 
 interface BookkeepingDoc {
   purchases: { vehicleId: string; purchasePrice: number; date: string }[];
@@ -861,6 +864,21 @@ export default function registerPilotBrainRoute(app: Express) {
 
     const dealership = readCollection<Dealership>("dealerships").find(d => d.id === user.dealershipId);
     const dealershipName = oneLine(dealership?.name, 80) || "your dealership";
+    // A dealership only reaches this route without having actually PAID for
+    // Pilot Brain during its trial (requirePilotBrainAccess). That gets a
+    // one-time free taster, not the ordinary chat allowance — see
+    // pilotBrainTaster.ts for why it never resets.
+    const isPilotBrainSubscriber = Boolean(dealership?.pilotBrainEnabled);
+    if (!isPilotBrainSubscriber) {
+      const remaining = tasterQuestionsRemaining(user.dealershipId);
+      if (remaining <= 0) {
+        return res.status(402).json({
+          ok: false,
+          error: `You've used your ${TASTER_QUESTIONS} free taster questions with Pilot Brain — subscribe to her in Billing to keep chatting.`,
+          tasterExhausted: true,
+        });
+      }
+    }
 
     const allMessages = readTenantCollection<PilotBrainMessage>(user.dealershipId, MESSAGES_COLLECTION);
     const myMessages = allMessages.filter(m => m.userId === user.id);
@@ -904,7 +922,14 @@ export default function registerPilotBrainRoute(app: Express) {
     // prompt line that tells Pilot Brain (truthfully) why it can't look.
     const nowMs = Date.now();
     const webState = readWebState(user.dealershipId);
-    const webMode = webAccessMode(webState, nowMs);
+    let webMode: WebAccessMode = webAccessMode(webState, nowMs);
+    // A live lookup is real spend against the dealership's usage credit
+    // (pilotBrainCredit.ts) as well as today's plain count — switched on and
+    // within the daily count means nothing if the credit to pay for it has
+    // run out.
+    if (webMode === "on" && !canAfford(user.dealershipId, "webLookup", isPilotBrainSubscriber, nowMs)) {
+      webMode = "noCredit";
+    }
     // The "Sources" footer on a web-backed reply lists page titles from the
     // web — text nobody on the team wrote — so it is left out when earlier
     // replies go back to the model as its own words.
@@ -947,6 +972,16 @@ export default function registerPilotBrainRoute(app: Express) {
         // Logging must never cost the dealer their answer.
         try {
           recordWebSearches(user.dealershipId, user.name, outcome.searches, nowMs);
+          // Spent per search that actually ran (an errored one wasn't billed).
+          // canAfford above only guarantees the FIRST one; if a single reply
+          // makes more than one search (max 3, see buildWebSearchTool) and the
+          // balance runs out partway through, the remaining spends are simply
+          // refused here — the searches already happened and can't be undone,
+          // so the balance can briefly go to (but never below) zero rather
+          // than the dealer being charged for a lookup that never ran.
+          for (const search of outcome.searches) {
+            if (!search.errorCode) spendCredit(user.dealershipId, "webLookup", isPilotBrainSubscriber, nowMs);
+          }
         } catch (logErr) {
           console.error("pilot-brain/chat: could not record web searches", logErr);
         }
@@ -1026,6 +1061,11 @@ export default function registerPilotBrainRoute(app: Express) {
     if (newMemory) {
       writeTenantCollection(user.dealershipId, MEMORIES_COLLECTION, [...allMemories, newMemory]);
     }
+    // Only a real reply that reached the model counts against the taster —
+    // the shield's fixed deflection returns long before this line.
+    if (!isPilotBrainSubscriber) {
+      recordTasterQuestion(user.dealershipId);
+    }
 
     res.json({ ok: true, message: assistantMsg });
   });
@@ -1044,6 +1084,7 @@ export default function registerPilotBrainRoute(app: Express) {
   });
 
   app.post("/pilot-brain/speak", requireAuth, speakLimiter, async (req, res) => {
+    const user = authUser(req);
     const { text, voice } = req.body ?? {};
     if (typeof text !== "string" || !text.trim()) {
       return res.status(400).json({ ok: false, error: "Text can't be empty" });
@@ -1072,6 +1113,21 @@ export default function registerPilotBrainRoute(app: Express) {
       });
     }
 
+    // Every spoken reply is real pay-as-you-go spend, paid from the
+    // dealership's usage credit (pilotBrainCredit.ts) — a trial dealership
+    // that hasn't topped up simply has none, so this is what actually makes
+    // "voice is paid as used even in the trial" true, not just written down.
+    const dealership = readCollection<Dealership>("dealerships").find(d => d.id === user.dealershipId);
+    const isPilotBrainSubscriber = Boolean(dealership?.pilotBrainEnabled);
+    const spent = spendCredit(user.dealershipId, "voiceReply", isPilotBrainSubscriber, Date.now());
+    if (!spent.ok) {
+      return res.status(402).json({
+        ok: false,
+        error: "Pilot Brain's spoken voice needs usage credit — top up in Billing to keep hearing her replies.",
+        creditExhausted: true,
+      });
+    }
+
     try {
       const request = speechRequest(selectedVoice, stripWebSourcesFooter(text).trim());
       const response = await fetch(request.url, request.init);
@@ -1079,6 +1135,10 @@ export default function registerPilotBrainRoute(app: Express) {
       if (!response.ok) {
         const errText = await response.text();
         console.error(`pilot-brain/speak: ${selectedVoice.provider} error`, response.status, errText);
+        // The provider never produced any audio, so nothing was really
+        // spent — give the credit back rather than charging for a reply
+        // nobody heard.
+        refundCredit(user.dealershipId, "voiceReply", "Refunded: voice generation failed");
         return res.status(502).json({ ok: false, error: "Could not generate voice right now." });
       }
 
@@ -1093,7 +1153,10 @@ export default function registerPilotBrainRoute(app: Express) {
       Readable.fromWeb(response.body as import("stream/web").ReadableStream<Uint8Array>).pipe(res);
     } catch (err) {
       console.error("pilot-brain/speak: request failed", err);
-      res.status(502).json({ ok: false, error: "Could not generate voice right now." });
+      if (!res.headersSent) {
+        refundCredit(user.dealershipId, "voiceReply", "Refunded: voice generation failed");
+        res.status(502).json({ ok: false, error: "Could not generate voice right now." });
+      }
     }
   });
 
@@ -1230,6 +1293,16 @@ export default function registerPilotBrainRoute(app: Express) {
 
     const dealership = readCollection<Dealership>("dealerships").find(d => d.id === user.dealershipId);
     const dealershipName = oneLine(dealership?.name, 80) || "your dealership";
+    // Same one-time taster as the chat route: a dealership that hasn't
+    // paid for Pilot Brain gets ONE briefing, ever, not one a day.
+    const isPilotBrainSubscriber = Boolean(dealership?.pilotBrainEnabled);
+    if (!isPilotBrainSubscriber && readTasterState(user.dealershipId).briefingUsed) {
+      return res.status(402).json({
+        ok: false,
+        error: "You've used your free taster briefing with Pilot Brain — subscribe to her in Billing for a daily briefing.",
+        tasterExhausted: true,
+      });
+    }
     const money = canSeeMoney(user);
     const summary = buildBusinessSummary(user.dealershipId, money);
     const watcher = runWatcherForDealership(user.dealershipId);
@@ -1257,10 +1330,33 @@ export default function registerPilotBrainRoute(app: Express) {
             "Give me a short morning briefing — 2-4 sentences, based on today's real business snapshot and what you've been watching for above. If there's a genuinely important issue (critical alert or real risk), lead with that rather than burying it. No greeting-only fluff.",
         },
       ], 500, "pilot-brain/briefing");
+      if (!isPilotBrainSubscriber) recordTasterBriefing(user.dealershipId);
       res.json({ ok: true, briefing: extractRememberTag(reply).visible });
     } catch (err) {
       console.error("pilot-brain/briefing: Anthropic call failed", err);
       res.status(502).json({ ok: false, error: "Could not generate a briefing right now." });
     }
+  });
+
+  // What the Billing screen shows: the taster counters (any role — no money
+  // in these, just how many free tries are left) and, for the owner, the
+  // real usage-credit balance and rate card.
+  app.get("/pilot-brain/taster-status", requireAuth, (req, res) => {
+    const user = authUser(req);
+    const dealership = readCollection<Dealership>("dealerships").find(d => d.id === user.dealershipId);
+    const isPilotBrainSubscriber = Boolean(dealership?.pilotBrainEnabled);
+    const taster = readTasterState(user.dealershipId);
+    res.json({
+      ok: true,
+      isTaster: !isPilotBrainSubscriber,
+      questionsRemaining: isPilotBrainSubscriber ? null : Math.max(0, TASTER_QUESTIONS - taster.questionsUsed),
+      briefingRemaining: isPilotBrainSubscriber ? null : !taster.briefingUsed,
+    });
+  });
+
+  app.get("/pilot-brain/credit", requireAuth, requireOwner, (req, res) => {
+    const user = authUser(req);
+    const dealership = readCollection<Dealership>("dealerships").find(d => d.id === user.dealershipId);
+    res.json({ ok: true, ...creditSummary(user.dealershipId, Boolean(dealership?.pilotBrainEnabled)) });
   });
 }

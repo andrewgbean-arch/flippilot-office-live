@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { FiChevronDown, FiChevronUp, FiMic, FiMicOff, FiVolume2, FiVolumeX } from "react-icons/fi";
 import AssistantMarkdown from "./AssistantMarkdown";
-import { fetchPilotBrainMessages, sendPilotBrainMessage, fetchSpeech, fetchMorningBriefing, fetchPerformanceReview, fetchTodaysPriorities, clearPilotBrainConversation, fetchVoices, type PilotVoice, type PilotBrainMessage, type ReviewPeriod } from "@/lib/pilotBrainApi";
+import { fetchPilotBrainMessages, sendPilotBrainMessage, fetchSpeech, fetchMorningBriefing, fetchPerformanceReview, fetchTodaysPriorities, fetchTasterStatus, clearPilotBrainConversation, fetchVoices, type PilotVoice, type PilotBrainMessage, type ReviewPeriod, type TasterStatus } from "@/lib/pilotBrainApi";
 import { authHeaders } from "@/lib/authToken";
 import { BASE_URL } from "@/lib/apiBaseUrl";
 import "@/staff/StaffDashboard.css";
@@ -79,6 +79,14 @@ export default function PilotBrainChat() {
   const showTools = toolsOpen || tour.isActive;
   const [error, setError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  // Only shows anything while the dealership is on the free trial and
+  // hasn't subscribed to Pilot Brain — null (nothing rendered) once she's a
+  // real, unmetered part of the plan.
+  const [taster, setTaster] = useState<TasterStatus | null>(null);
+  useEffect(() => {
+    fetchTasterStatus().then(status => setTaster(status.ok && status.isTaster ? status : null));
+  }, []);
 
   const [listening, setListening] = useState(false);
   const recognitionRef = useRef<InstanceType<NonNullable<typeof SpeechRecognitionCtor>> | null>(null);
@@ -438,6 +446,7 @@ export default function PilotBrainChat() {
     }
     setMessages(prev => [...prev, result.message!]);
     speak(result.message.content);
+    if (taster) fetchTasterStatus().then(status => setTaster(status.ok && status.isTaster ? status : null));
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -635,6 +644,12 @@ export default function PilotBrainChat() {
       </div>
 
       <div style={{ flexShrink: 0, padding: 16, maxWidth: 800, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
+        {taster && typeof taster.questionsRemaining === "number" && (
+          <p style={{ color: "#ffd700", fontSize: 13, marginBottom: 8 }}>
+            Free taster: {taster.questionsRemaining} question{taster.questionsRemaining === 1 ? "" : "s"} left
+            {taster.briefingRemaining === false ? "" : " and 1 morning briefing"} — subscribe to Pilot Brain in Billing for unlimited chat.
+          </p>
+        )}
         {error && <p style={{ color: "#ff8080", fontSize: 13, marginBottom: 8 }}>{error}</p>}
         {listening && <p style={{ color: "#ffd700", fontSize: 13, marginBottom: 8 }}>Listening…</p>}
         <div style={{ display: "flex", gap: 8 }}>

@@ -58,6 +58,32 @@ export async function sendPilotBrainMessage(message: string): Promise<{
   }
 }
 
+export interface TasterStatus {
+  ok: boolean;
+  isTaster: boolean;
+  questionsRemaining: number | null;
+  briefingRemaining: boolean | null;
+}
+
+// Only meaningful while a dealership is on the free trial and hasn't
+// subscribed to Pilot Brain — a real subscriber's questionsRemaining/
+// briefingRemaining are always null (unmetered).
+export async function fetchTasterStatus(): Promise<TasterStatus> {
+  try {
+    const res = await fetch(`${BASE_URL}/pilot-brain/taster-status`, { headers: authHeaders() });
+    const data = await res.json();
+    return {
+      ok: res.ok && data.ok === true,
+      isTaster: data.isTaster === true,
+      questionsRemaining: typeof data.questionsRemaining === "number" ? data.questionsRemaining : null,
+      briefingRemaining: typeof data.briefingRemaining === "boolean" ? data.briefingRemaining : null,
+    };
+  } catch (err) {
+    console.error("fetchTasterStatus: backend unreachable", err);
+    return { ok: false, isTaster: false, questionsRemaining: null, briefingRemaining: null };
+  }
+}
+
 export interface WatcherAlert {
   severity: "info" | "warning" | "critical";
   category: "lead" | "inventory" | "appointment" | "activity";

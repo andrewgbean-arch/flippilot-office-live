@@ -89,7 +89,7 @@ export interface PilotBrainWebState {
   log: WebSearchLogEntry[];
 }
 
-export type WebAccessMode = "off" | "on" | "capped" | "unavailable";
+export type WebAccessMode = "off" | "on" | "capped" | "unavailable" | "noCredit";
 
 const COLLECTION = "pilotBrainWeb";
 
@@ -175,6 +175,8 @@ export function webAccessPromptSection(mode: WebAccessMode): string {
       ].join("\n");
     case "capped":
       return `WEB ACCESS: switched on for this dealership, but today's search allowance has been used up. If Boss asks for live web information, say so plainly and offer to look again tomorrow — don't pretend to have looked anything up.`;
+    case "noCredit":
+      return `WEB ACCESS: switched on, but this dealership's Pilot Brain usage credit has run out. If Boss asks for live web information, say so plainly and that the owner can top up credit in Billing — don't pretend to have looked anything up.`;
     case "unavailable":
       return `WEB ACCESS: switched on, but the live web lookup isn't available right now. If Boss asks for live web information, say plainly that it isn't available at the moment and answer only from the dealership's own data — don't guess or pretend to have looked anything up.`;
     default:
