@@ -724,6 +724,13 @@ describe("Pilot Brain treats outside text as data", () => {
 
     async function webDealer(suffix: string) {
       const dealer = await signup(suffix);
+      // A live web lookup is real spend against usage credit (pilotBrainCredit.ts),
+      // which only a paying Pilot Brain subscriber gets automatically — these
+      // tests are about what a web-backed reply does, not about that gate.
+      writeCollection(
+        "dealerships",
+        readCollection<any>("dealerships").map(d => (d.id === dealer.dealershipId ? { ...d, pilotBrainEnabled: true } : d))
+      );
       await request(app).put("/pilot-brain/web-access").set("Authorization", `Bearer ${dealer.token}`).send({ enabled: true });
       return dealer;
     }

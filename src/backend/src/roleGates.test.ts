@@ -395,6 +395,14 @@ describe("Pilot Brain (Wendy)", () => {
   }
 
   beforeAll(() => {
+    // This describe block asks Wendy several questions per test (chat,
+    // briefing, review, sometimes for two different staff roles) — a real
+    // subscriber's unmetered chat, not the free taster (pilotBrainTaster.ts),
+    // is what these role-gate tests mean by "asking Pilot Brain something".
+    writeCollection(
+      "dealerships",
+      readCollection<any>("dealerships").map(d => (d.id === owner.dealershipId ? { ...d, pilotBrainEnabled: true } : d))
+    );
     const daysAgo = (n: number) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
     writeTenantCollection(owner.dealershipId, "vehicles", [car("w1", { status: "sold" }), car("w2")]);
     writeTenantDoc(owner.dealershipId, "bookkeeping", {

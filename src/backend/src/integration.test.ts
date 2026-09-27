@@ -69,7 +69,7 @@ afterAll(() => {
   }
 });
 
-async function signup(suffix: string) {
+async function signup(suffix: string, options: { pilotBrainEnabled?: boolean } = {}) {
   const email = `integration-test-${runId}-${suffix}@test.local`;
   const res = await request(app).post("/auth/signup").send({
     email,
@@ -79,6 +79,18 @@ async function signup(suffix: string) {
   });
   trackUser(email);
   trackDealership(res.body.user.dealershipId);
+  // Most Pilot Brain tests here are about HOW she behaves (web search, voice,
+  // tools, shielding), not about the taster/usage-credit gates added later
+  // (pilotBrainCredit.ts / pilotBrainTaster.ts, tested in their own files) —
+  // so a real subscriber, unmetered and with the usual monthly credit, is
+  // what these tests actually mean by "a dealership using Pilot Brain".
+  if (options.pilotBrainEnabled) {
+    const dealerships = readCollection<any>("dealerships");
+    writeCollection(
+      "dealerships",
+      dealerships.map(d => (d.id === res.body.user.dealershipId ? { ...d, pilotBrainEnabled: true } : d))
+    );
+  }
   return { email, token: res.body.token as string, user: res.body.user };
 }
 
@@ -2370,7 +2382,7 @@ describe("Pilot Brain — looking inside the tabs", () => {
   });
 
   it("works with web access switched on too: both tools are sent, and a lookup mid-answer is handled", async () => {
-    const owner = await signup("look-inside-web");
+    const owner = await signup("look-inside-web", { pilotBrainEnabled: true });
     seed(owner.user.dealershipId);
     await request(app).put("/pilot-brain/web-access").set("Authorization", `Bearer ${owner.token}`).send({ enabled: true });
 
@@ -2749,8 +2761,11 @@ describe("Pilot Brain — preparing changes for approval", () => {
 
   // A dealership with one car, one lead and one job, and a chat that makes
   // the model propose `input` on its first turn.
+  // pilotBrainEnabled: true — several tests here send more than the free
+  // taster's 5 questions (proposing several edits in a row), which is a
+  // real limit now (pilotBrainTaster.ts) but not what these tests are about.
   async function setup(label: string) {
-    const owner = await signup(label);
+    const owner = await signup(label, { pilotBrainEnabled: true });
     const id = owner.user.dealershipId;
     writeTenantCollection(id, "vehicles", [{ id: "v1", reg: "AB12CDE", year: 2019, make: "BMW", model: "3 Series", priceRetail: 12995, buyPrice: 9000, status: "in stock", createdAt: new Date().toISOString() }]);
     writeTenantCollection(id, "leads", [{ id: "lead-1234567890", name: "Secret Lead Name", phone: "07700900123", source: "AutoTrader", status: "new", createdAt: new Date().toISOString() }]);
@@ -3134,7 +3149,7 @@ describe("Pilot Brain — shielded from fishing and corruption", () => {
   });
 
   it("learns nothing from a turn that searched the web either, since a web page can carry planted text", async () => {
-    const owner = await signup("shield-web-memory");
+    const owner = await signup("shield-web-memory", { pilotBrainEnabled: true });
     await request(app).put("/pilot-brain/web-access").set(auth(owner.token)).send({ enabled: true });
     stubAnthropic(() => ({
       stop_reason: "end_turn",
@@ -4764,7 +4779,7 @@ describe("Pilot Brain web access", () => {
 
   beforeAll(async () => {
     process.env.ANTHROPIC_API_KEY = "test-key-not-real";
-    owner = await signup("pb-web-owner");
+    owner = await signup("pb-web-owner", { pilotBrainEnabled: true });
   });
   afterAll(() => {
     if (prevKey === undefined) delete process.env.ANTHROPIC_API_KEY;
@@ -4882,7 +4897,7 @@ describe("Pilot Brain web access", () => {
   });
 
   it("carries on answering — without the web, and saying so — if the API rejects the web-enabled request", async () => {
-    const dealer = await signup("pb-web-rejected");
+    const dealer = await signup("pb-web-rejected", { pilotBrainEnabled: true });
     await request(app).put("/pilot-brain/web-access").set("Authorization", `Bearer ${dealer.token}`).send({ enabled: true });
     vi.spyOn(console, "error").mockImplementation(() => {});
     const calls = stubAnthropic(call =>
@@ -4907,7 +4922,7 @@ describe("Pilot Brain web access", () => {
   });
 
   it("still pulls out the hidden <remember> note when the reply is web-backed, and keeps it out of what's shown", async () => {
-    const dealer = await signup("pb-web-remember");
+    const dealer = await signup("pb-web-remember", { pilotBrainEnabled: true });
     await request(app).put("/pilot-brain/web-access").set("Authorization", `Bearer ${dealer.token}`).send({ enabled: true });
     const body = structuredClone(SEARCH_REPLY);
     (body.content[3] as any).text += "\n<remember>Prefers AutoTrader comparables</remember>";
@@ -4920,7 +4935,7 @@ describe("Pilot Brain web access", () => {
   });
 
   it("a search that errors is logged but doesn't use up the allowance", async () => {
-    const dealer = await signup("pb-web-error");
+    const dealer = await signup("pb-web-error", { pilotBrainEnabled: true });
     await request(app).put("/pilot-brain/web-access").set("Authorization", `Bearer ${dealer.token}`).send({ enabled: true });
     stubAnthropic(() => ({
       body: {
