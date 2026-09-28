@@ -4567,7 +4567,7 @@ function updateTalk(dt) {
   if (dog.rig.face && who === 'COMET') dog.rig.face.mouth(Math.max(flap, 0.3));
   if (who === 'BOLT' && npcs.bolt) npcs.bolt.rig.eyeM.emissiveIntensity = 2.5 + flap * 7;
   if (npcs.zib) { const z = npcs.zib.rig; if (who === 'ZIB') { z.coreM.emissiveIntensity += flap * 5; z.mouth.scale.set(1, 1 + flap * 2.2, 1); } else z.mouth.scale.set(1, 1, 1); }
-  if (who === 'HALO') { const L = roomLights[clamp(roomOf(player.pos), 0, 3)]; if (L) L.stripMat.emissiveIntensity *= 1 + flap * 0.7; if (W.holoLight) W.holoLight.intensity = 7 + flap * 10; }
+  if (who === 'HALO') { const L = roomLights[clamp(roomOf(player.pos), 0, 3)]; if (L && L.stripMat) L.stripMat.emissiveIntensity *= 1 + flap * 0.7; if (W.holoLight) W.holoLight.intensity = 7 + flap * 10; }
   // everyone nearby turns to look at the speaker
   if (gameState === 'play' || gameState === 'cine') {
     if (camMode !== 'fp') lookAtSpeaker(player.rig, player.pos, player.heading, spk, dt, 0.9);
@@ -4602,7 +4602,10 @@ function dogZoomies(laps = 3) {
   const a0 = Math.atan2(dog.pos.x - c.x, dog.pos.z - c.z);
   for (let k = 1; k <= laps * 14; k++) { const a = a0 + k / 14 * TAU, p = resolveMove(c, c.x + Math.sin(a) * 2.2, c.z + Math.cos(a) * 2.2, 0.3); pts.push({ x: p.x, z: p.z }); }
   dog.path = pts; dog.runSpeed = 8.2; dog.goT = 0; floatAt(dog.pos.clone().setY(1.2), 'ZOOMIES!', '#ffb36b');
-  return new Promise(res => { dog.onArrive = () => { dog.scripted = false; dogAct('happy', 1.4); Sound.happy(); res(); }; });
+  return new Promise(res => {
+    const done = () => { if (dog.onArrive === done) dog.onArrive = null; clearTimeout(guard); dog.scripted = false; dogAct('happy', 1.4); Sound.happy(); res(); };
+    const guard = setTimeout(() => { dog.path = []; done(); }, 7000); dog.onArrive = done;
+  });
 }
 
 /* ---------- play fetch ---------- */
