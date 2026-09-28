@@ -39,6 +39,19 @@ function readRequests(dealershipId: string): WantedRequest[] {
   return raw.filter((r): r is WantedRequest => typeof r === "object" && r !== null && typeof (r as WantedRequest).id === "string");
 }
 
+// The promise made on the form is that a request is forgotten after
+// RETENTION_DAYS. withoutExpired() only ever drops one from what a caller
+// sees; without this, a dealership that never gets a new request or a status
+// change (no other write ever runs) would keep expired people's contact
+// details in storage indefinitely. So every route that reads the list also
+// writes the pruned version back — a read, not just a write, forgets them.
+function liveRequests(dealershipId: string): WantedRequest[] {
+  const stored = readRequests(dealershipId);
+  const live = withoutExpired(stored);
+  if (live.length !== stored.length) writeTenantCollection(dealershipId, COLLECTION, live);
+  return live;
+}
+
 // A stranger can reach the write route with no account, so it is limited hard:
 // a real person asks for a car or two, a script asks for thousands.
 const wantedWriteLimiter = rateLimit({
@@ -75,8 +88,9 @@ export function announceWantedArrivals(dealershipId: string): void {
     const stored = readRequests(dealershipId);
     if (stored.length === 0) return;
 
-    const plan = planArrivals(withoutExpired(stored), publicVehiclesFor(dealershipId));
-    if (!plan.changed) return;
+    const live = withoutExpired(stored);
+    const plan = planArrivals(live, publicVehiclesFor(dealershipId));
+    if (!plan.changed && live.length === stored.length) return;
     writeTenantCollection(dealershipId, COLLECTION, plan.requests);
     if (plan.arrivals.length === 0) return;
 
@@ -102,7 +116,7 @@ export default function registerWantedRoute(app: Express) {
     const dealership = readCollection<Dealership>("dealerships").find(d => d.id === dealershipId);
     if (!dealership) return res.status(404).json({ ok: false, error: "Dealership not found" });
 
-    const live = withoutExpired(readRequests(dealershipId));
+    const live = liveRequests(dealershipId);
     res.json({
       ok: true,
       consentWording: consentWording(dealership.name),
@@ -126,7 +140,7 @@ export default function registerWantedRoute(app: Express) {
     const input = parsed.value;
 
     const now = new Date().toISOString();
-    const live = withoutExpired(readRequests(dealershipId));
+    const live = liveRequests(dealershipId);
     const repeat = findRepeat(live, input);
 
     // What already fits is what the customer is shown below, and is not news to
@@ -204,7 +218,7 @@ export default function registerWantedRoute(app: Express) {
   app.get("/wanted", requireStaffRole("sales", "manager"), (req, res) => {
     const dealershipId = authUser(req).dealershipId;
     const stock = publicVehiclesFor(dealershipId);
-    const items: WantedForStaff[] = withoutExpired(readRequests(dealershipId)).map(({ announcedVehicleIds: _kept, ...r }) => ({ ...r, matches: matchesFor(r, stock) }));
+    const items: WantedForStaff[] = liveRequests(dealershipId).map(({ announcedVehicleIds: _kept, ...r }) => ({ ...r, matches: matchesFor(r, stock) }));
     res.json({ ok: true, items: orderForStaff(items), retentionDays: RETENTION_DAYS });
   });
 
@@ -215,7 +229,7 @@ export default function registerWantedRoute(app: Express) {
     if (!WANTED_STATUSES.includes(status as WantedStatus)) {
       return res.status(400).json({ ok: false, error: "Status must be waiting, contacted or closed." });
     }
-    const live = withoutExpired(readRequests(dealershipId));
+    const live = liveRequests(dealershipId);
     const target = live.find(r => r.id === id);
     if (!target) return res.status(404).json({ ok: false, error: "That request is no longer on the list." });
 
@@ -229,7 +243,7 @@ export default function registerWantedRoute(app: Express) {
   app.delete("/wanted/:id", requireStaffRole("sales", "manager"), (req, res) => {
     const dealershipId = authUser(req).dealershipId;
     const id = req.params.id;
-    const live = withoutExpired(readRequests(dealershipId));
+    const live = liveRequests(dealershipId);
     if (!live.some(r => r.id === id)) return res.status(404).json({ ok: false, error: "That request is no longer on the list." });
     writeTenantCollection(dealershipId, COLLECTION, live.filter(r => r.id !== id));
     res.json({ ok: true });

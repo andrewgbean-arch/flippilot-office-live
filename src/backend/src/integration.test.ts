@@ -5574,18 +5574,27 @@ describe("Wanted requests — a stranger asks a dealer to watch for a car", () =
       ...over,
     });
 
-    it("hides a request a year after the person last asked, and drops it from storage the next time anyone asks", async () => {
+    it("hides a request a year after the person last asked, and drops it from storage the moment anyone reads the list", async () => {
       const { owner, id } = await setup("wanted-retention");
       const dayAgo = (n: number) => new Date(Date.now() - n * DAY).toISOString();
       writeTenantCollection(id, "wantedRequests", [
         stored({ id: "expired", askedAt: dayAgo(366), createdAt: dayAgo(366) }),
         stored({ id: "recent", name: "Recent", email: "recent@example.co.uk", askedAt: dayAgo(364), createdAt: dayAgo(400) }),
       ]);
+      // A dealer who never gets another request or status change would
+      // otherwise keep an expired person's details forever: reading the
+      // list (the staff screen, or the public form checking it's open)
+      // forgets them too, not just a later write.
       expect((await list(owner.token)).body.items.map((i: any) => i.id)).toEqual(["recent"]);
-      expect(readTenantCollection<any>(id, "wantedRequests")).toHaveLength(2); // reading deletes nothing
+      expect(readTenantCollection<any>(id, "wantedRequests").map(r => r.id)).toEqual(["recent"]);
+    });
 
-      await ask(id, { email: "new@example.co.uk" });
-      expect(readTenantCollection<any>(id, "wantedRequests").map(r => r.id)).not.toContain("expired");
+    it("also forgets an expired request when only the public form checks whether it's still accepting", async () => {
+      const { id } = await setup("wanted-retention-public-read");
+      const yearAndADayAgo = new Date(Date.now() - 366 * DAY).toISOString();
+      writeTenantCollection(id, "wantedRequests", [stored({ id: "expired", askedAt: yearAndADayAgo, createdAt: yearAndADayAgo })]);
+      expect((await request(app).get(`/public/${id}/wanted`)).body.accepting).toBe(true);
+      expect(readTenantCollection<any>(id, "wantedRequests")).toHaveLength(0);
     });
 
     it("counts a repeat ask as a fresh start, so a person still waiting is not forgotten", async () => {
