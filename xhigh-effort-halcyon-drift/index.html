@@ -1058,6 +1058,7 @@ const Sound = (() => {
     return b;
   }
   function init() {
+    try { if (typeof Voice !== 'undefined') Voice.unlock(); } catch (e) { }
     if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return; }
     const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
     try { ctx = LITE_AUDIO ? new AC({ latencyHint: 'playback' }) : new AC(); } catch (e) { try { ctx = new AC(); } catch (e2) { return; } }
@@ -1283,6 +1284,7 @@ const Voice = (() => {
   let gen = 0;
   function say(who, text, sp, retry = true, cb = null) {
     try {
+      const busy = speechSynthesis.speaking || speechSynthesis.pending;
       speechSynthesis.cancel(); const my = ++gen;
       const spoken = speakable(text); if (!spoken) { if (cb && cb.end) setTimeout(cb.end, 0); return false; }
       const u = new SpeechSynthesisUtterance(spoken);
@@ -1295,21 +1297,34 @@ const Voice = (() => {
       u.pitch = sp.pitch ?? 1; u.rate = sp.rate ?? 1; u.volume = 0.95;
       u.onerror = (e) => {
         if (e.error === 'interrupted' || e.error === 'canceled') return;
-        if (!v || !retry) { if (cb && cb.end && my === gen) cb.end(); return; }
+        // Only a voice that genuinely can't speak (e.g. an online voice with no internet) gets swapped out.
+        const voiceFault = /network|synthesis|voice-unavailable|language-unavailable/.test(e.error || '');
+        if (!v || !retry || !voiceFault) { if (cb && cb.end && my === gen) cb.end(); return; }
         // An online voice failing means the internet is down, so skip all of them until it's back.
         if (v.localService === false) { for (const x of voices) if (x.localService === false) bad.add(x.name); } else bad.add(v.name);
         castAll(); if (api && api.onchange) api.onchange();
         say(who, text, sp, false, cb);   // try again once with the next best voice
       };
-      speechSynthesis.speak(u); return true;
+      // Some browsers (Chrome on Android especially) drop a line spoken straight after cancelling another.
+      const go = () => { if (my !== gen) return; try { speechSynthesis.resume(); } catch (e) { } speechSynthesis.speak(u); };
+      if (busy) setTimeout(go, 90); else go();
+      return true;
     } catch (e) { return false; }
   }
+  // Phones only allow speech once it has been started from a tap, so say nothing, quietly, on the first one.
+  let unlocked = false;
+  function unlock() {
+    if (!ok || unlocked) return; unlocked = true;
+    try { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); } catch (e) { }
+    if (!voices.length) load();
+  }
   // Returns true when the line is being spoken; cb = { start, word(fraction), end } follows the voice.
-  function speak(who, text, sp, cb) { if (ok && on && sp && !sp.silent && voices.length) return say(who, text, sp, true, cb); return false; }
+  // Speaks even before the browser has listed its voices (it then uses its default voice).
+  function speak(who, text, sp, cb) { if (ok && on && sp && !sp.silent) return say(who, text, sp, true, cb); return false; }
   function preview(who, text, sp) { if (ok && sp) say(who, text, sp); }
   function stop() { gen++; if (ok) try { speechSynthesis.cancel(); } catch (e) { } }
   api = {
-    speak, preview, stop, onchange: null,
+    speak, preview, stop, unlock, onchange: null,
     list: () => voices, auto: (who) => auto[who] || '', custom: (who) => custom[who] || '', usable,
     set(who, name) { if (name) custom[who] = name; else delete custom[who]; try { localStorage.setItem('halcyon_voices', JSON.stringify(custom)); } catch (e) { } },
     reset() { custom = {}; try { localStorage.removeItem('halcyon_voices'); } catch (e) { } },
@@ -6789,7 +6804,8 @@ const VOICE_CAST = [
 function renderVoicePanel() {
   const rows = $('#voiceRows'); rows.innerHTML = ''; $('#voiceOn').checked = Voice.on;
   const list = Voice.list();
-  if (!Voice.supported || !list.length) { rows.style.display = 'block'; rows.innerHTML = '<p class="vnote">This browser has no English speech voices, so the dialogue is shown as text only. Microsoft Edge or Chrome on a computer has the best voices.</p>'; return; }
+  if (!Voice.supported) { rows.style.display = 'block'; rows.innerHTML = '<p class="vnote">This browser can\'t speak, so the dialogue is shown as text only. Microsoft Edge or Chrome on a computer has the best voices.</p>'; return; }
+  if (!list.length) { rows.style.display = 'block'; rows.innerHTML = '<p class="vnote">Your device hasn\'t listed its voices yet, so it is using its own default voice. The list will appear here once the device has loaded it. On a phone, make sure the sound isn\'t muted (check the silent switch and the volume).</p>'; return; }
   rows.style.display = '';
   for (const [who, label, sample] of VOICE_CAST) {
     const id = `voice-${who}`, lab = document.createElement('label'); lab.htmlFor = id; lab.textContent = label;
