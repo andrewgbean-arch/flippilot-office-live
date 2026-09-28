@@ -895,8 +895,11 @@ const Voice = (() => {
   const MALE = /\bmale\b|david|mark|guy|ryan|thomas|george|daniel|oliver|arthur|\balex\b|fred|aaron|\btom\b|evan|nathan|christopher|eric|davis|jason|tony|brian|andrew|william|james|rishi|gordon|\blee\b|elliot|noah|ralph|albert|bruce|reed|rocko|ethan|liam|mason|roger|brandon|kenneth|oscar|harry|alfie|steffan|zarvox|trinoids/i;
   const NOVELTY = /bad news|bells|boing|bubbles|cellos|good news|jester|organ|superstar|whisper|wobble|bahh|hysterical|deranged|pipe organ/i;
   const genderOf = (v) => FEMALE.test(v.name) ? 'f' : MALE.test(v.name) ? 'm' : '?';
+  const bad = new Set();   // voices that failed to speak (e.g. Edge's online voices with no internet)
+  const usable = (v) => !bad.has(v.name) && (v.localService !== false || navigator.onLine !== false);
   function score(v, who, lang, g) {
     const n = v.name; let s = 0;
+    if (!usable(v)) s -= 400;   // offline: fall back to the voices installed on the computer
     if (/natural|neural/i.test(n)) s += 60; if (/premium/i.test(n)) s += 45; if (/enhanced/i.test(n)) s += 35;
     if (/online/i.test(n)) s += 20; if (/google/i.test(n)) s += 30;
     if (NOVELTY.test(n)) s -= 200;
@@ -924,13 +927,25 @@ const Voice = (() => {
     try { voices = speechSynthesis.getVoices().filter(v => /^en([-_]|$)/i.test(v.lang)); } catch (e) { voices = []; }
     castAll(); if (api && api.onchange) api.onchange();
   }
-  const voiceFor = (who) => { const name = custom[who] || auto[who]; return voices.find(v => v.name === name) || null; };
-  function say(who, text, sp) {
+  const voiceFor = (who) => {
+    const pick = voices.find(v => v.name === custom[who]);
+    if (pick && usable(pick)) return pick;
+    return voices.find(v => v.name === auto[who]) || null;
+  };
+  function say(who, text, sp, retry = true) {
     try {
       speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(text.replace(/[*_~]/g, '').replace(/…/g, '...'));
       const v = voiceFor(who); if (v) { u.voice = v; u.lang = v.lang; }
-      u.pitch = sp.pitch ?? 1; u.rate = sp.rate ?? 1; u.volume = 0.95; speechSynthesis.speak(u);
+      u.pitch = sp.pitch ?? 1; u.rate = sp.rate ?? 1; u.volume = 0.95;
+      u.onerror = (e) => {
+        if (!v || !retry || e.error === 'interrupted' || e.error === 'canceled') return;
+        // An online voice failing means the internet is down, so skip all of them until it's back.
+        if (v.localService === false) { for (const x of voices) if (x.localService === false) bad.add(x.name); } else bad.add(v.name);
+        castAll(); if (api && api.onchange) api.onchange();
+        say(who, text, sp, false);   // try again once with the next best voice
+      };
+      speechSynthesis.speak(u);
     } catch (e) { }
   }
   function speak(who, text, sp) { if (ok && on && sp && !sp.silent) say(who, text, sp); }
@@ -938,12 +953,15 @@ const Voice = (() => {
   function stop() { if (ok) try { speechSynthesis.cancel(); } catch (e) { } }
   api = {
     speak, preview, stop, onchange: null,
-    list: () => voices, auto: (who) => auto[who] || '', custom: (who) => custom[who] || '',
+    list: () => voices, auto: (who) => auto[who] || '', custom: (who) => custom[who] || '', usable,
     set(who, name) { if (name) custom[who] = name; else delete custom[who]; try { localStorage.setItem('halcyon_voices', JSON.stringify(custom)); } catch (e) { } },
     reset() { custom = {}; try { localStorage.removeItem('halcyon_voices'); } catch (e) { } },
     get on() { return on; }, set on(v) { on = v; if (!v) stop(); }, get supported() { return ok; },
   };
-  if (ok) { load(); try { speechSynthesis.addEventListener('voiceschanged', load); } catch (e) { speechSynthesis.onvoiceschanged = load; } }
+  if (ok) {
+    load(); try { speechSynthesis.addEventListener('voiceschanged', load); } catch (e) { speechSynthesis.onvoiceschanged = load; }
+    addEventListener('online', () => { bad.clear(); load(); }); addEventListener('offline', load);
+  }
   return api;
 })();
 
@@ -4040,7 +4058,7 @@ function renderVoicePanel() {
     const id = `voice-${who}`, lab = document.createElement('label'); lab.htmlFor = id; lab.textContent = label;
     const sel = document.createElement('select'); sel.id = id;
     sel.add(new Option(`Best available: ${Voice.auto(who) || 'none'}`, ''));
-    for (const v of list) sel.add(new Option(`${v.name} (${v.lang})`, v.name));
+    for (const v of list) sel.add(new Option(`${v.name} (${v.lang})${Voice.usable(v) ? '' : ' · needs internet'}`, v.name));
     sel.value = Voice.custom(who);
     sel.onchange = () => { Voice.set(who, sel.value); Voice.preview(who, sample, SPK[who]); };
     const test = document.createElement('button'); test.type = 'button'; test.textContent = '▶ Test'; test.setAttribute('aria-label', `Test ${label}'s voice`);

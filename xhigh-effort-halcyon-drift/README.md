@@ -6,7 +6,11 @@ A 3D point-and-click space adventure that runs in the browser. Everything in it 
 
 ## Play it
 
-Open `index.html` in a recent desktop Chrome, Edge, Firefox or Safari. You can double-click the file or serve the folder with any static server. The page loads [three.js](https://threejs.org) from the jsDelivr CDN, so it needs an internet connection the first time.
+**On a laptop, no internet needed:** download `halcyon-drift-offline.html`, put it anywhere (your Desktop works well), and double-click it. It opens in your web browser; Microsoft Edge or Chrome work best. That single file of about 1 MB contains the whole game, including the 3D engine and fonts, so it runs with Wi-Fi off. Saves and voice choices are kept in that browser on that computer.
+
+**Online version:** `index.html` is the same game at a third of the size. It loads [three.js](https://threejs.org) from the jsDelivr CDN, so it needs an internet connection. Open it in a recent desktop Chrome, Edge, Firefox or Safari, either by double-clicking the file or by serving the folder with any static server.
+
+> **Voices offline:** Edge's best "Natural" voices are streamed from the internet. With no connection the game automatically switches to the voices installed on your computer, such as Hazel, George, Zira and David. They sound more robotic, but they work anywhere. The 🗣 Voices menu marks the online voices "needs internet".
 
 | Control | Action |
 | --- | --- |
@@ -68,4 +72,5 @@ Open `index.html` in a recent desktop Chrome, Edge, Firefox or Safari. You can d
 ## Tech notes
 
 - A single self-contained `index.html` with no build step: an ES module that imports three.js r170 through an import map.
+- `halcyon-drift-offline.html` is the same game with three.js r170 (and the addons it uses) bundled and minified inline. It also embeds the Orbitron and Exo 2 fonts (SIL Open Font License) as data URIs, so it makes no network requests at all and runs straight from `file://`.
 - Add `?debug` to the URL to expose a `window.HD` helper in the console, for teleporting and inspecting state.
