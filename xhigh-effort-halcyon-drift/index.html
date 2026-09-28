@@ -167,6 +167,18 @@ button:disabled{opacity:.38;cursor:not-allowed}
 #helpPanel{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:58;padding:20px 24px;width:min(560px,92vw);max-height:84vh;overflow:auto;font-size:14px;line-height:1.5}
 #helpPanel h3{font-family:'Orbitron';letter-spacing:.2em;color:var(--accent);margin:0 0 10px;font-size:14px}
 #helpPanel b{color:var(--gold)}
+#voicePanel{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:58;padding:20px 22px;width:min(620px,calc(100vw - 32px));max-height:84vh;overflow:auto;font-size:14px}
+#voicePanel h3{font-family:'Orbitron';letter-spacing:.2em;color:var(--accent);margin:0 0 12px;font-size:14px}
+.vtoggle{display:flex;gap:8px;align-items:center;margin-bottom:14px;cursor:pointer}
+#voiceRows{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px 10px;align-items:center}
+#voiceRows label{color:#dbe7f7;white-space:nowrap}
+#voiceRows select{min-width:0;width:100%;font:inherit;font-size:13px;color:var(--text);background:rgba(12,22,40,.92);border:1px solid var(--ui-line);border-radius:8px;padding:6px 8px}
+#voiceRows select:focus-visible,#voicePanel button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#voiceRows button{padding:6px 10px;font-size:12px;white-space:nowrap}
+.vnote{color:var(--muted);font-size:12.5px;line-height:1.45;margin:14px 0 0}
+.btns.vbtns{margin-top:14px;justify-content:flex-end}
+.btns.vbtns button{font-family:'Exo 2',system-ui,sans-serif;font-size:13px;padding:9px 14px;min-width:0;letter-spacing:.02em}
+@media (max-width:560px){ #voiceRows{grid-template-columns:minmax(0,1fr) auto} #voiceRows label{grid-column:1 / -1;margin-top:4px} }
 
 @media (max-width:760px){
   #objectives{width:210px;font-size:12px;padding:8px 10px}
@@ -312,13 +324,22 @@ button:disabled{opacity:.38;cursor:not-allowed}
   <b>Interact</b> — click glowing consoles, plants, crew, creatures and objects. The tooltip tells you what you're pointing at.<br>
   <b>Items</b> — click an item in your inventory to examine it, use it on something, eat it or feed it to Comet. Right-click or Esc to stop using an item.<br>
   <b>Camera</b> — drag to look, scroll to zoom, <b>V</b> toggles Behind / First-Person view.<br>
-  <b>Full screen</b> — the Full Screen button (top right, or on the title screen) or <b>F</b>. Press it again, or <b>Esc</b>, to leave.</p>
+  <b>Full screen</b> — the Full Screen button (top right, or on the title screen) or <b>F</b>. Press it again, or <b>Esc</b>, to leave.<br>
+  <b>Voices</b> — the 🗣 Voices button turns speech on or off and lets you choose and test a voice for each character.</p>
   <p><b>Comet &amp; AVE points</b> — AVE stands for <i>Animal Valor &amp; Expertise</i>. Comet spends them on her skills:
   <b>Sniff</b> (1) finds hidden things and makes friends, <b>Bark</b> (1) scares or lures creatures, <b>Dig</b> (2) digs up buried things,
   <b>Fetch</b> (2) reaches tight spots and tugs things free. Refill AVE by petting her (click Comet), feeding her carrots or biscuits, and at Save Beacons.</p>
   <p><b>Save Beacons</b> — the glowing cyan pylons. Click one to save. If you fall, you return to your last save.</p>
   <p><b>Stuck?</b> Talk to the crew, read the Captain's log, and ask Comet to sniff around.</p>
   <div class="btns" style="margin-top:10px"><button id="btnHelpClose">Close</button></div>
+</div>
+
+<div id="voicePanel" class="panel hidden" role="dialog" aria-labelledby="voiceHead">
+  <h3 id="voiceHead">VOICES</h3>
+  <label class="vtoggle"><input type="checkbox" id="voiceOn" checked> Speak the dialogue aloud</label>
+  <div id="voiceRows"></div>
+  <p class="vnote">These voices come from your own browser and device, so what's on offer varies. The most natural-sounding are Microsoft Edge's "Natural" voices and Chrome's "Google" voices.</p>
+  <div class="btns vbtns"><button id="btnVoiceAuto" type="button">Pick the best voices for me</button><button id="btnVoiceClose" type="button">Done</button></div>
 </div>
 
 <script>
@@ -843,34 +864,66 @@ const Sound = (() => {
    SPEECH — the browser's built-in speech synthesiser voices every line
    ===================================================================== */
 const Voice = (() => {
-  let on = true, voices = [];
   const ok = 'speechSynthesis' in window;
-  function load() { if (!ok) return; voices = speechSynthesis.getVoices().filter(v => /^en/i.test(v.lang)); }
-  if (ok) { load(); speechSynthesis.onvoiceschanged = load; }
-  const prefs = {
-    HALO: [/Google UK English Female/i, /Serena|Kate|Moira|Tessa|Samantha|Zira|Female/i],
-    VEGA: [/Google US English/i, /Daniel|Alex|Aaron|David|Mark/i],
-    JUNO: [/Karen|Victoria|Fiona|Susan|Female/i],
-    RAFI: [/Google UK English Male/i, /Arthur|Oliver|Rishi|Male|George/i],
-    ZIB: [/Samantha|Google US English|Zira/i],
-    BOLT: [/Fred|Ralph|Zarvox|Trinoids|Albert|Google UK English Male|David/i],
-  };
-  function pick(who) {
-    if (!voices.length) return null;
-    for (const re of prefs[who] || []) { const v = voices.find(v => re.test(v.name)); if (v) return v; }
-    const idx = { HALO: 0, VEGA: 1, JUNO: 2, RAFI: 3, ZIB: 4, BOLT: 5 }[who] || 0; return voices[idx % voices.length];
+  let on = true, voices = [], auto = {}, custom = {};
+  try { custom = JSON.parse(localStorage.getItem('halcyon_voices') || '{}') || {}; } catch (e) { custom = {}; }
+  // Who sounds like what. HALO and the Captain are cast closest to FlipPilot's Wendy and Pilot:
+  // a British woman and a British man.
+  const CAST = [['HALO', 'en-gb', 'f'], ['VEGA', 'en-gb', 'm'], ['JUNO', 'en-us', 'f'], ['RAFI', 'en-us', 'm'], ['BOLT', 'en', 'm'], ['ZIB', 'en', 'f']];
+  const FEMALE = /female|google us english|zira|aria|jenny|sonia|libby|maisie|mia\b|hazel|susan|samantha|victoria|karen|moira|tessa|fiona|serena|kate|stephanie|\bava\b|allison|joanna|salli|kimberly|emma|\bamy\b|olivia|clara|michelle|nancy|jane|sara|elizabeth|\bana\b|ashley|cora|elsa|natasha|catherine|isla|abbi|bella|hollie|emily|nicole|heather|linda|kathy|shelley|zoe|anna|agnes|lisa|martha|nora|sandy|flo\b/i;
+  const MALE = /\bmale\b|david|mark|guy|ryan|thomas|george|daniel|oliver|arthur|\balex\b|fred|aaron|\btom\b|evan|nathan|christopher|eric|davis|jason|tony|brian|andrew|william|james|rishi|gordon|\blee\b|elliot|noah|ralph|albert|bruce|reed|rocko|ethan|liam|mason|roger|brandon|kenneth|oscar|harry|alfie|steffan|zarvox|trinoids/i;
+  const NOVELTY = /bad news|bells|boing|bubbles|cellos|good news|jester|organ|superstar|whisper|wobble|bahh|hysterical|deranged|pipe organ/i;
+  const genderOf = (v) => FEMALE.test(v.name) ? 'f' : MALE.test(v.name) ? 'm' : '?';
+  function score(v, who, lang, g) {
+    const n = v.name; let s = 0;
+    if (/natural|neural/i.test(n)) s += 60; if (/premium/i.test(n)) s += 45; if (/enhanced/i.test(n)) s += 35;
+    if (/online/i.test(n)) s += 20; if (/google/i.test(n)) s += 30;
+    if (NOVELTY.test(n)) s -= 200;
+    const robotic = /zarvox|trinoids|\bfred\b|\bralph\b|\balbert\b/i.test(n);
+    if (who === 'BOLT' && robotic) s += 90;   // a proper robot voice, if the device has one
+    else if (robotic) s -= 120;
+    const child = /\bana\b|maisie|junior/i.test(n);
+    if (who === 'ZIB' && child) s += 60;           // a child's voice suits a tiny alien
+    else if (child) s -= 70;
+    const vg = genderOf(v); s += vg === g ? 40 : vg === '?' ? 0 : -60;
+    const L = v.lang.replace('_', '-').toLowerCase(); if (lang.length > 2 && L === lang) s += 45; else if (L === 'en-gb' || L === 'en-us') s += 8;
+    return s;
   }
-  function speak(who, text, sp) {
-    if (!ok || !on || !sp || sp.silent) return;
+  function castAll() {
+    auto = {}; const used = new Map();
+    for (const [who, lang, g] of CAST) {
+      let best = null, bs = -Infinity;
+      for (const v of voices) { const s = score(v, who, lang, g) - (used.get(v.name) || 0) * 45; if (s > bs) { bs = s; best = v; } }
+      if (best) { auto[who] = best.name; used.set(best.name, (used.get(best.name) || 0) + 1); }
+    }
+  }
+  let api = null;
+  function load() {
+    if (!ok) return;
+    try { voices = speechSynthesis.getVoices().filter(v => /^en([-_]|$)/i.test(v.lang)); } catch (e) { voices = []; }
+    castAll(); if (api && api.onchange) api.onchange();
+  }
+  const voiceFor = (who) => { const name = custom[who] || auto[who]; return voices.find(v => v.name === name) || null; };
+  function say(who, text, sp) {
     try {
       speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(text.replace(/[*_~]/g, '').replace(/…/g, '...'));
-      const v = pick(who); if (v) u.voice = v;
+      const v = voiceFor(who); if (v) { u.voice = v; u.lang = v.lang; }
       u.pitch = sp.pitch ?? 1; u.rate = sp.rate ?? 1; u.volume = 0.95; speechSynthesis.speak(u);
     } catch (e) { }
   }
+  function speak(who, text, sp) { if (ok && on && sp && !sp.silent) say(who, text, sp); }
+  function preview(who, text, sp) { if (ok && sp) say(who, text, sp); }
   function stop() { if (ok) try { speechSynthesis.cancel(); } catch (e) { } }
-  return { speak, stop, get on() { return on; }, set on(v) { on = v; if (!v) stop(); }, get supported() { return ok; } };
+  api = {
+    speak, preview, stop, onchange: null,
+    list: () => voices, auto: (who) => auto[who] || '', custom: (who) => custom[who] || '',
+    set(who, name) { if (name) custom[who] = name; else delete custom[who]; try { localStorage.setItem('halcyon_voices', JSON.stringify(custom)); } catch (e) { } },
+    reset() { custom = {}; try { localStorage.removeItem('halcyon_voices'); } catch (e) { } },
+    get on() { return on; }, set on(v) { on = v; if (!v) stop(); }, get supported() { return ok; },
+  };
+  if (ok) { load(); try { speechSynthesis.addEventListener('voiceschanged', load); } catch (e) { speechSynthesis.onvoiceschanged = load; } }
+  return api;
 })();
 
 /* =====================================================================
@@ -2672,7 +2725,7 @@ window.addEventListener('keydown', (e) => {
   if (e.repeat && !['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) return;
   keys[e.code] = true; Sound.init();
   if (dlg.open && ['Space', 'Enter', 'KeyE'].includes(e.code)) { e.preventDefault(); advanceDialog(); return; }
-  if (e.code === 'Escape') { if (keypadOpen) keypad.cancel(); else if (!el.help.classList.contains('hidden')) el.help.classList.add('hidden'); else if (selectedItem) setSelected(null); else cancelWalk(); closeItemMenu(); return; }
+  if (e.code === 'Escape') { if (keypadOpen) keypad.cancel(); else if (!$('#voicePanel').classList.contains('hidden')) $('#voicePanel').classList.add('hidden'); else if (!el.help.classList.contains('hidden')) el.help.classList.add('hidden'); else if (selectedItem) setSelected(null); else cancelWalk(); closeItemMenu(); return; }
   if (gameState === 'cine' && (e.code === 'Space' || e.code === 'Enter')) { skipRequested = true; return; }
   if (e.code === 'KeyF' && !e.ctrlKey && !e.metaKey && !e.altKey && fsSupported()) { e.preventDefault(); toggleFullscreen(); return; }
   if (gameState !== 'play') return;
@@ -3836,10 +3889,40 @@ function setQuality(q) {
   scene.traverse(o => { if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => m.needsUpdate = true); });
   btnLabel('#btnQuality', '✨', q === 'ultra' ? 'Ultra' : q === 'high' ? 'High' : 'Lite'); onResize();
 }
+/* ---------- voice picker: cast each character from the voices this browser has ---------- */
+const VOICE_CAST = [
+  ['HALO', 'HALO (ship AI)', 'Captain Vega. Captain. Please wake up.'],
+  ['VEGA', 'Captain Vega', "Four light-years from home, a hole in my ship, and bugs. Let's get to work."],
+  ['JUNO', 'Dr. Juno Park', "Tomatoes if you're hurt. Carrots are Comet's treats."],
+  ['RAFI', 'Chief Rafi Okoye', 'Listen to her purr! I told you she purrs.'],
+  ['ZIB', 'Zib', 'Zib ready! Go to blue home!'],
+  ['BOLT', 'BOLT-7', 'BOLT-7 IS OPERATIONAL. BOLT-7 THANKS THE FLUFFY UNIT.'],
+];
+function renderVoicePanel() {
+  const rows = $('#voiceRows'); rows.innerHTML = ''; $('#voiceOn').checked = Voice.on;
+  const list = Voice.list();
+  if (!Voice.supported || !list.length) { rows.style.display = 'block'; rows.innerHTML = '<p class="vnote">This browser has no English speech voices, so the dialogue is shown as text only. Microsoft Edge or Chrome on a computer has the best voices.</p>'; return; }
+  rows.style.display = '';
+  for (const [who, label, sample] of VOICE_CAST) {
+    const id = `voice-${who}`, lab = document.createElement('label'); lab.htmlFor = id; lab.textContent = label;
+    const sel = document.createElement('select'); sel.id = id;
+    sel.add(new Option(`Best available: ${Voice.auto(who) || 'none'}`, ''));
+    for (const v of list) sel.add(new Option(`${v.name} (${v.lang})`, v.name));
+    sel.value = Voice.custom(who);
+    sel.onchange = () => { Voice.set(who, sel.value); Voice.preview(who, sample, SPK[who]); };
+    const test = document.createElement('button'); test.type = 'button'; test.textContent = '▶ Test'; test.setAttribute('aria-label', `Test ${label}'s voice`);
+    test.onclick = () => { Sound.init(); Voice.preview(who, sample, SPK[who]); };
+    rows.append(lab, sel, test);
+  }
+}
 function wireUI() {
   $('#btnView').onclick = () => { Sound.click(); setCamMode(camMode === 'fp' ? 'third' : 'fp'); };
-  $('#btnVoice').onclick = () => { Voice.on = !Voice.on; btnLabel('#btnVoice', '🗣', Voice.on ? 'Voices: On' : 'Voices: Off'); toast(Voice.on ? 'Spoken dialogue on' : 'Spoken dialogue off', 1200); };
-  btnLabel('#btnVoice', '🗣', Voice.supported ? 'Voices: On' : 'Voices: N/A'); btnLabel('#btnMusic', '🎵', 'Music: On'); btnLabel('#btnView', '👁', 'View: Behind'); btnLabel('#btnHelp', '❔', 'Help');
+  $('#btnVoice').onclick = (e) => { e.stopPropagation(); Sound.click(); const p = $('#voicePanel'); if (p.classList.contains('hidden')) { renderVoicePanel(); p.classList.remove('hidden'); } else p.classList.add('hidden'); };
+  $('#voiceOn').onchange = (e) => { Voice.on = e.target.checked; toast(Voice.on ? 'Spoken dialogue on' : 'Spoken dialogue off', 1200); };
+  $('#btnVoiceAuto').onclick = () => { Voice.reset(); renderVoicePanel(); toast('Each character now has the best voice your browser offers', 1800); };
+  $('#btnVoiceClose').onclick = () => $('#voicePanel').classList.add('hidden');
+  Voice.onchange = () => { if (!$('#voicePanel').classList.contains('hidden')) renderVoicePanel(); };
+  btnLabel('#btnVoice', '🗣', 'Voices'); btnLabel('#btnMusic', '🎵', 'Music: On'); btnLabel('#btnView', '👁', 'View: Behind'); btnLabel('#btnHelp', '❔', 'Help');
   $('#btnMusic').onclick = () => { Sound.init(); Sound.setMusic(!Sound.musicOn); btnLabel('#btnMusic', '🎵', Sound.musicOn ? 'Music: On' : 'Music: Off'); };
   $('#btnQuality').onclick = () => setQuality(quality === 'ultra' ? 'high' : quality === 'high' ? 'lite' : 'ultra');
   btnLabel('#btnQuality', '✨', quality === 'ultra' ? 'Ultra' : quality === 'high' ? 'High' : 'Lite');
@@ -3895,7 +3978,7 @@ async function boot() {
 boot();
 // Developer hook: open with ?debug to poke at the game from the browser console.
 if (/[?&]debug/.test(location.search)) window.HD = { get S() { return S; }, player, dog, npcs, queen, HS, W, ROOMS, walkTo, interact, dogAbility, applyWorld, saveGame, loadGame, camera, renderer, setCamMode,
-  nav: { planPath, resolveMove, doorLocked, regionAt, insideObs, obstacles, minX, maxX, ROOM_Z, CORR_Z, HALF_W }, doors,
+  nav: { planPath, resolveMove, doorLocked, regionAt, insideObs, obstacles, minX, maxX, ROOM_Z, CORR_Z, HALF_W }, doors, Voice,
   get state() { return gameState; }, get busy() { return actionBusy; }, get dialog() { return dlg.open; },
   tp(x, z) { player.pos.set(x, 0, z); dog.pos.set(x + 0.8, 0, z + 0.8); snapCamera(); }, advance: advanceDialog, skip() { skipRequested = true; } };
 </script>

@@ -47,7 +47,7 @@ Open `index.html` in a recent desktop Chrome, Edge, Firefox or Safari. You can d
   - A koi pond, a living strawberry wall and working sprinklers, with plants that sway on the GPU.
 - **Save Beacons**, with auto-saves at key moments, stored in the browser's local storage.
 - **Graphics:** physically based materials, soft shadows, bloom and ACES tone mapping. Red emergency lighting switches to warm light when you restore power. Every texture is procedural: panelled metal, diamond plate, soil, wood, the gas giant and Earth itself.
-- **Speech:** every line is spoken aloud with your browser's built-in speech synthesiser, using a different voice, pitch and rate for each character. Comet barks, Zib chirps and BOLT-7 beeps, all synthesised with the Web Audio API. There's also a generative score and ship ambience that change with the situation. You can turn voices and music on or off in the top bar.
+- **Speech:** every line is spoken aloud with your browser's built-in speech synthesiser. The game casts each character from the most natural voices your browser has: a British woman for HALO, a British man for Captain Vega, a child's voice for Zib and a robot voice for BOLT-7 where the device has one. Microsoft Edge's "Natural" voices and Chrome's "Google" voices sound best. The 🗣 **Voices** button turns speech on or off and lets you pick and test a voice for each character; your picks are remembered. Comet barks, Zib chirps and BOLT-7 beeps, all synthesised with the Web Audio API. There's also a generative score and ship ambience that change with the situation.
 - **Graphics quality:** toggle ✨ **Ultra**, **High** or **Lite** if your machine struggles.
 
 ## Walkthrough (spoilers)
