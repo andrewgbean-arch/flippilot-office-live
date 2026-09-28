@@ -39,7 +39,15 @@ import { signupOwner } from "./resetTestSupport.js";
 // send every customer back to http://localhost:5173 after paying.
 
 const saved: Record<string, string | undefined> = {};
-const KEYS = ["APP_URL", "NODE_ENV", "STRIPE_SECRET_KEY", "STRIPE_PRICE_ID", "STRIPE_PILOT_BRAIN_PRICE_ID"];
+const KEYS = [
+  "APP_URL",
+  "NODE_ENV",
+  "STRIPE_SECRET_KEY",
+  "STRIPE_CORE_SETTLING_PRICE_ID",
+  "STRIPE_CORE_STANDARD_PRICE_ID",
+  "STRIPE_PILOT_BRAIN_SETTLING_PRICE_ID",
+  "STRIPE_PILOT_BRAIN_STANDARD_PRICE_ID",
+];
 beforeEach(() => {
   for (const key of KEYS) saved[key] = process.env[key];
   delete process.env.APP_URL;
@@ -116,8 +124,10 @@ describe("appUrl: which web address the server trusts", () => {
 describe("billing: Stripe's return addresses come from the helper, not localhost", () => {
   async function ownerWithBilling() {
     process.env.STRIPE_SECRET_KEY = "sk_test_placeholder";
-    process.env.STRIPE_PRICE_ID = "price_placeholder";
-    delete process.env.STRIPE_PILOT_BRAIN_PRICE_ID;
+    process.env.STRIPE_CORE_SETTLING_PRICE_ID = "price_core_settling_placeholder";
+    process.env.STRIPE_CORE_STANDARD_PRICE_ID = "price_core_standard_placeholder";
+    delete process.env.STRIPE_PILOT_BRAIN_SETTLING_PRICE_ID;
+    delete process.env.STRIPE_PILOT_BRAIN_STANDARD_PRICE_ID;
     const owner = await signupOwner(app, "billing");
     const user = readCollection<{ id: string; dealershipId: string }>("users").find(u => u.id === owner.id)!;
     // The portal needs a Stripe customer on the dealership.

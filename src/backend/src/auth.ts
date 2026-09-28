@@ -108,11 +108,25 @@ export interface Dealership {
   trialEndsAt: string;
   stripeCustomerId?: string;
   stripeSubscriptionId?: string;
-  // Whether the Pilot Brain add-on is part of this dealership's real
-  // subscription — set from the actual Stripe subscription items
-  // (never just trusted from checkout intent), so it stays accurate if
-  // the dealer adds/removes it later via the billing portal. Undefined
-  // for a dealership that's never subscribed at all.
+  // The Subscription Schedule managing the 6-month settling-in price before
+  // it steps up to the standard price (routes/billing.ts) — set once, right
+  // after the subscription is first created. Not itself read for anything
+  // yet (pilotBrainEnabled/subscriptionStatus already carry what the app
+  // needs), kept for reference if a schedule ever needs looking up by hand.
+  stripeScheduleId?: string;
+  // When this dealership's CURRENT subscription started — set once, only by
+  // the checkout webhook's first "checkout.session.completed" (never
+  // touched by a later renewal/update event), so it marks the real start of
+  // the 6-month settling-in price rather than drifting on every Stripe
+  // event. Used to tell the dealer when their price is due to rise.
+  subscribedAt?: string;
+  // Whether this dealership is on the "Dealer OS + Pilot Brain" plan — set
+  // from the actual Stripe subscription items (never just trusted from
+  // checkout intent), so it stays accurate if the dealer changes plan later
+  // via the billing portal. Undefined for a dealership that's never
+  // subscribed at all. Despite the name this is a whole PLAN choice, not an
+  // add-on bolted onto a shared core price — the two plans are priced as
+  // their own thing (see PlanId in routes/billing.ts).
   pilotBrainEnabled?: boolean;
   phone?: string;
   address?: string;

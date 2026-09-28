@@ -5,7 +5,6 @@ import { requireAuth, requireOwner, type AuthUser, type Dealership } from "../au
 import { appLink } from "../appUrl";
 import { addTopUp, isValidTopUpAmount, TOPUP_AMOUNTS_PENCE } from "../pilotBrainCredit";
 
-
 // Read at call time, not module load — same dotenv-ordering reasoning
 // as getJwtSecret() in auth.ts.
 function getStripe(): Stripe {
@@ -16,29 +15,55 @@ function getStripe(): Stripe {
   return new Stripe(key);
 }
 
-function getPriceId(): string {
-  const id = process.env.STRIPE_PRICE_ID;
-  if (!id) {
-    throw new Error("STRIPE_PRICE_ID is not set in backend/.env");
+// The two real plans (decided 2026-09-21): "Dealer OS" and "Dealer OS +
+// Pilot Brain". Each has its own settling-in price for its first 6 months,
+// then steps up to its own standard price — not a shared core price with
+// Pilot Brain bolted on as an optional extra (249 is not 99 + a top-up; it
+// is its own number). Checkout can only start a subscription at ONE flat
+// price, so every plan starts on its settling price, and the step-up to
+// the standard price is set up as a Stripe Subscription Schedule right
+// after the subscription is created (see scheduleStepUp below) — Checkout
+// itself has no concept of a schedule.
+export type PlanId = "core" | "core_pilot_brain";
+const PLAN_IDS: readonly PlanId[] = ["core", "core_pilot_brain"];
+const SETTLING_MONTHS = 6;
+
+interface PlanPriceIds {
+  settling: string;
+  standard: string;
+}
+
+function envPriceIds(settlingVar: string, standardVar: string): PlanPriceIds | null {
+  const settling = process.env[settlingVar];
+  const standard = process.env[standardVar];
+  return settling && standard ? { settling, standard } : null;
+}
+
+// Undefined until the owner has created both real Stripe Prices for a plan
+// and set both env vars — a plan with only one of the two set is treated as
+// not offered at all, since starting someone on a settling price with no
+// standard price to step up to would leave them on the cheap price forever
+// by accident.
+function priceIdsFor(plan: PlanId): PlanPriceIds | null {
+  return plan === "core"
+    ? envPriceIds("STRIPE_CORE_SETTLING_PRICE_ID", "STRIPE_CORE_STANDARD_PRICE_ID")
+    : envPriceIds("STRIPE_PILOT_BRAIN_SETTLING_PRICE_ID", "STRIPE_PILOT_BRAIN_STANDARD_PRICE_ID");
+}
+
+// Real, current truth about which plan a subscription is on — checked
+// against its actual first line item's price every time (never assumed
+// from checkout intent, so it stays right if the dealer changes plan later
+// via the billing portal), and matches EITHER a plan's settling or its
+// standard price, since which one applies depends on where the schedule
+// has got to.
+function planOfSubscription(subscription: Stripe.Subscription): PlanId | null {
+  const priceId = subscription.items.data[0]?.price.id;
+  if (!priceId) return null;
+  for (const plan of PLAN_IDS) {
+    const ids = priceIdsFor(plan);
+    if (ids && (priceId === ids.settling || priceId === ids.standard)) return plan;
   }
-  return id;
-}
-
-// The Pilot Brain premium add-on — a separate real Stripe Price,
-// optional at checkout. Genuinely optional, not required: unset simply
-// means the add-on can't be purchased yet, not a hard error, since the
-// core product must keep working before this exists.
-function getPilotBrainPriceId(): string | undefined {
-  return process.env.STRIPE_PILOT_BRAIN_PRICE_ID || undefined;
-}
-
-// Real, current truth about whether this subscription includes the
-// Pilot Brain add-on — checked against its actual line items every
-// time, never assumed from what was originally purchased.
-function subscriptionHasPilotBrain(subscription: Stripe.Subscription): boolean {
-  const pilotBrainPriceId = getPilotBrainPriceId();
-  if (!pilotBrainPriceId) return false;
-  return subscription.items.data.some(item => item.price.id === pilotBrainPriceId);
+  return null;
 }
 
 function findDealership(id: string): Dealership | undefined {
@@ -49,6 +74,27 @@ function updateDealership(id: string, patch: Partial<Dealership>) {
   const dealerships = readCollection<Dealership>("dealerships");
   const updated = dealerships.map(d => (d.id === id ? { ...d, ...patch } : d));
   writeCollection("dealerships", updated);
+}
+
+// Turns a plain subscription (however Checkout just created it, on the
+// plan's settling price) into a two-phase schedule: the settling price for
+// its first 6 months, then the standard price for as long as the
+// subscription keeps running. end_behavior "release" hands the
+// subscription back to renewing normally once the schedule's phases are
+// done, rather than the schedule going on managing it forever — there is
+// nothing after the standard-price phase for it to do.
+async function scheduleStepUp(stripe: Stripe, subscriptionId: string, plan: PlanId): Promise<string | null> {
+  const ids = priceIdsFor(plan);
+  if (!ids) return null;
+  const schedule = await stripe.subscriptionSchedules.create({ from_subscription: subscriptionId });
+  const updated = await stripe.subscriptionSchedules.update(schedule.id, {
+    end_behavior: "release",
+    phases: [
+      { items: [{ price: ids.settling, quantity: 1 }], duration: { interval: "month", interval_count: SETTLING_MONTHS } },
+      { items: [{ price: ids.standard, quantity: 1 }] },
+    ],
+  });
+  return updated.id;
 }
 
 // Stripe requires the RAW request body (not JSON-parsed) to verify the
@@ -63,9 +109,10 @@ export async function handleStripeWebhook(req: Request, res: Response) {
     return res.status(400).send("Missing Stripe signature or webhook secret");
   }
 
+  const stripe = getStripe();
   let event: Stripe.Event;
   try {
-    event = getStripe().webhooks.constructEvent(
+    event = stripe.webhooks.constructEvent(
       req.body,
       signature,
       webhookSecret
@@ -99,12 +146,31 @@ export async function handleStripeWebhook(req: Request, res: Response) {
         // could in theory have their checkout line items differ from
         // what actually lands on the subscription, so this is derived
         // from Stripe's own subscription record, not assumed.
-        const subscription = await getStripe().subscriptions.retrieve(String(session.subscription));
+        const subscription = await stripe.subscriptions.retrieve(String(session.subscription));
+        const plan = planOfSubscription(subscription);
+
+        let scheduleId: string | undefined;
+        if (plan) {
+          try {
+            scheduleId = (await scheduleStepUp(stripe, subscription.id, plan)) ?? undefined;
+          } catch (err) {
+            // The subscription itself is real and already active — a
+            // schedule failure here must never be mistaken for the
+            // checkout itself failing. Logged loudly rather than silently
+            // leaving the dealer on the settling price forever; this needs
+            // fixing by hand (retry scheduleStepUp for this subscription)
+            // until there's an automatic retry for it.
+            console.error("billing webhook: could not schedule the price step-up for", dealershipId, err);
+          }
+        }
+
         updateDealership(dealershipId, {
           subscriptionStatus: "active",
           stripeCustomerId: String(session.customer),
           stripeSubscriptionId: subscription.id,
-          pilotBrainEnabled: subscriptionHasPilotBrain(subscription),
+          pilotBrainEnabled: plan === "core_pilot_brain",
+          subscribedAt: new Date().toISOString(),
+          ...(scheduleId ? { stripeScheduleId: scheduleId } : {}),
         });
       }
       break;
@@ -124,12 +190,16 @@ export async function handleStripeWebhook(req: Request, res: Response) {
             : subscription.status === "past_due"
             ? "past_due"
             : "canceled";
-        // Re-derived on every update, not just at checkout — this is
-        // what makes adding/removing the add-on later via the real
-        // Stripe billing portal actually take effect here too.
+        // Re-derived on every update, not just at checkout — this is what
+        // makes the price step-up ITSELF (the schedule updating the
+        // subscription's item at month 6) and a dealer changing plan later
+        // via the billing portal both actually take effect here too.
+        // subscribedAt is deliberately left alone: this fires again for the
+        // very step-up this file set up, and that is not a new
+        // subscription starting.
         updateDealership(dealership.id, {
           subscriptionStatus: status,
-          pilotBrainEnabled: subscriptionHasPilotBrain(subscription),
+          pilotBrainEnabled: planOfSubscription(subscription) === "core_pilot_brain",
         });
       }
       break;
@@ -143,12 +213,27 @@ export default function registerBillingRoute(app: Express) {
   // Subscription/payment control is more sensitive than the dealership
   // profile edits and team invites elsewhere in this app that already
   // require the owner role — a plain staff account (sales/general/etc)
-  // must not be able to cancel the subscription or reach the real
-  // Stripe billing portal for the dealership's card details.
-  // What can actually be bought right now, so the Billing screen only offers
-  // Pilot Brain when checkout would really include it (its Stripe price is set).
-  app.get("/billing/options", requireAuth, requireOwner, (_req, res) => {
-    res.json({ ok: true, pilotBrainAvailable: Boolean(getPilotBrainPriceId()) });
+  // must not be able to start a subscription or reach the real Stripe
+  // billing portal for the dealership's card details.
+  // Which plans can really be bought right now, so the Billing screen only
+  // offers a plan when checkout would really work (both its real Stripe
+  // Prices are configured).
+  app.get("/billing/options", requireAuth, requireOwner, (req, res) => {
+    // subscribedAt is answered here, owner-only, rather than added to
+    // /dealership/me's teammate whitelist — a billing date is exactly the
+    // kind of thing "billing identifiers no teammate has any use for"
+    // (see dealership.ts's own comment) already keeps off that list.
+    const user = (req as Request & { user: AuthUser }).user;
+    const dealership = findDealership(user.dealershipId);
+    res.json({
+      ok: true,
+      plans: {
+        core: priceIdsFor("core") !== null,
+        core_pilot_brain: priceIdsFor("core_pilot_brain") !== null,
+      },
+      settlingMonths: SETTLING_MONTHS,
+      subscribedAt: dealership?.subscribedAt ?? null,
+    });
   });
 
   app.post("/billing/create-checkout-session", requireAuth, requireOwner, async (req, res) => {
@@ -159,20 +244,16 @@ export default function registerBillingRoute(app: Express) {
         return res.status(404).json({ ok: false, error: "Dealership not found" });
       }
 
-      // Pilot Brain is opt-in at checkout — only added as a real line
-      // item when explicitly requested and only when a real price for
-      // it has actually been configured, so an unset env var can never
-      // silently charge for something that doesn't exist yet.
-      const includePilotBrain = Boolean(req.body?.includePilotBrain) && Boolean(getPilotBrainPriceId());
-      const lineItems = [{ price: getPriceId(), quantity: 1 }];
-      if (includePilotBrain) {
-        lineItems.push({ price: getPilotBrainPriceId()!, quantity: 1 });
+      const plan: PlanId = req.body?.plan === "core_pilot_brain" ? "core_pilot_brain" : "core";
+      const ids = priceIdsFor(plan);
+      if (!ids) {
+        return res.status(400).json({ ok: false, error: "That plan isn't set up yet — contact support." });
       }
 
       const session = await getStripe().checkout.sessions.create({
         mode: "subscription",
         payment_method_types: ["card"],
-        line_items: lineItems,
+        line_items: [{ price: ids.settling, quantity: 1 }],
         ...(dealership.stripeCustomerId
           ? { customer: dealership.stripeCustomerId }
           : { customer_email: user.email }),

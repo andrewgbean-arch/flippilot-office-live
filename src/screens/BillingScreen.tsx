@@ -28,8 +28,37 @@ type CreditSummary = {
   recentTransactions: CreditTransaction[];
 };
 
+// The two real plans (routes/billing.ts's PlanId) — prices shown here are
+// what the dealer is actually charged; the server is the real source of
+// truth for whether each one can currently be bought (billing/options).
+type PlanId = "core" | "core_pilot_brain";
+const PLANS: { id: PlanId; name: string; settling: number; standard: number; blurb: string }[] = [
+  {
+    id: "core",
+    name: "Dealer OS",
+    settling: 99,
+    standard: 149,
+    blurb: "Stock, leads, the books, staff and rota, your public store — everything except Pilot Brain.",
+  },
+  {
+    id: "core_pilot_brain",
+    name: "Dealer OS + Pilot Brain",
+    settling: 249,
+    standard: 299,
+    blurb:
+      "Everything in Dealer OS, plus Pilot Brain — your always-on business companion, watching, explaining, and checking the market for a fraction of the cost of a part-time member of staff. Includes £30/month of usage credit for her voice and live web lookups.",
+  },
+];
+
+type BillingOptions = {
+  plans: Record<PlanId, boolean>;
+  settlingMonths: number;
+  subscribedAt: string | null;
+};
+
 const TOPUP_AMOUNTS_PENCE = [1000, 2500, 5000] as const;
 const money = (pence: number) => `£${(pence / 100).toFixed(2)}`;
+const formatDate = (iso: string) => new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
 
 export default function BillingScreen() {
   const [params] = useSearchParams();
@@ -37,22 +66,21 @@ export default function BillingScreen() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Defaults on — Pilot Brain is the premium pitch, opt-out rather
-  // than opt-in reads better for conversion, and it's still a real,
-  // visible, unchecked-if-they-want choice, not a dark pattern (no
-  // pre-ticked box hidden below the fold — it's right here).
-  const [includePilotBrain, setIncludePilotBrain] = useState(true);
-  // Whether checkout can really add Pilot Brain (its price is set up on the
-  // server). Until we know, or when it can't, the box isn't offered: ticking
-  // it used to change nothing, and the dealer believed they'd bought it.
-  const [pilotBrainAvailable, setPilotBrainAvailable] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<PlanId>("core_pilot_brain");
+  // Which plans checkout can really start (both the plan's real Stripe
+  // Prices are configured), when this dealership's current subscription
+  // began, and how many months the settling-in price runs for. Until we
+  // know, or when a plan isn't available, it isn't offered: picking it used
+  // to change nothing, and the dealer believed they'd bought it.
+  const [options, setOptions] = useState<BillingOptions | null>(null);
   const [credit, setCredit] = useState<CreditSummary | null>(null);
   const [topUpLoading, setTopUpLoading] = useState<number | null>(null);
+
   useEffect(() => {
     fetch(`${BASE_URL}/billing/options`, { headers: authHeaders() })
-      .then(res => res.json())
-      .then(data => setPilotBrainAvailable(data?.ok === true && data.pilotBrainAvailable === true))
-      .catch(() => setPilotBrainAvailable(false));
+      .then(res => (res.ok ? res.json() : null))
+      .then(data => setOptions(data?.ok ? data : null))
+      .catch(() => setOptions(null));
   }, []);
 
   useEffect(() => {
@@ -100,7 +128,7 @@ export default function BillingScreen() {
       const res = await fetch(`${BASE_URL}/billing/create-checkout-session`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({ includePilotBrain: pilotBrainAvailable && includePilotBrain }),
+        body: JSON.stringify({ plan: selectedPlan }),
       });
       const data = await res.json();
       if (!data.ok) {
@@ -168,6 +196,19 @@ export default function BillingScreen() {
       ? "text-yellow-300 bg-yellow-500/20 border-yellow-500/60"
       : "text-red-300 bg-red-500/20 border-red-500/60";
 
+  const currentPlan = PLANS.find(p => p.id === (dealership.pilotBrainEnabled ? "core_pilot_brain" : "core"))!;
+  const offeredPlans = PLANS.filter(p => options?.plans?.[p.id]);
+
+  // A price rise only means anything while it's still ahead — a dealership
+  // subscribed well over settlingMonths ago is already on the standard
+  // price, and saying otherwise would just be wrong.
+  let priceRiseDate: Date | null = null;
+  if (dealership.subscriptionStatus === "active" && options?.subscribedAt) {
+    const rise = new Date(options.subscribedAt);
+    rise.setMonth(rise.getMonth() + options.settlingMonths);
+    if (rise.getTime() > Date.now()) priceRiseDate = rise;
+  }
+
   return (
     <div className="px-6 py-10 max-w-2xl mx-auto space-y-8">
       <div>
@@ -186,6 +227,16 @@ export default function BillingScreen() {
           Checkout was canceled — no charge was made.
         </p>
       )}
+      {params.get("topupSuccess") === "true" && (
+        <p className="text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-4 py-3 text-sm">
+          Top-up confirmed — thank you! Your usage credit below may take a few seconds to update.
+        </p>
+      )}
+      {params.get("topupCanceled") === "true" && (
+        <p className="text-white/60 bg-black/40 border border-white/20 rounded-lg px-4 py-3 text-sm">
+          Top-up canceled — no charge was made.
+        </p>
+      )}
 
       <div className="bg-black/40 border border-yellow-400/20 rounded-2xl p-6 space-y-4">
         <div className="flex items-center justify-between">
@@ -197,15 +248,14 @@ export default function BillingScreen() {
 
         {dealership.subscriptionStatus === "active" && (
           <div className="flex items-center justify-between">
-            <span className="text-white/70">Pilot Brain add-on</span>
-            <span className={`px-3 py-1 rounded-full text-sm font-semibold border ${
-              dealership.pilotBrainEnabled
-                ? "text-emerald-300 bg-emerald-500/20 border-emerald-500/60"
-                : "text-white/50 bg-white/5 border-white/20"
-            }`}>
-              {dealership.pilotBrainEnabled ? "Active" : "Not added"}
-            </span>
+            <span className="text-white/70">Plan</span>
+            <span className="text-yellow-300 font-semibold text-sm">{currentPlan.name}</span>
           </div>
+        )}
+        {priceRiseDate && (
+          <p className="text-white/40 text-xs">
+            Your settling-in price runs until {formatDate(priceRiseDate.toISOString())}, then it rises to {money(currentPlan.standard * 100)}/month.
+          </p>
         )}
 
         {error && (
@@ -215,39 +265,50 @@ export default function BillingScreen() {
         )}
 
         {dealership.subscriptionStatus === "active" ? (
-          <>
-            {!dealership.pilotBrainEnabled && (
-              <p className="text-white/50 text-sm">
-                Want Pilot Brain — your always-on business companion, watching, explaining, and checking the market for a fraction of the cost of a part-time member of staff? Add it from the billing portal below.
-              </p>
-            )}
-            <button
-              onClick={handleManageBilling}
-              disabled={actionLoading}
-              className="w-full py-2.5 rounded-lg bg-black/50 border border-yellow-400/40 text-yellow-300 font-semibold hover:bg-black/70 transition disabled:opacity-50"
-            >
-              {actionLoading ? "Opening…" : "Manage Billing"}
-            </button>
-          </>
+          <button
+            onClick={handleManageBilling}
+            disabled={actionLoading}
+            className="w-full py-2.5 rounded-lg bg-black/50 border border-yellow-400/40 text-yellow-300 font-semibold hover:bg-black/70 transition disabled:opacity-50"
+          >
+            {actionLoading ? "Opening…" : "Manage Billing"}
+          </button>
+        ) : offeredPlans.length === 0 ? (
+          <p className="text-white/50 text-sm">
+            Subscribing isn't set up on this server yet — contact support.
+          </p>
         ) : (
           <>
-            {pilotBrainAvailable && (
-            <label className="flex items-start gap-3 bg-black/30 border border-white/10 rounded-lg p-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={includePilotBrain}
-                onChange={e => setIncludePilotBrain(e.target.checked)}
-                className="mt-1"
-              />
-              <span className="text-sm text-white/80">
-                <span className="font-semibold text-yellow-300">Include Pilot Brain</span> — your always-on business companion.
-                Watches your leads and stock, explains what's happening and why, and can compare your prices with dealer listings. A fraction of the cost of a part-time member of staff.
-              </span>
-            </label>
-            )}
+            <div className="space-y-3">
+              {offeredPlans.map(plan => (
+                <label
+                  key={plan.id}
+                  className={`flex items-start gap-3 rounded-lg p-3 cursor-pointer border ${
+                    selectedPlan === plan.id ? "bg-yellow-500/10 border-yellow-400/60" : "bg-black/30 border-white/10"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="plan"
+                    checked={selectedPlan === plan.id}
+                    onChange={() => setSelectedPlan(plan.id)}
+                    className="mt-1"
+                  />
+                  <span className="text-sm text-white/80">
+                    <span className="font-semibold text-yellow-300">
+                      {plan.name} — {money(plan.settling * 100)}/month for the first {options?.settlingMonths ?? 6} months, then {money(plan.standard * 100)}/month
+                    </span>
+                    <br />
+                    {plan.blurb}
+                  </span>
+                </label>
+              ))}
+            </div>
+            <p className="text-white/40 text-xs">
+              Prices exclude VAT; we are not currently VAT registered so none is added. The price rise after the settling-in period is shown here, in the terms, and on this page as it approaches.
+            </p>
             <button
               onClick={handleSubscribe}
-              disabled={actionLoading}
+              disabled={actionLoading || !offeredPlans.some(p => p.id === selectedPlan)}
               className="w-full py-2.5 rounded-lg bg-yellow-500 text-black font-semibold hover:bg-yellow-400 transition disabled:opacity-50"
             >
               {actionLoading ? "Starting checkout…" : "Subscribe Now"}
