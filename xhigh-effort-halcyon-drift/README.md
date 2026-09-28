@@ -14,6 +14,7 @@ Open `index.html` in a recent desktop Chrome, Edge, Firefox or Safari. You can d
 | **Click** an object, crew member or creature | Look, use, talk or fight (the tooltip shows what you're pointing at) |
 | **Drag** / **scroll** | Look around / zoom |
 | **V** or the 👁 button | Switch between **Behind** (third-person) and **First-Person** view |
+| **F** or the **Full Screen** button | Go full screen (top right in game, or on the title screen); press again or **Esc** to leave |
 | **1–4** or the buttons by Comet's portrait | Comet's skills: Sniff, Bark, Dig, Fetch |
 | **WASD / arrows** | Walk manually |
 | Inventory item | Examine it, use it on something, eat it, or feed it to Comet |

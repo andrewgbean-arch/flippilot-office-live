@@ -106,6 +106,9 @@ button:disabled{opacity:.38;cursor:not-allowed}
 #usingBar{position:absolute;left:50%;bottom:98px;transform:translateX(-50%);padding:6px 8px 6px 14px;font-size:13px;color:var(--gold);max-width:calc(100vw - 32px);display:flex;gap:10px;align-items:center;text-align:center}
 #usingBar button{flex:none;padding:5px 10px;font-size:12px}
 #topbar .lbl{margin-left:4px}
+.fs-btn svg{width:14px;height:14px;vertical-align:-2px}
+.btns button.ghost{min-width:0;font-family:'Exo 2',system-ui,sans-serif;font-size:14px;letter-spacing:.04em;padding:12px 18px;background:rgba(10,18,32,.45)}
+.btns button.ghost .lbl{margin-left:6px}
 #tooltip{position:fixed;pointer-events:none;padding:5px 10px;font-size:13px;border-radius:8px;background:rgba(5,10,20,.82);border:1px solid var(--ui-line);
   transform:translate(14px,14px);white-space:nowrap;z-index:40;color:#fff}
 #tooltip .verb{color:var(--gold)}
@@ -202,12 +205,13 @@ button:disabled{opacity:.38;cursor:not-allowed}
     <div class="btns">
       <button id="btnNew" disabled>New Game</button>
       <button id="btnContinue" class="hidden">Continue</button>
+      <button id="btnFullTitle" class="ghost fs-btn" type="button" title="Full screen (F)">Full Screen</button>
     </div>
     <div id="loading">Assembling starship…</div>
     <div class="help">
       <div><b>Click</b> the floor to walk. <b>Click</b> things to use them.</div>
       <div><b>Drag</b> to look around. <b>Scroll</b> to zoom.</div>
-      <div><b>V</b> switches Behind / First-Person view.</div>
+      <div><b>V</b> switches Behind / First-Person view. <b>F</b> goes full screen.</div>
       <div><b>1–4</b> Comet's skills. They cost <b>AVE</b> points.</div>
       <div><b>WASD</b> to walk manually. <b>Esc</b> cancels.</div>
       <div>Glowing <b>Save Beacons</b> store your progress.</div>
@@ -223,6 +227,7 @@ button:disabled{opacity:.38;cursor:not-allowed}
     <button id="btnVoice" title="Spoken dialogue">🗣 Voices: On</button>
     <button id="btnMusic" title="Music">🎵 Music: On</button>
     <button id="btnQuality" title="Graphics quality">✨ Ultra</button>
+    <button id="btnFull" class="fs-btn" type="button" title="Full screen (F)">Full Screen</button>
     <button id="btnHelp" title="Help">❔</button>
   </div>
   <div id="roomName"></div>
@@ -306,7 +311,8 @@ button:disabled{opacity:.38;cursor:not-allowed}
   <p><b>Walk</b> — click anywhere on the floor (or use WASD / arrow keys).<br>
   <b>Interact</b> — click glowing consoles, plants, crew, creatures and objects. The tooltip tells you what you're pointing at.<br>
   <b>Items</b> — click an item in your inventory to examine it, use it on something, eat it or feed it to Comet. Right-click or Esc to stop using an item.<br>
-  <b>Camera</b> — drag to look, scroll to zoom, <b>V</b> toggles Behind / First-Person view.</p>
+  <b>Camera</b> — drag to look, scroll to zoom, <b>V</b> toggles Behind / First-Person view.<br>
+  <b>Full screen</b> — the Full Screen button (top right, or on the title screen) or <b>F</b>. Press it again, or <b>Esc</b>, to leave.</p>
   <p><b>Comet &amp; AVE points</b> — AVE stands for <i>Animal Valor &amp; Expertise</i>. Comet spends them on her skills:
   <b>Sniff</b> (1) finds hidden things and makes friends, <b>Bark</b> (1) scares or lures creatures, <b>Dig</b> (2) digs up buried things,
   <b>Fetch</b> (2) reaches tight spots and tugs things free. Refill AVE by petting her (click Comet), feeding her carrots or biscuits, and at Save Beacons.</p>
@@ -2603,6 +2609,25 @@ function setCamMode(m) {
   if (m === 'fp') fpPitch = -0.05; toast(m === 'fp' ? 'First-person view · drag to look around' : 'Behind view · drag to orbit, scroll to zoom', 1600);
 }
 function btnLabel(sel, icon, label) { const b = $(sel); b.innerHTML = `<span aria-hidden="true">${icon}</span><span class="lbl">${label}</span>`; b.setAttribute('aria-label', label); }
+/* ---------- full screen (optional: some phones and app views don't allow it) ---------- */
+const FS_ENTER = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>';
+const FS_EXIT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>';
+function fsElement() { return document.fullscreenElement || document.webkitFullscreenElement || null; }
+function fsSupported() { return !!(document.fullscreenEnabled || document.webkitFullscreenEnabled); }
+async function toggleFullscreen() {
+  Sound.init();
+  try {
+    if (fsElement()) { if (document.exitFullscreen) await document.exitFullscreen(); else document.webkitExitFullscreen(); }
+    else { const root = document.documentElement; if (root.requestFullscreen) await root.requestFullscreen({ navigationUI: 'hide' }); else root.webkitRequestFullscreen(); }
+  } catch (e) { toast('Your browser didn\'t allow full screen here. You can still use its own full-screen key: F11 on Windows, Ctrl+Cmd+F on a Mac.', 4200); }
+  canvas.focus();
+}
+function updateFullscreenButtons() {
+  const on = !!fsElement(), label = on ? 'Exit Full Screen' : 'Full Screen';
+  for (const sel of ['#btnFull', '#btnFullTitle']) { btnLabel(sel, on ? FS_EXIT : FS_ENTER, label); $(sel).classList.toggle('hidden', !fsSupported()); }
+}
+document.addEventListener('fullscreenchange', updateFullscreenButtons);
+document.addEventListener('webkitfullscreenchange', updateFullscreenButtons);
 function setPlayerVisible(v) { player.rig.g.traverse(o => { if (o.isMesh) o.visible = v; }); }
 window.addEventListener('keydown', (e) => {
   if (e.repeat && !['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) return;
@@ -2610,6 +2635,7 @@ window.addEventListener('keydown', (e) => {
   if (dlg.open && ['Space', 'Enter', 'KeyE'].includes(e.code)) { e.preventDefault(); advanceDialog(); return; }
   if (e.code === 'Escape') { if (keypadOpen) keypad.cancel(); else if (!el.help.classList.contains('hidden')) el.help.classList.add('hidden'); else if (selectedItem) setSelected(null); else cancelWalk(); closeItemMenu(); return; }
   if (gameState === 'cine' && (e.code === 'Space' || e.code === 'Enter')) { skipRequested = true; return; }
+  if (e.code === 'KeyF' && !e.ctrlKey && !e.metaKey && !e.altKey && fsSupported()) { e.preventDefault(); toggleFullscreen(); return; }
   if (gameState !== 'play') return;
   if (e.code === 'KeyV') setCamMode(camMode === 'fp' ? 'third' : 'fp');
   if (e.code === 'KeyH') el.help.classList.toggle('hidden');
@@ -3761,6 +3787,9 @@ function wireUI() {
   $('#btnMusic').onclick = () => { Sound.init(); Sound.setMusic(!Sound.musicOn); btnLabel('#btnMusic', '🎵', Sound.musicOn ? 'Music: On' : 'Music: Off'); };
   $('#btnQuality').onclick = () => setQuality(quality === 'ultra' ? 'high' : quality === 'high' ? 'lite' : 'ultra');
   btnLabel('#btnQuality', '✨', quality === 'ultra' ? 'Ultra' : quality === 'high' ? 'High' : 'Lite');
+  $('#btnFull').onclick = (e) => { e.stopPropagation(); Sound.click(); toggleFullscreen(); };
+  $('#btnFullTitle').onclick = (e) => { e.stopPropagation(); Sound.click(); toggleFullscreen(); };
+  updateFullscreenButtons();
   $('#btnHelp').onclick = () => el.help.classList.toggle('hidden');
   $('#btnHelpClose').onclick = () => el.help.classList.add('hidden');
   $('#objHead').onclick = () => { el.objectives.classList.toggle('collapsed'); $('#objToggle').textContent = el.objectives.classList.contains('collapsed') ? '+' : '–'; };
