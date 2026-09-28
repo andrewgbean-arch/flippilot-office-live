@@ -1,4 +1,5 @@
 import { Express } from "express";
+import { scopeFromBody } from "../phoneScope";
 import { randomUUID } from "crypto";
 import { readCollection, writeCollection } from "../db";
 import {
@@ -156,7 +157,7 @@ export default function registerAuthRoute(app: Express) {
     writeCollection("dealerships", [...dealerships, dealership]);
     writeCollection("users", [...users, newUser]);
 
-    const token = signToken(toPublicUser(newUser));
+    const token = signToken(toPublicUser(newUser), scopeFromBody(req.body));
     res.json({
       ok: true,
       token,
@@ -262,7 +263,7 @@ export default function registerAuthRoute(app: Express) {
 
     writeCollection("users", [...users, newUser]);
 
-    const authToken = signToken(toPublicUser(newUser));
+    const authToken = signToken(toPublicUser(newUser), scopeFromBody(req.body));
     res.json({
       ok: true,
       token: authToken,
@@ -291,7 +292,7 @@ export default function registerAuthRoute(app: Express) {
       return res.status(401).json({ ok: false, error: "Invalid email or password" });
     }
 
-    const token = signToken(toPublicUser(user));
+    const token = signToken(toPublicUser(user), scopeFromBody(req.body));
     // Includes the dealership's real approval status so a client (web
     // or mobile) can route straight to "awaiting approval" instead of
     // logging the user in and then hitting a 403 on their first real

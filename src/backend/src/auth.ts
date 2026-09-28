@@ -1,4 +1,5 @@
 import bcrypt from "bcryptjs";
+import { phoneMayUse } from "./phoneScope";
 import { createHmac, timingSafeEqual } from "crypto";
 import jwt from "jsonwebtoken";
 import { Request, Response, NextFunction } from "express";
@@ -133,7 +134,9 @@ export async function verifyPassword(
   return bcrypt.compare(password, hash);
 }
 
-export function signToken(user: AuthUser): string {
+// `scope` "phone" marks a login made by the staff phone app, which only
+// reaches the addresses that app uses (phoneScope.ts). No scope = a full login.
+export function signToken(user: AuthUser, scope?: "phone"): string {
   return jwt.sign(
     {
       id: user.id,
@@ -142,6 +145,7 @@ export function signToken(user: AuthUser): string {
       role: user.role,
       ...(user.staffRole ? { staffRole: user.staffRole } : {}),
       dealershipId: user.dealershipId,
+      ...(scope ? { scope } : {}),
     },
     getJwtSecret(),
     { expiresIn: TOKEN_TTL }
@@ -358,6 +362,11 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
     // Same message as a bad/expired token on purpose — don't tell the
     // caller which of the two it was.
     return res.status(401).json({ ok: false, error: "Invalid or expired session" });
+  }
+
+  // A phone-app login only reaches what the phone app uses (phoneScope.ts).
+  if ((claims as { scope?: unknown }).scope === "phone" && !phoneMayUse(req.method, req.originalUrl)) {
+    return res.status(403).json({ ok: false, error: "That isn't available from the phone app. Please use Dealer OS on a computer." });
   }
 
   (req as Request & { user: AuthUser }).user = toPublicUser(stored);
