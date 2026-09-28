@@ -157,7 +157,13 @@ export async function verifyPassword(
 
 // `scope` "phone" marks a login made by the staff phone app, which only
 // reaches the addresses that app uses (phoneScope.ts). No scope = a full login.
+//
+// `pwv` stamps the token with the account's password as it is right now
+// (sessionPasswordStamp). When the password changes or is reset, every login
+// made before that stops working (requireAuth), so a phone or laptop someone
+// else had signed in on is logged out, not left in for up to 7 days.
 export function signToken(user: AuthUser, scope?: "phone"): string {
+  const stored = readCollection<StoredUser>("users").find(u => u.id === user.id);
   return jwt.sign(
     {
       id: user.id,
@@ -167,6 +173,7 @@ export function signToken(user: AuthUser, scope?: "phone"): string {
       ...(user.staffRole ? { staffRole: user.staffRole } : {}),
       dealershipId: user.dealershipId,
       ...(scope ? { scope } : {}),
+      ...(stored ? { pwv: sessionPasswordStamp(stored.passwordHash) } : {}),
     },
     getJwtSecret(),
     { expiresIn: TOKEN_TTL }
@@ -288,6 +295,12 @@ interface PasswordResetPayload {
   fp?: string;
 }
 
+// The login-token version of passwordFingerprint, under its own label so a
+// value taken from one kind of token is no use in the other.
+export function sessionPasswordStamp(passwordHash: string): string {
+  return createHmac("sha256", getJwtSecret()).update(`session-password:${passwordHash}`).digest("hex").slice(0, 32);
+}
+
 // A short, one-way fingerprint of the account's CURRENT password hash. A reset
 // token carries it, and /auth/reset-password compares it with the account's
 // hash at that moment, so the token stops working the instant the password
@@ -385,12 +398,23 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
     return res.status(401).json({ ok: false, error: "Invalid or expired session" });
   }
 
+  // The password has changed since this login was made (see signToken).
+  // Logins made before the stamp existed carry none and run out on their own
+  // within 7 days, rather than logging every dealer out at once.
+  const stamp = (claims as { pwv?: unknown }).pwv;
+  if (stamp !== undefined && stamp !== sessionPasswordStamp(stored.passwordHash)) {
+    return res.status(401).json({ ok: false, error: "Your password was changed. Please log in again." });
+  }
+
   // A phone-app login only reaches what the phone app uses (phoneScope.ts).
   if ((claims as { scope?: unknown }).scope === "phone" && !phoneMayUse(req.method, req.originalUrl)) {
     return res.status(403).json({ ok: false, error: "That isn't available from the phone app. Please use Dealer OS on a computer." });
   }
 
   (req as Request & { user: AuthUser }).user = toPublicUser(stored);
+  // Kept so a route that hands out a fresh login (a password change) gives
+  // the same kind back.
+  if ((claims as { scope?: unknown }).scope === "phone") res.locals.tokenScope = "phone";
   next();
 }
 

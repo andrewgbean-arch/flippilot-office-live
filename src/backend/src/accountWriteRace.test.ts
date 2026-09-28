@@ -442,7 +442,7 @@ describe("normal (no overlap) password routes still behave as before", () => {
       .set(bearer(owner.token))
       .send({ currentPassword: OWNER_PASSWORD, newPassword: "brandnewpass123" });
     expect(right.status).toBe(200);
-    expect(right.body).toEqual({ ok: true });
+    expect(right.body).toEqual({ ok: true, token: expect.any(String) });
 
     const row = storedUsers().find(u => u.id === owner.user.id);
     expect(await bcrypt.compare("brandnewpass123", row!.passwordHash)).toBe(true);

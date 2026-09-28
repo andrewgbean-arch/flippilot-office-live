@@ -371,7 +371,10 @@ export default function registerAuthRoute(app: Express) {
     user.passwordHash = newPasswordHash;
     writeCollection("users", users);
 
-    res.json({ ok: true });
+    // Every other login on this account has just stopped working (see
+    // signToken). This device gets a fresh one, of the same kind, so the
+    // person who changed the password stays in.
+    res.json({ ok: true, token: signToken(toPublicUser(user), res.locals.tokenScope) });
   });
 
   // Requesting a reset always returns the same generic response
@@ -415,11 +418,14 @@ export default function registerAuthRoute(app: Express) {
         if (process.env.NODE_ENV === "test") devResetLink = resetLink;
       }
 
-      await sendEmail(
+      // Not awaited: waiting for the email service only when the account
+      // exists made the reply slower for real accounts, and that difference
+      // told anyone timing it which emails have one.
+      void sendEmail(
         user.email,
         "Reset your FlipPilot Dealer OS password",
         `Click this link to reset your password (expires in 1 hour): ${resetLink}\n\nIf you didn't request this, ignore this email.`
-      );
+      ).catch(err => console.error("forgot-password: sending the reset email failed", err));
     }
 
     res.json({

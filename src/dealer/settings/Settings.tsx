@@ -11,7 +11,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useInventory } from "@/context/InventoryProvider";
 import { useBookkeeping } from "@/bookkeeping/BookkeepingProvider";
 import { useLedgerPurchases } from "@/bookkeeping/useLedgerPurchases";
-import { authHeaders } from "@/lib/authToken";
+import { authHeaders, setAuthToken } from "@/lib/authToken";
 import { useTour } from "@/tour/TourProvider";
 import { toCSV, downloadCSV } from "@/lib/csv";
 import type { TeamMember } from "@/jobs/jobTypes";
@@ -687,6 +687,9 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
         setError(data.error || "Failed to change password.");
         return;
       }
+      // Changing the password logs out every other device; this one gets a
+      // fresh login back so it stays in.
+      if (typeof data.token === "string") setAuthToken(data.token);
       setSuccess(true);
     } catch {
       setError("Backend unreachable — try again.");
