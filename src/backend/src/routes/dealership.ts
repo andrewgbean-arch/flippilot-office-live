@@ -6,6 +6,8 @@ import {
   requireOwner,
   requirePlatformAdmin,
   signInviteToken,
+  staffAccountCount,
+  MAX_STAFF_ACCOUNTS,
   VALID_STAFF_ROLES,
   type AuthUser,
   type Dealership,
@@ -122,6 +124,19 @@ export default function registerDealershipRoute(app: Express) {
 
     if (!dealership) {
       return res.status(404).json({ ok: false, error: "Dealership not found" });
+    }
+
+    // A link the owner is about to hand out is pointless once nobody could
+    // actually join with it — same cap the real join enforces (routes/auth.ts),
+    // just told to the owner sooner instead of the invitee finding out later.
+    if (staffAccountCount(dealership.id) >= MAX_STAFF_ACCOUNTS) {
+      return res.status(400).json({
+        ok: false,
+        // atCap: the client's own signal to offer removing someone right
+        // there, rather than parsing this sentence to find out.
+        atCap: true,
+        error: `This dealership already has the maximum of ${MAX_STAFF_ACCOUNTS} staff accounts. Remove an account nobody uses below, or contact support if the dealership genuinely needs more.`,
+      });
     }
 
     const trimmedName = typeof inviteeName === "string" ? inviteeName.trim() : "";

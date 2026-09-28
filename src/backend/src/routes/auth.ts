@@ -13,6 +13,8 @@ import {
   verifyPasswordResetToken,
   resetTokenMatchesUser,
   toPublicUser,
+  staffAccountCount,
+  MAX_STAFF_ACCOUNTS,
   type StoredUser,
   type AuthUser,
   type Dealership,
@@ -31,6 +33,7 @@ const INVITE_INVALID_MESSAGE = "This invite link is invalid or has expired";
 // themselves.
 const INVITE_CANCELLED_MESSAGE =
   "This invite link has been cancelled. Ask the dealership owner for a new link.";
+const STAFF_CAP_MESSAGE = `This dealership already has the maximum of ${MAX_STAFF_ACCOUNTS} staff accounts. Ask the owner to remove an account nobody uses in Manage Team, or contact support if the dealership genuinely needs more.`;
 
 // Decides, from the dealership's CURRENT record, whether an invite that has
 // already passed its signature check can still be used: null means yes,
@@ -224,6 +227,12 @@ export default function registerAuthRoute(app: Express) {
       return res.status(400).json({ ok: false, error: earlyProblem });
     }
 
+    // Cheap early check only — the real one is repeated below on a fresh read,
+    // same reasoning as the email check just after it.
+    if (staffAccountCount(payload.dealershipId) >= MAX_STAFF_ACCOUNTS) {
+      return res.status(400).json({ ok: false, error: STAFF_CAP_MESSAGE });
+    }
+
     const normalizedEmail = String(email).trim().toLowerCase();
 
     // Cheap early check only — the real one is repeated below on a fresh read.
@@ -249,6 +258,11 @@ export default function registerAuthRoute(app: Express) {
       return res
         .status(409)
         .json({ ok: false, error: "An account with that email already exists" });
+    }
+    // Real re-check, from the same fresh read: two people joining on
+    // barely-under-the-cap invites at once must never both get through.
+    if (users.filter(u => u.dealershipId === payload.dealershipId && u.role === "staff").length >= MAX_STAFF_ACCOUNTS) {
+      return res.status(400).json({ ok: false, error: STAFF_CAP_MESSAGE });
     }
 
     const newUser: StoredUser = {

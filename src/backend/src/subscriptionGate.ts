@@ -102,13 +102,27 @@ export function requirePilotBrainAccess(
     dealership.subscriptionStatus === "trialing" &&
     new Date(dealership.trialEndsAt).getTime() > Date.now();
 
-  if (trialActive || dealership.pilotBrainEnabled) {
-    return next();
+  if (!trialActive && !dealership.pilotBrainEnabled) {
+    return res.status(402).json({
+      ok: false,
+      error: "Pilot Brain is a premium add-on — subscribe to it in Billing to keep using it.",
+      pilotBrainEnabled: false,
+    });
   }
 
-  return res.status(402).json({
-    ok: false,
-    error: "Pilot Brain is a premium add-on — subscribe to it in Billing to keep using it.",
-    pilotBrainEnabled: false,
-  });
+  // The dealership has Pilot Brain (or is still trying it), but the owner can
+  // switch individual staff off it — a real control over who spends the
+  // dealership's usage credit (pilotBrainCredit.ts), not just who's on the
+  // plan. The owner is never switched off by this: an unset flag (every
+  // account created before this existed) means allowed, same "opt-out, not
+  // opt-in" reasoning as the money role gates.
+  if (user.role !== "owner" && user.pilotBrainAllowed === false) {
+    return res.status(403).json({
+      ok: false,
+      error: "Pilot Brain has been switched off for your account — ask the owner to turn it back on in Manage Team.",
+      pilotBrainAllowed: false,
+    });
+  }
+
+  return next();
 }

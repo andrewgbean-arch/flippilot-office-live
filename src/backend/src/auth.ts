@@ -56,6 +56,22 @@ export function isStaffRoleDemotion(from: StaffRole | undefined, to: StaffRole):
   return STAFF_ROLE_LEVEL[to] < STAFF_ROLE_LEVEL[from ?? "general"];
 }
 
+// A generous safety cap, not a real seat/billing limit yet (a future Stripe
+// seat model would be its own, separate thing) — this exists to stop
+// runaway account creation (a compromised owner account, or a careless
+// invite-link habit) rather than to constrain a genuinely large dealership.
+// 20 real staff logins is well above what a typical independent used-car
+// dealer's whole team needs.
+export const MAX_STAFF_ACCOUNTS = 20;
+
+// The owner isn't counted — this caps STAFF headcount, and every dealership
+// always has exactly one owner regardless.
+export function staffAccountCount(dealershipId: string): number {
+  return readCollection<{ dealershipId: string; role: string }>("users").filter(
+    u => u.dealershipId === dealershipId && u.role === "staff"
+  ).length;
+}
+
 export interface AuthUser {
   id: string;
   email: string;
@@ -63,6 +79,11 @@ export interface AuthUser {
   role: "owner" | "staff";
   staffRole?: StaffRole;
   dealershipId: string;
+  // Whether the OWNER has switched off THIS person's use of Pilot Brain
+  // (subscriptionGate.ts). Absent/undefined means allowed — every account
+  // made before this existed keeps working exactly as it did. Never set on
+  // an owner account; requirePilotBrainAccess never checks it for one.
+  pilotBrainAllowed?: boolean;
 }
 
 export interface StoredUser extends AuthUser {

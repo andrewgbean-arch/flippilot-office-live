@@ -42,4 +42,6 @@ export interface TeamMember {
   role: "owner" | "staff";
   staffRole?: "sales" | "finance" | "manager" | "general";
   dealershipId: string;
+  // Absent/undefined means allowed — see auth.ts's AuthUser.
+  pilotBrainAllowed?: boolean;
 }

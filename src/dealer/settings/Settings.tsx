@@ -56,6 +56,47 @@ function InviteTeammateModal({ onClose }: { onClose: () => void }) {
   const [nativeShareFailed, setNativeShareFailed] = useState(false);
   const { dealer } = useDealer();
   const [error, setError] = useState<string | null>(null);
+  // Set only when the server refused because the dealership is at its staff
+  // cap (dealership.ts's atCap flag) — offers removing someone right here
+  // instead of just saying no and sending the owner off to find Manage Team.
+  const [atCap, setAtCap] = useState(false);
+  const [staffList, setStaffList] = useState<TeamMember[] | null>(null);
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [removingId, setRemovingId] = useState<string | null>(null);
+
+  async function loadStaffList() {
+    try {
+      const res = await fetch(`${BASE_URL}/team`, { headers: authHeaders() });
+      const data = await res.json();
+      if (data.ok) setStaffList(data.members.filter((m: TeamMember) => m.role !== "owner"));
+    } catch {
+      // The cap message alone still tells the owner what to do; the list is a
+      // convenience on top of it, not the only way to act.
+    }
+  }
+
+  async function removeStaff(member: TeamMember) {
+    setRemovingId(member.id);
+    try {
+      const res = await fetch(`${BASE_URL}/dealership/team/${member.id}`, {
+        method: "DELETE",
+        headers: authHeaders(),
+      });
+      const data = await res.json();
+      if (!data.ok && res.status !== 404) {
+        setError(data.error || "Failed to remove teammate.");
+        return;
+      }
+      setStaffList((prev) => prev && prev.filter((m) => m.id !== member.id));
+      setConfirmingId(null);
+      setAtCap(false);
+      setError(null);
+    } catch {
+      setError("Backend unreachable — try again.");
+    } finally {
+      setRemovingId(null);
+    }
+  }
 
   async function generateLink() {
     setGenerating(true);
@@ -69,8 +110,13 @@ function InviteTeammateModal({ onClose }: { onClose: () => void }) {
       const data = await res.json();
       if (!data.ok) {
         setError(data.error || "Failed to generate invite link.");
+        if (data.atCap) {
+          setAtCap(true);
+          void loadStaffList();
+        }
         return;
       }
+      setAtCap(false);
       setLink(`${window.location.origin}/join?token=${data.token}`);
     } catch {
       setError("Backend unreachable — try again.");
@@ -141,6 +187,55 @@ function InviteTeammateModal({ onClose }: { onClose: () => void }) {
 
             {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
 
+            {atCap && (
+              <div className="mb-4 p-3 rounded bg-black/40 border border-white/10">
+                {staffList === null ? (
+                  <p className="text-white/60 text-xs">Loading your team…</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {staffList.map((m) => (
+                      <li key={m.id} className="flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-white/80 text-sm truncate">{m.name}</p>
+                          <p className="text-white/50 text-xs truncate">{roleLabel(m.staffRole)}</p>
+                        </div>
+                        {confirmingId === m.id ? (
+                          <div className="flex gap-2 shrink-0">
+                            <button
+                              onClick={() => setConfirmingId(null)}
+                              disabled={removingId === m.id}
+                              className="px-2 py-1 rounded text-xs bg-white/10 text-white/70 hover:bg-white/20 disabled:opacity-60"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              onClick={() => removeStaff(m)}
+                              disabled={removingId === m.id}
+                              className="px-2 py-1 rounded text-xs font-semibold bg-red-500 text-white hover:bg-red-400 disabled:opacity-60"
+                            >
+                              {removingId === m.id ? "Removing…" : "Confirm"}
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setConfirmingId(m.id)}
+                            className="px-2 py-1 rounded text-xs bg-white/10 text-red-300 hover:bg-white/20 shrink-0"
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </li>
+                    ))}
+                    {confirmingId && (
+                      <p className="text-red-300 text-xs pt-1">
+                        {removeTeammatePrompt(staffList.find((m) => m.id === confirmingId)?.name ?? "them")}
+                      </p>
+                    )}
+                  </ul>
+                )}
+              </div>
+            )}
+
             <div className="flex justify-end gap-3">
               <button
                 onClick={onClose}
@@ -207,6 +302,11 @@ function InviteTeammateModal({ onClose }: { onClose: () => void }) {
 // someone here really does cut them off immediately, not when their
 // login eventually expires.
 export function ManageTeamModal({ onClose }: { onClose: () => void }) {
+  // A manager can open this modal too (to remove someone who's left), but
+  // changing what someone can access — their role, or Pilot Brain — stays
+  // the owner's call.
+  const { user } = useAuth();
+  const isOwner = user?.role === "owner";
   const [members, setMembers] = useState<TeamMember[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -283,6 +383,28 @@ export function ManageTeamModal({ onClose }: { onClose: () => void }) {
     }
   }
 
+  async function togglePilotBrainAccess(member: TeamMember, allowed: boolean) {
+    setBusyId(member.id);
+    setError(null);
+    try {
+      const res = await fetch(`${BASE_URL}/dealership/team/${member.id}/pilot-brain-access`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ allowed }),
+      });
+      const data = await res.json();
+      if (!data.ok) {
+        setError(data.error || "Failed to change Pilot Brain access.");
+        return;
+      }
+      setMembers((prev) => prev && prev.map((m) => (m.id === member.id ? data.member : m)));
+    } catch {
+      setError("Backend unreachable — try again.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   async function removeMember(member: TeamMember) {
     setBusyId(member.id);
     setError(null);
@@ -336,7 +458,7 @@ export function ManageTeamModal({ onClose }: { onClose: () => void }) {
                     <span className="text-yellow-300 text-xs font-semibold px-2 py-1 rounded bg-yellow-400/10 whitespace-nowrap">
                       Owner
                     </span>
-                  ) : (
+                  ) : isOwner ? (
                     <select
                       aria-label={`Role for ${m.name}`}
                       value={m.staffRole ?? "general"}
@@ -348,10 +470,24 @@ export function ManageTeamModal({ onClose }: { onClose: () => void }) {
                         <option key={opt.value} value={opt.value}>{opt.label}</option>
                       ))}
                     </select>
+                  ) : (
+                    <span className="text-white/60 text-xs whitespace-nowrap">{roleLabel(m.staffRole)}</span>
                   )}
                 </div>
 
-                {m.role !== "owner" && pendingRole?.memberId === m.id && (
+                {m.role !== "owner" && isOwner && (
+                  <label className="mt-2 flex items-center gap-2 text-xs text-white/60">
+                    <input
+                      type="checkbox"
+                      checked={m.pilotBrainAllowed !== false}
+                      disabled={busyId === m.id}
+                      onChange={(e) => togglePilotBrainAccess(m, e.target.checked)}
+                    />
+                    Can use Pilot Brain
+                  </label>
+                )}
+
+                {m.role !== "owner" && isOwner && pendingRole?.memberId === m.id && (
                   <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
                     <p className="text-red-300 text-xs flex-1 min-w-[12rem]">
                       {lowerRolePrompt(m.name, roleLabel(m.staffRole), roleLabel(pendingRole.staffRole))}
@@ -719,20 +855,24 @@ export default function Settings() {
           <SupernovaGlowButton label="Change Password" onClick={() => setShowPasswordModal(true)} />
         </SupernovaGlowCard>
 
-        {/* Team — owner only, since inviting, re-roling or removing
-            someone with access to your dealership's data is an
-            ownership-level decision */}
-        {user?.role === "owner" && (
+        {/* Team — inviting, changing a role or the Pilot Brain switch is an
+            ownership-level decision (owner only); removing someone who has
+            left is a manager's call too, same trust level as the rest of
+            managers' HR powers (staff.ts) — so managers see this card, with
+            only the Manage Team button, not Invite. */}
+        {(user?.role === "owner" || user?.staffRole === "manager") && (
           <SupernovaGlowCard>
             <h2 className="text-yellow-300 font-bold text-xl mb-3">Team</h2>
             <p className="text-white/70 mb-4">
-              Invite a teammate into this dealership — they'll get their
-              own login inside your workspace, not a separate one. Change
-              what they can access, or remove them when they leave.
+              {user?.role === "owner"
+                ? "Invite a teammate into this dealership — they'll get their own login inside your workspace, not a separate one. Change what they can access, or remove them when they leave."
+                : "Remove a teammate's login when they leave. Inviting someone new, or changing what a teammate can access, is for the owner."}
             </p>
 
             <div className="flex flex-wrap gap-2">
-              <SupernovaGlowButton label="Invite Teammate" onClick={() => setShowInviteModal(true)} />
+              {user?.role === "owner" && (
+                <SupernovaGlowButton label="Invite Teammate" onClick={() => setShowInviteModal(true)} />
+              )}
               <SupernovaGlowButton label="Manage Team" onClick={() => setShowManageTeamModal(true)} />
             </div>
           </SupernovaGlowCard>

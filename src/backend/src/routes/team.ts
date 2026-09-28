@@ -8,6 +8,7 @@ import {
 import {
   requireAuth,
   requireOwner,
+  requireStaffRole,
   toPublicUser,
   VALID_STAFF_ROLES,
   isStaffRoleDemotion,
@@ -16,6 +17,7 @@ import {
   type StoredUser,
 } from "../auth";
 import { toDateKeyLocal, type Shift, type WorkPattern } from "./planner";
+import { RATES_COLLECTION, type PayRate } from "./pay";
 
 // jobs.ts stores whatever array the client PUTs and has no backend type
 // of its own, so this is just the fields the cleanup below touches.
@@ -30,8 +32,11 @@ type StoredJob = {
 // their work pattern (/shifts/generate loops over patterns, not current
 // accounts, so it would keep scheduling them every week), their shifts
 // from today onward (the rota would show someone who's gone working
-// Monday), and their claim on open jobs (unassigned, so they surface as
-// needing an owner rather than sitting with someone who can't act).
+// Monday), their claim on open jobs (unassigned, so they surface as
+// needing an owner rather than sitting with someone who can't act), and
+// their hourly pay rate (pay.ts's payRates — a live setting for a current
+// employee, not a record of anything, so it has nothing to preserve; left
+// in place it would just be a dead row matching nobody real).
 // Deliberately KEPT: timekeeping entries, past shifts, decided leave and
 // finished jobs — those are records of work already done (pay, holiday
 // entitlement, the job history), and each snapshots the person's name so
@@ -59,6 +64,12 @@ export function releaseMemberFromTeamData(dealershipId: string, userId: string):
   });
   if (jobsChanged) {
     writeTenantCollection(dealershipId, "jobs", updatedJobs);
+  }
+
+  const rates = readTenantCollection<PayRate>(dealershipId, RATES_COLLECTION);
+  const keptRates = rates.filter(r => r.userId !== userId);
+  if (keptRates.length !== rates.length) {
+    writeTenantCollection(dealershipId, RATES_COLLECTION, keptRates);
   }
 }
 
@@ -123,14 +134,16 @@ export default function registerTeamRoute(app: Express) {
     res.json({ ok: true, members });
   });
 
-  // Owner-only team management. Deliberately under /dealership/team, not
-  // /team: /team sits behind the approval and subscription gates (see
-  // app.ts), but an owner must always be able to cut off a departing
-  // employee — even with a lapsed trial — so these live beside
-  // /dealership/invite, which has only requireAuth + requireOwner for the
-  // same reason. Both take effect on the person's very next request,
-  // because requireAuth reads the stored account every time rather than
-  // trusting what their token says.
+  // Team management. Deliberately under /dealership/team, not /team: /team
+  // sits behind the approval and subscription gates (see app.ts), but a
+  // departing employee must always be cuttable off — even with a lapsed
+  // trial — so these live beside /dealership/invite, which has only
+  // requireAuth + requireOwner for the same reason. Changing a role and the
+  // Pilot Brain switch stay owner-only (they decide what someone can see and
+  // spend); removing someone is also a manager's call, same trust level as
+  // the rest of managers' HR powers (staff.ts). Every route here takes
+  // effect on the person's very next request, because requireAuth reads the
+  // stored account every time rather than trusting what their token says.
   app.put("/dealership/team/:id", requireAuth, requireOwner, (req, res) => {
     const found = findManageableMember(req, res);
     if (!found) return;
@@ -154,7 +167,31 @@ export default function registerTeamRoute(app: Express) {
     res.json({ ok: true, member: toPublicUser(found.target) });
   });
 
-  app.delete("/dealership/team/:id", requireAuth, requireOwner, (req, res) => {
+  // Whether THIS person may use Pilot Brain at all, separate from their
+  // staffRole — the owner may want a general/sales account to have full
+  // stock access but never touch the dealership's usage credit (see
+  // pilotBrainCredit.ts). Its own route, not folded into the role PUT above,
+  // so toggling it never risks resending (and so accidentally changing) the
+  // person's role.
+  app.put("/dealership/team/:id/pilot-brain-access", requireAuth, requireOwner, (req, res) => {
+    const found = findManageableMember(req, res);
+    if (!found) return;
+
+    const { allowed } = req.body ?? {};
+    if (typeof allowed !== "boolean") {
+      return res.status(400).json({ ok: false, error: "allowed must be true or false" });
+    }
+
+    // Stored only as an explicit false; "allowed" (the default) is
+    // represented by absence, so an account made before this existed is
+    // never silently different from one that was just switched back on.
+    if (allowed) delete found.target.pilotBrainAllowed;
+    else found.target.pilotBrainAllowed = false;
+    writeCollection("users", found.users);
+    res.json({ ok: true, member: toPublicUser(found.target) });
+  });
+
+  app.delete("/dealership/team/:id", requireAuth, requireStaffRole("manager"), (req, res) => {
     const found = findManageableMember(req, res);
     if (!found) return;
 

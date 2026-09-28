@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from "vitest";
 import request from "supertest";
 import app from "./app.js";
-import { getJwtSecret } from "./auth.js";
+import { getJwtSecret, MAX_STAFF_ACCOUNTS } from "./auth.js";
 import {
   signedMessagePhotoUrl,
   MAX_MESSAGE_PHOTO_BYTES_PER_DEALERSHIP,
@@ -1567,7 +1567,26 @@ describe("owner-managed team — change a role, remove a member", () => {
     expect(bystanderRes.status).toBe(200);
   });
 
-  it("no staff account can remove or re-role anyone — not even a manager", async () => {
+  it("no non-manager staff account can remove or re-role anyone", async () => {
+    const general = await joinStaff(owner.token, "general");
+    const target = await joinStaff(owner.token, "general");
+    const generalAuth = { Authorization: `Bearer ${general.token}` };
+
+    const roleRes = await request(app)
+      .put(`/dealership/team/${target.user.id}`)
+      .set(generalAuth)
+      .send({ staffRole: "manager" });
+    expect(roleRes.status).toBe(403);
+
+    const removeRes = await request(app).delete(`/dealership/team/${target.user.id}`).set(generalAuth);
+    expect(removeRes.status).toBe(403);
+
+    const targetRes = await request(app).get("/auth/me").set("Authorization", `Bearer ${target.token}`);
+    expect(targetRes.status).toBe(200);
+    expect(targetRes.body.user.staffRole).toBe("general");
+  });
+
+  it("a manager can remove a teammate — same real kill-switch as the owner (token dies at once, password is gone) — but still can't change anyone's role", async () => {
     const manager = await joinStaff(owner.token, "manager");
     const target = await joinStaff(owner.token, "general");
     const managerAuth = { Authorization: `Bearer ${manager.token}` };
@@ -1578,12 +1597,33 @@ describe("owner-managed team — change a role, remove a member", () => {
       .send({ staffRole: "manager" });
     expect(roleRes.status).toBe(403);
 
-    const removeRes = await request(app).delete(`/dealership/team/${target.user.id}`).set(managerAuth);
-    expect(removeRes.status).toBe(403);
+    const before = await request(app).get("/inventory").set("Authorization", `Bearer ${target.token}`);
+    expect(before.status).toBe(200);
 
-    const targetRes = await request(app).get("/auth/me").set("Authorization", `Bearer ${target.token}`);
-    expect(targetRes.status).toBe(200);
-    expect(targetRes.body.user.staffRole).toBe("general");
+    const removeRes = await request(app).delete(`/dealership/team/${target.user.id}`).set(managerAuth);
+    expect(removeRes.status).toBe(200);
+
+    const after = await request(app).get("/inventory").set("Authorization", `Bearer ${target.token}`);
+    expect(after.status).toBe(401);
+
+    const loginRes = await request(app).post("/auth/login").send({ email: target.email, password: "joinedtestpass123" });
+    expect(loginRes.status).toBe(401);
+  });
+
+  it("a manager can't remove or re-role the owner, and an hourly rate is cleared when someone is removed", async () => {
+    const manager = await joinStaff(owner.token, "manager");
+    const managerAuth = { Authorization: `Bearer ${manager.token}` };
+    const removeOwnerRes = await request(app).delete(`/dealership/team/${owner.user.id}`).set(managerAuth);
+    expect(removeOwnerRes.status).toBe(400);
+
+    const target = await joinStaff(owner.token, "general");
+    const rateRes = await request(app).put(`/pay/rates/${target.user.id}`).set(asOwner()).send({ hourlyRate: 12.5 });
+    expect(rateRes.status).toBe(200);
+
+    await request(app).delete(`/dealership/team/${target.user.id}`).set(managerAuth);
+
+    const ratesRes = await request(app).get("/pay/rates").set(asOwner());
+    expect(ratesRes.body.items.some((r: any) => r.userId === target.user.id)).toBe(false);
   });
 
   it("requires a login at all", async () => {
@@ -1765,6 +1805,171 @@ describe("owner-managed team — change a role, remove a member", () => {
     expect(time.body.items).toHaveLength(1);
     expect(time.body.items[0].userId).toBe(staff.user.id);
     expect(time.body.items[0].userName).toBe(staff.user.name);
+  });
+});
+
+// The owner switching an individual teammate's use of Pilot Brain on or off
+// — separate from whether the DEALERSHIP has her at all (that's
+// pilotBrainEnabled, tested elsewhere). /pilot-brain/memories is used as the
+// cheap probe route: it sits behind the same requirePilotBrainAccess gate as
+// chat/briefing/speak but makes no real API call, so these tests don't need
+// an Anthropic stub to prove the gate itself.
+describe("owner-managed team — who may use Pilot Brain", () => {
+  let owner: Awaited<ReturnType<typeof signup>>;
+  const asOwner = () => ({ Authorization: `Bearer ${owner.token}` });
+  const probe = (token: string) => request(app).get("/pilot-brain/memories").set("Authorization", `Bearer ${token}`);
+
+  beforeAll(async () => {
+    owner = await signup("pb-access-owner", { pilotBrainEnabled: true });
+  });
+
+  it("a new teammate can use Pilot Brain by default — nothing has to be switched on", async () => {
+    const member = await joinStaff(owner.token, "sales");
+    expect((await probe(member.token)).status).toBe(200);
+
+    const teamRes = await request(app).get("/team").set(asOwner());
+    const row = teamRes.body.members.find((m: any) => m.id === member.user.id);
+    expect(row.pilotBrainAllowed).toBeUndefined(); // allowed is the absence of the flag, not a stored true
+  });
+
+  it("the owner can switch a teammate off, it takes effect on their very next request, and back on again", async () => {
+    const member = await joinStaff(owner.token, "general");
+    expect((await probe(member.token)).status).toBe(200);
+
+    const off = await request(app).put(`/dealership/team/${member.user.id}/pilot-brain-access`).set(asOwner()).send({ allowed: false });
+    expect(off.status).toBe(200);
+    expect(off.body.member.pilotBrainAllowed).toBe(false);
+
+    const blocked = await probe(member.token);
+    expect(blocked.status).toBe(403);
+    expect(blocked.body.error).toContain("ask the owner");
+
+    const on = await request(app).put(`/dealership/team/${member.user.id}/pilot-brain-access`).set(asOwner()).send({ allowed: true });
+    expect(on.status).toBe(200);
+    expect(on.body.member.pilotBrainAllowed).toBeUndefined(); // back to the default, not a stored true
+
+    expect((await probe(member.token)).status).toBe(200);
+  });
+
+  it("the owner can never be switched off, even by naming their own id", async () => {
+    const res = await request(app).put(`/dealership/team/${owner.user.id}/pilot-brain-access`).set(asOwner()).send({ allowed: false });
+    expect(res.status).toBe(400); // findManageableMember refuses an owner target outright
+    expect((await probe(owner.token)).status).toBe(200);
+  });
+
+  it("refuses anything that isn't a plain boolean, and changes nothing", async () => {
+    const member = await joinStaff(owner.token, "general");
+    for (const bad of ["false", 0, null, undefined, {}]) {
+      const res = await request(app).put(`/dealership/team/${member.user.id}/pilot-brain-access`).set(asOwner()).send({ allowed: bad });
+      expect(res.status, `allowed ${JSON.stringify(bad)}`).toBe(400);
+    }
+    expect((await probe(member.token)).status).toBe(200); // still the default
+  });
+
+  it("is owner-only — a manager can't switch a teammate's Pilot Brain access", async () => {
+    const manager = await joinStaff(owner.token, "manager");
+    const member = await joinStaff(owner.token, "general");
+    const res = await request(app)
+      .put(`/dealership/team/${member.user.id}/pilot-brain-access`)
+      .set("Authorization", `Bearer ${manager.token}`)
+      .send({ allowed: false });
+    expect(res.status).toBe(403);
+    expect((await probe(member.token)).status).toBe(200);
+  });
+
+  it("blocks the per-user gate even during a trial, once the DEALERSHIP has stopped being the reason they're let in", async () => {
+    // Same idea, but the dealership itself is only trial-active (not a real
+    // Pilot Brain subscriber) — the per-user switch still applies on top.
+    const trialOwner = await signup("pb-access-trial-owner");
+    const member = await joinStaff(trialOwner.token, "general");
+    expect((await probe(member.token)).status).toBe(200);
+
+    await request(app)
+      .put(`/dealership/team/${member.user.id}/pilot-brain-access`)
+      .set({ Authorization: `Bearer ${trialOwner.token}` })
+      .send({ allowed: false });
+    expect((await probe(member.token)).status).toBe(403);
+  });
+
+  it("someone from a different dealership can't be switched by naming their id", async () => {
+    const stranger = await signup("pb-access-stranger", { pilotBrainEnabled: true });
+    const res = await request(app).put(`/dealership/team/${stranger.user.id}/pilot-brain-access`).set(asOwner()).send({ allowed: false });
+    expect(res.status).toBe(404);
+    expect((await probe(stranger.token)).status).toBe(200);
+  });
+});
+
+// A safety cap on staff headcount, not a real seat/billing limit (auth.ts).
+describe("a dealership's staff account cap", () => {
+  it(`allows exactly ${MAX_STAFF_ACCOUNTS} staff accounts, refuses the ${MAX_STAFF_ACCOUNTS + 1}th with a plain reason, and never counts the owner`, async () => {
+    const owner = await signup("cap-owner");
+    const asOwner = () => ({ Authorization: `Bearer ${owner.token}` });
+
+    for (let i = 0; i < MAX_STAFF_ACCOUNTS; i++) {
+      const member = await joinStaff(owner.token, "general");
+      expect(member.token, `member ${i}`).toBeDefined();
+    }
+
+    const teamRes = await request(app).get("/team").set(asOwner());
+    expect(teamRes.body.members).toHaveLength(MAX_STAFF_ACCOUNTS + 1); // + the owner, who isn't counted toward the cap
+
+    // The invite endpoint refuses to even generate a link once full.
+    const inviteRes = await request(app).post("/dealership/invite").set(asOwner()).send({ staffRole: "general" });
+    expect(inviteRes.status).toBe(400);
+    expect(inviteRes.body.atCap).toBe(true);
+    expect(inviteRes.body.error).toContain(String(MAX_STAFF_ACCOUNTS));
+    expect(inviteRes.body.error).toContain("contact support");
+
+    // Removing one frees a real slot (the join-time backstop for a link made
+    // just under the cap is covered by its own test below).
+    const staffIds = teamRes.body.members.filter((m: any) => m.role !== "owner").map((m: any) => m.id);
+    const removeRes = await request(app).delete(`/dealership/team/${staffIds[0]}`).set(asOwner());
+    expect(removeRes.status).toBe(200);
+
+    const afterInvite = await request(app).post("/dealership/invite").set(asOwner()).send({ staffRole: "general" });
+    expect(afterInvite.status).toBe(200);
+    const afterJoin = await joinStaff(owner.token, "general");
+    expect(afterJoin.token).toBeDefined();
+
+    const finalTeam = await request(app).get("/team").set(asOwner());
+    expect(finalTeam.body.members).toHaveLength(MAX_STAFF_ACCOUNTS + 1);
+  });
+
+  it("a real invite link made just under the cap still gets refused at /auth/join if the dealership fills up before it's used", async () => {
+    const owner = await signup("cap-race-owner");
+    const asOwner = () => ({ Authorization: `Bearer ${owner.token}` });
+
+    // A link generated with one slot still free…
+    const invite = await request(app).post("/dealership/invite").set(asOwner()).send({ staffRole: "general" });
+    expect(invite.status).toBe(200);
+
+    // …but by the time it's used, someone else has taken the last slot (real staff joining
+    // one at a time until full, the way it would really happen).
+    for (let i = 0; i < MAX_STAFF_ACCOUNTS; i++) {
+      await joinStaff(owner.token, "general");
+    }
+
+    const email = `integration-test-${runId}-cap-race-late@test.local`;
+    const joinRes = await request(app).post("/auth/join").send({
+      token: invite.body.token,
+      name: "Too Late",
+      email,
+      password: "toolatetestpass123",
+    });
+    expect(joinRes.status).toBe(400);
+    expect(joinRes.body.error).toContain(String(MAX_STAFF_ACCOUNTS));
+
+    const teamRes = await request(app).get("/team").set(asOwner());
+    expect(teamRes.body.members).toHaveLength(MAX_STAFF_ACCOUNTS + 1);
+  });
+
+  it("keeps one dealership's headcount away from another's", async () => {
+    const full = await signup("cap-iso-full");
+    for (let i = 0; i < MAX_STAFF_ACCOUNTS; i++) await joinStaff(full.token, "general");
+
+    const fresh = await signup("cap-iso-fresh");
+    const res = await request(app).post("/dealership/invite").set({ Authorization: `Bearer ${fresh.token}` }).send({ staffRole: "general" });
+    expect(res.status).toBe(200);
   });
 });
 

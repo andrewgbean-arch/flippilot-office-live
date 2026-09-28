@@ -16,7 +16,7 @@ import { computePaySummary, type PaySummary, type TimeEntryLike } from "../engin
 //     own rate, which they need to see how their gross was worked out).
 //   - Only the owner can look at anyone else's.
 
-const RATES_COLLECTION = "payRates";
+export const RATES_COLLECTION = "payRates";
 
 export interface PayRate {
   userId: string;

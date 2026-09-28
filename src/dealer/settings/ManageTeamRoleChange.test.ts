@@ -25,6 +25,14 @@ vi.mock("react", async importOriginal => {
   return { ...patched, default: patched };
 });
 
+// This whole file is written from the owner's point of view (see the header
+// comment above) — Settings.tsx now asks useAuth() who is calling, to decide
+// whether the role dropdown and Pilot Brain switch are shown at all (a
+// manager can open this dialog to remove someone, but not re-role them).
+vi.mock("@/context/AuthContext", () => ({
+  useAuth: () => ({ user: { id: "owner-1", role: "owner", name: "Test Owner", email: "owner@test.local", dealershipId: "dealership-1" } }),
+}));
+
 import { mount, type Mounted } from "@/lib/testing/hookRuntime";
 import { BASE_URL } from "@/lib/apiBaseUrl";
 import { ManageTeamModal } from "./Settings";

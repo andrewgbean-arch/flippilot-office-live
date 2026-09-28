@@ -260,13 +260,13 @@ describe("removing a teammate cancels the invite links already shared", () => {
     expect(storedDealership(ownerB.user.dealershipId)?.inviteEpoch).toBeUndefined();
   });
 
-  it("removals that don't happen don't cancel anything: a non-owner, an unknown id, the owner", async () => {
+  it("removals that don't happen don't cancel anything: a non-manager staff account, an unknown id, the owner", async () => {
     const owner = await signup("noop");
-    const manager = await joinStaff(owner.token, "manager");
+    const general = await joinStaff(owner.token, "general");
     const target = await joinStaff(owner.token, "general");
     const link = await makeLink(owner.token, "sales");
 
-    expect((await removeMember(manager.token, target.user.id)).status).toBe(403);
+    expect((await removeMember(general.token, target.user.id)).status).toBe(403);
     expect((await removeMember(owner.token, "no-such-member")).status).toBe(404);
     expect((await removeMember(owner.token, owner.user.id)).status).toBe(400);
 
