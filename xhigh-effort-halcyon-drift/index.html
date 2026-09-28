@@ -1320,7 +1320,7 @@ function buildBridge() {
     W.navScreens.push(scr);
   }
   hs('navConsole', nav, { name: 'Navigation Console', at: [X(0), -4.75], look: new V3(X(0), 1.4, -6.8) });
-  addObstacleRect(X(-4.3), -7.9, X(4.3), -5.8);
+  addObstacleRect(X(-4.3), -9.2, X(4.3), -5.8);
   // captain's chair
   const chair = new THREE.Group(); chair.position.set(0, 0, -3.3); g.add(chair);
   cyl(0.62, 0.66, 0.06, MAT.trim, 0, 0.03, 0, chair, 32); cyl(0.1, 0.16, 0.5, MAT.chrome, 0, 0.3, 0, chair);
@@ -2399,7 +2399,6 @@ function regionAt(x) {
   return { room: x < 0 ? 0 : 3, corr: -1 };
 }
 function roomOf(p) { const r = regionAt(p.x); return r.room >= 0 ? r.room : (p.x - ROOMS[r.corr].cx - 13 < 0 ? r.corr : r.corr + 1); }
-function segIndex(x) { const r = regionAt(x); return r.room >= 0 ? r.room * 2 : r.corr * 2 + 1; }
 function doorLocked(d) { return d === 1 ? !S.flags.door1 : d === 2 ? !(S.flags.queenDead && S.flags.breachSealed && S.flags.rafiFree) : false; }
 function insideObs(p, o, rad) { if (o.t === 'c') return Math.hypot(p.x - o.x, p.z - o.z) < o.r + rad - 0.01; return p.x > o.x0 - rad + 0.01 && p.x < o.x1 + rad - 0.01 && p.z > o.z0 - rad + 0.01 && p.z < o.z1 + rad - 0.01; }
 function resolveMove(prev, nx, nz, rad = 0.35) {
@@ -2408,7 +2407,8 @@ function resolveMove(prev, nx, nz, rad = 0.35) {
   if (r.corr >= 0) {
     const dx = ROOMS[r.corr].cx + 13;
     if (doorLocked(r.corr)) { if (prev.x <= dx) x = Math.min(x, dx - 0.55); else x = Math.max(x, dx + 0.55); }
-    if (regionAt(x).corr >= 0 && Math.abs(z) > CORR_Z) { if (regionAt(prev.x).corr < 0) x = prev.x; else z = clamp(z, -CORR_Z, CORR_Z); }
+    // slightly off-centre at a doorway: slide into the corridor; well off-centre: that's the wall
+    if (regionAt(x).corr >= 0 && Math.abs(z) > CORR_Z) { if (regionAt(prev.x).corr < 0 && Math.abs(z) > CORR_Z + 0.25) x = prev.x; else z = clamp(z, -CORR_Z, CORR_Z); }
   }
   for (const o of obstacles) {
     if (o.t === 'c') { const dx = x - o.x, dz = z - o.z, d = Math.hypot(dx, dz), m = o.r + rad; if (d < m) { if (d < 1e-4) x += m; else { x = o.x + dx / d * m; z = o.z + dz / d * m; } } }
@@ -2418,35 +2418,74 @@ function resolveMove(prev, nx, nz, rad = 0.35) {
   z = regionAt(x).corr >= 0 ? clamp(z, -CORR_Z, CORR_Z) : clamp(z, -ROOM_Z, ROOM_Z);
   return { x, z };
 }
-function segHitsObs(a, b, o, rad) {
-  if (o.t === 'c') {
-    const r = o.r + rad, abx = b.x - a.x, abz = b.z - a.z, L2 = abx * abx + abz * abz;
-    let t = L2 > 0 ? ((o.x - a.x) * abx + (o.z - a.z) * abz) / L2 : 0; t = clamp(t, 0, 1);
-    return Math.hypot(a.x + abx * t - o.x, a.z + abz * t - o.z) < r - 0.02 ? t : -1;
-  }
-  const x0 = o.x0 - rad, x1 = o.x1 + rad, z0 = o.z0 - rad, z1 = o.z1 + rad; let t0 = 0, t1 = 1; const dx = b.x - a.x, dz = b.z - a.z;
-  const clip = (p, q) => { if (Math.abs(p) < 1e-9) return q >= 0; const r = q / p; if (p < 0) { if (r > t1) return false; if (r > t0) t0 = r; } else { if (r < t0) return false; if (r < t1) t1 = r; } return true; };
-  if (clip(-dx, a.x - x0) && clip(dx, x1 - a.x) && clip(-dz, a.z - z0) && clip(dz, z1 - a.z) && t1 - t0 > 1e-3) return t0;
-  return -1;
+/* Path-finding: the deck is rasterised into 25 cm cells (one grid per walker size and door state),
+   searched with A*, and the cell path is pulled taut into a few straight legs. */
+const NAV_CELL = 0.25, NAV_X0 = minX, NAV_Z0 = -ROOM_Z;
+const NAV_NX = Math.floor((maxX - minX) / NAV_CELL) + 1, NAV_NZ = Math.floor(2 * ROOM_Z / NAV_CELL) + 1;
+const navCache = new Map();
+function navFree(x, z, rad) {
+  if (x < minX || x > maxX || Math.abs(z) > ROOM_Z) return false;
+  const r = regionAt(x);
+  if (r.corr >= 0) { if (Math.abs(z) > CORR_Z) return false; if (doorLocked(r.corr) && Math.abs(x - (ROOMS[r.corr].cx + 13)) < 0.6) return false; }
+  const p = { x, z }; for (const o of obstacles) if (insideObs(p, o, rad)) return false;
+  return true;
 }
-function detour(a, b, out, rad, depth) {
-  if (depth > 4) return;
-  let best = null, bt = 2;
-  for (const o of obstacles) { if (insideObs(a, o, rad) || insideObs(b, o, rad)) continue; const t = segHitsObs(a, b, o, rad); if (t >= 0 && t < bt) { bt = t; best = o; } }
-  if (!best) return;
-  let c;
-  if (best.t === 'c') { const dx = b.x - a.x, dz = b.z - a.z, L = Math.hypot(dx, dz) || 1, nx = -dz / L, nz = dx / L; const side = ((best.x - a.x) * nx + (best.z - a.z) * nz) > 0 ? -1 : 1; const m = best.r + rad + 0.35; c = { x: best.x + nx * side * m, z: best.z + nz * side * m }; }
-  else { const m = rad + 0.3, cs = [{ x: best.x0 - m, z: best.z0 - m }, { x: best.x1 + m, z: best.z0 - m }, { x: best.x0 - m, z: best.z1 + m }, { x: best.x1 + m, z: best.z1 + m }]; let bd = 1e9; for (const q of cs) { if (Math.abs(q.z) > ROOM_Z + 0.01) continue; const d = Math.hypot(q.x - a.x, q.z - a.z) + Math.hypot(b.x - q.x, b.z - q.z); if (d < bd) { bd = d; c = q; } } if (!c) return; }
-  c.z = clamp(c.z, -ROOM_Z, ROOM_Z); c.x = clamp(c.x, minX, maxX);
-  detour(a, c, out, rad, depth + 1); out.push(c); detour(c, b, out, rad, depth + 1);
+function navGrid(rad) {
+  const key = `${rad}|${doorLocked(1)}|${doorLocked(2)}|${obstacles.length}`;
+  let g = navCache.get(key); if (g) return g;
+  g = new Uint8Array(NAV_NX * NAV_NZ);
+  for (let i = 0; i < NAV_NX; i++) for (let j = 0; j < NAV_NZ; j++) g[i * NAV_NZ + j] = navFree(NAV_X0 + i * NAV_CELL, NAV_Z0 + j * NAV_CELL, rad) ? 1 : 0;
+  navCache.set(key, g); return g;
+}
+function navIdx(x, z) { const i = Math.round((x - NAV_X0) / NAV_CELL), j = Math.round((z - NAV_Z0) / NAV_CELL); return i < 0 || j < 0 || i >= NAV_NX || j >= NAV_NZ ? -1 : i * NAV_NZ + j; }
+function navPos(k) { return { x: NAV_X0 + Math.floor(k / NAV_NZ) * NAV_CELL, z: NAV_Z0 + (k % NAV_NZ) * NAV_CELL }; }
+function navNearest(g, x, z) {
+  const ci = Math.round((x - NAV_X0) / NAV_CELL), cj = Math.round((z - NAV_Z0) / NAV_CELL); let best = -1, bd = Infinity;
+  for (let r = 0; r <= 24 && best < 0; r++) for (let i = ci - r; i <= ci + r; i++) for (let j = cj - r; j <= cj + r; j++) {
+    if (Math.max(Math.abs(i - ci), Math.abs(j - cj)) !== r || i < 0 || j < 0 || i >= NAV_NX || j >= NAV_NZ) continue;
+    const k = i * NAV_NZ + j; if (!g[k]) continue; const p = navPos(k), d = (p.x - x) ** 2 + (p.z - z) ** 2; if (d < bd) { bd = d; best = k; }
+  }
+  return best;
+}
+function navAstar(g, s, t) {
+  if (s === t) return [s];
+  const N = g.length, gs = new Float32Array(N).fill(Infinity), came = new Int32Array(N).fill(-1), done = new Uint8Array(N), heap = [];
+  const push = (f, k) => { heap.push([f, k]); let i = heap.length - 1; while (i > 0) { const q = (i - 1) >> 1; if (heap[q][0] <= heap[i][0]) break; [heap[q], heap[i]] = [heap[i], heap[q]]; i = q; } };
+  const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let i = 0; for (;;) { const l = 2 * i + 1, r = l + 1; let m = i; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === i) break; [heap[m], heap[i]] = [heap[i], heap[m]]; i = m; } } return top; };
+  const ti = Math.floor(t / NAV_NZ), tj = t % NAV_NZ;
+  const h = (k) => { const dx = Math.abs(Math.floor(k / NAV_NZ) - ti), dz = Math.abs(k % NAV_NZ - tj); return dx + dz + (Math.SQRT2 - 2) * Math.min(dx, dz); };
+  gs[s] = 0; push(h(s), s);
+  while (heap.length) {
+    const k = pop()[1]; if (done[k]) continue; if (k === t) break; done[k] = 1;
+    const ki = Math.floor(k / NAV_NZ), kj = k % NAV_NZ;
+    for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) {
+      if (!di && !dj) continue; const ni = ki + di, nj = kj + dj; if (ni < 0 || nj < 0 || ni >= NAV_NX || nj >= NAV_NZ) continue;
+      const nk = ni * NAV_NZ + nj; if (!g[nk] || done[nk]) continue;
+      if (di && dj && (!g[ki * NAV_NZ + nj] || !g[ni * NAV_NZ + kj])) continue; // never cut a blocked corner
+      const ng = gs[k] + (di && dj ? Math.SQRT2 : 1); if (ng < gs[nk]) { gs[nk] = ng; came[nk] = k; push(ng + h(nk), nk); }
+    }
+  }
+  if (!Number.isFinite(gs[t])) return null;
+  const path = []; for (let k = t; k !== -1; k = came[k]) path.push(k); return path.reverse();
+}
+function navLOS(g, a, b) {
+  const dx = b.x - a.x, dz = b.z - a.z, L = Math.hypot(dx, dz), n = Math.max(1, Math.ceil(L / 0.1));
+  for (let s = 1; s <= n; s++) { const t = s / n; if (t * L < 0.2) continue; const k = navIdx(a.x + dx * t, a.z + dz * t); if (k < 0 || !g[k]) return false; }
+  return true;
 }
 function planPath(from, to, rad = 0.35) {
-  const pts = []; let blocked = -1; const sA = segIndex(from.x), sB = segIndex(to.x);
-  if (sB > sA) { for (let d = 0; d < 3; d++) { const s = 2 * d + 1; if (s < sA || s > sB) continue; if (s > sA) pts.push({ x: ROOMS[d].cx + 10.2, z: 0 }); if (doorLocked(d)) { pts.push({ x: ROOMS[d].cx + 12.3, z: 0 }); blocked = d; break; } if (s < sB) pts.push({ x: ROOMS[d].cx + 15.8, z: 0 }); } }
-  else if (sB < sA) { for (let d = 2; d >= 0; d--) { const s = 2 * d + 1; if (s > sA || s < sB) continue; if (s < sA) pts.push({ x: ROOMS[d].cx + 15.8, z: 0 }); if (doorLocked(d)) { pts.push({ x: ROOMS[d].cx + 13.7, z: 0 }); blocked = d; break; } if (s > sB) pts.push({ x: ROOMS[d].cx + 10.2, z: 0 }); } }
-  if (blocked < 0) { const t = resolveMove(to, to.x, to.z, rad); pts.push({ x: t.x, z: t.z }); }
-  const out = []; let cur = { x: from.x, z: from.z };
-  for (const p of pts) { detour(cur, p, out, rad, 0); out.push(p); cur = p; }
+  // A locked door blocks the route only if the route actually crosses it; then walk up to it and stop.
+  let blocked = -1; const right = to.x > from.x;
+  for (const d of right ? [0, 1, 2] : [2, 1, 0]) { const doorX = ROOMS[d].cx + 13; if (doorLocked(d) && (right ? from.x < doorX && to.x > doorX : from.x > doorX && to.x < doorX)) { blocked = d; break; } }
+  let goal = blocked >= 0 ? { x: ROOMS[blocked].cx + 13 + (right ? -0.7 : 0.7), z: 0 } : resolveMove(to, to.x, to.z, rad);
+  const g = navGrid(Math.round((rad + 0.08) * 100) / 100);
+  const s = navNearest(g, from.x, from.z), t = navNearest(g, goal.x, goal.z);
+  const cells = s >= 0 && t >= 0 ? navAstar(g, s, t) : null;
+  if (!cells) return { path: [goal], blocked };
+  const gk = navIdx(goal.x, goal.z); if (gk < 0 || !g[gk]) goal = navPos(t);
+  const pts = cells.map(navPos); pts.push(goal);
+  const out = []; let a = { x: from.x, z: from.z }, k = -1;
+  while (k < pts.length - 1) { let far = k + 1; for (let m = pts.length - 1; m > k + 1; m--) if (navLOS(g, a, pts[m])) { far = m; break; } out.push(pts[far]); a = pts[far]; k = far; }
   return { path: out, blocked };
 }
 
@@ -3839,6 +3878,7 @@ async function boot() {
 boot();
 // Developer hook: open with ?debug to poke at the game from the browser console.
 if (/[?&]debug/.test(location.search)) window.HD = { get S() { return S; }, player, dog, npcs, queen, HS, W, ROOMS, walkTo, interact, dogAbility, applyWorld, saveGame, loadGame, camera, renderer, setCamMode,
+  nav: { planPath, resolveMove, doorLocked, regionAt, insideObs, obstacles, minX, maxX, ROOM_Z, CORR_Z, HALF_W },
   get state() { return gameState; }, get busy() { return actionBusy; }, get dialog() { return dlg.open; },
   tp(x, z) { player.pos.set(x, 0, z); dog.pos.set(x + 0.8, 0, z + 0.8); snapCamera(); }, advance: advanceDialog, skip() { skipRequested = true; } };
 </script>
