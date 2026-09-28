@@ -62,7 +62,9 @@ export default function CustomerDataScreen() {
     const total = Object.values(res.erased).reduce((a, b) => a + b, 0);
     setNote(
       `Erased ${total} record${total === 1 ? "" : "s"}.` +
-        (res.keptSales > 0 ? ` ${res.keptSales} sale${res.keptSales === 1 ? " was" : "s were"} kept. ${res.keptNote}` : "")
+        (res.keptSales > 0
+          ? ` ${res.keptSales === 1 ? "The 1 sale stays" : `The ${res.keptSales} sales stay`}, because the law requires a business to keep its sales and invoice records (six years for HMRC).`
+          : "")
     );
     setResult(null);
   }
