@@ -39,6 +39,39 @@ export async function clearPilotBrainConversation(): Promise<{ ok: boolean; erro
   }
 }
 
+// What Pilot Brain remembers about the signed-in person. These live under
+// /me, not /pilot-brain, so they work even when Pilot Brain is switched off
+// for this person: seeing and deleting your own data never depends on that.
+export interface PilotBrainMemory {
+  id: string;
+  fact: string;
+  createdAt: string;
+}
+
+export async function fetchMyMemories(): Promise<{ ok: boolean; memories: PilotBrainMemory[]; error?: string }> {
+  try {
+    const res = await fetch(`${BASE_URL}/me/pilot-brain-memories`, { headers: authHeaders() });
+    const data = await res.json();
+    return { ok: res.ok, memories: data.memories ?? [], error: data.error };
+  } catch (err) {
+    console.error("fetchMyMemories: backend unreachable", err);
+    return { ok: false, memories: [], error: "Network error" };
+  }
+}
+
+// Pass an id to forget one memory, or nothing to forget them all.
+export async function forgetMyMemories(id?: string): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const url = id ? `${BASE_URL}/me/pilot-brain-memories/${encodeURIComponent(id)}` : `${BASE_URL}/me/pilot-brain-memories`;
+    const res = await fetch(url, { method: "DELETE", headers: authHeaders() });
+    const data = await res.json();
+    return { ok: res.ok, error: data.error };
+  } catch (err) {
+    console.error("forgetMyMemories: backend unreachable", err);
+    return { ok: false, error: "Network error" };
+  }
+}
+
 export async function sendPilotBrainMessage(message: string): Promise<{
   ok: boolean;
   message?: PilotBrainMessage;

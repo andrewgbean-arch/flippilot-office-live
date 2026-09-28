@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { FiChevronDown, FiChevronUp, FiMic, FiMicOff, FiVolume2, FiVolumeX } from "react-icons/fi";
 import AssistantMarkdown from "./AssistantMarkdown";
+import WendyMemoriesPanel from "./WendyMemoriesPanel";
 import { fetchPilotBrainMessages, sendPilotBrainMessage, fetchSpeech, fetchMorningBriefing, fetchPerformanceReview, fetchTodaysPriorities, fetchTasterStatus, clearPilotBrainConversation, fetchVoices, type PilotVoice, type PilotBrainMessage, type ReviewPeriod, type TasterStatus } from "@/lib/pilotBrainApi";
 import { authHeaders } from "@/lib/authToken";
 import { BASE_URL } from "@/lib/apiBaseUrl";
@@ -366,6 +367,7 @@ export default function PilotBrainChat() {
 
   const [confirmingClear, setConfirmingClear] = useState(false);
   const [clearing, setClearing] = useState(false);
+  const [showMemories, setShowMemories] = useState(false);
 
   // A wrong reply sitting in the recent-history window can keep
   // getting echoed back turn after turn even after the underlying
@@ -593,9 +595,24 @@ export default function PilotBrainChat() {
               {clearing ? "Clearing…" : confirmingClear ? "Click again to confirm" : "Clear Conversation"}
             </button>
           )}
+
+          <button
+            onClick={() => setShowMemories(open => !open)}
+            aria-expanded={showMemories}
+            className="sn-btn"
+            style={{ fontSize: 12, padding: "4px 10px", marginLeft: 8 }}
+          >
+            What Wendy remembers
+          </button>
         </div>
         </div>
       </header>
+
+      {showMemories && (
+        <div className="px-3 sm:px-6">
+          <WendyMemoriesPanel onClose={() => setShowMemories(false)} />
+        </div>
+      )}
 
       <div className="px-3 sm:px-6" style={{ flex: 1, overflowY: "auto", maxWidth: 800, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
         {loading ? (

@@ -1,4 +1,5 @@
 import { randomUUID } from "crypto";
+import { PILOT_BRAIN_MESSAGES, PILOT_BRAIN_MEMORIES } from "../personalData";
 import { Readable } from "stream";
 import { availableVoices, resolveVoice, speechRequest } from "../pilotBrainVoices";
 import { Express, Request } from "express";
@@ -137,8 +138,8 @@ function readSecurity(dealershipId: string): SecurityDoc {
   return normaliseDoc(readTenantDoc<unknown>(dealershipId, SECURITY_DOC, EMPTY_SECURITY_DOC));
 }
 
-const MESSAGES_COLLECTION = "pilotBrainMessages";
-const MEMORIES_COLLECTION = "pilotBrainMemories";
+const MESSAGES_COLLECTION = PILOT_BRAIN_MESSAGES;
+const MEMORIES_COLLECTION = PILOT_BRAIN_MEMORIES;
 
 // How much raw conversation history rides along on every call — real
 // tokens, real cost, so this is a deliberate window rather than the

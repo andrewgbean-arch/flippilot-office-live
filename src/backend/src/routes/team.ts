@@ -18,6 +18,7 @@ import {
 } from "../auth";
 import { toDateKeyLocal, type Shift, type WorkPattern } from "./planner";
 import { RATES_COLLECTION, type PayRate } from "./pay";
+import { erasePrivateDataOf } from "../personalData";
 
 // jobs.ts stores whatever array the client PUTs and has no backend type
 // of its own, so this is just the fields the cleanup below touches.
@@ -40,7 +41,9 @@ type StoredJob = {
 // Deliberately KEPT: timekeeping entries, past shifts, decided leave and
 // finished jobs — those are records of work already done (pay, holiday
 // entitlement, the job history), and each snapshots the person's name so
-// it still reads correctly without a matching account.
+// it still reads correctly without a matching account. What only they could
+// see (diary, notifications, Pilot Brain) is erased separately, by
+// erasePrivateDataOf (personalData.ts).
 export function releaseMemberFromTeamData(dealershipId: string, userId: string): void {
   const patterns = readTenantCollection<WorkPattern>(dealershipId, "workPatterns");
   const keptPatterns = patterns.filter(p => p.userId !== userId);
@@ -204,6 +207,7 @@ export default function registerTeamRoute(app: Express) {
     cancelSharedInviteLinks(found.target.dealershipId);
     writeCollection("users", found.users.filter(u => u.id !== found.target.id));
     releaseMemberFromTeamData(found.target.dealershipId, found.target.id);
+    erasePrivateDataOf(found.target.dealershipId, found.target.id);
 
     res.json({ ok: true });
   });

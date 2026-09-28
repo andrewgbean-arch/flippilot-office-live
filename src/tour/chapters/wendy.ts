@@ -101,6 +101,14 @@ export const chapter: TourChapter = {
               "Only your own messages are cleared, never a teammate's.",
             ],
           },
+          {
+            question: "How do I see what Wendy remembers about me?",
+            steps: [
+              "Press What Wendy remembers.",
+              "Press Forget next to any note you don't want her to keep, or Forget everything (press it twice).",
+              "Only you can see your notes, and this works even if Wendy is switched off for you.",
+            ],
+          },
         ],
         tips: [
           "Wendy answers from your own records, so the more complete your stock, leads and bookings are, the better her answers.",
