@@ -68,7 +68,7 @@ button:disabled{opacity:.38;cursor:not-allowed}
 #roomName{position:absolute;left:50%;top:70px;transform:translateX(-50%);font-family:'Orbitron';letter-spacing:.35em;font-size:14px;
   color:#dff4ff;text-shadow:0 0 18px rgba(111,227,255,.8);opacity:0;transition:opacity .8s;pointer-events:none;white-space:nowrap}
 #roomName small{display:block;text-align:center;font-family:'Exo 2';letter-spacing:.15em;font-size:11px;color:var(--muted);margin-top:4px}
-#bossbar{position:absolute;left:50%;top:18px;transform:translateX(-50%);width:min(520px,60vw);text-align:center;pointer-events:none}
+#bossbar{position:absolute;left:50%;top:66px;transform:translateX(-50%);width:min(520px,60vw);text-align:center;pointer-events:none}
 #bossbar .label{font-family:'Orbitron';font-size:12px;letter-spacing:.4em;color:#ff9fd5;text-shadow:0 0 12px #c04090;margin-bottom:6px}
 .bar{height:10px;border-radius:6px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.18);overflow:hidden}
 .bar > div{height:100%;width:100%;transition:width .35s}
@@ -1015,10 +1015,10 @@ function buildRoomShell(i, opt = {}) {
 }
 function roomLighting(i, opt = {}) {
   const R = ROOMS[i], g = R.group;
-  const L = { points: [], stripMat: emissive(0xff2a1a, 2.4), guideMat: emissive(0xff2010, 1.6), spot: null, beacons: [], base: opt };
+  const L = { points: [], extra: [], stripMat: emissive(0xff2a1a, 2.4), guideMat: emissive(0xff2010, 1.6), spot: null, beacons: [], base: opt };
   for (const x of [-6, 0, 6]) for (const z of [-4.5, 4.5]) box(3, 0.06, 0.55, L.stripMat, x, ROOM_H - 0.47, z, g, { cast: false, receive: false });
   box(21.6, 0.04, 0.05, L.guideMat, 0, 0.32, -8.86, g, { cast: false }); box(21.6, 0.04, 0.05, L.guideMat, 0, 0.32, 8.86, g, { cast: false });
-  for (const x of [-5.5, 5.5]) { const pl = new THREE.PointLight(0xff3020, 30, 22, 1.5); pl.position.set(x, 5.9, 0); g.add(pl); L.points.push(pl); }
+  for (const x of (opt.nPoints === 1 ? [0] : [-5.5, 5.5])) { const pl = new THREE.PointLight(0xff3020, 30, 22, 1.5); pl.position.set(x, 5.9, 0); g.add(pl); L.points.push(pl); }
   const sp = new THREE.SpotLight(0xffffff, 80, 28, 1.1, 0.75, 1.4);
   sp.position.set(opt.spotX || 0, 6.75, opt.spotZ ?? 1.2); sp.target.position.set(opt.spotX || 0, 0, (opt.spotZ ?? 1.2) - 1.5); g.add(sp, sp.target);
   sp.castShadow = true; sp.shadow.mapSize.set(1024, 1024); sp.shadow.bias = -0.0004; sp.shadow.normalBias = 0.035; sp.shadow.camera.near = 0.5; sp.shadow.camera.far = 28;
@@ -1071,7 +1071,7 @@ const planetFS = `uniform sampler2D map; uniform vec3 lightDir; uniform float am
   void main(){ vec4 tx=texture2D(map,vUv); vec3 N=normalize(vN); float d=dot(N,normalize(lightDir)); float lit=smoothstep(-0.08,0.35,d);
     vec3 V=normalize(cameraPosition-vWP); float rim=pow(1.0-max(dot(N,V),0.0),3.0);
     vec3 col=tx.rgb*(lit*1.35+ambient) + rimColor*rim*(0.25+lit*1.2);
-    if(night>0.0){ float city=step(0.62,fract(sin(dot(floor(vUv*vec2(900.,450.)),vec2(12.9898,78.233)))*43758.5453)); col+=vec3(1.0,0.75,0.4)*city*(1.0-lit)*night*step(0.2,tx.g-tx.b+0.25)*0.6; }
+    if(night>0.0){ float city=step(0.965,fract(sin(dot(floor(vUv*vec2(1400.,700.)),vec2(12.9898,78.233)))*43758.5453)); col+=vec3(1.0,0.72,0.35)*city*(1.0-smoothstep(-0.25,0.05,d))*night*step(0.2,tx.g-tx.b+0.25)*0.9; }
     float a = useAlpha>0.5 ? tx.a*alpha*(0.25+lit) : 1.0; gl_FragColor=vec4(col,a); }`;
 function planetMat(map, lightDir, { ambient = 0.04, rim = new THREE.Color(0x6aa0ff), transparent = false, alpha = 1, night = 0 } = {}) {
   return new THREE.ShaderMaterial({ uniforms: { map: { value: map }, lightDir: { value: lightDir.clone().normalize() }, ambient: { value: ambient }, rimColor: { value: rim }, alpha: { value: alpha }, useAlpha: { value: transparent ? 1 : 0 }, night: { value: night } }, vertexShader: planetVS, fragmentShader: planetFS, transparent, depthWrite: !transparent });
@@ -1156,12 +1156,12 @@ function buildSpace() {
   const ringGeo = new THREE.RingGeometry(380, 640, 128, 1); const rp = ringGeo.attributes.position, ruv = ringGeo.attributes.uv;
   for (let i = 0; i < rp.count; i++) { const d = Math.hypot(rp.getX(i), rp.getY(i)); ruv.setXY(i, (d - 380) / 260, 0.5); }
   const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ map: rTex, transparent: true, side: THREE.DoubleSide, depthWrite: false, opacity: 0.8 }));
-  ring.position.copy(gasPos); ring.rotation.set(-1.25, 0.2, 0.35); sky.add(ring);
+  ring.position.copy(gasPos); ring.rotation.set(-1.25, 0.2, 0.35); sky.add(ring); W.sunSprite = sun; W.sunHalo = halo; W.keplerParts = [gas, gAt, ring];
   // small moon
   const moonTex = sphereTex(256, 128, (x, y, z) => { const n = fbm(x * 4, y * 4, z * 4, 5), c = fbm(x * 12 + 5, y * 12, z * 12, 2); const v = 90 + n * 110 - (c > 0.62 ? 50 : 0); return [v * 1.05, v, v * 0.95]; });
   const moonPos = new V3(250, 60, -760);
   const moon = new THREE.Mesh(new THREE.SphereGeometry(28, 48, 32), planetMat(moonTex, SUN_POS.clone().sub(moonPos), { ambient: 0.02, rim: new THREE.Color(0x404860) }));
-  moon.position.copy(moonPos); sky.add(moon);
+  moon.position.copy(moonPos); sky.add(moon); W.keplerParts.push(moon);
   // --- asteroid field ---
   const rockGeo = new THREE.IcosahedronGeometry(1, 2); const rpp = rockGeo.attributes.position;
   for (let i = 0; i < rpp.count; i++) { const v = new V3().fromBufferAttribute(rpp, i); const n = fbm(v.x * 2 + 3, v.y * 2, v.z * 2, 3); v.multiplyScalar(0.7 + n * 0.6); rpp.setXYZ(i, v.x, v.y, v.z); }
@@ -1198,6 +1198,7 @@ function buildEarth() {
   const lunaTex = sphereTex(256, 128, (x, y, z) => { const n = fbm(x * 3, y * 3, z * 3 + 9, 5), c = fbm(x * 14, y * 14, z * 14, 2); const v = 120 + n * 90 - (c > 0.64 ? 45 : 0) - (n < 0.45 ? 40 : 0); return [v, v, v * 1.02]; });
   const luna = new THREE.Mesh(new THREE.SphereGeometry(10, 64, 48), planetMat(lunaTex, SUN_POS.clone().sub(g.position.clone().add(new V3(-120, 30, -80))), { ambient: 0.01, rim: new THREE.Color(0x303038) }));
   luna.position.set(-120, 30, -80); g.add(luna);
+  W.setHomeSun = (sp) => { W.sunSprite.position.copy(sp); W.sunHalo.position.copy(sp); for (const m of [earth, clouds]) m.material.uniforms.lightDir.value.copy(sp.clone().sub(g.position).normalize()); luna.material.uniforms.lightDir.value.copy(sp.clone().sub(g.position.clone().add(luna.position)).normalize()); };
 }
 
 /* =====================================================================
@@ -1314,6 +1315,7 @@ function buildBridge() {
     const route = new THREE.Line(new THREE.BufferGeometry().setFromPoints(new THREE.QuadraticBezierCurve3(new V3(-0.35, 0.02, -0.5), new V3(0.2, 0.25, -0.3), new V3(0.55, 0.02, 0.2)).getPoints(30)), new THREE.LineBasicMaterial({ color: 0xffd27a, transparent: true, opacity: 0.9 }));
     gal.add(route); W.holoHome = home; W.holoHere = here;
   }
+  const hl = new THREE.PointLight(0x46e0ff, 7, 7, 1.8); hl.position.set(-5.8, 2.3, 1.8); g.add(hl); W.holoLight = hl;
   hs('holomap', holo, { name: 'Holographic Star Map', at: [X(-4.2), 1.8], look: new V3(X(-5.8), 1.6, 1.8) });
   addObstacleCircle(X(-5.8), 1.8, 1.15);
   // locker
@@ -1536,11 +1538,11 @@ function buildGarden() {
   // --- lemon tree in a pot ---
   { const tx = 0, tz = 5.4;
     B.add(new THREE.CylinderGeometry(0.62, 0.45, 0.8, 32), terracotta, M4(tx, 0.4, tz)); B.add(G.circle, MAT.soil, M4(tx, 0.78, tz, -Math.PI / 2, 0, 0, 0.58));
-    B.add(tube([new V3(tx, 0.7, tz), new V3(tx + 0.1, 1.5, tz), new V3(tx - 0.05, 2.1, tz + 0.1)], 0.07, 8), bark);
+    B.add(tube([new V3(tx, 0.7, tz), new V3(tx + 0.08, 1.2, tz), new V3(tx - 0.04, 1.55, tz + 0.08)], 0.06, 8), bark);
     for (let c = 0; c < 7; c++) {
-      const cc = new V3(tx + rnd(-0.8, 0.8), rnd(2.0, 2.9), tz + rnd(-0.8, 0.8));
-      B.add(tube([new V3(tx - 0.05, 2.0, tz + 0.1), cc], 0.025, 5), bark);
-      for (let k = 0; k < 40; k++) { const d = new V3(rnd(-1, 1), rnd(-0.6, 1), rnd(-1, 1)).normalize().multiplyScalar(rnd(0.15, 0.45)); const q = cc.clone().add(d); B.add(G.leaf, k % 3 ? leafDark : leaf, M4(q.x, q.y, q.z, rnd(0.3, 1.6), rnd(0, TAU), rnd(-0.5, 0.5), 0.07, 0.12, 0.07)); }
+      const cc = new V3(tx + rnd(-0.55, 0.55), rnd(1.55, 2.1), tz + rnd(-0.55, 0.55));
+      B.add(tube([new V3(tx - 0.04, 1.5, tz + 0.08), cc], 0.022, 5), bark);
+      for (let k = 0; k < 40; k++) { const d = new V3(rnd(-1, 1), rnd(-0.6, 1), rnd(-1, 1)).normalize().multiplyScalar(rnd(0.12, 0.36)); const q = cc.clone().add(d); B.add(G.leaf, k % 3 ? leafDark : leaf, M4(q.x, q.y, q.z, rnd(0.3, 1.6), rnd(0, TAU), rnd(-0.5, 0.5), 0.07, 0.12, 0.07)); }
       if (c % 2 === 0) { const q = cc.clone().add(new V3(rnd(-0.3, 0.3), -0.3, rnd(-0.3, 0.3))); B.add(G.sphHi, lemonM, M4(q.x, q.y, q.z, 0, rnd(0, 3), 0.3, 0.07, 0.09, 0.07)); }
     }
     addObstacleCircle(X(tx), tz, 0.75);
@@ -1607,7 +1609,7 @@ function buildGarden() {
   hs('orchids', hitBox(6.2, 1.4, 1.8, 5.4, 0.7, 4.0, g), { name: 'Starglow Orchids', at: [X(5.4), 2.35], look: new V3(X(5.4), 1, 4.2) });
   hs('sunflowers', hitBox(6.4, 3.2, 1.8, 5.4, 1.6, 6.8, g), { name: 'Sunflowers', at: [X(3.5), 2.35], look: new V3(X(5.4), 2.5, 6.8) });
   hs('sunflower', W.specialSunflower, { name: 'The Brightest Sunflower', at: [X(5.4), 2.35], look: W.specialSunflowerPos.clone().setX(X(W.specialSunflowerPos.x)) });
-  hs('lemon', hitBox(2.4, 3.2, 2.4, 0, 1.6, 5.4, g), { name: 'Dwarf Lemon Tree', at: [X(0), 3.9], look: new V3(X(0), 2, 5.4) });
+  hs('lemon', hitBox(2.0, 2.5, 2.0, 0, 1.25, 5.4, g), { name: 'Dwarf Lemon Tree', at: [X(0), 3.9], look: new V3(X(0), 2, 5.4) });
   // --- dig spot (revealed by Comet's nose) ---
   const dig = new THREE.Group(); dig.position.set(4.0, y0, -3.7); g.add(dig);
   const mound = new THREE.Mesh(new THREE.SphereGeometry(0.28, 20, 10, 0, TAU, 0, Math.PI / 2), MAT.soil); mound.scale.y = 0.35; dig.add(mound);
@@ -1680,7 +1682,7 @@ function buildCargo() {
   addObstacleRect(X(3), 6.9, X(6.4), 8.9);
   crate(1.6, 1.6, 1.6, MAT.crateO, 9.2, 0, 6.4, 0.2); addObstacleRect(X(8.2), 5.4, X(10.2), 7.4);
   // shelving
-  const shelf = new THREE.Group(); shelf.position.set(-2, 0, 8.4); g.add(shelf);
+  const shelf = new THREE.Group(); shelf.position.set(-2, 0, 8.4); g.add(shelf); blockMeshes.push(hitBox(6.6, 4.2, 1.0, 0, 2.1, 0, shelf));
   for (const x of [-3.2, 0, 3.2]) box(0.1, 4, 0.9, MAT.brushed, x, 2, 0, shelf);
   for (const y of [0.3, 1.5, 2.7, 3.9]) { box(6.5, 0.06, 0.95, MAT.brushed, 0, y, 0, shelf); for (let k = 0; k < 5; k++) if (Math.random() < 0.8) box(0.5 + Math.random() * 0.4, 0.4 + Math.random() * 0.4, 0.6, [MAT.crateO, MAT.crateB, MAT.plasticW][k % 3], -2.6 + k * 1.3, y + 0.3, 0, shelf, { round: 0.03 }); }
   addObstacleRect(X(-5.4), 7.8, X(1.4), 9);
@@ -1699,7 +1701,7 @@ function buildCargo() {
   W.craneMark = ringM;
   // crane console
   const con = new THREE.Group(); con.position.set(-6.6, 0, 4.6); g.add(con);
-  box(0.9, 1.05, 1.3, MAT.dark, 0, 0.52, 0, con, { round: 0.04 }); box(1.05, 0.07, 1.4, MAT.trim, 0.06, 1.07, 0, con);
+  blockMeshes.push(box(0.9, 1.05, 1.3, MAT.dark, 0, 0.52, 0, con, { round: 0.04 })); box(1.05, 0.07, 1.4, MAT.trim, 0.06, 1.07, 0, con);
   const cs = makeScreen('crane', 384, 256); const csm = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.72), cs.mat); csm.position.set(0.1, 1.55, 0); csm.rotation.y = Math.PI / 2; csm.rotation.x = 0; con.add(csm); box(0.05, 0.8, 1.2, MAT.trim, 0.06, 1.55, 0, con);
   const bigBtn = cyl(0.09, 0.1, 0.06, emissive(0xff2a1a, 3), 0.3, 1.12, 0.35, con, 20);
   const lever = box(0.04, 0.3, 0.04, MAT.chrome, 0.3, 1.25, -0.3, con); W.craneLever = lever;
@@ -1745,7 +1747,7 @@ function buildCargo() {
   W.breachPos = new V3(X(5), 3, -9.1);
   // the patch-kit crate, wrapped in webs
   const pc = new THREE.Group(); pc.position.set(9.3, 0, -7.4); g.add(pc);
-  const pcc = box(1.3, 1.0, 1.1, MAT.crateB, 0, 0.5, 0, pc, { round: 0.04 });
+  const pcc = box(1.3, 1.0, 1.1, MAT.crateB, 0, 0.5, 0, pc, { round: 0.04 }); blockMeshes.push(pcc);
   const label = box(0.5, 0.5, 0.02, emissive(0xffffff, 0.6), 0, 0.55, 0.56, pc, { cast: false });
   box(0.34, 0.1, 0.03, new THREE.MeshBasicMaterial({ color: 0xd02020 }), 0, 0.55, 0.57, pc); box(0.1, 0.34, 0.03, new THREE.MeshBasicMaterial({ color: 0xd02020 }), 0, 0.55, 0.57, pc);
   const pweb = new THREE.Group(); pc.add(pweb); W.patchWeb = pweb;
@@ -1818,7 +1820,7 @@ function buildEngine() {
   // turbines
   for (const [y, z] of [[1.2, 6.9]]) {
     const t = new THREE.Group(); t.position.set(-7.2, y, z); g.add(t);
-    const body = cyl(1.1, 1.1, 5.6, MAT.pipe, 0, 0, 0, t, 40); body.rotation.z = Math.PI / 2;
+    const body = cyl(1.1, 1.1, 5.6, MAT.pipe, 0, 0, 0, t, 40); body.rotation.z = Math.PI / 2; blockMeshes.push(body);
     for (let k = -2; k <= 2; k++) { const rb = new THREE.Mesh(new THREE.TorusGeometry(1.12, 0.07, 8, 40), MAT.trim); rb.rotation.y = Math.PI / 2; rb.position.x = k * 1.2; t.add(rb); }
     const fan = new THREE.Group(); fan.position.x = 2.85; t.add(fan); W.spin.push({ o: fan, axis: 'x', speed: 0.6 });
     for (let k = 0; k < 7; k++) { const b = box(0.04, 0.95, 0.22, MAT.chrome, 0, 0.5, 0, fan); b.rotation.x = 0; const pv = new THREE.Group(); pv.rotation.x = k * TAU / 7; fan.add(pv); pv.add(b); b.rotation.y = 0.5; }
@@ -1864,7 +1866,7 @@ function buildWorld() {
   buildSpace();
   buildRoomShell(0, { window: { a: -8, b: 8, y0: 1.3, y1: 5.9 }, mullions: [-4, 0, 4] }); roomLighting(0, { spotZ: 0.5, beacons: [[-10.7, -6.5], [10.7, 2.6]] });
   buildRoomShell(1, { dome: true, window: { a: -5, b: 5, y0: 1.5, y1: 4.9 }, mullions: [0] });
-  buildRoomShell(2, { window: null }); roomLighting(2, { spotX: -1, spotZ: 0.2 });
+  buildRoomShell(2, { window: null }); roomLighting(2, { spotX: -1, spotZ: 0.2, nPoints: 1 });
   buildRoomShell(3, { window: { a: -6.5, b: -1.5, y0: 1.5, y1: 4.9 }, rightWindow: { a: -3, b: 3, y0: 1.5, y1: 5 } }); roomLighting(3, { spotX: -3, spotZ: 1.5, beacons: [[-10.7, -6.5], [4, 8.9 - 0.25]] });
   // the cargo hold needs a hole in its back wall: rebuild that wall with the breach opening
   { const R = ROOMS[2]; const old = R.group.children.find(c => c.isGroup && Math.abs(c.position.z + 9.2) < 0.01 && c.rotation.y === 0);
@@ -1873,6 +1875,11 @@ function buildWorld() {
   for (let d = 0; d < 3; d++) buildCorridor(d);
   buildBridge(); buildGarden(); buildCargo(); buildEngine();
   buildExterior();
+  // every room owns exactly three point lights and one shadowed key light (see updateLightLOD)
+  roomLights[0].extra.push(W.holoLight);
+  roomLights[1] = { points: [], extra: [W.gardenLights.pl1, W.gardenLights.pl2, W.gardenLights.fill], spot: W.gardenSun, beacons: [], garden: true };
+  roomLights[2].extra.push(W.meteorLight, W.ffLight);
+  roomLights[3].extra.push(W.reactorLight);
   // ambient dust in every room
   for (const R of ROOMS) makeMotes(260, new V3(R.cx, 3.2, 0), new V3(21, 6, 17), { color: [1, 0.95, 0.85], size: 0.035, amp: 0.5, speed: 0.12, alpha: 0.35 });
   // fireflies in the garden
@@ -2324,7 +2331,7 @@ function spawnCharacters() {
   queen.thread = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 1, 6), new THREE.MeshBasicMaterial({ color: 0xdfe6ff, transparent: true, opacity: 0.7 })); scene.add(queen.thread); queen.thread.visible = false;
   queen.ring = new THREE.Mesh(new THREE.RingGeometry(1.2, 1.8, 48), MAT.glowAdd(0xff2040, 0.9)); queen.ring.rotation.x = -Math.PI / 2; queen.ring.visible = false; scene.add(queen.ring);
   hs('queen', queen.rig.g, { name: 'The Brood Queen', pri: 2, ranged: true, use: () => uvQueen() });
-  queen.light = new THREE.PointLight(0xff40c8, 0, 6, 1.8); queen.rig.body.add(queen.light);
+  queen.light = new THREE.PointLight(0xff40c8, 0, 6, 1.8); scene.add(queen.light);
   // --- skitterbugs everywhere ---
   const bugRooms = [0, 0, 0, 0, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3];
   bugRooms.forEach((ri, i) => { const b = buildBug(); scene.add(b.g); const p = randomPointInRoom(ri); const bug = { rig: b, room: ri, pos: new V3(p.x, 0, p.z), heading: Math.random() * TAU, t: 0, target: null, flee: 0, speedNow: 0 }; bugs.push(bug);
@@ -3104,10 +3111,12 @@ function updateSpiders(dt) {
 function updateQueen(dt) {
   const q = queen, R = ROOMS[2];
   if (q.state === 'hidden' || q.state === 'dead') { q.rig.g.visible = false; q.thread.visible = false; q.ring.visible = false; return; }
-  q.rig.g.visible = true; q.t += dt;
+  q.rig.g.visible = true;
+  if (gameState === 'cine' && q.state !== 'descend' && q.state !== 'dying') { q.rig.g.position.copy(q.pos); q.rig.g.rotation.y = q.heading; animSpider(q.rig, dt, 0, time); return; }
+  q.t += dt;
   const mark = W.crane.mark; let spd = 0; const playerHere = roomOf(player.pos) === 2 && gameState === 'play';
   const moveToward = (tx, tz, speed) => { const dx = tx - q.pos.x, dz = tz - q.pos.z, d = Math.hypot(dx, dz); if (d < 0.05) return d; const step = Math.min(d, speed * dt); const r = resolveMove(q.pos, q.pos.x + dx / d * step, q.pos.z + dz / d * step, 1.0); r.x = clamp(r.x, R.cx - 9.6, R.cx + 9.6); spd = Math.hypot(r.x - q.pos.x, r.z - q.pos.z) / dt; q.pos.x = r.x; q.pos.z = r.z; q.heading = angDamp(q.heading, Math.atan2(dx, dz), 5, dt); return d; };
-  q.light.intensity = 0;
+  q.light.intensity = 0; q.light.position.set(q.pos.x, 2.2, q.pos.z);
   switch (q.state) {
     case 'descend': { q.pos.y = Math.max(0, q.pos.y - dt * 2.4); q.thread.visible = true; q.thread.position.set(q.pos.x, (ROOM_H + q.pos.y + 1.8) / 2, q.pos.z); q.thread.scale.y = Math.max(0.1, ROOM_H - q.pos.y - 1.8); q.rig.g.rotation.x = 0; break; }
     case 'hunt': {
@@ -3306,6 +3315,11 @@ async function playIntro() {
   toast('Click to walk · click objects to interact · <b>V</b> toggles Behind/First-Person · Comet\'s skills are bottom-left', 6500);
   saveGame(true);
 }
+function arriveHome() {
+  // we have left the Kepler system: swap its scenery for the Sun, the Earth and the Moon
+  W.keplerParts.forEach(o => o.visible = false); jellies.forEach(j => j.rig.g.visible = false); W.rocks.mesh.visible = false; if (leviathan) leviathan.g.visible = false;
+  W.setHomeSun(new V3(-1400, 260, 650)); W.earth.visible = true;
+}
 async function playEnding() {
   actionBusy = true; gameState = 'cine'; cancelWalk(); setHUD(false); letterbox(true); Voice.stop();
   const j = npcs.juno, r = npcs.rafi, b = npcs.bolt, z = npcs.zib;
@@ -3323,7 +3337,7 @@ async function playEnding() {
   const t0 = performance.now();
   await new Promise(res => { const f = () => { const k = (performance.now() - t0) / 5200; warp.speed = 20 + k * k * 900; camera.fov = 60 + k * 22; camera.updateProjectionMatrix(); bloom.strength = BLOOM_BASE * (1 + k * 3); shake(k * 0.5); if (k >= 1) res(); else requestAnimationFrame(f); }; f(); });
   await fadeTo(1, 250, '#fff');
-  warp.lines.visible = false; camera.fov = 60; camera.updateProjectionMatrix(); bloom.strength = BLOOM_BASE; W.gas.visible = false; W.earth.visible = true;
+  warp.lines.visible = false; camera.fov = 60; camera.updateProjectionMatrix(); bloom.strength = BLOOM_BASE; arriveHome();
   await wait(500); await fadeTo(0, 2200, '#fff');
   await say([['HALO', 'Jump complete. Welcome home, Captain.'], ['VEGA', "Look, Comet. That's home."], ['JUNO', "I'm going to plant real grass. Acres of it."], ['RAFI', "And I'm going to sleep for a week."],
     ['ZIB', 'So BLUE! Zib has a new favourite light!'], ['BOLT', 'BOLT-7 WILL REQUIRE A BATH.'], ['COMET', '*presses her bubble helmet against the window, tail wagging*'], ['NARR', 'Somewhere down there, a lake, a porch, and a very overdue walk were waiting.']]);
@@ -3632,10 +3646,17 @@ async function engineArrival() {
   actionBusy = false;
 }
 
+/* Only the room the camera is in and its nearest neighbour are lit. The number of
+   active lights never changes, so shaders never need recompiling as you explore. */
+function updateLightLOD() {
+  const x = camera.position.x; const r = clamp(Math.round(x / 26), 0, 3); let n = x > ROOMS[r].cx ? r + 1 : r - 1; if (n < 0) n = 1; if (n > 3) n = 2;
+  roomLights.forEach((L, i) => { const on = i === r || i === n; L.points.forEach(l => l.visible = on); L.extra.forEach(l => l.visible = on); L.spot.visible = on; });
+}
+
 /* =====================================================================
    MAIN LOOP
    ===================================================================== */
-const clock = new THREE.Clock();
+const clock = new THREE.Clock(); const camRay = new THREE.Raycaster();
 const DT_CAP = /[?&]debug/.test(location.search) ? 0.2 : 0.05;
 function tick() {
   requestAnimationFrame(tick);
@@ -3659,7 +3680,10 @@ function tick() {
     if (camMode === 'third') {
       const hp = player.pos.clone().add(new V3(0, 1.5, 0)); const back = new V3(-Math.sin(camYaw), 0, -Math.cos(camYaw));
       const desired = hp.clone().addScaledVector(back, camDist * Math.cos(camPitch)).add(new V3(0, camDist * Math.sin(camPitch), 0)); clampCam(desired);
-      camera.position.lerp(desired, 1 - Math.exp(-7 * dt)); camera.lookAt(hp.x + Math.sin(camYaw) * 0.8, hp.y - 0.15, hp.z + Math.cos(camYaw) * 0.8);
+      // keep the camera out of walls and big props
+      const cd = desired.clone().sub(hp), cl = cd.length(); cd.normalize(); camRay.set(hp, cd); camRay.far = cl;
+      const ch = camRay.intersectObjects(blockMeshes, false)[0]; if (ch) desired.copy(hp).addScaledVector(cd, Math.max(0.5, ch.distance - 0.35));
+      camera.position.lerp(desired, 1 - Math.exp(-(ch ? 18 : 7) * dt)); camera.lookAt(hp.x + Math.sin(camYaw) * 0.8, hp.y - 0.15, hp.z + Math.cos(camYaw) * 0.8);
     } else {
       if (player.path.length && time - lastDrag > 0.8) camYaw = angDamp(camYaw, player.heading, 5, dt);
       const bob = Math.sin(player.rig.phase * 2) * 0.025 * clamp(player.path.length ? 1 : 0, 0, 1);
@@ -3668,7 +3692,7 @@ function tick() {
     }
   }
   if (shakeAmt > 0.001) { camera.position.x += (Math.random() - 0.5) * shakeAmt * 0.3; camera.position.y += (Math.random() - 0.5) * shakeAmt * 0.3; camera.position.z += (Math.random() - 0.5) * shakeAmt * 0.3; shakeAmt *= Math.exp(-dt * 5); }
-  updateHover();
+  updateHover(); updateLightLOD();
   composer.render();
 }
 
@@ -3733,6 +3757,7 @@ async function boot() {
     resetTransient(); applyWorld(); updateBars(); updateInventory(); W.sunLight.intensity = 2.2;
     gameState = 'title';
     setLoading('Compiling shaders…'); await frame();
+    orbitCam(0); updateLightLOD();
     try { if (renderer.compileAsync) await renderer.compileAsync(scene, camera); } catch (e) { }
     tick();
     setLoading(''); el.btnNew.disabled = false; if (hasSave()) el.btnCont.classList.remove('hidden');
