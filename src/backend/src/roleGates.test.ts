@@ -293,6 +293,8 @@ describe("removing leads and jobs", () => {
   });
 
   it("lets everyone add, edit and move jobs, but only managers and the owner delete one", async () => {
+    // Start from a clean list: a save may only remove one job at a time now (recycleBin.ts).
+    writeTenantCollection(owner.dealershipId, "jobs", []);
     await request(app).put("/jobs").set(auth(owner)).send({ items: [job("x"), job("y")] });
     expect((await request(app).put("/jobs").set(auth(staff.general)).send({ items: [job("x"), { ...job("y"), status: "done" }, job("z")] })).status).toBe(200);
     for (const who of [staff.general, staff.sales, staff.finance]) {

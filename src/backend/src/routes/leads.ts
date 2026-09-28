@@ -3,6 +3,7 @@ import { readTenantCollection, writeTenantCollection } from "../db";
 import { itemsFromBody } from "../wholeListGuard";
 import type { AuthUser } from "../auth";
 import { canDeleteLeads, droppedIds } from "../roleAccess";
+import { putInBin, removedRecords, tooManyRemoved, tooManyRemovedMessage } from "../recycleBin";
 
 function dealershipId(req: Request): string {
   return (req as Request & { user: AuthUser }).user.dealershipId;
@@ -25,6 +26,10 @@ export default function registerLeadsRoute(app: Express) {
     if (!canDeleteLeads(user) && droppedIds(before, items).length > 0) {
       return res.status(403).json({ ok: false, error: "Only sales, managers and the owner can remove a lead. Nothing was saved." });
     }
+    // The app removes one at a time; more than that is an out-of-date or broken screen (recycleBin.ts).
+    const tooMany = tooManyRemoved("leads", before, items);
+    if (tooMany !== null) return res.status(409).json({ ok: false, error: tooManyRemovedMessage("leads", tooMany) });
+    putInBin(user, "leads", removedRecords(before, items));
     writeTenantCollection(dealershipId(req), "leads", items);
     res.json({ ok: true, items });
   });

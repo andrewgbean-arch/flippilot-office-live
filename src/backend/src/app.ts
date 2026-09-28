@@ -21,6 +21,7 @@ import registerNotificationsRoute from "./routes/notifications";
 import registerFeedbackRoute from "./routes/feedback";
 import registerConsumablesRoute from "./routes/consumables";
 import registerContactsRoute from "./routes/contacts";
+import registerRecentlyDeletedRoute from "./routes/recentlyDeleted";
 import registerCustomersRoute from "./routes/customers";
 import registerEmailSettingsRoute from "./routes/emailSettings";
 import registerPayRoute from "./routes/pay";
@@ -204,6 +205,7 @@ app.use(
     "/appointments",
     "/booking-settings",
     "/contacts",
+    "/recently-deleted",
     "/customers",
     "/email-settings",
     "/pay",
@@ -241,6 +243,7 @@ registerNotificationsRoute(app);
 registerFeedbackRoute(app);
 registerConsumablesRoute(app);
 registerContactsRoute(app);
+registerRecentlyDeletedRoute(app);
 registerCustomersRoute(app);
 registerEmailSettingsRoute(app);
 registerPayRoute(app);

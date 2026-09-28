@@ -32,7 +32,7 @@ export default function LeadsDashboard() {
 
   function handleRemove(e: React.MouseEvent, lead: Lead) {
     e.stopPropagation();
-    if (window.confirm(`Remove ${lead.name || "this lead"}? This can't be undone.`)) {
+    if (window.confirm(`Remove ${lead.name || "this lead"}? An owner or manager can restore it from Recently deleted for 30 days.`)) {
       void removeLead(lead.id);
     }
   }

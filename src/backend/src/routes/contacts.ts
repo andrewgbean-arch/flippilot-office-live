@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { Express, Request } from "express";
 import { readTenantCollection, writeTenantCollection } from "../db";
 import { itemsFromBody } from "../wholeListGuard";
+import { putInBin, removedRecords, tooManyRemoved, tooManyRemovedMessage } from "../recycleBin";
 import type { AuthUser } from "../auth";
 
 export type ContactCategory =
@@ -45,6 +46,11 @@ export default function registerContactsRoute(app: Express) {
     const user = authedUser(req);
     const items = itemsFromBody(req, res);
     if (!items) return;
+    // Removing one goes through DELETE /contacts/:id, so a list save that drops any is an
+    // out-of-date or broken screen and would wipe records (recycleBin.ts): refused, nothing written.
+    const before = readTenantCollection<Contact>(user.dealershipId, "contacts");
+    const tooMany = tooManyRemoved("contacts", before, items);
+    if (tooMany !== null) return res.status(409).json({ ok: false, error: tooManyRemovedMessage("contacts", tooMany) });
     writeTenantCollection(user.dealershipId, "contacts", items);
     res.json({ ok: true, items });
   });
@@ -79,6 +85,8 @@ export default function registerContactsRoute(app: Express) {
   app.delete("/contacts/:id", (req, res) => {
     const user = authedUser(req);
     const items = readTenantCollection<Contact>(user.dealershipId, "contacts");
+    // Kept in Recently deleted for 30 days, so the owner or a manager can put it back.
+    putInBin(user, "contacts", items.filter((c) => c.id === req.params.id));
     writeTenantCollection(
       user.dealershipId,
       "contacts",

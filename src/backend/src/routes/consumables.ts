@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { Express, Request } from "express";
 import { readTenantCollection, writeTenantCollection } from "../db";
 import { itemsFromBody } from "../wholeListGuard";
+import { putInBin, removedRecords, tooManyRemoved, tooManyRemovedMessage } from "../recycleBin";
 import type { AuthUser } from "../auth";
 
 export interface StockMovement {
@@ -51,6 +52,11 @@ export default function registerConsumablesRoute(app: Express) {
     const user = authedUser(req);
     const items = itemsFromBody(req, res);
     if (!items) return;
+    // Removing one goes through DELETE /consumables/:id, so a list save that drops any is an
+    // out-of-date or broken screen and would wipe records (recycleBin.ts): refused, nothing written.
+    const before = readTenantCollection<Consumable>(user.dealershipId, "consumables");
+    const tooMany = tooManyRemoved("consumables", before, items);
+    if (tooMany !== null) return res.status(409).json({ ok: false, error: tooManyRemovedMessage("consumables", tooMany) });
     writeTenantCollection(user.dealershipId, "consumables", items);
     res.json({ ok: true, items });
   });
@@ -137,6 +143,8 @@ export default function registerConsumablesRoute(app: Express) {
   app.delete("/consumables/:id", (req, res) => {
     const user = authedUser(req);
     const items = readTenantCollection<Consumable>(user.dealershipId, "consumables");
+    // Kept in Recently deleted for 30 days, so the owner or a manager can put it back.
+    putInBin(user, "consumables", items.filter((c) => c.id === req.params.id));
     writeTenantCollection(
       user.dealershipId,
       "consumables",

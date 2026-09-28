@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { useAuth } from "@/context/AuthContext";
 import { decodeVIN } from "../../engines/VinDecoder";
 import { optimiseStock } from "../../engines/StockOptimizer";
 import { useInventory } from "@/context/InventoryProvider";
@@ -14,6 +15,8 @@ const linkClass =
   "px-4 py-3 bg-yellow-400 text-black font-semibold rounded-lg hover:bg-yellow-300 transition text-center";
 
 export default function ToolsHub() {
+  const { user } = useAuth();
+  const canRestore = user?.role === "owner" || user?.staffRole === "manager";
   const { vehicles } = useInventory();
 
   // VIN Scanner state
@@ -161,6 +164,9 @@ export default function ToolsHub() {
             <Link to="/dealer/staff" className={linkClass}>Staff</Link>
             <Link to="/dealer/finance" className={linkClass}>Finance</Link>
             <Link to="/dealer/risk" className={linkClass}>Risk</Link>
+            {canRestore && (
+              <Link to="/dealer/settings/recently-deleted" className={linkClass}>Recently deleted</Link>
+            )}
           </div>
         </SupernovaGlowCard>
 

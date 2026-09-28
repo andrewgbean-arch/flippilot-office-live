@@ -99,7 +99,7 @@ function JobCard({ job, onEdit, mayDelete }: { job: Job; onEdit: (job: Job) => v
         </button>
         {mayDelete && (
           <button
-            onClick={() => { if (window.confirm(`Delete the job "${job.title}"? This can't be undone.`)) void removeJob(job.id); }}
+            onClick={() => { if (window.confirm(`Delete the job "${job.title}"? An owner or manager can restore it from Recently deleted for 30 days.`)) void removeJob(job.id); }}
             className="text-xs px-2 py-1 rounded bg-red-500/10 hover:bg-red-500/20 text-red-300 ml-auto"
           >
             Delete

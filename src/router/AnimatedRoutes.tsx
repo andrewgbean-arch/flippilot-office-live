@@ -81,6 +81,7 @@ import MarketplaceSync from "@/dealer/marketing/MarketplaceSync";
 import ToolsHub from "@/dealer/tools/ToolsHub";
 import Settings from "@/dealer/settings/Settings";
 import EmailSettingsScreen from "@/dealer/settings/EmailSettingsScreen";
+import RecentlyDeletedScreen from "@/dealer/settings/RecentlyDeletedScreen";
 
 /* BOOKKEEPING */
 import BookkeepingScreen from "@/bookkeeping/BookkeepingScreen";
@@ -226,6 +227,7 @@ export default function AnimatedRoutes() {
         {/* SETTINGS */}
         <Route path="dealer/settings" element={<Settings />} />
         <Route path="dealer/settings/email" element={<EmailSettingsScreen />} />
+        <Route path="dealer/settings/recently-deleted" element={<RecentlyDeletedScreen />} />
         <Route path="billing" element={<BillingScreen />} />
 
         {/* BOOKKEEPING */}

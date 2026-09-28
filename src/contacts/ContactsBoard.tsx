@@ -106,7 +106,7 @@ export default function ContactsBoard() {
                           <button
                             className="sn-btn sn-btn--danger"
                             style={{ padding: "6px 12px", fontSize: 12 }}
-                            onClick={() => { if (window.confirm(`Remove ${c.name || "this contact"}? This can't be undone.`)) void removeContact(c.id); }}
+                            onClick={() => { if (window.confirm(`Remove ${c.name || "this contact"}? An owner or manager can restore it from Recently deleted for 30 days.`)) void removeContact(c.id); }}
                           >
                             Remove
                           </button>

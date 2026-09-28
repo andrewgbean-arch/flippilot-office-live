@@ -185,6 +185,14 @@ describe.each(LIST_ROUTES)("PUT $path replaces a whole list, so it refuses anyth
 
   it("still accepts a genuinely empty list and stores it", async () => {
     await seed();
+    // Contacts and consumables are removed one at a time through DELETE, so their list save
+    // may not remove anything (recycleBin.ts): emptying it is refused and nothing changes.
+    if (route.path === "/contacts" || route.path === "/consumables") {
+      const refused = await request(app).put(route.path).set(auth(ownerToken)).send({ items: [] });
+      expect(refused.status).toBe(409);
+      expect(await stored()).toEqual([route.record]);
+      await request(app).delete(`${route.path}/${route.record.id}`).set(auth(ownerToken));
+    }
     const res = await request(app).put(route.path).set(auth(ownerToken)).send({ items: [] });
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ ok: true, items: [] });

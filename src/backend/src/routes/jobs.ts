@@ -5,6 +5,7 @@ import type { StaffNotification } from "./notifications";
 import { itemsFromBody } from "../wholeListGuard";
 import type { AuthUser } from "../auth";
 import { canDeleteJobs, droppedIds } from "../roleAccess";
+import { putInBin, removedRecords, tooManyRemoved, tooManyRemovedMessage } from "../recycleBin";
 
 function dealershipId(req: Request): string {
   return (req as Request & { user: AuthUser }).user.dealershipId;
@@ -29,6 +30,10 @@ export default function registerJobsRoute(app: Express) {
     if (!canDeleteJobs(user) && droppedIds(before, items).length > 0) {
       return res.status(403).json({ ok: false, error: "Only managers and the owner can delete a job. Nothing was saved." });
     }
+    // The app removes one at a time; more than that is an out-of-date or broken screen (recycleBin.ts).
+    const tooMany = tooManyRemoved("jobs", before, items);
+    if (tooMany !== null) return res.status(409).json({ ok: false, error: tooManyRemovedMessage("jobs", tooMany) });
+    putInBin(user, "jobs", removedRecords(before, items));
     writeTenantCollection(dealershipId(req), "jobs", items);
     tellNewAssignees(user, before, items);
     res.json({ ok: true, items });
