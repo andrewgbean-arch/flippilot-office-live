@@ -3635,6 +3635,23 @@ function updateCreatures(dt) {
   // earth spins at the end
   if (W.earth.visible) { W.earthMesh.rotation.y += dt * 0.01; W.clouds.rotation.y += dt * 0.013; }
 }
+/* Sliding pressure doors: open for anyone nearby (the camera counts, so a door never shuts between
+   the camera and the Captain), stay shut while locked, green light when passable, red when locked. */
+function updateDoors(dt) {
+  const inside = gameState !== 'title' && gameState !== 'boot' && !(cine.active && camera.position.distanceTo(player.pos) > 30);
+  const movers = [player.pos, dog.pos, npcs.rafi && npcs.rafi.rig.g.visible ? npcs.rafi.pos : null, npcs.zib && npcs.zib.follow ? npcs.zib.pos : null];
+  const cam = camera.position;
+  for (const D of doors) {
+    const locked = doorLocked(D.d);
+    const between = inside && (cam.x - D.x) * (player.pos.x - D.x) < 0 && Math.abs(player.pos.x - D.x) < 12;
+    const near = !locked && (between || movers.some(p => p && Math.abs(p.x - D.x) < 3.6 && Math.abs(p.z) < 3.2));
+    D.open = damp(D.open, near ? 1 : 0, 7, dt);
+    for (const P of D.panels) P.g.position.z = P.s * (0.81 + D.open * 1.55);
+    D.statusMat.emissive.setHex(locked ? 0xff2a1a : 0x40ff90);
+    const isOpen = D.open > 0.5;
+    if (isOpen !== D.wasOpen) { D.wasOpen = isOpen; if (gameState === 'play' && Math.abs(player.pos.x - D.x) < 12) Sound.door(); }
+  }
+}
 function updateWorldFX(dt) {
   const on = !!S.flags.powerOn;
   for (const i of [0, 2, 3]) {
@@ -3776,7 +3793,7 @@ function tick() {
   if (gameState === 'play' || gameState === 'cine' || gameState === 'end' || gameState === 'dead') {
     updatePlayer(dt); updateDog(dt); updateNPCs(dt); updateSpiders(dt); updateQueen(dt); updateCrane(dt); updateAmbience(dt);
   }
-  updateCreatures(dt); updateWorldFX(dt);
+  updateCreatures(dt); updateWorldFX(dt); updateDoors(dt);
   FX.update(dt); DUST.update(dt);
   screenT -= dt; if (screenT <= 0) { screenT = 0.15; for (const s of screens) drawScreen(s, time); }
   // camera
@@ -3878,7 +3895,7 @@ async function boot() {
 boot();
 // Developer hook: open with ?debug to poke at the game from the browser console.
 if (/[?&]debug/.test(location.search)) window.HD = { get S() { return S; }, player, dog, npcs, queen, HS, W, ROOMS, walkTo, interact, dogAbility, applyWorld, saveGame, loadGame, camera, renderer, setCamMode,
-  nav: { planPath, resolveMove, doorLocked, regionAt, insideObs, obstacles, minX, maxX, ROOM_Z, CORR_Z, HALF_W },
+  nav: { planPath, resolveMove, doorLocked, regionAt, insideObs, obstacles, minX, maxX, ROOM_Z, CORR_Z, HALF_W }, doors,
   get state() { return gameState; }, get busy() { return actionBusy; }, get dialog() { return dlg.open; },
   tp(x, z) { player.pos.set(x, 0, z); dog.pos.set(x + 0.8, 0, z + 0.8); snapCamera(); }, advance: advanceDialog, skip() { skipRequested = true; } };
 </script>
