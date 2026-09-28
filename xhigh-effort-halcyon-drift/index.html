@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-<title>Halcyon Drift — The Long Way Home</title>
+<title>Halcyon Drift</title>
 <meta name="description" content="A 3D point-and-click space adventure. A meteor hit your ship. Get your crew, your dog Comet and one very small alien home." />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -16,9 +16,10 @@
   --ui-line2: rgba(130,220,255,.55);
   --accent:#6fe3ff; --warn:#ff5a4a; --gold:#ffd27a; --good:#7dffb0;
   --text:#e6eefb; --muted:#8fa3bf;
+  color-scheme: dark;
 }
 *{box-sizing:border-box}
-html,body{margin:0;height:100%;overflow:hidden;background:#000;color:var(--text);
+html,body{margin:0;height:100%;overflow:hidden;overscroll-behavior:none;background:#000;color:var(--text);
   font-family:'Exo 2',system-ui,-apple-system,Segoe UI,sans-serif;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent}
 #c{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;outline:none}
 .hidden{display:none!important}
@@ -32,7 +33,8 @@ button:disabled{opacity:.38;cursor:not-allowed}
 .orb{font-family:'Orbitron',sans-serif;letter-spacing:.08em}
 
 /* ---------- title ---------- */
-.screen{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:60}
+.screen{position:fixed;inset:0;display:flex;z-index:60;overflow-y:auto;padding:calc(16px + env(safe-area-inset-top, 0px)) 16px calc(16px + env(safe-area-inset-bottom, 0px))}
+.screen > *{margin:auto}
 #title{background:radial-gradient(ellipse at 50% 55%, rgba(0,0,0,0) 0%, rgba(0,0,0,.25) 45%, rgba(0,0,0,.8) 100%)}
 .title-inner{text-align:center;padding:24px;max-width:760px}
 .kicker{font-family:'Orbitron';font-size:12px;letter-spacing:.5em;color:var(--accent);opacity:.85;margin-bottom:10px}
@@ -54,7 +56,7 @@ button:disabled{opacity:.38;cursor:not-allowed}
 /* ---------- HUD ---------- */
 #hud{position:fixed;inset:0;pointer-events:none;z-index:20}
 #hud > *{pointer-events:auto}
-#objectives{position:absolute;left:16px;top:16px;width:290px;padding:12px 14px}
+#objectives{position:absolute;left:16px;top:calc(16px + env(safe-area-inset-top, 0px));width:290px;padding:12px 14px}
 #objectives h3{margin:0 0 8px;font-family:'Orbitron';font-size:11px;letter-spacing:.3em;color:var(--accent);display:flex;justify-content:space-between;cursor:pointer}
 #objList{list-style:none;margin:0;padding:0;font-size:13.5px}
 #objList li{padding:4px 0 4px 22px;position:relative;color:#dbe7f7;transition:opacity .4s}
@@ -62,7 +64,7 @@ button:disabled{opacity:.38;cursor:not-allowed}
 #objList li.done{color:#6f86a6;text-decoration:line-through}
 #objList li.done:before{background:var(--good);border-color:var(--good)}
 #objectives.collapsed #objList{display:none}
-#topbar{position:absolute;right:16px;top:16px;display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;max-width:60vw}
+#topbar{position:absolute;right:16px;top:calc(16px + env(safe-area-inset-top, 0px));display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;max-width:60vw}
 #topbar button{backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
 #btnView{border-color:rgba(255,210,122,.55)}
 #roomName{position:absolute;left:50%;top:70px;transform:translateX(-50%);font-family:'Orbitron';letter-spacing:.35em;font-size:14px;
@@ -73,7 +75,7 @@ button:disabled{opacity:.38;cursor:not-allowed}
 .bar{height:10px;border-radius:6px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.18);overflow:hidden}
 .bar > div{height:100%;width:100%;transition:width .35s}
 #bossFill{background:linear-gradient(90deg,#8a1b6a,#ff4fa8)}
-#bottom{position:absolute;left:16px;right:16px;bottom:16px;display:flex;gap:14px;align-items:flex-end;pointer-events:none}
+#bottom{position:absolute;left:16px;right:16px;bottom:calc(16px + env(safe-area-inset-bottom, 0px));display:flex;gap:14px;align-items:flex-end;pointer-events:none}
 #bottom > *{pointer-events:auto}
 #crew{padding:12px;width:330px;flex:none}
 .hp{display:flex;align-items:center;gap:10px;font-size:11px;letter-spacing:.14em;color:var(--muted);margin-bottom:10px}
@@ -101,7 +103,9 @@ button:disabled{opacity:.38;cursor:not-allowed}
 .slot .cnt{position:absolute;right:5px;bottom:3px;font-size:11px;font-weight:700;color:#fff;text-shadow:0 1px 2px #000}
 .slot.new{animation:pop .6s ease}
 @keyframes pop{0%{transform:scale(.4)}60%{transform:scale(1.2)}100%{transform:scale(1)}}
-#usingBar{position:absolute;left:50%;bottom:98px;transform:translateX(-50%);padding:6px 14px;font-size:13px;color:var(--gold);white-space:nowrap}
+#usingBar{position:absolute;left:50%;bottom:98px;transform:translateX(-50%);padding:6px 8px 6px 14px;font-size:13px;color:var(--gold);max-width:calc(100vw - 32px);display:flex;gap:10px;align-items:center;text-align:center}
+#usingBar button{flex:none;padding:5px 10px;font-size:12px}
+#topbar .lbl{margin-left:4px}
 #tooltip{position:fixed;pointer-events:none;padding:5px 10px;font-size:13px;border-radius:8px;background:rgba(5,10,20,.82);border:1px solid var(--ui-line);
   transform:translate(14px,14px);white-space:nowrap;z-index:40;color:#fff}
 #tooltip .verb{color:var(--gold)}
@@ -119,7 +123,7 @@ button:disabled{opacity:.38;cursor:not-allowed}
 #dialog .text{font-size:17px;line-height:1.45;min-height:48px}
 #dialog .next{position:absolute;right:14px;bottom:8px;font-size:11px;color:var(--muted);animation:blink 1.1s infinite}
 @keyframes blink{50%{opacity:.25}}
-#choices{position:fixed;left:50%;bottom:120px;transform:translateX(-50%);z-index:36;display:flex;flex-direction:column;gap:8px;min-width:300px;padding:14px}
+#choices{position:fixed;left:50%;bottom:120px;transform:translateX(-50%);z-index:62;display:flex;flex-direction:column;gap:8px;min-width:300px;padding:14px}
 #choices h4{margin:0 0 4px;font-family:'Orbitron';font-size:12px;letter-spacing:.2em;color:var(--accent)}
 #choices button{text-align:left;font-size:15px;padding:10px 14px}
 #itemMenu{position:fixed;z-index:37;display:flex;flex-direction:column;gap:6px;padding:10px;min-width:190px}
@@ -166,11 +170,22 @@ button:disabled{opacity:.38;cursor:not-allowed}
   #crew{width:250px;padding:8px}
   .portrait{width:54px;height:54px}
   .slot{width:50px;height:50px;font-size:24px}
-  #dialog{bottom:auto;top:14px;padding-left:78px}
+  #dialog{bottom:auto;top:calc(14px + env(safe-area-inset-top, 0px));padding-left:78px}
   #dialog .pic{width:50px;height:50px;font-size:26px}
   #topbar button{padding:6px 8px;font-size:11px}
   #bottom{flex-direction:column;align-items:stretch}
-  #usingBar{bottom:190px}
+  #usingBar{bottom:auto;top:calc(104px + env(safe-area-inset-top, 0px))}
+  #roomName{top:38%}
+  #bossbar{width:calc(100vw - 32px)}
+}
+@media (max-width:560px){
+  #topbar{left:16px;max-width:none}
+  #topbar .lbl{display:none}
+  #topbar button{font-size:16px;padding:6px 10px}
+  #objectives{top:calc(62px + env(safe-area-inset-top, 0px));width:min(260px, calc(100vw - 32px))}
+  #bossbar{top:calc(62px + env(safe-area-inset-top, 0px))}
+  #crew{width:auto}
+  #usingBar{top:calc(62px + env(safe-area-inset-top, 0px));left:16px;right:16px;transform:none;max-width:none;z-index:2;justify-content:space-between}
 }
 </style>
 </head>
@@ -299,6 +314,14 @@ button:disabled{opacity:.38;cursor:not-allowed}
   <div class="btns" style="margin-top:10px"><button id="btnHelpClose">Close</button></div>
 </div>
 
+<script>
+/* If the 3D engine can't start (no WebGL, blocked network), say so instead of loading forever. */
+(function () {
+  function msg(t) { var l = document.getElementById('loading'); if (l && !window.__halcyonReady) l.textContent = t; }
+  window.addEventListener('error', function (e) { msg('⚠️ The ship could not be built (' + (e.message || 'a script failed to load') + '). This game needs WebGL and an internet connection.'); });
+  setTimeout(function () { msg('Still assembling… this game needs WebGL and an internet connection to load its 3D engine.'); }, 45000);
+})();
+</script>
 <script type="importmap">
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
@@ -2459,7 +2482,7 @@ function addItem(id, n = 1) { S.inv[id] = (S.inv[id] || 0) + n; Sound.pickup(); 
 function removeItem(id, n = 1) { S.inv[id] = Math.max(0, (S.inv[id] || 0) - n); if (!S.inv[id]) { delete S.inv[id]; if (selectedItem === id) setSelected(null); } updateInventory(); updateObjectives(); }
 function setSelected(id) {
   selectedItem = id; updateInventory();
-  if (id) { el.usingBar.innerHTML = `Using <b>${ITEMS[id].icon} ${ITEMS[id].name}</b> — click something to use it on · right-click / Esc to cancel`; el.usingBar.classList.remove('hidden'); }
+  if (id) { el.usingBar.innerHTML = `<span>Using <b>${ITEMS[id].icon} ${ITEMS[id].name}</b> · tap something to use it on</span><button id="cancelUse" type="button">✕ Cancel</button>`; el.usingBar.classList.remove('hidden'); $('#cancelUse').onclick = (e) => { e.stopPropagation(); Sound.click(); setSelected(null); }; }
   else el.usingBar.classList.add('hidden');
 }
 function gainAve(n, where) { const before = S.ave; S.ave = clamp(S.ave + n, 0, AVE_MAX); updateBars(); if (S.ave > before) floatAt((where || dog.pos).clone().setY(1.3), `+${S.ave - before} AVE`, '#ffb040'); }
@@ -2505,7 +2528,13 @@ function showLine(who, text) {
     Voice.speak(who, text, sp);
   });
 }
-async function say(lines) { for (const l of lines) { if (!l) continue; await showLine(l[0], l[1]); } dlg.open = false; el.dialog.classList.add('hidden'); }
+let dlgChain = Promise.resolve(), dlgGen = 0;
+function say(lines) {
+  const gen = dlgGen;
+  const run = async () => { for (const l of lines) { if (!l || gen !== dlgGen) continue; await showLine(l[0], l[1]); } if (gen === dlgGen) { dlg.open = false; el.dialog.classList.add('hidden'); } };
+  const p = dlgChain.then(run, run); dlgChain = p.catch(() => { }); return p;
+}
+function abortDialogs() { dlgGen++; Voice.stop(); const r = dlg.resolve; dlg.resolve = null; dlg.open = false; dlg.typing = false; el.dialog.classList.add('hidden'); if (r) r(); if (choiceOpen && choose.resolve) choose.resolve(-1); }
 function advanceDialog() {
   if (!dlg.open) return;
   if (dlg.typing) { dlg.shown = dlg.full.length; dlg.typing = false; el.dText.textContent = dlg.full; return; }
@@ -2516,7 +2545,8 @@ let choiceOpen = false;
 function choose(title, opts) {
   return new Promise(res => {
     choiceOpen = true; el.choices.innerHTML = title ? `<h4>${title}</h4>` : '';
-    opts.forEach((o, i) => { const b = document.createElement('button'); b.textContent = o; b.onclick = (e) => { e.stopPropagation(); Sound.click(); choiceOpen = false; el.choices.classList.add('hidden'); res(i); }; el.choices.appendChild(b); });
+    const done = (i) => { choose.resolve = null; choiceOpen = false; el.choices.classList.add('hidden'); res(i); }; choose.resolve = done;
+    opts.forEach((o, i) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = o; b.onclick = (e) => { e.stopPropagation(); Sound.click(); done(i); }; el.choices.appendChild(b); });
     el.choices.classList.remove('hidden');
   });
 }
@@ -2565,11 +2595,12 @@ function cineCam(fn) { cine.active = true; cine.update = fn; }
 function endCine() { cine.active = false; cine.update = null; }
 function canControl() { return gameState === 'play' && !actionBusy && !dlg.open && !choiceOpen && !keypadOpen && !cine.active; }
 function setCamMode(m) {
-  camMode = m; $('#btnView').textContent = m === 'fp' ? '👁 View: First-Person' : '👁 View: Behind';
+  camMode = m; btnLabel('#btnView', '👁', m === 'fp' ? 'View: First-Person' : 'View: Behind');
   el.cross.classList.toggle('hidden', m !== 'fp' || gameState !== 'play');
   setPlayerVisible(m !== 'fp');
   if (m === 'fp') fpPitch = -0.05; toast(m === 'fp' ? 'First-person view · drag to look around' : 'Behind view · drag to orbit, scroll to zoom', 1600);
 }
+function btnLabel(sel, icon, label) { const b = $(sel); b.innerHTML = `<span aria-hidden="true">${icon}</span><span class="lbl">${label}</span>`; b.setAttribute('aria-label', label); }
 function setPlayerVisible(v) { player.rig.g.traverse(o => { if (o.isMesh) o.visible = v; }); }
 window.addEventListener('keydown', (e) => {
   if (e.repeat && !['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) return;
@@ -2585,10 +2616,12 @@ window.addEventListener('keydown', (e) => {
 });
 window.addEventListener('keyup', (e) => { keys[e.code] = false; });
 window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
-let pd = null;
-canvas.addEventListener('pointerdown', (e) => { Sound.init(); canvas.focus(); pd = { x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, drag: false, button: e.button, id: e.pointerId }; try { canvas.setPointerCapture(e.pointerId); } catch (err) { } });
+let pd = null, lastPointerType = 'mouse'; const touches = new Map(); let pinchD = 0;
+canvas.addEventListener('pointerdown', (e) => { lastPointerType = e.pointerType; touches.set(e.pointerId, { x: e.clientX, y: e.clientY }); if (touches.size >= 2) { const [a, b] = [...touches.values()]; pinchD = Math.hypot(a.x - b.x, a.y - b.y); if (pd) pd.drag = true; return; } Sound.init(); canvas.focus(); pd = { x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, drag: false, button: e.button, id: e.pointerId }; try { canvas.setPointerCapture(e.pointerId); } catch (err) { } });
 canvas.addEventListener('pointermove', (e) => {
-  mouseClient = { x: e.clientX, y: e.clientY }; hoverDirty = true;
+  mouseClient = { x: e.clientX, y: e.clientY }; hoverDirty = true; lastPointerType = e.pointerType;
+  if (touches.has(e.pointerId)) touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (touches.size >= 2) { const [a, b] = [...touches.values()]; const d = Math.hypot(a.x - b.x, a.y - b.y); if (pinchD && camMode === 'third') camDist = clamp(camDist - (d - pinchD) * 0.02, 2.2, 10); pinchD = d; return; }
   if (!pd) return; const dx = e.clientX - pd.lx, dy = e.clientY - pd.ly; pd.lx = e.clientX; pd.ly = e.clientY;
   if (Math.hypot(e.clientX - pd.x, e.clientY - pd.y) > 7) pd.drag = true;
   if (pd.drag && gameState === 'play' && !cine.active) {
@@ -2596,10 +2629,12 @@ canvas.addEventListener('pointermove', (e) => {
     if (camMode === 'fp') fpPitch = clamp(fpPitch - dy * 0.004, -1.2, 1.2); else camPitch = clamp(camPitch + dy * 0.004, 0.02, 1.2);
   }
 });
-canvas.addEventListener('pointerup', (e) => { if (pd && !pd.drag && pd.button === 0) onWorldClick(e); pd = null; });
+const endPointer = (e) => { touches.delete(e.pointerId); if (touches.size < 2) pinchD = 0; };
+canvas.addEventListener('pointerup', (e) => { const multi = touches.size > 1; endPointer(e); if (multi) { if (pd) pd.drag = true; return; } if (pd && !pd.drag && pd.button === 0) onWorldClick(e); pd = null; if (e.pointerType === 'touch') el.tip.classList.add('hidden'); });
+canvas.addEventListener('pointercancel', (e) => { endPointer(e); pd = null; });
 canvas.addEventListener('pointerleave', () => { el.tip.classList.add('hidden'); });
 canvas.addEventListener('contextmenu', (e) => { e.preventDefault(); if (selectedItem) setSelected(null); });
-canvas.addEventListener('wheel', (e) => { if (camMode === 'third') camDist = clamp(camDist + e.deltaY * 0.004, 2.2, 10); }, { passive: true });
+canvas.addEventListener('wheel', (e) => { e.preventDefault(); if (camMode === 'third') camDist = clamp(camDist + e.deltaY * 0.004, 2.2, 10); }, { passive: false });
 
 function visibleChain(o) { while (o) { if (!o.visible) return false; o = o.parent; } return true; }
 function pick(cx, cy) {
@@ -2623,6 +2658,7 @@ function updateHover() {
   if (dlg.open || choiceOpen || keypadOpen || cine.active) { el.tip.classList.add('hidden'); canvas.style.cursor = 'default'; return; }
   const cx = camMode === 'fp' && mouseClient.x < 0 ? innerWidth / 2 : mouseClient.x, cy = camMode === 'fp' && mouseClient.y < 0 ? innerHeight / 2 : mouseClient.y;
   const p = pick(cx, cy);
+  if (lastPointerType === 'touch') { el.tip.classList.add('hidden'); return; }
   if (p.hs) {
     const n = hsName(p.hs.def); el.tip.innerHTML = selectedItem ? `<span class="verb">Use ${ITEMS[selectedItem].name} on</span> ${n}` : n;
     el.tip.style.left = `${cx}px`; el.tip.style.top = `${cy}px`; el.tip.classList.remove('hidden'); canvas.style.cursor = 'pointer';
@@ -2875,7 +2911,7 @@ async function junoTalk() {
   }
   const opts = ['Any idea where my keycard went?', 'What can I take from the garden?', 'Tell me about the plants', 'Catch you later'];
   if (S.flags.zibAsked && !S.flags.sunflowerPicked) opts.splice(3, 0, 'An alien wants a sunflower…');
-  const c = await choose('DR. JUNO PARK', opts); const pick = opts[c];
+  const c = await choose('DR. JUNO PARK', opts); if (c < 0) { j.pose = 'work'; return; } const pick = opts[c];
   if (pick.startsWith('Any idea')) await say([S.inv.keycard || S.flags.door1 ? ['JUNO', "You found it? Good. Comet's nose is better than any sensor on this ship."] : ['JUNO', "You left it on the bench by the carrots again. The bench is now upside down. The keycard is… somewhere in the soil, I'd guess."], S.flags.door1 ? null : ['JUNO', "Ask Comet to sniff around. Then let her dig — she's been dying for permission."]]);
   else if (pick.startsWith('What can')) await say([['JUNO', "Tomatoes if you're hurt. Strawberries from the living wall too. Carrots are Comet's treats — they give her energy for her tricks."], ['JUNO', 'And turn the irrigation valve back on, would you? Left wall. The poor things are thirsty.']]);
   else if (pick.startsWith('Tell me')) await say([['JUNO', 'Tomatoes, lettuce, carrots, pumpkins on this side. Tulips, roses, lavender and sunflowers on the other. The glowing ones are Kepler orchids.'], ['JUNO', 'Oh — and the koi. Say hi to Kevin.']]);
@@ -3203,23 +3239,28 @@ async function installCoupling() {
 /* =====================================================================
    SAVE / LOAD
    ===================================================================== */
-function hasSave() { try { return !!localStorage.getItem(SAVE_KEY); } catch (e) { return false; } }
+let memSave = null;
+function hasSave() { if (memSave) return true; try { return !!localStorage.getItem(SAVE_KEY); } catch (e) { return false; } }
 function saveGame(silent = false) {
   try {
-    localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 1, S, p: [player.pos.x, player.pos.z, player.heading], d: [dog.pos.x, dog.pos.z], cam: camMode }));
+    memSave = JSON.stringify({ v: 1, S, p: [player.pos.x, player.pos.z, player.heading], d: [dog.pos.x, dog.pos.z], cam: camMode });
+    localStorage.setItem(SAVE_KEY, memSave);
     if (!silent) toast('💾 Progress saved at the Save Beacon', 2000);
     el.btnCont.classList.remove('hidden'); return true;
-  } catch (e) { if (!silent) toast('⚠️ Could not save (storage unavailable)'); return false; }
+  } catch (e) { if (!silent) toast('💾 Saved for this session (your browser is blocking long-term storage)', 2600); return !!memSave; }
 }
 function loadGame() {
-  let data = null; try { data = JSON.parse(localStorage.getItem(SAVE_KEY)); } catch (e) { }
-  if (!data || !data.S) return false;
-  S = Object.assign(newState(), data.S); S.inv = Object.assign({}, data.S.inv); S.flags = Object.assign({}, data.S.flags);
+  let raw = null, data = null; try { raw = localStorage.getItem(SAVE_KEY); } catch (e) { }
+  try { data = JSON.parse(raw || memSave); } catch (e) { }
+  if (!data || !data.S || !Array.isArray(data.p) || data.p.length < 3 || !Array.isArray(data.d) || data.d.length < 2 || ![...data.p, ...data.d].every(Number.isFinite)) return false;
+  try {
+  S = Object.assign(newState(), data.S); S.inv = {}; for (const [k, v] of Object.entries(data.S.inv || {})) if (ITEMS[k] && v > 0) S.inv[k] = v | 0; S.flags = Object.assign({}, data.S.flags);
   if (S.hp <= 0) S.hp = 60;
   player.pos.set(data.p[0], 0, data.p[1]); player.heading = data.p[2]; dog.pos.set(data.d[0], 0, data.d[1]);
   resetTransient(); applyWorld();
   const r = npcs.rafi; r.path = []; r.walking = false; if (S.flags.rafiFree) { if (!doorLocked(2)) r.pos.set(ROOMS[3].cx - 6, 0, -1.2); else r.pos.set(ROOMS[2].cx + 7.4, 0, 2.6); }
   return true;
+  } catch (e) { console.error(e); return false; }
 }
 function resetTransient() {
   cancelWalk(); player.pose = 'idle'; dog.path = []; dog.scripted = false; dog.act = null; dog.hidden = 0; dog.carry = null; actionBusy = false; setSelected(null);
@@ -3227,7 +3268,7 @@ function resetTransient() {
   W.crane.state = 'ready'; W.crane.crate.visible = true; W.crane.crate.position.y = W.crane.hangY;
   spiders.forEach((sp, i) => { sp.rig.g.scale.setScalar(0.85 + (i % 3) * 0.1); sp.rig.body.rotation.z = 0; curlSpider(sp.rig, 0); const p = randomPointInRoom(2); sp.pos.set(p.x, 0, p.z); sp.state = S.flags.queenDead ? 'gone' : 'wander'; HS['spider' + i].enabled = !S.flags.queenDead; });
   if (S.flags.queenIntro && !S.flags.queenDead) { S.flags.queenIntro = false; }
-  el.boss.classList.add('hidden'); dlg.open = false; el.dialog.classList.add('hidden'); el.choices.classList.add('hidden'); choiceOpen = false;
+  el.boss.classList.add('hidden'); abortDialogs();
   if (keypadOpen) keypad.cancel();
   warp.lines.visible = false; W.earth.visible = false;
 }
@@ -3312,7 +3353,7 @@ async function playIntro() {
     ['HALO', 'Life support is holding thanks to the Hydroponic Garden. But motion sensors in Cargo report movement. Something with a great many legs.'],
     ['VEGA', "Of course. Four light-years from home, a hole in my ship, no power, and bugs. Alright. Let's get to work."]]);
   S.flags.briefed = true; updateObjectives(); actionBusy = false;
-  toast('Click to walk · click objects to interact · <b>V</b> toggles Behind/First-Person · Comet\'s skills are bottom-left', 6500);
+  toast('Click or tap to walk · click things to interact · the <b>👁</b> button (or <b>V</b>) switches Behind / First-Person view · Comet\'s skills are in her panel', 6500);
   saveGame(true);
 }
 function arriveHome() {
@@ -3345,7 +3386,7 @@ async function playEnding() {
   $('#endText').textContent = 'Captain Rowan Vega, Dr. Juno Park, Chief Rafi Okoye, BOLT-7, one tiny alien named Zib and the best co-pilot in the galaxy made it home.';
   $('#endStats').innerHTML = `<div><b>${mins}:${String(secs).padStart(2, '0')}</b>Time to home</div><div><b>${S.aveSpent}</b>AVE points spent</div><div><b>${S.crates}</b>Crates dropped</div>`;
   el.ending.classList.remove('hidden'); gameState = 'end'; actionBusy = false;
-  try { localStorage.removeItem(SAVE_KEY); } catch (e) { }
+  memSave = null; try { localStorage.removeItem(SAVE_KEY); } catch (e) { }
 }
 
 /* =====================================================================
@@ -3709,15 +3750,15 @@ function setQuality(q) {
   quality = q; try { localStorage.setItem('halcyon_quality', q); } catch (e) { }
   renderer.setPixelRatio(pixelRatioFor(q)); renderer.shadowMap.enabled = q === 'ultra'; bloom.enabled = q !== 'lite';
   scene.traverse(o => { if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => m.needsUpdate = true); });
-  $('#btnQuality').textContent = q === 'ultra' ? '✨ Ultra' : q === 'high' ? '✨ High' : '✨ Lite'; onResize();
+  btnLabel('#btnQuality', '✨', q === 'ultra' ? 'Ultra' : q === 'high' ? 'High' : 'Lite'); onResize();
 }
 function wireUI() {
   $('#btnView').onclick = () => { Sound.click(); setCamMode(camMode === 'fp' ? 'third' : 'fp'); };
-  $('#btnVoice').onclick = () => { Voice.on = !Voice.on; $('#btnVoice').textContent = Voice.on ? '🗣 Voices: On' : '🗣 Voices: Off'; toast(Voice.on ? 'Spoken dialogue on' : 'Spoken dialogue off', 1200); };
-  if (!Voice.supported) $('#btnVoice').textContent = '🗣 Voices: N/A';
-  $('#btnMusic').onclick = () => { Sound.init(); Sound.setMusic(!Sound.musicOn); $('#btnMusic').textContent = Sound.musicOn ? '🎵 Music: On' : '🎵 Music: Off'; };
+  $('#btnVoice').onclick = () => { Voice.on = !Voice.on; btnLabel('#btnVoice', '🗣', Voice.on ? 'Voices: On' : 'Voices: Off'); toast(Voice.on ? 'Spoken dialogue on' : 'Spoken dialogue off', 1200); };
+  btnLabel('#btnVoice', '🗣', Voice.supported ? 'Voices: On' : 'Voices: N/A'); btnLabel('#btnMusic', '🎵', 'Music: On'); btnLabel('#btnView', '👁', 'View: Behind'); btnLabel('#btnHelp', '❔', 'Help');
+  $('#btnMusic').onclick = () => { Sound.init(); Sound.setMusic(!Sound.musicOn); btnLabel('#btnMusic', '🎵', Sound.musicOn ? 'Music: On' : 'Music: Off'); };
   $('#btnQuality').onclick = () => setQuality(quality === 'ultra' ? 'high' : quality === 'high' ? 'lite' : 'ultra');
-  $('#btnQuality').textContent = quality === 'ultra' ? '✨ Ultra' : quality === 'high' ? '✨ High' : '✨ Lite';
+  btnLabel('#btnQuality', '✨', quality === 'ultra' ? 'Ultra' : quality === 'high' ? 'High' : 'Lite');
   $('#btnHelp').onclick = () => el.help.classList.toggle('hidden');
   $('#btnHelpClose').onclick = () => el.help.classList.add('hidden');
   $('#objHead').onclick = () => { el.objectives.classList.toggle('collapsed'); $('#objToggle').textContent = el.objectives.classList.contains('collapsed') ? '+' : '–'; };
@@ -3725,7 +3766,8 @@ function wireUI() {
   document.querySelectorAll('.abil button').forEach(b => b.onclick = (e) => { e.stopPropagation(); Sound.init(); dogAbility(b.dataset.ab); });
   el.skip.onclick = () => { skipRequested = true; };
   el.btnNew.onclick = async () => {
-    Sound.init(); Sound.click(); if (hasSave() && !confirm('Start a new game? Your saved progress will be replaced.')) return;
+    Sound.init(); Sound.click();
+    if (hasSave()) { const c = await choose('Start over? Your saved game will be replaced.', ['Start a new game', 'Keep my saved game']); if (c !== 0) return; }
     el.title.classList.add('hidden'); S = newState(); resetTransient(); player.pos.set(1.5, 0, 1.4); dog.pos.set(2.9, 0, 2.3); applyWorld(); lastRoom = 0;
     Sound.setMood('tense'); await playIntro();
   };
@@ -3737,7 +3779,7 @@ function wireUI() {
   };
   $('#btnRetry').onclick = async () => {
     el.death.classList.add('hidden'); await fadeTo(1, 400);
-    if (!loadGame()) { S.hp = 100; }
+    if (!loadGame()) { resetTransient(); S.hp = 100; player.pos.set(1.5, 0, 1.4); dog.pos.set(2.9, 0, 2.3); applyWorld(); }
     lastRoom = roomOf(player.pos); gameState = 'play'; setHUD(true); snapCamera(); await fadeTo(0, 900);
     say([['COMET', '*licks your visor until you wake up*']]);
   };
@@ -3760,7 +3802,7 @@ async function boot() {
     orbitCam(0); updateLightLOD();
     try { if (renderer.compileAsync) await renderer.compileAsync(scene, camera); } catch (e) { }
     tick();
-    setLoading(''); el.btnNew.disabled = false; if (hasSave()) el.btnCont.classList.remove('hidden');
+    setLoading(''); window.__halcyonReady = true; el.btnNew.disabled = false; if (hasSave()) el.btnCont.classList.remove('hidden');
   } catch (e) { console.error(e); setLoading('⚠️ Something went wrong while building the ship: ' + e.message); }
 }
 boot();
