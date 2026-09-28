@@ -67,6 +67,18 @@ button:disabled{opacity:.38;cursor:not-allowed}
 #topbar{position:absolute;right:16px;top:16px;display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;max-width:60vw}
 #topbar button{backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
 #btnView{border-color:rgba(255,210,122,.55)}
+#btnHint{border-color:rgba(255,210,122,.7);color:#ffe7b0}
+#btnHint.pulse{animation:hintPulse 1.4s ease-in-out infinite}
+@keyframes hintPulse{50%{box-shadow:0 0 0 4px rgba(255,210,122,.35),0 0 18px rgba(255,210,122,.55);background:rgba(90,70,20,.7)}}
+#hintBar{position:absolute;left:50%;top:64px;transform:translateX(-50%);width:clamp(380px,calc(100vw - 660px),680px);display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border-color:rgba(255,210,122,.5);z-index:3}
+#hud.boss #hintBar{top:104px}
+#hintBar .hint-ic{font-size:22px;line-height:1.1}
+.hint-body{flex:1;min-width:0}
+.hint-step{font-family:'Orbitron';font-size:10.5px;letter-spacing:.22em;color:var(--gold);margin-bottom:5px}
+.hint-text{font-size:14.5px;line-height:1.45;color:#fff}
+.hint-actions{display:flex;gap:6px;flex:none}
+.hint-actions button{padding:6px 10px;font-size:12px}
+@media (prefers-reduced-motion: reduce){#btnHint.pulse{animation:none;background:rgba(90,70,20,.7)}}
 #roomName{position:absolute;left:50%;top:70px;transform:translateX(-50%);font-family:'Orbitron';letter-spacing:.35em;font-size:14px;
   color:#dff4ff;text-shadow:0 0 18px rgba(111,227,255,.8);opacity:0;transition:opacity .8s;pointer-events:none;white-space:nowrap}
 #roomName small{display:block;text-align:center;font-family:'Exo 2';letter-spacing:.15em;font-size:11px;color:var(--muted);margin-top:4px}
@@ -202,6 +214,9 @@ button:disabled{opacity:.38;cursor:not-allowed}
   #hud.boss #objectives{top:100px}
   #crew{width:auto}
   #usingBar{top:62px;left:16px;right:16px;transform:none;max-width:none;z-index:2;justify-content:space-between}
+  #hintBar{top:62px;flex-wrap:wrap;width:calc(100vw - 32px)}
+  #hud.boss #hintBar{top:100px}
+  .hint-actions{width:100%;justify-content:flex-end}
 }
 </style>
 </head>
@@ -234,7 +249,13 @@ button:disabled{opacity:.38;cursor:not-allowed}
 
 <div id="hud" class="hidden">
   <div id="objectives" class="panel"><h3 id="objHead"><span>OBJECTIVES</span><span id="objToggle">–</span></h3><ul id="objList"></ul></div>
+  <div id="hintBar" class="panel hidden" role="status" aria-live="polite">
+    <span class="hint-ic" aria-hidden="true">💡</span>
+    <div class="hint-body"><div class="hint-step"></div><div class="hint-text"></div></div>
+    <div class="hint-actions"><button id="hintMore" type="button">Clearer hint</button><button id="hintClose" type="button" aria-label="Close hint">✕</button></div>
+  </div>
   <div id="topbar">
+    <button id="btnHint" type="button" title="Stuck? Get a hint">💡 Hint</button>
     <button id="btnView" title="Toggle camera (V)">👁 View: Behind</button>
     <button id="btnVoice" title="Spoken dialogue">🗣 Voices: On</button>
     <button id="btnMusic" title="Music">🎵 Music: On</button>
@@ -330,7 +351,7 @@ button:disabled{opacity:.38;cursor:not-allowed}
   <b>Sniff</b> (1) finds hidden things and makes friends, <b>Bark</b> (1) scares or lures creatures, <b>Dig</b> (2) digs up buried things,
   <b>Fetch</b> (2) reaches tight spots and tugs things free. Refill AVE by petting her (click Comet), feeding her carrots or biscuits, and at Save Beacons.</p>
   <p><b>Save Beacons</b> — the glowing cyan pylons. Click one to save. If you fall, you return to your last save.</p>
-  <p><b>Stuck?</b> Talk to the crew, read the Captain's log, and ask Comet to sniff around.</p>
+  <p><b>Stuck?</b> Press <b>💡 Hint</b> at the top of the screen. Each press of <b>Clearer hint</b> tells you a bit more, right up to the exact answer. You can also talk to the crew, read the Captain's log, and ask Comet to sniff around.</p>
   <div class="btns" style="margin-top:10px"><button id="btnHelpClose">Close</button></div>
 </div>
 
@@ -2588,7 +2609,8 @@ function gainAve(n, where) { const before = S.ave; S.ave = clamp(S.ave + n, 0, A
 function spendAve(n) { S.ave = Math.max(0, S.ave - n); S.aveSpent += n; updateBars(); floatAt(dog.pos.clone().setY(1.3), `−${n} AVE`, '#ff9a3c'); }
 function heal(n) { const b = S.hp; S.hp = clamp(S.hp + n, 0, 100); updateBars(); if (S.hp > b) { Sound.heal(); floatAt(player.pos.clone().setY(2.1), `+${Math.round(S.hp - b)} ♥`, '#7dffb0'); } }
 let toastTimer = 0;
-function toast(msg, ms = 2600) { el.toast.innerHTML = msg; el.toast.style.opacity = 1; clearTimeout(toastTimer); toastTimer = setTimeout(() => el.toast.style.opacity = 0, ms); }
+function placeToast() { const hb = document.getElementById('hintBar'); el.toast.style.top = hb && !hb.classList.contains('hidden') ? `${Math.round(hb.getBoundingClientRect().bottom + 10)}px` : ''; }
+function toast(msg, ms = 2600) { el.toast.innerHTML = msg; placeToast(); el.toast.style.opacity = 1; clearTimeout(toastTimer); toastTimer = setTimeout(() => el.toast.style.opacity = 0, ms); }
 const _pv = new V3();
 function floatAt(pos, text, color = '#fff') {
   _pv.copy(pos).project(camera); if (_pv.z > 1) return;
@@ -2725,7 +2747,7 @@ window.addEventListener('keydown', (e) => {
   if (e.repeat && !['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) return;
   keys[e.code] = true; Sound.init();
   if (dlg.open && ['Space', 'Enter', 'KeyE'].includes(e.code)) { e.preventDefault(); advanceDialog(); return; }
-  if (e.code === 'Escape') { if (keypadOpen) keypad.cancel(); else if (!$('#voicePanel').classList.contains('hidden')) $('#voicePanel').classList.add('hidden'); else if (!el.help.classList.contains('hidden')) el.help.classList.add('hidden'); else if (selectedItem) setSelected(null); else cancelWalk(); closeItemMenu(); return; }
+  if (e.code === 'Escape') { if (keypadOpen) keypad.cancel(); else if (!$('#voicePanel').classList.contains('hidden')) $('#voicePanel').classList.add('hidden'); else if (!$('#hintBar').classList.contains('hidden')) hideHint(); else if (!el.help.classList.contains('hidden')) el.help.classList.add('hidden'); else if (selectedItem) setSelected(null); else cancelWalk(); closeItemMenu(); return; }
   if (gameState === 'cine' && (e.code === 'Space' || e.code === 'Enter')) { skipRequested = true; return; }
   if (e.code === 'KeyF' && !e.ctrlKey && !e.metaKey && !e.altKey && fsSupported()) { e.preventDefault(); toggleFullscreen(); return; }
   if (gameState !== 'play') return;
@@ -3046,6 +3068,116 @@ async function rafiTalk() {
   if (!S.inv.crystal && !S.flags.jumped) return say([['RAFI', "Reactor's perfect. But HALO says the star charts are scrambled. We need a navigation reference."], S.flags.zibTalked ? ['RAFI', "That little glowing fella keeps humming about a 'Remember-Stone'. I'd trade it anything."] : ['RAFI', 'There is something glowing behind my pipes. I have decided not to look at it.']]);
   return say([['RAFI', "Everything's green, Captain. Take us home."]]);
 }
+/* =====================================================================
+   HINTS — one step at a time, from a gentle nudge to the exact answer
+   ===================================================================== */
+function hintStep() {
+  const f = S.flags, inv = S.inv;
+  const aveTip = (cost) => S.ave < cost ? ` Comet only has ${S.ave} AVE and needs ${cost}: click her portrait to pet her, or feed her a carrot or biscuit from your inventory.` : '';
+  if (!f.briefed || f.jumped) return null;
+  if (!f.torchTaken) return { sig: 'torch', title: 'THE LOCKER', tiers: [
+    'Before you go anywhere dangerous, look around the Bridge. Your personal locker holds something useful.',
+    'The locker is on the left-hand wall of the Bridge as you face the big window. Its code is a date that matters to the Captain: check the framed photo next to the Captain\'s Log, or click Comet and read her collar tag.',
+    'Open the locker with code 0417 (Comet\'s birthday, 17 April) and take the UV Torch.'] };
+  if (!f.door1) {
+    if (inv.keycard) return { sig: 'door1-card', title: 'THE CARGO HOLD DOOR', tiers: [
+      'You have the keycard. Now find where to use it.',
+      'The Cargo Hold door is at the far end of the garden. Its door panel is on the wall just to the right of it.',
+      'Click the small panel just to the right of the garden\'s far door to swipe your keycard.'] };
+    if (f.keySniffed) return { sig: 'door1-dig', title: 'THE KEYCARD', tiers: [
+      'Comet found something buried in the garden.',
+      'Use Comet\'s DIG skill (button 3 by her portrait, or key 3). It costs 2 AVE.' + aveTip(2),
+      'In the garden, press DIG, or click the glowing soil in the carrot patch. Comet will dig up your keycard.' + aveTip(2)] };
+    return { sig: 'door1-sniff', title: 'THE KEYCARD', tiers: [
+      !f.gardenSeen ? 'The Cargo Hold is locked and needs your keycard. Head through the door on the Bridge\'s right-hand side, into the garden.' : 'The Cargo Hold door needs your keycard. You had it in the garden this morning.',
+      'Comet has an excellent nose. Ask her to SNIFF around the garden (button 1 by her portrait, or key 1). Dr. Park knows something too.',
+      'Go into the garden and press Comet\'s SNIFF button (1 AVE). She\'ll find the spot in the carrot patch where your keycard is buried.' + aveTip(1)] };
+  }
+  if (!f.queenDead) {
+    if (!f.queenIntro || !fightActive()) return { sig: 'queen-enter', title: 'THE CARGO HOLD', tiers: [
+      'The Cargo Hold is through the garden\'s far door. Something big is waiting in there.',
+      'Get ready first: tomatoes from the garden restore health, and the glowing Save Beacon saves your progress.',
+      'Save at the garden\'s Save Beacon, pick a tomato or two, then walk through the far door into the Cargo Hold.'] };
+    return { sig: 'queen-fight', title: 'THE BROOD QUEEN', tiers: [
+      'You can\'t beat the Queen head-on. Look up: there\'s a cargo crane hanging over the yellow X in the middle of the hold.',
+      'Use Comet\'s BARK to lure the Queen onto the yellow X, then click the Crane Console to drop a crate on her. Step out of the red rings she aims at you.' + aveTip(1),
+      'Stand at the Crane Console, on your right just inside the hold. Press BARK; when the Queen reaches the X, click the console. Three hits wins. The UV torch stuns her, and tomatoes heal you.' + aveTip(1)] };
+  }
+  if (!f.rafiFree) return { sig: 'rafi', title: 'THE MISSING ENGINEER', tiers: [
+    'Someone is still trapped in the Cargo Hold, and Engineering stays locked without them.',
+    'The silk cocoon hanging on the right-hand side of the hold has Rafi inside. The silk is tough, but spiders hate UV light.',
+    inv.torch ? 'Click the silk cocoon while you carry the UV Torch to burn Rafi free.' : 'Fetch the UV Torch from the Bridge locker (code 0417), then click the silk cocoon to burn Rafi free.'] };
+  if (!f.breachSealed) {
+    if (inv.patch) return { sig: 'breach-seal', title: 'THE HULL BREACH', tiers: [
+      'You have the patch kit.',
+      'The hull breach is the glowing hole in the Cargo Hold\'s left-hand wall.',
+      'Click the hull breach to weld the patch in place.'] };
+    return { sig: 'breach-kit', title: 'THE HULL BREACH', tiers: [
+      'The hole in the hull still needs sealing.',
+      'There\'s a Hull Patch Kit in an emergency supply crate in the Cargo Hold.',
+      'Take the patch kit from the web-covered supply crate in the far left corner of the hold, beside the breach. Then click the breach.'] };
+  }
+  if (!f.powerOn) {
+    if (!f.engineSeen) return { sig: 'power-go', title: 'MAIN POWER', tiers: [
+      'Engineering is open now.',
+      'It\'s through the far door of the Cargo Hold.',
+      'Walk through the Cargo Hold\'s far door into Engineering.'] };
+    if (inv.coupling) return { sig: 'power-install', title: 'MAIN POWER', tiers: [
+      'You have the power coupling.',
+      'Put it back where it belongs: the reactor.',
+      'Click the reactor, the big glowing column in Engineering, to install the coupling.'] };
+    if (!f.ventFound) return { sig: 'power-find', title: 'MAIN POWER', tiers: [
+      'The reactor is missing its power coupling. It fell somewhere in Engineering.',
+      'Check the floor vent on the right-hand side of Engineering, or ask Comet to SNIFF.',
+      'Click the floor vent on the right-hand side of Engineering, then send Comet in with FETCH (2 AVE).' + aveTip(2)] };
+    return { sig: 'power-fetch', title: 'MAIN POWER', tiers: [
+      'Something is glinting in the floor vent, but it\'s too narrow for you.',
+      'Comet can fit. Use her FETCH skill (button 4, or key 4) in Engineering.' + aveTip(2),
+      'In Engineering, press FETCH (2 AVE). Comet will bring you the power coupling. Then click the reactor.' + aveTip(2)] };
+  }
+  if (!inv.crystal) {
+    if (!f.zibFriendly) return { sig: 'zib-friend', title: 'THE STAR CHARTS', tiers: [
+      'The star charts are scrambled. Something hiding in Engineering might help.',
+      'A small creature is hiding behind the pipes in the far left corner of Engineering. It\'s scared of you, but maybe not of someone smaller and fluffier.',
+      'In Engineering, use Comet\'s SNIFF skill (1 AVE) to make friends with the creature behind the pipes. Then click it to talk.' + aveTip(1)] };
+    if (!f.zibAsked) return { sig: 'zib-talk', title: 'THE STAR CHARTS', tiers: [
+      'Zib, the little alien, might be able to fix your star charts.',
+      'Talk to Zib and listen to what it offers.',
+      'Click Zib in Engineering. It has a Remember-Stone and will tell you what it wants in return.'] };
+    if (inv.sunflower) return { sig: 'zib-give', title: 'THE STAR CHARTS', tiers: [
+      'You have what Zib wants.',
+      'Give Zib the sunflower.',
+      'Click Zib while you carry the sunflower to trade it for the Remember-Stone.'] };
+    return { sig: 'zib-flower', title: 'THE STAR CHARTS', tiers: [
+      'Zib wants something that remembers light.',
+      'A sun-flower! There are sunflowers in the garden.',
+      'Go back to the garden and pick the brightest sunflower: the glowing one in the middle of the tall row on the right-hand side. Bring it to Zib.'] };
+  }
+  return { sig: 'home', title: 'GOING HOME', tiers: [
+    'You have everything you need to get home.',
+    'Head back to the Bridge.',
+    'Click the Navigation Console on the Bridge, the three screens in front of the big window.'] };
+}
+let hintSig = '', hintTier = 0, hintWatchSig = '', hintProgressT = 0, hintNudged = '';
+function showHint(clearer) {
+  const h = hintStep();
+  if (!h) { toast(S.flags.jumped ? "You made it home. There's nothing left to solve." : 'Hints appear once the story begins.', 2200); return; }
+  if (h.sig !== hintSig) { hintSig = h.sig; hintTier = 0; } else if (clearer) hintTier = Math.min(hintTier + 1, h.tiers.length - 1);
+  $('#hintBar .hint-step').textContent = `HINT ${hintTier + 1} OF ${h.tiers.length} · ${h.title}`;
+  $('#hintBar .hint-text').textContent = h.tiers[hintTier];
+  $('#hintMore').classList.toggle('hidden', hintTier >= h.tiers.length - 1);
+  $('#hintBar').classList.remove('hidden'); $('#btnHint').classList.remove('pulse'); hintNudged = h.sig; placeToast();
+}
+function hideHint() { $('#hintBar').classList.add('hidden'); placeToast(); }
+// Close the hint once you make progress; if you've been stuck on one step for a while, make the button glow.
+setInterval(() => {
+  if (gameState !== 'play') return;
+  const h = hintStep(), sig = h ? h.sig : 'done';
+  if (sig !== hintWatchSig) { hintWatchSig = sig; hintProgressT = S.t; $('#btnHint').classList.remove('pulse'); if (sig !== hintSig) hideHint(); return; }
+  if (h && S.t - hintProgressT > 150 && hintNudged !== sig && $('#hintBar').classList.contains('hidden')) {
+    hintNudged = sig; $('#btnHint').classList.add('pulse'); toast('Stuck? Tap <b>💡 Hint</b> at the top for a clue.', 4000);
+  }
+}, 1000);
 async function boltHint() {
   let h;
   if (!S.flags.torchTaken) h = 'HINT PROTOCOL: A UV TORCH IS STORED IN THE CAPTAIN\'S LOCKER. CODE: A BIRTHDAY. NOT BOLT-7\'S BIRTHDAY. BOLT-7 DOES NOT HAVE A BIRTHDAY.';
@@ -3383,6 +3515,7 @@ function loadGame() {
   } catch (e) { console.error(e); return false; }
 }
 function resetTransient() {
+  hintSig = ''; hintTier = 0; hintNudged = ''; hideHint(); $('#btnHint').classList.remove('pulse');
   cancelWalk(); player.pose = 'idle'; dog.path = []; dog.scripted = false; dog.act = null; dog.hidden = 0; dog.carry = null; actionBusy = false; setSelected(null);
   queen.state = 'hidden'; queen.hp = 3; queen.lureT = 0; queen.ring.visible = false; queen.rig.g.scale.setScalar(2.4); queen.rig.body.rotation.z = 0;
   W.crane.state = 'ready'; W.crane.crate.visible = true; W.crane.crate.position.y = W.crane.hangY;
@@ -3921,6 +4054,10 @@ function wireUI() {
   $('#voiceOn').onchange = (e) => { Voice.on = e.target.checked; toast(Voice.on ? 'Spoken dialogue on' : 'Spoken dialogue off', 1200); };
   $('#btnVoiceAuto').onclick = () => { Voice.reset(); renderVoicePanel(); toast('Each character now has the best voice your browser offers', 1800); };
   $('#btnVoiceClose').onclick = () => $('#voicePanel').classList.add('hidden');
+  $('#btnHint').onclick = (e) => { e.stopPropagation(); Sound.init(); Sound.click(); if ($('#hintBar').classList.contains('hidden')) showHint(false); else hideHint(); };
+  $('#hintMore').onclick = (e) => { e.stopPropagation(); Sound.click(); showHint(true); };
+  $('#hintClose').onclick = (e) => { e.stopPropagation(); hideHint(); };
+  btnLabel('#btnHint', '💡', 'Hint');
   Voice.onchange = () => { if (!$('#voicePanel').classList.contains('hidden')) renderVoicePanel(); };
   btnLabel('#btnVoice', '🗣', 'Voices'); btnLabel('#btnMusic', '🎵', 'Music: On'); btnLabel('#btnView', '👁', 'View: Behind'); btnLabel('#btnHelp', '❔', 'Help');
   $('#btnMusic').onclick = () => { Sound.init(); Sound.setMusic(!Sound.musicOn); btnLabel('#btnMusic', '🎵', Sound.musicOn ? 'Music: On' : 'Music: Off'); };
@@ -3978,7 +4115,7 @@ async function boot() {
 boot();
 // Developer hook: open with ?debug to poke at the game from the browser console.
 if (/[?&]debug/.test(location.search)) window.HD = { get S() { return S; }, player, dog, npcs, queen, HS, W, ROOMS, walkTo, interact, dogAbility, applyWorld, saveGame, loadGame, camera, renderer, setCamMode,
-  nav: { planPath, resolveMove, doorLocked, regionAt, insideObs, obstacles, minX, maxX, ROOM_Z, CORR_Z, HALF_W }, doors, Voice,
+  nav: { planPath, resolveMove, doorLocked, regionAt, insideObs, obstacles, minX, maxX, ROOM_Z, CORR_Z, HALF_W }, doors, Voice, hintStep, showHint,
   get state() { return gameState; }, get busy() { return actionBusy; }, get dialog() { return dlg.open; },
   tp(x, z) { player.pos.set(x, 0, z); dog.pos.set(x + 0.8, 0, z + 0.8); snapCamera(); }, advance: advanceDialog, skip() { skipRequested = true; } };
 </script>
