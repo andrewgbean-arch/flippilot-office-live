@@ -54,9 +54,9 @@ button:disabled{opacity:.38;cursor:not-allowed}
 .credit{margin-top:16px;font-size:11px;color:#6f86a6;letter-spacing:.06em}
 
 /* ---------- HUD ---------- */
-#hud{position:fixed;inset:0;pointer-events:none;z-index:20}
+#hud{position:fixed;top:env(safe-area-inset-top, 0px);right:env(safe-area-inset-right, 0px);bottom:env(safe-area-inset-bottom, 0px);left:env(safe-area-inset-left, 0px);pointer-events:none;z-index:20}
 #hud > *{pointer-events:auto}
-#objectives{position:absolute;left:16px;top:calc(16px + env(safe-area-inset-top, 0px));width:290px;padding:12px 14px}
+#objectives{position:absolute;left:16px;top:16px;width:290px;padding:12px 14px}
 #objectives h3{margin:0 0 8px;font-family:'Orbitron';font-size:11px;letter-spacing:.3em;color:var(--accent);display:flex;justify-content:space-between;cursor:pointer}
 #objList{list-style:none;margin:0;padding:0;font-size:13.5px}
 #objList li{padding:4px 0 4px 22px;position:relative;color:#dbe7f7;transition:opacity .4s}
@@ -64,7 +64,7 @@ button:disabled{opacity:.38;cursor:not-allowed}
 #objList li.done{color:#6f86a6;text-decoration:line-through}
 #objList li.done:before{background:var(--good);border-color:var(--good)}
 #objectives.collapsed #objList{display:none}
-#topbar{position:absolute;right:16px;top:calc(16px + env(safe-area-inset-top, 0px));display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;max-width:60vw}
+#topbar{position:absolute;right:16px;top:16px;display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;max-width:60vw}
 #topbar button{backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
 #btnView{border-color:rgba(255,210,122,.55)}
 #roomName{position:absolute;left:50%;top:70px;transform:translateX(-50%);font-family:'Orbitron';letter-spacing:.35em;font-size:14px;
@@ -75,7 +75,7 @@ button:disabled{opacity:.38;cursor:not-allowed}
 .bar{height:10px;border-radius:6px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.18);overflow:hidden}
 .bar > div{height:100%;width:100%;transition:width .35s}
 #bossFill{background:linear-gradient(90deg,#8a1b6a,#ff4fa8)}
-#bottom{position:absolute;left:16px;right:16px;bottom:calc(16px + env(safe-area-inset-bottom, 0px));display:flex;gap:14px;align-items:flex-end;pointer-events:none}
+#bottom{position:absolute;left:16px;right:16px;bottom:16px;display:flex;gap:14px;align-items:flex-end;pointer-events:none}
 #bottom > *{pointer-events:auto}
 #crew{padding:12px;width:330px;flex:none}
 .hp{display:flex;align-items:center;gap:10px;font-size:11px;letter-spacing:.14em;color:var(--muted);margin-bottom:10px}
@@ -116,14 +116,14 @@ button:disabled{opacity:.38;cursor:not-allowed}
 #crosshair{position:fixed;left:50%;top:50%;width:6px;height:6px;margin:-3px 0 0 -3px;border-radius:50%;background:rgba(255,255,255,.8);box-shadow:0 0 6px #fff;pointer-events:none;z-index:21}
 
 /* ---------- dialog ---------- */
-#dialog{position:fixed;left:50%;bottom:120px;transform:translateX(-50%);width:min(820px,92vw);padding:14px 18px 16px 96px;z-index:35;cursor:pointer;min-height:92px}
+#dialog{position:fixed;left:50%;bottom:calc(120px + env(safe-area-inset-bottom, 0px));transform:translateX(-50%);width:min(820px,92vw);padding:14px 18px 16px 96px;z-index:35;cursor:pointer;min-height:92px}
 #dialog .pic{position:absolute;left:16px;top:14px;width:64px;height:64px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:34px;
   background:radial-gradient(circle at 35% 30%,rgba(255,255,255,.18),rgba(0,0,0,.4));border:2px solid var(--accent)}
 #dialog .who{font-family:'Orbitron';font-size:12px;letter-spacing:.22em;margin-bottom:6px}
 #dialog .text{font-size:17px;line-height:1.45;min-height:48px}
 #dialog .next{position:absolute;right:14px;bottom:8px;font-size:11px;color:var(--muted);animation:blink 1.1s infinite}
 @keyframes blink{50%{opacity:.25}}
-#choices{position:fixed;left:50%;bottom:120px;transform:translateX(-50%);z-index:62;display:flex;flex-direction:column;gap:8px;min-width:300px;padding:14px}
+#choices{position:fixed;left:50%;bottom:calc(120px + env(safe-area-inset-bottom, 0px));transform:translateX(-50%);z-index:62;display:flex;flex-direction:column;gap:8px;min-width:300px;padding:14px}
 #choices h4{margin:0 0 4px;font-family:'Orbitron';font-size:12px;letter-spacing:.2em;color:var(--accent)}
 #choices button{text-align:left;font-size:15px;padding:10px 14px}
 #itemMenu{position:fixed;z-index:37;display:flex;flex-direction:column;gap:6px;padding:10px;min-width:190px}
@@ -149,7 +149,7 @@ button:disabled{opacity:.38;cursor:not-allowed}
 #vignette{position:fixed;inset:0;pointer-events:none;z-index:19;background:radial-gradient(ellipse at center,rgba(0,0,0,0) 55%,rgba(0,0,0,.45) 100%)}
 #cineText{position:fixed;left:0;right:0;top:40%;text-align:center;z-index:31;font-family:'Orbitron';letter-spacing:.3em;font-size:clamp(14px,2.2vw,22px);
   color:#e8f6ff;text-shadow:0 0 20px rgba(111,227,255,.8);opacity:0;transition:opacity 1s;pointer-events:none;padding:0 20px}
-#skipCine{position:fixed;right:18px;bottom:calc(11vh + 12px);z-index:32}
+#skipCine{position:fixed;right:18px;bottom:calc(11vh + 12px + env(safe-area-inset-bottom, 0px));z-index:32}
 
 /* end + death */
 #death{background:radial-gradient(ellipse at center,rgba(60,0,0,.55),rgba(0,0,0,.92))}
@@ -174,7 +174,7 @@ button:disabled{opacity:.38;cursor:not-allowed}
   #dialog .pic{width:50px;height:50px;font-size:26px}
   #topbar button{padding:6px 8px;font-size:11px}
   #bottom{flex-direction:column;align-items:stretch}
-  #usingBar{bottom:auto;top:calc(104px + env(safe-area-inset-top, 0px))}
+  #usingBar{bottom:auto;top:104px}
   #roomName{top:38%}
   #bossbar{width:calc(100vw - 32px)}
 }
@@ -182,10 +182,11 @@ button:disabled{opacity:.38;cursor:not-allowed}
   #topbar{left:16px;max-width:none}
   #topbar .lbl{display:none}
   #topbar button{font-size:16px;padding:6px 10px}
-  #objectives{top:calc(62px + env(safe-area-inset-top, 0px));width:min(260px, calc(100vw - 32px))}
-  #bossbar{top:calc(62px + env(safe-area-inset-top, 0px))}
+  #objectives{top:62px;width:min(260px, calc(100vw - 32px))}
+  #bossbar{top:60px}
+  #hud.boss #objectives{top:100px}
   #crew{width:auto}
-  #usingBar{top:calc(62px + env(safe-area-inset-top, 0px));left:16px;right:16px;transform:none;max-width:none;z-index:2;justify-content:space-between}
+  #usingBar{top:62px;left:16px;right:16px;transform:none;max-width:none;z-index:2;justify-content:space-between}
 }
 </style>
 </head>
@@ -2502,6 +2503,7 @@ function showRoomBanner(i) { const R = ROOMS[i]; el.room.innerHTML = `${R.name}<
 function letterbox(on) { el.letter.classList.toggle('on', on); }
 function fadeTo(v, ms = 700, color = '#000') { el.fade.style.background = color; el.fade.style.transition = `opacity ${ms}ms`; el.fade.style.opacity = v; return wait(ms); }
 function cineText(t, ms = 3000) { el.cineText.textContent = t; el.cineText.style.opacity = 1; setTimeout(() => el.cineText.style.opacity = 0, ms); }
+function setBossBar(on) { el.boss.classList.toggle('hidden', !on); el.hud.classList.toggle('boss', on); }
 function setHUD(on) { el.hud.classList.toggle('hidden', !on); }
 function cwait(ms) { return new Promise(res => { const t0 = performance.now(); const f = () => { if (skipRequested || performance.now() - t0 >= ms) res(); else setTimeout(f, 30); }; f(); }); }
 
@@ -2622,7 +2624,7 @@ canvas.addEventListener('pointermove', (e) => {
   mouseClient = { x: e.clientX, y: e.clientY }; hoverDirty = true; lastPointerType = e.pointerType;
   if (touches.has(e.pointerId)) touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (touches.size >= 2) { const [a, b] = [...touches.values()]; const d = Math.hypot(a.x - b.x, a.y - b.y); if (pinchD && camMode === 'third') camDist = clamp(camDist - (d - pinchD) * 0.02, 2.2, 10); pinchD = d; return; }
-  if (!pd) return; const dx = e.clientX - pd.lx, dy = e.clientY - pd.ly; pd.lx = e.clientX; pd.ly = e.clientY;
+  if (!pd || e.pointerId !== pd.id) return; const dx = e.clientX - pd.lx, dy = e.clientY - pd.ly; pd.lx = e.clientX; pd.ly = e.clientY;
   if (Math.hypot(e.clientX - pd.x, e.clientY - pd.y) > 7) pd.drag = true;
   if (pd.drag && gameState === 'play' && !cine.active) {
     camYaw -= dx * 0.0055; lastDrag = time;
@@ -2630,11 +2632,11 @@ canvas.addEventListener('pointermove', (e) => {
   }
 });
 const endPointer = (e) => { touches.delete(e.pointerId); if (touches.size < 2) pinchD = 0; };
-canvas.addEventListener('pointerup', (e) => { const multi = touches.size > 1; endPointer(e); if (multi) { if (pd) pd.drag = true; return; } if (pd && !pd.drag && pd.button === 0) onWorldClick(e); pd = null; if (e.pointerType === 'touch') el.tip.classList.add('hidden'); });
+canvas.addEventListener('pointerup', (e) => { const multi = touches.size > 1; endPointer(e); if (multi) { const rest = [...touches.entries()][0]; if (pd) { pd.drag = true; if (rest) { pd.id = rest[0]; pd.lx = rest[1].x; pd.ly = rest[1].y; } } return; } if (pd && !pd.drag && pd.button === 0) onWorldClick(e); pd = null; if (e.pointerType === 'touch') el.tip.classList.add('hidden'); });
 canvas.addEventListener('pointercancel', (e) => { endPointer(e); pd = null; });
 canvas.addEventListener('pointerleave', () => { el.tip.classList.add('hidden'); });
 canvas.addEventListener('contextmenu', (e) => { e.preventDefault(); if (selectedItem) setSelected(null); });
-canvas.addEventListener('wheel', (e) => { e.preventDefault(); if (camMode === 'third') camDist = clamp(camDist + e.deltaY * 0.004, 2.2, 10); }, { passive: false });
+canvas.addEventListener('wheel', (e) => { e.preventDefault(); if (camMode === 'third' && !e.ctrlKey) camDist = clamp(camDist + e.deltaY * 0.004, 2.2, 10); }, { passive: false });
 
 function visibleChain(o) { while (o) { if (!o.visible) return false; o = o.parent; } return true; }
 function pick(cx, cy) {
@@ -3090,7 +3092,7 @@ function hurt(n, from) {
 }
 function die() {
   gameState = 'dead'; cancelWalk(); S.deaths++; queen.ring.visible = false; Voice.stop();
-  el.boss.classList.add('hidden'); setHUD(false); el.tip.classList.add('hidden');
+  setBossBar(false); setHUD(false); el.tip.classList.add('hidden');
   setTimeout(() => el.death.classList.remove('hidden'), 700); fadeTo(0.55, 900);
 }
 function dropCrate() {
@@ -3192,14 +3194,14 @@ async function queenIntro() {
   Sound.setMood('boss');
   if (!queenIntroSeen) await say([['HALO', 'Arachnid-class xenoform. Estimated mass: three hundred kilograms. The meteor was carrying an egg cluster.'], ['VEGA', "That's not a spider. That's a building with legs."], ['HALO', "Suggestion: the cargo crane still has reserve power. Lure her onto the yellow X and drop a crate on her. UV light will stun her, briefly."], ['COMET', 'Grrrr… WOOF!']]);
   queenIntroSeen = true;
-  endCine(); letterbox(false); gameState = 'play'; setHUD(true); el.boss.classList.remove('hidden'); updateBars();
+  endCine(); letterbox(false); gameState = 'play'; setHUD(true); setBossBar(true); updateBars();
   queen.state = 'hunt'; queen.cd = 2.5; actionBusy = false;
   toast('Use Comet\'s <b>BARK</b> to lure the Queen onto the X, then click the <b>Crane Console</b>.', 4200);
 }
 async function queenDefeated() {
   queen.state = 'dying'; queen.t = 0; queen.ring.visible = false; Sound.screech(); shake(1);
   for (const s of spiders) if (s.state !== 'gone') { s.state = 'dying'; s.dieT = -Math.random() * 0.6; }
-  el.boss.classList.add('hidden');
+  setBossBar(false);
   S.flags.queenDead = true; applyWorld(); updateObjectives();
   await wait(2200);
   actionBusy = true;
@@ -3268,7 +3270,7 @@ function resetTransient() {
   W.crane.state = 'ready'; W.crane.crate.visible = true; W.crane.crate.position.y = W.crane.hangY;
   spiders.forEach((sp, i) => { sp.rig.g.scale.setScalar(0.85 + (i % 3) * 0.1); sp.rig.body.rotation.z = 0; curlSpider(sp.rig, 0); const p = randomPointInRoom(2); sp.pos.set(p.x, 0, p.z); sp.state = S.flags.queenDead ? 'gone' : 'wander'; HS['spider' + i].enabled = !S.flags.queenDead; });
   if (S.flags.queenIntro && !S.flags.queenDead) { S.flags.queenIntro = false; }
-  el.boss.classList.add('hidden'); abortDialogs();
+  setBossBar(false); abortDialogs();
   if (keypadOpen) keypad.cancel();
   warp.lines.visible = false; W.earth.visible = false;
 }
@@ -3767,7 +3769,7 @@ function wireUI() {
   el.skip.onclick = () => { skipRequested = true; };
   el.btnNew.onclick = async () => {
     Sound.init(); Sound.click();
-    if (hasSave()) { const c = await choose('Start over? Your saved game will be replaced.', ['Start a new game', 'Keep my saved game']); if (c !== 0) return; }
+    if (hasSave()) { const c = await choose('Start over? Your saved game will be replaced.', ['Start a new game', 'Keep my saved game']); if (c !== 0) return; memSave = null; try { localStorage.removeItem(SAVE_KEY); } catch (e) { } el.btnCont.classList.add('hidden'); }
     el.title.classList.add('hidden'); S = newState(); resetTransient(); player.pos.set(1.5, 0, 1.4); dog.pos.set(2.9, 0, 2.3); applyWorld(); lastRoom = 0;
     Sound.setMood('tense'); await playIntro();
   };
