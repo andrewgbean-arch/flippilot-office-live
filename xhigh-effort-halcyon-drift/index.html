@@ -5793,8 +5793,8 @@ function hintStep() {
       'Save at the garden\'s Save Beacon, pick a tomato or two, then walk through the far door into the Cargo Hold.'] };
     return { sig: 'queen-fight', title: 'THE BROOD QUEEN', tiers: [
       'You can\'t beat the Queen head-on. Look up: there\'s a cargo crane hanging over the yellow X in the middle of the hold.',
-      'Use Comet\'s BARK to lure the Queen onto the yellow X, then click the Crane Console to drop a crate on her. Step out of the red rings she aims at you.' + aveTip(1),
-      'Stand at the Crane Console, on your right just inside the hold. Press BARK; when the Queen reaches the X, click the console. Three hits wins. The UV torch stuns her, and tomatoes heal you.' + aveTip(1)] };
+      'Use Comet\'s BARK to lure the Queen onto the yellow X, then click the Crane Console to drop a crate on her. Step out of the red rings she aims at you. Barking is free during this fight.',
+      'Stand at the Crane Console, on your right just inside the hold. Press BARK; when the Queen reaches the X, click the console. Three hits wins. The UV torch stuns her, and tomatoes heal you.'] };
   }
   if (!f.rafiFree) return { sig: 'rafi', title: 'THE MISSING ENGINEER', tiers: [
     'Someone is still trapped in the Cargo Hold, and Engineering stays locked without them.',
@@ -5936,7 +5936,7 @@ function dogPlan(kind) {
     return { cost: 0, run: async () => { dogAct('sniff', 1.8); Sound.sniff(); await wait(900); await say([['NARR', ['Comet sniffs around thoroughly. Nothing new — although she seems very interested in your boots.', 'Comet sniffs, sneezes into her mask, and looks faintly embarrassed.', "Comet sniffs the air. Whatever she's looking for, it isn't here."][Math.floor(Math.random() * 3)]]]); } };
   }
   if (kind === 'bark') {
-    if (fightActive() && queen.state !== 'hidden') return { cost: 1, block: false, run: async () => {
+    if (fightActive() && queen.state !== 'hidden') return { cost: 0, block: false, run: async () => {
       await dogGo(W.crane.mark.x - 0.9, W.crane.mark.z + 0.6, 6.5); dogFace(queen.pos); dogAct('bark', 1.4); Sound.bark(true);
       floatAt(dog.pos.clone().setY(1.2), 'WOOF! WOOF!', '#ffb36b');
       queen.lureT = 6; if (['recover', 'tele'].includes(queen.state)) { queen.state = 'hunt'; queen.ring.visible = false; }
@@ -6031,11 +6031,12 @@ async function uvQueen() {
 }
 function hurt(n, from) {
   if (gameState !== 'play' || cine.active) return;
+  n = Math.round(n * 0.6 / (1 + Math.min(S.deaths || 0, 3) * 0.3));
   S.hp = Math.max(0, S.hp - n); player.hurtT = 0; updateBars(); Sound.hurt(); shake(0.25 + n / 60);
   el.dmg.style.opacity = 1; setTimeout(() => el.dmg.style.opacity = 0, 220);
   if (from) { const dx = player.pos.x - from.x, dz = player.pos.z - from.z, d = Math.hypot(dx, dz) || 1; const r = resolveMove(player.pos, player.pos.x + dx / d * 1.3, player.pos.z + dz / d * 1.3); player.pos.x = r.x; player.pos.z = r.z; }
   if (S.hp <= 0) die();
-  else if (S.hp < 38 && fightActive() && !queen.rescued) cometRescue();
+  else if (S.hp < 55 && fightActive() && !queen.rescued) cometRescue();
 }
 function die() {
   gameState = 'dead'; cancelWalk(); S.deaths++; queen.ring.visible = false; Voice.stop();
@@ -6054,7 +6055,7 @@ function updateCrane(dt) {
       c.crate.position.y = 0.55; c.state = 'smash'; c.t = 0; Sound.crash(); shake(0.6);
       burst(c.mark.x, 0.4, c.mark.z, 70, { speed: 5, up: 0.8, color: [0.55, 0.5, 0.45], size: 0.12, grav: 6, life: 1.2, sys: DUST, a: 0.8, grow: 2 });
       burst(c.mark.x, 0.6, c.mark.z, 40, { speed: 6, color: [1, 0.6, 0.25], size: 0.05, grav: 12, life: 0.7 });
-      const inRange = queen.state !== 'leap' && queen.state !== 'hidden' && queen.state !== 'dying' && queen.state !== 'dead' && d2(queen.pos, c.mark) < 2.5;
+      const inRange = queen.state !== 'leap' && queen.state !== 'hidden' && queen.state !== 'dying' && queen.state !== 'dead' && d2(queen.pos, c.mark) < 3.3;
       if (inRange) { queen.hp--; updateBars(); bossHit(c.mark); queen.state = 'stun'; queen.t = 0; queen.stunDur = 3; Sound.screech(); floatAt(queen.pos.clone().setY(3), 'DIRECT HIT!', '#ff6ad0'); if (queen.hp <= 0) queenDefeated(); else toast(queen.hp === 2 ? '💥 Direct hit! Two more!' : '💥 One more hit!', 1800); }
       else if (fightActive()) toast('Missed! Lure her under the crane first — use Comet\'s <b>BARK</b>.', 2200);
       for (const s of spiders) if (s.state !== 'gone' && s.state !== 'dying' && d2(s.pos, c.mark) < 1.8) { s.state = 'dying'; s.dieT = 0; }
@@ -6063,7 +6064,7 @@ function updateCrane(dt) {
   } else if (c.state === 'smash') {
     c.t += dt; if (c.t > 0.6) { c.crate.visible = false; c.state = 'reload'; c.t = 0; c.crate.position.y = 7.5; }
   } else if (c.state === 'reload') {
-    c.t += dt; c.crate.visible = true; c.crate.position.y = lerp(7.5, c.hangY, smooth(clamp(c.t / 3.2, 0, 1))); if (c.t > 3.2) c.state = 'ready';
+    c.t += dt; c.crate.visible = true; c.crate.position.y = lerp(7.5, c.hangY, smooth(clamp(c.t / 2.2, 0, 1))); if (c.t > 2.2) c.state = 'ready';
   }
   c.crate.rotation.y = c.state === 'ready' ? Math.sin(time * 0.8) * 0.08 : c.crate.rotation.y;
   const top = 6.05, bottom = c.crate.position.y + 0.55; c.cable.scale.y = Math.max(0.05, top - bottom); c.cable.position.y = (top + bottom) / 2 - 0.0; c.hook.position.y = bottom + 0.1;
@@ -6084,12 +6085,12 @@ function updateSpiders(dt) {
     }
     let tgt = null, spd = 0; sp.t -= dt; sp.hurtCd -= dt;
     if (sp.state === 'flee') { const dx = sp.pos.x - dog.pos.x, dz = sp.pos.z - dog.pos.z, d = Math.hypot(dx, dz) || 1; tgt = { x: sp.pos.x + dx / d * 3, z: sp.pos.z + dz / d * 3 }; spd = 4.2; if (sp.t <= 0) sp.state = 'wander'; }
-    else if (active && d2(sp.pos, player.pos) < 7) { sp.state = 'chase'; tgt = player.pos; spd = 2.7; }
+    else if (active && d2(sp.pos, player.pos) < 5) { sp.state = 'chase'; tgt = player.pos; spd = 1.9; }
     else { sp.state = 'wander'; if (!sp.wander || d2(sp.pos, sp.wander) < 0.6 || sp.t <= 0) { sp.wander = randomPointInRoom(2); sp.t = 3 + Math.random() * 4; } tgt = sp.wander; spd = active ? 1.4 : 0.9; }
     const dx = tgt.x - sp.pos.x, dz = tgt.z - sp.pos.z, d = Math.hypot(dx, dz);
     if (d > 0.9 || sp.state !== 'chase') {
       const step = Math.min(d, spd * dt); if (d > 0.01) { const r = resolveMove(sp.pos, sp.pos.x + dx / d * step, sp.pos.z + dz / d * step, 0.5); r.x = clamp(r.x, ROOMS[2].cx - 10.2, ROOMS[2].cx + 10.2); sp.speedNow = Math.hypot(r.x - sp.pos.x, r.z - sp.pos.z) / dt; sp.pos.x = r.x; sp.pos.z = r.z; sp.heading = angDamp(sp.heading, Math.atan2(dx, dz), 6, dt); }
-    } else { sp.speedNow = 0; sp.heading = angDamp(sp.heading, Math.atan2(dx, dz), 8, dt); if (sp.hurtCd <= 0) { sp.hurtCd = 1.3; hurt(7, sp.pos); Sound.hiss(); } }
+    } else { sp.speedNow = 0; sp.heading = angDamp(sp.heading, Math.atan2(dx, dz), 8, dt); if (sp.hurtCd <= 0) { sp.hurtCd = 2.0; hurt(7, sp.pos); Sound.hiss(); } }
     g.position.copy(sp.pos); g.rotation.y = sp.heading; animSpider(sp.rig, dt, sp.speedNow, time);
   }
 }
@@ -6108,19 +6109,19 @@ function updateQueen(dt) {
       q.thread.visible = false;
       const lured = q.lureT > 0; if (lured) q.lureT -= dt;
       const tgt = lured ? mark : player.pos;
-      const d = moveToward(tgt.x, tgt.z, (2.0 + (3 - q.hp) * 0.55) * (lured ? 1.35 : 1));
+      const d = moveToward(tgt.x, tgt.z, (1.5 + (3 - q.hp) * 0.3) * (lured ? 1.6 : 1));
       if (lured && d < 0.7) { q.state = 'confused'; q.t = 0; }
       q.cd -= dt;
       if (!lured && playerHere && d < 5.5 && q.cd <= 0) { q.state = 'tele'; q.t = 0; q.to.set(player.pos.x, 0, player.pos.z); q.ring.position.set(q.to.x, 0.03, q.to.z); q.ring.visible = true; Sound.hiss(); }
       break; }
-    case 'confused': { q.heading += dt * 1.6; spd = 0.6; if (q.t > 3.4) { q.state = 'hunt'; q.cd = 1.2; q.lureT = 0; } break; }
-    case 'tele': { q.heading = angDamp(q.heading, Math.atan2(q.to.x - q.pos.x, q.to.z - q.pos.z), 10, dt); q.ring.material.opacity = 0.5 + Math.sin(q.t * 20) * 0.4; q.ring.scale.setScalar(1 + q.t * 0.15); if (q.t > 1.1 - (3 - q.hp) * 0.12) { q.state = 'leap'; q.t = 0; q.from.copy(q.pos); } break; }
+    case 'confused': { q.heading += dt * 1.6; spd = 0.6; if (q.t > 6) { q.state = 'hunt'; q.cd = 2; q.lureT = 0; } break; }
+    case 'tele': { q.heading = angDamp(q.heading, Math.atan2(q.to.x - q.pos.x, q.to.z - q.pos.z), 10, dt); q.ring.material.opacity = 0.5 + Math.sin(q.t * 20) * 0.4; q.ring.scale.setScalar(1 + q.t * 0.15); if (q.t > 1.7 - (3 - q.hp) * 0.1) { q.state = 'leap'; q.t = 0; q.from.copy(q.pos); } break; }
     case 'leap': {
       const u = clamp(q.t / 0.6, 0, 1); q.pos.x = lerp(q.from.x, q.to.x, u); q.pos.z = lerp(q.from.z, q.to.z, u); q.pos.y = Math.sin(u * Math.PI) * 2.0;
       if (u >= 1) { q.pos.y = 0; const r = resolveMove(q.pos, q.pos.x, q.pos.z, 1.0); q.pos.x = r.x; q.pos.z = r.z; q.ring.visible = false; Sound.thud(); shake(0.55); burst(q.pos.x, 0.2, q.pos.z, 40, { speed: 4, up: 0.5, color: [0.5, 0.45, 0.4], size: 0.12, grav: 5, life: 1, sys: DUST, a: 0.7, grow: 2 });
         if (d2(player.pos, q.pos) < 1.9) hurt(25, q.pos); q.state = 'recover'; q.t = 0; }
       break; }
-    case 'recover': { if (q.t > 1.3) { q.state = 'hunt'; q.cd = 2.3 - (3 - q.hp) * 0.45; } break; }
+    case 'recover': { if (q.t > 1.8) { q.state = 'hunt'; q.cd = 3.2 - (3 - q.hp) * 0.3; } break; }
     case 'stun': { q.light.intensity = 30 * (0.5 + Math.random() * 0.5); q.rig.body.rotation.z = Math.sin(q.t * 30) * 0.05; if (q.t > q.stunDur) { q.state = 'hunt'; q.cd = 1.5; q.rig.body.rotation.z = 0; } break; }
     case 'dying': { curlSpider(q.rig, clamp(q.t / 1.2, 0, 1)); q.rig.body.rotation.z = Math.min(Math.PI, q.t * 2.4); q.rig.abd.material.emissiveIntensity = Math.max(0, 1.4 - q.t); if (q.t > 2.6) { const k = clamp(1 - (q.t - 2.6) / 1.2, 0, 1); q.rig.g.scale.setScalar(2.4 * Math.max(0.001, k)); } if (q.t > 3.8) q.state = 'dead'; break; }
   }
@@ -6387,7 +6388,7 @@ function updatePlayer(dt) {
   animHuman(rg, dt, spd, time, player.pose);
   if (camMode === 'fp') rg.head.rotation.x = -fpPitch * 0.8;
   // regen out of danger
-  player.hurtT += dt; if (player.hurtT > 5 && S.hp < 100 && gameState === 'play') { S.hp = Math.min(100, S.hp + dt * 2.5); if (Math.random() < 0.05) updateBars(); }
+  player.hurtT += dt; if (player.hurtT > 3.5 && S.hp < 100 && gameState === 'play') { S.hp = Math.min(100, S.hp + dt * 5); if (Math.random() < 0.05) updateBars(); }
   player.lamp.intensity = S.flags.powerOn ? 6 : 18;
 }
 function updateDog(dt) {
@@ -6657,7 +6658,7 @@ function drawScreen(s, t) {
   } else if (s.kind === 'crane') {
     const c = W.crane; g.fillText('CARGO CRANE', 16, 14); g.font = '600 26px Orbitron, monospace';
     if (!c || c.state === 'ready') { g.fillStyle = '#7dffb0'; g.fillText('READY', 16, 60); } else { g.fillStyle = '#ffd27a'; g.fillText(c.state === 'reload' ? 'RELOADING' : 'DROPPING', 16, 60); g.fillStyle = 'rgba(255,255,255,0.1)'; g.fillRect(16, 110, w - 32, 16); g.fillStyle = '#ffd27a'; g.fillRect(16, 110, (w - 32) * clamp((c.t || 0) / 3.2, 0, 1), 16); }
-    if (fightActive()) { const dd = d2(queen.pos, c.mark); g.font = '16px monospace'; g.fillStyle = dd < 2.5 ? '#ff4fa8' : '#9fb3c8'; g.fillText(dd < 2.5 ? (blink ? '▶ TARGET ON MARK ◀' : '') : `TARGET ${dd.toFixed(1)} m FROM MARK`, 16, 150); }
+    if (fightActive()) { const dd = d2(queen.pos, c.mark); g.font = '16px monospace'; g.fillStyle = dd < 3.3 ? '#ff4fa8' : '#9fb3c8'; g.fillText(dd < 3.3 ? (blink ? '▶ TARGET ON MARK ◀' : '') : `TARGET ${dd.toFixed(1)} m FROM MARK`, 16, 150); }
   } else if (s.kind === 'gauge') {
     g.fillStyle = '#e8e2d0'; g.fillRect(0, 0, w, h); g.strokeStyle = '#222'; g.lineWidth = 3; g.beginPath(); g.arc(w / 2, h / 2, w * 0.42, 0, TAU); g.stroke();
     for (let k = 0; k <= 10; k++) { const a = Math.PI * 0.75 + k / 10 * Math.PI * 1.5; g.beginPath(); g.moveTo(w / 2 + Math.cos(a) * w * 0.34, h / 2 + Math.sin(a) * w * 0.34); g.lineTo(w / 2 + Math.cos(a) * w * 0.4, h / 2 + Math.sin(a) * w * 0.4); g.stroke(); }
