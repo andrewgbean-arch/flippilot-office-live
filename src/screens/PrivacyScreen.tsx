@@ -46,8 +46,31 @@ export default function PrivacyScreen() {
           <section>
             <h2 className="text-white font-semibold text-base mb-2">4. What We Don't Do</h2>
             <p>
-              We don't sell your data, and we don't share it with other dealerships or third
-              parties beyond what's required to run the Service (e.g. our payment processor).
+              We don't sell your data, and we don't share it with other dealerships. We do send
+              specific data to outside providers where it's needed to do the thing you asked for
+              — never anything more than that task requires:
+            </p>
+            <ul className="list-disc list-outside ml-5 mt-2 space-y-1">
+              <li>Stripe, to process a paid subscription.</li>
+              <li>
+                Anthropic, to generate Pilot Brain's answers, briefings and decision reviews —
+                whatever you ask it, and the account data it's allowed to see, is sent to
+                Anthropic to produce the reply.
+              </li>
+              <li>
+                ElevenLabs or OpenAI, to turn a Pilot Brain reply into speech, but only if you use
+                a spoken voice.
+              </li>
+              <li>
+                The DVLA and DVSA, to look up a vehicle's details and MOT history, but only when
+                you check a registration.
+              </li>
+              <li>Resend, to send password-reset and other account emails.</li>
+              <li>Google, for market price estimates on vehicles you're pricing.</li>
+            </ul>
+            <p className="mt-2">
+              Each provider is bound by its own data-processing terms and only receives what its
+              task needs.
             </p>
           </section>
 
