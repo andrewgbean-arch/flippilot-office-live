@@ -1,6 +1,7 @@
-import { Express, Request } from "express";
-import { readTenantCollection, writeTenantCollection } from "./db";
-import { requireAuth, type AuthUser } from "./auth";
+import { Express, Request, Response } from "express";
+import { readCollection, readTenantCollection, writeTenantCollection } from "./db";
+import { requireAuth, requireOwner, type AuthUser, type Dealership, type StoredUser } from "./auth";
+import { RATES_COLLECTION } from "./routes/pay";
 
 // Where Pilot Brain keeps each person's chat and the facts she remembers
 // about them (routes/pilotBrain.ts reads and writes these).
@@ -29,6 +30,68 @@ export function erasePrivateDataOf(dealershipId: string, userId: string): void {
   }
 }
 
+type Row = Record<string, unknown> & { userId?: string | null };
+
+// Photos travel as private ids that mean nothing outside the app, so the
+// export says how many there were instead.
+function withPhotoCount<T extends Record<string, unknown>>(row: T) {
+  const { photoIds, ...rest } = row as T & { photoIds?: unknown };
+  return Array.isArray(photoIds) && photoIds.length > 0 ? { ...rest, photos: photoIds.length } : rest;
+}
+
+// Everything Dealer OS holds about one person in their dealership, for a
+// "download my data" (a UK GDPR subject access request). Their own records in
+// full, the team messages they sent or received, the message-board posts they
+// signed with their name (anonymous posts carry no name, so none are theirs),
+// and the jobs assigned to them. Never the password hash. Not included: the
+// owner's Pilot Brain security log, which is kept as a security record.
+export function buildPersonalExport(user: StoredUser) {
+  const d = user.dealershipId;
+  const own = (collection: string) => readTenantCollection<Row>(d, collection).filter(r => r.userId === user.id);
+  const dealership = readCollection<Dealership>("dealerships").find(x => x.id === d);
+  const messages = readTenantCollection<Row & { fromUserId?: string; toUserId?: string }>(d, "staffMessages");
+  const jobs = readTenantCollection<Row & { assignedToUserId?: string | null }>(d, "jobs");
+
+  return {
+    about:
+      "Everything FlipPilot Dealer OS holds about you in this dealership, as of exportedAt. " +
+      "Ask the dealership owner if you want anything corrected or deleted.",
+    exportedAt: new Date().toISOString(),
+    account: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      ...(user.staffRole ? { staffRole: user.staffRole } : {}),
+      pilotBrainAllowed: user.pilotBrainAllowed !== false,
+      dealership: dealership?.name ?? null,
+    },
+    diary: own("diary"),
+    notifications: own("notifications"),
+    pilotBrain: { conversation: own(PILOT_BRAIN_MESSAGES), memories: own(PILOT_BRAIN_MEMORIES) },
+    clockIns: own("timekeeping"),
+    leave: own("leave"),
+    shifts: own("shifts"),
+    workPattern: own("workPatterns"),
+    payRate: own(RATES_COLLECTION)[0] ?? null,
+    teamMessages: {
+      sent: messages.filter(m => m.fromUserId === user.id).map(withPhotoCount),
+      received: messages.filter(m => m.toUserId === user.id).map(withPhotoCount),
+    },
+    messageBoardPosts: own("feedback").map(withPhotoCount),
+    jobsAssignedToYou: jobs
+      .filter(j => j.assignedToUserId === user.id)
+      .map(j => ({ id: j.id, title: j.title ?? null, status: j.status ?? null, dueDate: j.dueDate ?? null })),
+  };
+}
+
+function sendExport(res: Response, user: StoredUser) {
+  const day = new Date().toISOString().slice(0, 10);
+  const safeName = user.name.replace(/[^A-Za-z0-9]+/g, "-").replace(/^-|-$/g, "") || "person";
+  res.setHeader("Content-Disposition", `attachment; filename="flippilot-data-${safeName}-${day}.json"`);
+  res.json(buildPersonalExport(user));
+}
+
 interface Memory {
   id: string;
   userId: string;
@@ -44,6 +107,24 @@ export default function registerPersonalDataRoute(app: Express) {
   const me = (req: Request) => (req as Request & { user: AuthUser }).user;
   const mine = (user: AuthUser) =>
     readTenantCollection<Memory>(user.dealershipId, PILOT_BRAIN_MEMORIES).filter(m => m.userId === user.id);
+
+  // Download my data: anyone signed in, for themself. Like the memory routes,
+  // it needs only a login, never a paid-up dealership.
+  app.get("/me/data-export", requireAuth, (req, res) => {
+    const stored = readCollection<StoredUser>("users").find(u => u.id === me(req).id);
+    if (!stored) return res.status(401).json({ ok: false, error: "Invalid or expired session" });
+    sendExport(res, stored);
+  });
+
+  // The owner answering a teammate's request for their data (the dealership
+  // is who a staff member asks). Only someone in the owner's own dealership:
+  // any other id is the same 404, so ids can't be probed.
+  app.get("/dealership/team/:id/data-export", requireAuth, requireOwner, (req, res) => {
+    const owner = me(req);
+    const target = readCollection<StoredUser>("users").find(u => u.id === req.params.id && u.dealershipId === owner.dealershipId);
+    if (!target) return res.status(404).json({ ok: false, error: "Team member not found" });
+    sendExport(res, target);
+  });
 
   app.get("/me/pilot-brain-memories", requireAuth, (req, res) => {
     const memories = mine(me(req)).sort((a, b) => b.createdAt.localeCompare(a.createdAt));

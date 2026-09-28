@@ -12,6 +12,7 @@ import { useInventory } from "@/context/InventoryProvider";
 import { useBookkeeping } from "@/bookkeeping/BookkeepingProvider";
 import { useLedgerPurchases } from "@/bookkeeping/useLedgerPurchases";
 import { authHeaders, setAuthToken } from "@/lib/authToken";
+import { downloadPersonalData } from "@/lib/personalDataApi";
 import { useTour } from "@/tour/TourProvider";
 import { toCSV, downloadCSV } from "@/lib/csv";
 import type { TeamMember } from "@/jobs/jobTypes";
@@ -430,6 +431,14 @@ export function ManageTeamModal({ onClose }: { onClose: () => void }) {
     }
   }
 
+  async function downloadMemberData(member: TeamMember) {
+    setBusyId(member.id);
+    setError(null);
+    const result = await downloadPersonalData(member.name, member.id);
+    setBusyId(null);
+    if (!result.ok) setError(result.error ?? "Couldn't download their data.");
+  }
+
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
       <div className="bg-black/90 border border-yellow-400/30 p-6 rounded-xl w-full max-w-lg max-h-[85vh] overflow-y-auto">
@@ -533,16 +542,28 @@ export function ManageTeamModal({ onClose }: { onClose: () => void }) {
                       </div>
                     </div>
                   ) : (
-                    <button
-                      onClick={() => {
-                        setPendingRole(null);
-                        setNotice(null);
-                        setConfirmingId(m.id);
-                      }}
-                      className="mt-2 text-xs text-red-400 hover:text-red-300"
-                    >
-                      Remove from team
-                    </button>
+                    <div className="mt-2 flex flex-wrap items-center gap-4">
+                      <button
+                        onClick={() => {
+                          setPendingRole(null);
+                          setNotice(null);
+                          setConfirmingId(m.id);
+                        }}
+                        className="text-xs text-red-400 hover:text-red-300"
+                      >
+                        Remove from team
+                      </button>
+                      {/* A teammate asking for their data asks the dealership, so the owner can download it for them. */}
+                      {isOwner && (
+                        <button
+                          onClick={() => downloadMemberData(m)}
+                          disabled={busyId === m.id}
+                          className="text-xs text-yellow-300/80 hover:text-yellow-200 disabled:opacity-60"
+                        >
+                          Download their data
+                        </button>
+                      )}
+                    </div>
                   ))}
               </li>
             ))}
@@ -784,6 +805,17 @@ export default function Settings() {
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showManageTeamModal, setShowManageTeamModal] = useState(false);
+  const [downloadingMine, setDownloadingMine] = useState(false);
+  const [myDataError, setMyDataError] = useState<string | null>(null);
+
+  async function downloadMine() {
+    if (downloadingMine || !user) return;
+    setDownloadingMine(true);
+    setMyDataError(null);
+    const result = await downloadPersonalData(user.name);
+    setDownloadingMine(false);
+    if (!result.ok) setMyDataError(result.error ?? "Couldn't download your data.");
+  }
 
   // The books and what each car cost are for the owner, managers and finance
   // (the server sends nobody else either), so only they get those downloads.
@@ -852,10 +884,14 @@ export default function Settings() {
         <SupernovaGlowCard>
           <h2 className="text-yellow-300 font-bold text-xl mb-3">Account & Security</h2>
           <p className="text-white/70 mb-4">
-            Change your account password.
+            Change your account password, or download a copy of everything Dealer OS holds about you.
           </p>
 
-          <SupernovaGlowButton label="Change Password" onClick={() => setShowPasswordModal(true)} />
+          <div className="flex flex-wrap gap-3">
+            <SupernovaGlowButton label="Change Password" onClick={() => setShowPasswordModal(true)} />
+            <SupernovaGlowButton label={downloadingMine ? "Preparing…" : "Download My Data"} onClick={downloadMine} />
+          </div>
+          {myDataError && <p role="alert" className="text-red-400 text-sm mt-3">{myDataError}</p>}
         </SupernovaGlowCard>
 
         {/* Team — inviting, changing a role or the Pilot Brain switch is an

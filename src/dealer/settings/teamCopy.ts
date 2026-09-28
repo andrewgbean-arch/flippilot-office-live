@@ -14,7 +14,8 @@ export const INVITE_LINK_LIFETIME_DAYS = 7;
 export function removeTeammatePrompt(name: string): string {
   return (
     `Remove ${name}? They'll lose access at once, and every invite link you've already shared ` +
-    `stops working. Create a new link for anyone you're expecting.`
+    `stops working. Create a new link for anyone you're expecting. Their private diary, notifications ` +
+    `and Pilot Brain chat are deleted; their clock-ins, holidays and pay records are kept.`
   );
 }
 

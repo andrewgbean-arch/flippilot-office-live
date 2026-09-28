@@ -167,3 +167,88 @@ describe("what Pilot Brain remembers about me", () => {
     expect((await request(app).delete("/me/pilot-brain-memories")).status).toBe(401);
   });
 });
+
+describe("download my data", () => {
+  // One dealership with the person, a teammate and the owner, and a little of everything.
+  async function setUp(tag: string) {
+    const owner = await signup(tag);
+    const me = await joinStaff(owner.token, "sales");
+    const mate = await joinStaff(owner.token, "general");
+    const d = owner.user.dealershipId;
+    giveDataTo(d, me.user.id, "me");
+    giveDataTo(d, mate.user.id, "mate");
+    const now = new Date().toISOString();
+    add(d, "shifts", { id: "shift-me", userId: me.user.id, date: "2026-10-01", start: "09:00", end: "17:00" });
+    add(d, "workPatterns", { id: "pattern-me", userId: me.user.id, availableDays: [1, 2, 3] });
+    add(d, "payRates", { id: "rate-me", userId: me.user.id, hourlyRate: 12.5, updatedAt: now, updatedByName: "Owner" });
+    add(d, "payRates", { id: "rate-mate", userId: mate.user.id, hourlyRate: 14, updatedAt: now, updatedByName: "Owner" });
+    add(d, "staffMessages", { id: "dm-sent", userId: null, fromUserId: me.user.id, toUserId: mate.user.id, message: "hi", photoIds: ["p1", "p2"], createdAt: now });
+    add(d, "staffMessages", { id: "dm-got", userId: null, fromUserId: owner.user.id, toUserId: me.user.id, message: "hello", createdAt: now });
+    add(d, "staffMessages", { id: "dm-others", userId: null, fromUserId: owner.user.id, toUserId: mate.user.id, message: "private to mate", createdAt: now });
+    add(d, "feedback", { id: "post-me", userId: me.user.id, userName: "PD Staff", message: "signed post", status: "new", createdAt: now });
+    add(d, "feedback", { id: "post-anon", userId: null, userName: null, message: "anonymous post", status: "new", createdAt: now });
+    add(d, "jobs", { id: "job-me", userId: null, title: "Valet the Golf", status: "open", assignedToUserId: me.user.id });
+    add(d, "jobs", { id: "job-mate", userId: null, title: "MOT the Polo", status: "open", assignedToUserId: mate.user.id });
+    return { owner, me, mate, d };
+  }
+  const idsOf = (list: { id: string }[]) => list.map(r => r.id).sort();
+
+  it("gives me everything about me, and nothing about anyone else", async () => {
+    const { me } = await setUp("export");
+    const res = await request(app).get("/me/data-export").set(bearer(me.token));
+    expect(res.status).toBe(200);
+    expect(res.headers["content-disposition"]).toMatch(/^attachment; filename="flippilot-data-PD-Staff-\d{4}-\d{2}-\d{2}\.json"$/);
+    const x = res.body;
+
+    expect(x.account).toMatchObject({ id: me.user.id, name: "PD Staff", role: "staff", staffRole: "sales", pilotBrainAllowed: true });
+    expect(JSON.stringify(x)).not.toContain("passwordHash");
+    expect(JSON.stringify(x)).not.toContain("$2");
+    expect(idsOf(x.diary)).toEqual(["diary-me"]);
+    expect(idsOf(x.notifications)).toEqual(["note-me"]);
+    expect(idsOf(x.pilotBrain.conversation)).toEqual(["msg-me"]);
+    expect(idsOf(x.pilotBrain.memories)).toEqual(["mem-me"]);
+    expect(idsOf(x.clockIns)).toEqual(["clock-me"]);
+    expect(idsOf(x.leave)).toEqual(["leave-me"]);
+    expect(idsOf(x.shifts)).toEqual(["shift-me"]);
+    expect(idsOf(x.workPattern)).toEqual(["pattern-me"]);
+    expect(x.payRate).toMatchObject({ hourlyRate: 12.5 });
+    expect(idsOf(x.teamMessages.sent)).toEqual(["dm-sent"]);
+    expect(idsOf(x.teamMessages.received)).toEqual(["dm-got"]);
+    // Private photo ids are replaced with a count.
+    expect(x.teamMessages.sent[0].photos).toBe(2);
+    expect(x.teamMessages.sent[0].photoIds).toBeUndefined();
+    expect(idsOf(x.messageBoardPosts)).toEqual(["post-me"]);
+    expect(x.jobsAssignedToYou).toEqual([{ id: "job-me", title: "Valet the Golf", status: "open", dueDate: null }]);
+    expect(JSON.stringify(x)).not.toContain("mate");
+    expect(JSON.stringify(x)).not.toContain("anonymous post");
+  });
+
+  it("the owner can download a teammate's data, but nobody else can", async () => {
+    const { owner, me, mate } = await setUp("owner-export");
+    const byOwner = await request(app).get(`/dealership/team/${me.user.id}/data-export`).set(bearer(owner.token));
+    expect(byOwner.status).toBe(200);
+    expect(byOwner.body.account.id).toBe(me.user.id);
+    expect(idsOf(byOwner.body.diary)).toEqual(["diary-me"]);
+
+    expect((await request(app).get(`/dealership/team/${me.user.id}/data-export`).set(bearer(mate.token))).status).toBe(403);
+  });
+
+  it("another dealership's owner gets a 404, the same as an id that doesn't exist", async () => {
+    const { me } = await setUp("cross");
+    const stranger = await signup("stranger");
+    const cross = await request(app).get(`/dealership/team/${me.user.id}/data-export`).set(bearer(stranger.token));
+    const missing = await request(app).get(`/dealership/team/no-such-id/data-export`).set(bearer(stranger.token));
+    expect(cross.status).toBe(404);
+    expect(missing.status).toBe(404);
+    expect(cross.body).toEqual(missing.body);
+  });
+
+  it("needs a login, and a phone-app login can't use it", async () => {
+    expect((await request(app).get("/me/data-export")).status).toBe(401);
+    const owner = await signup("phone");
+    const users = readCollection<{ id: string; email: string }>("users");
+    const email = users.find(u => u.id === owner.user.id)!.email;
+    const phone = await request(app).post("/auth/login").send({ email, password: "personaldatapass1", client: "phone" });
+    expect((await request(app).get("/me/data-export").set(bearer(phone.body.token))).status).toBe(403);
+  });
+});

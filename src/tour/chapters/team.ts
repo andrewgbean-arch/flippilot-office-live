@@ -341,7 +341,15 @@ export const chapter: TourChapter = {
             question: "How do I remove someone who has left?",
             steps: [
               "Click Remove on their card and confirm.",
-              "If they had a login too, the owner should remove them in Settings, Manage Team straight away, so they lose access.",
+              "If they had a login too, the owner or a manager should remove them in Settings, Manage Team straight away, so they lose access.",
+            ],
+          },
+          {
+            question: "How do I get a copy of the data we hold about someone?",
+            steps: [
+              "For yourself: Settings, Account & Security, Download My Data.",
+              "For a teammate who asks: the owner opens Settings, Manage Team and presses Download their data on that person.",
+              "Do this before removing them if you'll need it, because removing someone deletes their private diary and Pilot Brain chat.",
             ],
           },
         ],

@@ -32,6 +32,11 @@ describe("the removal prompt", () => {
     expect(text).toMatch(/every invite link you've already shared stops working/i);
     expect(text).toMatch(/create a new link/i);
   });
+
+  it("says what happens to their data: private things deleted, work records kept", () => {
+    expect(text).toMatch(/private diary, notifications and Pilot Brain chat are deleted/i);
+    expect(text).toMatch(/clock-ins, holidays and pay records are kept/i);
+  });
 });
 
 describe("the invite dialog's link-ready wording", () => {
