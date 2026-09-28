@@ -165,7 +165,10 @@ export default function ToolsHub() {
             <Link to="/dealer/finance" className={linkClass}>Finance</Link>
             <Link to="/dealer/risk" className={linkClass}>Risk</Link>
             {canRestore && (
-              <Link to="/dealer/settings/recently-deleted" className={linkClass}>Recently deleted</Link>
+              <>
+                <Link to="/dealer/settings/recently-deleted" className={linkClass}>Recently deleted</Link>
+                <Link to="/dealer/settings/customer-data" className={linkClass}>Customer data requests</Link>
+              </>
             )}
           </div>
         </SupernovaGlowCard>

@@ -142,7 +142,18 @@ export const chapter: TourChapter = {
           },
           {
             question: "How do I remove a lead?",
-            steps: ["Press Remove on the lead's card.", "Confirm when asked. This can't be undone."],
+            steps: [
+              "Press Remove on the lead's card and confirm.",
+              "An owner or manager can put it back from Recently deleted for 30 days.",
+            ],
+          },
+          {
+            question: "A customer asked what we hold about them, or asked to be deleted. What do I do?",
+            steps: [
+              "Pass it to the owner or a manager. You have one month to answer.",
+              "They open Tools, Customer data requests, and search with the email or phone number the customer gave.",
+              "Download to send them shows everything found. Erase everything except sales deletes it; sales stay because the law requires them.",
+            ],
           },
         ],
         access: "Everyone can add and update leads. Only sales, managers and the owner can remove one, so the Remove button only shows for them.",

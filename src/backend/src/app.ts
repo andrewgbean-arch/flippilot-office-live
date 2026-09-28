@@ -29,6 +29,7 @@ import registerDiaryRoute from "./routes/diary";
 import registerAiListingRoute from "./routes/aiListing";
 import registerPilotBrainRoute from "./routes/pilotBrain";
 import registerPersonalDataRoute from "./personalData";
+import registerCustomerDataRoute from "./customerData";
 import registerMarketIntelligenceRoute from "./routes/marketIntelligence";
 import registerOperatorRoute from "./routes/operator";
 import registerCofounderRoute from "./routes/cofounder";
@@ -207,6 +208,7 @@ app.use(
     "/booking-settings",
     "/contacts",
     "/recently-deleted",
+    "/customer-data",
     "/customers",
     "/email-settings",
     "/pay",
@@ -252,6 +254,7 @@ registerDiaryRoute(app);
 registerAiListingRoute(app);
 registerPilotBrainRoute(app);
 registerPersonalDataRoute(app);
+registerCustomerDataRoute(app);
 registerMarketIntelligenceRoute(app);
 registerOperatorRoute(app);
 registerCofounderRoute(app);

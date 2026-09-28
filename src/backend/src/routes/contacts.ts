@@ -4,6 +4,7 @@ import { readTenantCollection, writeTenantCollection } from "../db";
 import { itemsFromBody } from "../wholeListGuard";
 import { putInBin, removedRecords, tooManyRemoved, tooManyRemovedMessage } from "../recycleBin";
 import type { AuthUser } from "../auth";
+import { withoutErased } from "../customerData";
 
 export type ContactCategory =
   | "parts_supplier"
@@ -44,8 +45,10 @@ export default function registerContactsRoute(app: Express) {
 
   app.put("/contacts", (req, res) => {
     const user = authedUser(req);
-    const items = itemsFromBody(req, res);
-    if (!items) return;
+    const sent = itemsFromBody(req, res);
+    if (!sent) return;
+    // A contact erased at their request never comes back from an old screen (customerData.ts).
+    const items = withoutErased(user.dealershipId, "contacts", sent);
     // Removing one goes through DELETE /contacts/:id, so a list save that drops any is an
     // out-of-date or broken screen and would wipe records (recycleBin.ts): refused, nothing written.
     const before = readTenantCollection<Contact>(user.dealershipId, "contacts");

@@ -3,6 +3,7 @@ import { Express, Request } from "express";
 import { readTenantCollection, writeTenantCollection } from "../db";
 import { itemsFromBody } from "../wholeListGuard";
 import { requireStaffRole, type AuthUser } from "../auth";
+import { withoutErased } from "../customerData";
 
 // A real customer database, deliberately separate from both Leads
 // (the sales pipeline — no consent concept, no life after "won"/"lost")
@@ -81,8 +82,10 @@ export default function registerCustomersRoute(app: Express) {
   // customers one at a time, below).
   app.put("/customers", requireStaffRole("manager"), (req, res) => {
     const user = authedUser(req);
-    const items = itemsFromBody<Customer>(req, res);
-    if (!items) return;
+    const sent = itemsFromBody<Customer>(req, res);
+    if (!sent) return;
+    // A customer erased at their request never comes back from an old screen (customerData.ts).
+    const items = withoutErased(user.dealershipId, "customers", sent);
     writeCustomers(user.dealershipId, items);
     res.json({ ok: true, items });
   });
