@@ -745,7 +745,7 @@ const canvas = $('#c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
 let quality = 'ultra';
 // First launch: phones and tablets start on High, computers on Ultra.
-const firstQuality = () => (matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) < 900) ? 'high' : 'ultra';
+const firstQuality = () => (matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) < 900) ? 'lite' : 'ultra';
 try { quality = localStorage.getItem('halcyon_quality') || firstQuality(); } catch (e) { quality = firstQuality(); }
 function pixelRatioFor(q) { return Math.min(window.devicePixelRatio || 1, q === 'ultra' ? 1.75 : 1); }
 renderer.setPixelRatio(pixelRatioFor(quality));
@@ -1044,8 +1044,12 @@ function emissive(color, intensity = 3) { return new THREE.MeshStandardMaterial(
 /* =====================================================================
    AUDIO — synthesized in real time with the Web Audio API
    ===================================================================== */
+// Phones and tablets get a lighter sound engine: bigger audio buffers, a shorter echo and fewer
+// notes at once. Too much live synthesis is what makes phone speakers crackle.
+const LITE_AUDIO = (() => { try { return matchMedia('(pointer: coarse)').matches || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent); } catch (e) { return false; } })();
 const Sound = (() => {
   let ctx = null, master, sfx, music, amb, verbIn, noiseBuf, brownBuf;
+  let live = 0; const MAX_VOICES = LITE_AUDIO ? 14 : 48;
   let musicOn = true, mood = 'tense', nextChord = 0, chordIdx = 0, beat = 0, nextBeat = 0, intensity = 0, ducked = false;
   const layers = {};
   function impulse(sec, decay) {
@@ -1055,11 +1059,12 @@ const Sound = (() => {
   }
   function init() {
     if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return; }
-    try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
-    master = ctx.createGain(); master.gain.value = 0.85;
+    const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+    try { ctx = LITE_AUDIO ? new AC({ latencyHint: 'playback' }) : new AC(); } catch (e) { try { ctx = new AC(); } catch (e2) { return; } }
+    master = ctx.createGain(); master.gain.value = LITE_AUDIO ? 0.6 : 0.85;
     const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -16; comp.ratio.value = 4; comp.attack.value = 0.004; comp.release.value = 0.25;
     master.connect(comp); comp.connect(ctx.destination);
-    const verb = ctx.createConvolver(); verb.buffer = impulse(3.4, 2.4);
+    const verb = ctx.createConvolver(); verb.buffer = LITE_AUDIO ? impulse(1.3, 3) : impulse(3.4, 2.4);
     const vg = ctx.createGain(); vg.gain.value = 0.5; verbIn = ctx.createGain(); verbIn.connect(verb); verb.connect(vg); vg.connect(master);
     sfx = ctx.createGain(); sfx.gain.value = 0.9; sfx.connect(master);
     const send = ctx.createGain(); send.gain.value = 0.22; sfx.connect(send); send.connect(verbIn);
@@ -1075,14 +1080,14 @@ const Sound = (() => {
     g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(Math.max(peak, 0.0002), t0 + a); g.gain.exponentialRampToValueAtTime(0.0001, t0 + a + d);
   }
   function osc(type, f0, f1, dur, vol, { dest = sfx, attack = 0.005, delay = 0, filter = null, q = 1, detune = 0 } = {}) {
-    if (!ctx) return; const t = ctx.currentTime + delay; const o = ctx.createOscillator(); o.type = type; o.detune.value = detune;
+    if (!ctx || live >= MAX_VOICES) return; live++; const t = ctx.currentTime + delay; const o = ctx.createOscillator(); o.type = type; o.detune.value = detune; o.onended = () => live--;
     o.frequency.setValueAtTime(f0, t); if (f1 !== f0) o.frequency.exponentialRampToValueAtTime(Math.max(1, f1), t + attack + dur);
     const g = ctx.createGain(); env(g, t, attack, vol, dur); let node = o;
     if (filter) { const fl = ctx.createBiquadFilter(); fl.type = filter[0]; fl.frequency.value = filter[1]; fl.Q.value = q; o.connect(fl); node = fl; }
     node.connect(g); g.connect(dest); o.start(t); o.stop(t + attack + dur + 0.05);
   }
   function noise(dur, vol, { type = 'bandpass', f = 1000, f1 = null, q = 1, dest = sfx, attack = 0.005, delay = 0, brown = false } = {}) {
-    if (!ctx) return; const t = ctx.currentTime + delay; const s = ctx.createBufferSource(); s.buffer = brown ? brownBuf : noiseBuf; s.loop = true;
+    if (!ctx || live >= MAX_VOICES) return; live++; const t = ctx.currentTime + delay; const s = ctx.createBufferSource(); s.buffer = brown ? brownBuf : noiseBuf; s.loop = true; s.onended = () => live--;
     const fl = ctx.createBiquadFilter(); fl.type = type; fl.frequency.setValueAtTime(f, t); if (f1) fl.frequency.exponentialRampToValueAtTime(f1, t + attack + dur); fl.Q.value = q;
     const g = ctx.createGain(); env(g, t, attack, vol, dur); s.connect(fl); fl.connect(g); g.connect(dest); s.start(t, Math.random() * 1.5); s.stop(t + attack + dur + 0.05);
   }
@@ -1114,7 +1119,7 @@ const Sound = (() => {
     const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = bright; f.Q.value = 0.4;
     const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + dur * 0.35); g.gain.setValueAtTime(vol, t + dur * 0.7); g.gain.exponentialRampToValueAtTime(0.0001, t + dur + 2.5);
     f.connect(g); g.connect(music);
-    for (const [type, det] of [['triangle', -6], ['sine', 7], ['sawtooth', 3]]) {
+    for (const [type, det] of (LITE_AUDIO ? [['triangle', 0]] : [['triangle', -6], ['sine', 7], ['sawtooth', 3]])) {
       const o = ctx.createOscillator(); o.type = type; o.frequency.value = freq; o.detune.value = det;
       if (type === 'sawtooth') { const sg = ctx.createGain(); sg.gain.value = 0.18; o.connect(sg); sg.connect(f); } else o.connect(f);
       o.start(t); o.stop(t + dur + 2.6);
@@ -1129,9 +1134,9 @@ const Sound = (() => {
     if (!ctx || !musicOn) return;
     const now = ctx.currentTime, M = MOODS[mood] || MOODS.tense;
     if (now + 0.3 >= nextChord) {
-      const t = Math.max(now + 0.05, nextChord), ch = M.chords[chordIdx % M.chords.length]; chordIdx++;
+      const t = Math.max(now + 0.05, nextChord), ch = M.chords[chordIdx % M.chords.length].slice(0, LITE_AUDIO ? 4 : 99); chordIdx++;
       ch.forEach((m, i) => pad(mtof(m), t, M.len, M.bright * (i === 0 ? 0.6 : 1), i === 0 ? 0.05 : 0.028));
-      if (M.spark > 0) for (let k = 0; k < 6; k++) if (Math.random() < M.spark) pluck(mtof(ch[1 + Math.floor(Math.random() * (ch.length - 1))] + 24), t + k * M.len / 6 + Math.random() * 0.2, 0.035);
+      if (M.spark > 0) for (let k = 0; k < (LITE_AUDIO ? 3 : 6); k++) if (Math.random() < M.spark) pluck(mtof(ch[1 + Math.floor(Math.random() * (ch.length - 1))] + 24), t + k * M.len / 6 + Math.random() * 0.2, 0.035);
       nextChord = t + M.len;
     }
     if (M.pulse) {
@@ -1215,7 +1220,7 @@ const Sound = (() => {
     },
     buzz() { osc('sawtooth', 190 + Math.random() * 40, 210, 0.6, 0.012, { filter: ['bandpass', 400], q: 2, attack: 0.1 }); },
     whale() { osc('sine', 90, 55, 3.5, 0.06, { attack: 1.2, dest: verbIn }); osc('sine', 180, 140, 3, 0.03, { attack: 1.4, dest: verbIn }); },
-    typing() { osc('square', 1800 + Math.random() * 600, 1800, 0.01, 0.008); },
+    typing() { if (LITE_AUDIO) return; osc('square', 1800 + Math.random() * 600, 1800, 0.01, 0.008); },
   };
   return api;
 })();
@@ -4513,17 +4518,17 @@ const Title = (() => {
     function start() {
       if (alive) return true; ctx = Sound.ctx; if (!ctx) return false; if (ctx.state === 'suspended') ctx.resume();
       out = ctx.createGain(); out.gain.value = 0.0001; const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -16; comp.ratio.value = 3; out.connect(comp); comp.connect(ctx.destination);
-      verb = ctx.createConvolver(); verb.buffer = impulse(5, 2.3); const vg = ctx.createGain(); vg.gain.value = 0.7; verb.connect(vg); vg.connect(out);
+      verb = ctx.createConvolver(); verb.buffer = LITE_AUDIO ? impulse(1.5, 3) : impulse(5, 2.3); const vg = ctx.createGain(); vg.gain.value = 0.7; verb.connect(vg); vg.connect(out);
       dry = ctx.createGain(); dry.connect(out); const send = ctx.createGain(); send.gain.value = 0.55; dry.connect(send); send.connect(verb);
       echo = ctx.createDelay(1.5); echo.delayTime.value = 0.46; const fb = ctx.createGain(); fb.gain.value = 0.36; const elp = ctx.createBiquadFilter(); elp.type = 'lowpass'; elp.frequency.value = 2600;
       echo.connect(elp); elp.connect(fb); fb.connect(echo); elp.connect(verb); const eo = ctx.createGain(); eo.gain.value = 0.35; elp.connect(eo); eo.connect(out);
-      out.gain.setTargetAtTime(0.85, ctx.currentTime, 0.3); alive = true; return true;
+      out.gain.setTargetAtTime(LITE_AUDIO ? 0.55 : 0.85, ctx.currentTime, 0.3); alive = true; return true;
     }
     function droneOn() {
       if (!alive || drone) return; const t = ctx.currentTime; const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.22, t + 7);
       const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 140; lp.Q.value = 0.7; lp.connect(g); g.connect(dry);
       const lfo = ctx.createOscillator(); lfo.frequency.value = 0.05; const lg = ctx.createGain(); lg.gain.value = 60; lfo.connect(lg); lg.connect(lp.frequency); lfo.start();
-      const oscs = [[mtof(26), 'sine', 0], [mtof(26), 'sawtooth', 6], [mtof(33), 'sawtooth', -5], [mtof(38), 'triangle', 3]].map(([f, ty, det]) => { const o = ctx.createOscillator(); o.type = ty; o.frequency.value = f; o.detune.value = det; o.connect(lp); o.start(); return o; });
+      const oscs = (LITE_AUDIO ? [[mtof(26), 'sine', 0], [mtof(38), 'triangle', 3]] : [[mtof(26), 'sine', 0], [mtof(26), 'sawtooth', 6], [mtof(33), 'sawtooth', -5], [mtof(38), 'triangle', 3]]).map(([f, ty, det]) => { const o = ctx.createOscillator(); o.type = ty; o.frequency.value = f; o.detune.value = det; o.connect(lp); o.start(); return o; });
       drone = { g, oscs: [...oscs, lfo] };
     }
     function chordOn(notes, bright = 900, vol = 0.03, attack = 3) {
@@ -4534,14 +4539,14 @@ const Title = (() => {
       const oscs = [];
       notes.forEach((m, i) => {
         const v = ctx.createGain(); v.gain.value = (i === 0 ? 1.6 : 1) * vol; v.connect(f);
-        for (const [ty, det, k] of [['sawtooth', -7, 0.5], ['sawtooth', 7, 0.5], ['triangle', 0, 1.2]]) { const o = ctx.createOscillator(); o.type = ty; o.frequency.value = mtof(m); o.detune.value = det + (Math.random() - 0.5) * 4; const og = ctx.createGain(); og.gain.value = k; o.connect(og); og.connect(v); o.start(t); oscs.push(o); }
+        for (const [ty, det, k] of (LITE_AUDIO ? [['triangle', 0, 1.6]] : [['sawtooth', -7, 0.5], ['sawtooth', 7, 0.5], ['triangle', 0, 1.2]])) { const o = ctx.createOscillator(); o.type = ty; o.frequency.value = mtof(m); o.detune.value = det + (Math.random() - 0.5) * 4; const og = ctx.createGain(); og.gain.value = k; o.connect(og); og.connect(v); o.start(t); oscs.push(o); }
       });
       chord = { g, oscs };
     }
     function bell(m, vol = 0.06, delay = 0) {
       if (!alive) return; const t = ctx.currentTime + delay; const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.012); g.gain.exponentialRampToValueAtTime(0.0001, t + 3.2);
       g.connect(dry); g.connect(echo);
-      for (const [mul, k] of [[1, 1], [2, 0.28], [3.01, 0.1], [4.2, 0.05]]) { const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = mtof(m) * mul; const og = ctx.createGain(); og.gain.value = k; o.connect(og); og.connect(g); o.start(t); o.stop(t + 3.3); }
+      for (const [mul, k] of (LITE_AUDIO ? [[1, 1], [2, 0.28]] : [[1, 1], [2, 0.28], [3.01, 0.1], [4.2, 0.05]])) { const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = mtof(m) * mul; const og = ctx.createGain(); og.gain.value = k; o.connect(og); og.connect(g); o.start(t); o.stop(t + 3.3); }
     }
     function noiseBuf() { const len = ctx.sampleRate * 2, b = ctx.createBuffer(1, len, ctx.sampleRate), d = b.getChannelData(0); for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1; return b; }
     function riser(dur = 3) {
