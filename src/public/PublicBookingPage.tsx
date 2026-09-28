@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 import {
   loadPublicDealerName,
   loadPublicVehicles,
@@ -238,6 +238,15 @@ export default function PublicBookingPage() {
               />
 
               {error && <p className="text-red-400 text-sm">{error}</p>}
+
+              <p className="text-white/50 text-xs">
+                We'll pass your name and contact details to {dealerName} so they can arrange this
+                with you. See our{" "}
+                <Link to="/privacy" className="text-yellow-300 hover:underline">
+                  Privacy Policy
+                </Link>
+                .
+              </p>
 
               <button
                 onClick={handleSubmit}

@@ -26,7 +26,17 @@ export default function PrivacyScreen() {
           </section>
 
           <section>
-            <h2 className="text-white font-semibold text-base mb-2">2. How Data Is Stored</h2>
+            <h2 className="text-white font-semibold text-base mb-2">2. If You're Booking or Enquiring Without an Account</h2>
+            <p>
+              You don't need an account to book a viewing, test drive or MOT, or to ask a dealer
+              to watch for a car. The name and contact details you give go to that one dealership
+              only, so they can get back to you — not to any other dealer on FlipPilot, and not
+              to any of the outside providers listed in section 5.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-white font-semibold text-base mb-2">3. How Data Is Stored</h2>
             <p>
               Each dealership's data is stored separately from every other dealership's — nothing
               you enter is visible to other accounts. Authentication uses a signed session token
@@ -35,7 +45,7 @@ export default function PrivacyScreen() {
           </section>
 
           <section>
-            <h2 className="text-white font-semibold text-base mb-2">3. Payment Information</h2>
+            <h2 className="text-white font-semibold text-base mb-2">4. Payment Information</h2>
             <p>
               If you subscribe to a paid plan, billing is handled entirely by Stripe. We don't
               see or store your full card details — only a subscription status and customer
@@ -44,7 +54,7 @@ export default function PrivacyScreen() {
           </section>
 
           <section>
-            <h2 className="text-white font-semibold text-base mb-2">4. What We Don't Do</h2>
+            <h2 className="text-white font-semibold text-base mb-2">5. What We Don't Do</h2>
             <p>
               We don't sell your data, and we don't share it with other dealerships. We do send
               specific data to outside providers where it's needed to do the thing you asked for
@@ -75,7 +85,7 @@ export default function PrivacyScreen() {
           </section>
 
           <section>
-            <h2 className="text-white font-semibold text-base mb-2">5. Your Choices</h2>
+            <h2 className="text-white font-semibold text-base mb-2">6. Your Choices</h2>
             <p>
               You can update your account and dealership details at any time from Settings. To
               delete your account and data entirely, contact support.
@@ -83,7 +93,7 @@ export default function PrivacyScreen() {
           </section>
 
           <section>
-            <h2 className="text-white font-semibold text-base mb-2">6. Changes</h2>
+            <h2 className="text-white font-semibold text-base mb-2">7. Changes</h2>
             <p>
               We may update this policy as the Service changes. Material changes will be reflected
               by updating the date at the top of this page.
