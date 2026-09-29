@@ -578,3 +578,136 @@ describe("the Record Purchase Price form", () => {
     expect(textOf(screen!.result)).toContain("Record Purchase Price");
   });
 });
+
+/* ---------------- a car with NO purchase at all gets one attached ---------------- */
+// A sold car imported from a spreadsheet had no purchase in the books: its ledger
+// page said "Vehicle Not Found", the ledger table didn't list it, and Add Purchase
+// could only make a second copy of the car. Now its purchase is attached to it.
+
+describe("recordPurchasePrice: attaching a purchase to a car that has none", () => {
+  const today = { date: "2026-09-10", vatRate: 0, vatIncluded: false };
+
+  it("attaches a Margin Scheme purchase to the car, works out the sale's VAT and the profit, in ONE save", async () => {
+    await openBooks({ sales: [withSaleVat(baseSale(), undefined)] });
+    puts = [];
+    expect(ctx().recordPurchasePrice("v1", 5000, "margin", today)).toBe(true);
+    await settle();
+    expect(puts).toHaveLength(1);
+    expect(state.doc.purchases).toHaveLength(1);
+    expect(state.doc.purchases![0]).toMatchObject({ vehicleId: "v1", purchasePrice: 5000, date: "2026-09-10", vatScheme: "margin", vatRate: 0, vatIncluded: false, vatAmount: 0, netAmount: 5000 });
+    expect(state.doc.sales![0].vatAmount).toBeCloseTo(166.6667, 3);
+    expect(ctx().getProfitForVehicle("v1")!.profit).toBe(1000);
+  });
+
+  it("a Standard VAT purchase keeps the rate it was given", async () => {
+    await openBooks({});
+    ctx().recordPurchasePrice("v1", 6000, "standard", { date: "2026-09-10", vatRate: 0.2, vatIncluded: true });
+    await settle();
+    expect(state.doc.purchases![0]).toMatchObject({ vatScheme: "standard", vatRate: 0.2, vatIncluded: true });
+    expect(state.doc.purchases![0].vatAmount).toBeCloseTo(1000, 10);
+  });
+
+  it("never makes a second purchase for a car that already has one: it fixes that one", async () => {
+    await openBooks({ purchases: [purchase(0)] });
+    ctx().recordPurchasePrice("v1", 5000, "margin", today);
+    await settle();
+    expect(state.doc.purchases).toHaveLength(1);
+    expect(state.doc.purchases![0]).toMatchObject({ id: "p1", purchasePrice: 5000, date: "2026-03-01" });
+  });
+
+  it("refuses a missing or malformed date: nothing is saved", async () => {
+    await openBooks({});
+    puts = [];
+    expect(ctx().recordPurchasePrice("v1", 5000, "margin", { ...today, date: "" })).toBe(false);
+    expect(ctx().recordPurchasePrice("v1", 5000, "margin", { ...today, date: "10/09/2026" })).toBe(false);
+    await settle();
+    expect(puts).toEqual([]);
+  });
+});
+
+describe("the car's page when the books hold no purchase for it", () => {
+  const page = () => {
+    screen = mount(BookkeepingEntryScreen as (p: object) => unknown, {}) as Mounted<any, any>;
+    return screen;
+  };
+
+  it("shows the car's ledger with 'No purchase recorded' and a way to record it, not 'Vehicle Not Found'", async () => {
+    await openBooks({ sales: [withSaleVat(baseSale(), undefined)] });
+    const p = page();
+    const t = screenText(p.result);
+    expect(t).not.toContain("Vehicle Not Found");
+    expect(t).toContain("No purchase recorded for this car");
+    expect(t).toContain("Sale Price: £6,000");
+    buttonByText(p.result, "Record what you paid")!.props.onClick();
+    await settle();
+    const modal = findAll(p.result, (el) => el.type === RecordPurchasePriceModal)[0]!;
+    expect(modal.props).toMatchObject({ vehicleId: "v1", scheme: "margin", hasPurchase: false });
+  });
+
+  it("an in-stock car with nothing in the books also gets the button", async () => {
+    await openBooks({});
+    expect(buttonByText(page().result, "Record what you paid")).toBeDefined();
+  });
+
+  it("still says 'Vehicle Not Found' for a car that exists nowhere", async () => {
+    state.car = { id: "someone-else", make: "VW", model: "Polo", vatScheme: "margin" };
+    await openBooks({});
+    expect(screenText(page().result)).toContain("Vehicle Not Found");
+  });
+});
+
+describe("the Record What You Paid form (no purchase yet)", () => {
+  async function openModal(props: Record<string, unknown> = {}) {
+    screen = mount(RecordPurchasePriceModal as (p: any) => unknown, { vehicleId: "v1", scheme: "margin", hasPurchase: false, onClose: () => void closed++, ...props }) as Mounted<any, any>;
+    await settle();
+  }
+
+  it("asks for the date as well, attaches the purchase to the car and closes", async () => {
+    await openBooks({ sales: [withSaleVat(baseSale(), undefined)] });
+    await openModal();
+    expect(textOf(screen!.result)).toContain("Record What You Paid");
+    typeInto(byId(screen!.result, "recordpurchaseprice-price"), "£5,000");
+    typeInto(byId(screen!.result, "recordpurchaseprice-date"), "2026-08-14");
+    await settle();
+    buttonByText(screen!.result, "Save Purchase Price")!.props.onClick();
+    await settle();
+    expect(closed).toBe(1);
+    expect(state.doc.purchases![0]).toMatchObject({ vehicleId: "v1", purchasePrice: 5000, date: "2026-08-14", vatScheme: "margin" });
+  });
+
+  it("a Standard VAT car must be given a VAT rate: a blank one is refused and nothing is saved", async () => {
+    await openBooks({});
+    puts = [];
+    await openModal({ scheme: "standard" });
+    typeInto(byId(screen!.result, "recordpurchaseprice-price"), "6000");
+    typeInto(byId(screen!.result, "recordpurchaseprice-vat-rate"), "");
+    await settle();
+    buttonByText(screen!.result, "Save Purchase Price")!.props.onClick();
+    await settle();
+    expect(alerts(screen!.result).length).toBeGreaterThan(0);
+    expect(closed).toBe(0);
+    expect(puts).toEqual([]);
+  });
+
+  it("a Standard VAT car saves the rate typed in", async () => {
+    await openBooks({});
+    await openModal({ scheme: "standard" });
+    typeInto(byId(screen!.result, "recordpurchaseprice-price"), "6000");
+    typeInto(byId(screen!.result, "recordpurchaseprice-vat-rate"), "20");
+    await settle();
+    buttonByText(screen!.result, "Save Purchase Price")!.props.onClick();
+    await settle();
+    expect(state.doc.purchases![0]).toMatchObject({ vatScheme: "standard", vatRate: 0.2, vatIncluded: true });
+  });
+});
+
+describe("the ledger table lists a sold car that has no purchase", () => {
+  it("shows it with 'Not recorded' and 'No purchase recorded', so it can be found", async () => {
+    await openBooks({ sales: [withSaleVat(baseSale(), undefined)] });
+    const row = ledgerRow();
+    expect(row).toContain("Ford Focus");
+    expect(row).toContain("Not recorded");
+    expect(row).toContain("No purchase recorded");
+    expect(row).toContain("£6,000");
+  });
+});

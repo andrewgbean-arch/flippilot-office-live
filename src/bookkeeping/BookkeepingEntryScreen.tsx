@@ -52,7 +52,10 @@ export default function BookkeepingEntryScreen() {
   const [showSaleModal, setShowSaleModal] = React.useState(false);
   const [showPurchasePriceModal, setShowPurchasePriceModal] = React.useState(false);
 
-  if (!purchase) {
+  // A car with no purchase in the books (a sold car imported from a spreadsheet,
+  // say) still has a ledger: it shows "No purchase recorded" and a way to add one.
+  // Only a car that exists nowhere is "not found".
+  if (!purchase && !vehicle && !sale) {
     return (
       <div className="p-10 text-white">
         <h2 className="text-2xl font-bold text-red-400">Vehicle Not Found</h2>
@@ -79,6 +82,7 @@ export default function BookkeepingEntryScreen() {
           vehicleId={vehicleId!}
           scheme={vehicle?.vatScheme === "standard" ? "standard" : "margin"}
           vehicleLabel={vehicleLabel ?? ""}
+          hasPurchase={purchase !== undefined}
           onClose={() => setShowPurchasePriceModal(false)}
         />
       )}
@@ -100,6 +104,18 @@ export default function BookkeepingEntryScreen() {
       <div className="bg-black/40 border border-white/10 p-6 rounded-xl mb-8">
         <h2 className="text-xl font-semibold text-white/80 mb-3">Purchase</h2>
 
+        {!purchase ? (
+          <>
+            <p className="text-yellow-200/90">No purchase recorded for this car, so its profit can't be worked out.</p>
+            <button
+              onClick={() => setShowPurchasePriceModal(true)}
+              className="mt-3 px-3 py-2 bg-blue-500 text-black rounded hover:bg-blue-400"
+            >
+              Record what you paid
+            </button>
+          </>
+        ) : (
+        <>
         <p>
           <span className="text-white/60">Price:</span>{" "}
           {isPositiveAmount(purchase.purchasePrice) ? formatMoney(purchase.purchasePrice) : "Not recorded"}
@@ -123,6 +139,8 @@ export default function BookkeepingEntryScreen() {
             <p><span className="text-white/60">VAT:</span> {formatMoney(purchase.vatAmount, { pence: true })}</p>
             <p><span className="text-white/60">Net:</span> {formatMoney(purchase.netAmount, { pence: true })}</p>
           </>
+        )}
+        </>
         )}
       </div>
 
@@ -250,7 +268,7 @@ export default function BookkeepingEntryScreen() {
         </p>
         {!profitSummary && (
           <p className="text-white/60 text-sm mt-2">
-            {sale && isPositiveAmount(purchase.purchasePrice) && !isPositiveAmount(sale.salePrice)
+            {sale && purchase && isPositiveAmount(purchase.purchasePrice) && !isPositiveAmount(sale.salePrice)
               ? "The sale price is not recorded, so the profit cannot be worked out. Edit the sale and enter the price the car sold for."
               : "Profit is worked out once this car has a recorded purchase price above £0 and a sale."}
           </p>
@@ -262,9 +280,11 @@ export default function BookkeepingEntryScreen() {
         <h2 className="text-xl font-semibold text-white/80 mb-3">Timeline</h2>
 
         <ul className="space-y-2">
-          <li className="p-3 bg-black/30 border border-white/10 rounded">
-            Purchased — {purchase.date}
-          </li>
+          {purchase && (
+            <li className="p-3 bg-black/30 border border-white/10 rounded">
+              Purchased — {purchase.date}
+            </li>
+          )}
 
           {vehicleCosts.map((c) => (
             <li

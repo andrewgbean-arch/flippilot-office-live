@@ -6,6 +6,7 @@ import { FiChevronRight } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 import { useBookkeeping } from "./BookkeepingProvider";
 import { useInventory } from "@/context/InventoryProvider";
+import { vehiclesMissingPurchase } from "./missingPurchase";
 
 export interface BookkeepingTableProps {
   vehicleId?: string;
@@ -59,14 +60,37 @@ export default function BookkeepingTable({ vehicleId }: BookkeepingTableProps) {
       // worked out.
       vatDue: sale ? trustedSaleVat(sale).vat : null,
       vatScheme: sale?.vatScheme,
+      missingPurchase: false,
     };
   });
+
+  // Cars with no purchase in the books still get a row, first, so they can be
+  // found and given one (missingPurchase.ts).
+  const missing = vehiclesMissingPurchase(sales, purchases, vehicles, vehicleId).map((id) => {
+    const sale = sales.find((s) => s.vehicleId === id);
+    const vehicle = vehicles.find((v) => v.id === id);
+    return {
+      id,
+      vehicle: vehicle ? `${vehicle.make} ${vehicle.model}` : "Unknown vehicle",
+      purchase: null,
+      totalCost: getTotalCostForVehicle(id),
+      expectedSale: isPositiveAmount(sale?.salePrice) ? sale.salePrice : null,
+      profit: null,
+      margin: null,
+      source: "No purchase recorded",
+      date: "", // the Date column is the purchase date: there is none
+      vatDue: sale ? trustedSaleVat(sale).vat : null,
+      vatScheme: sale?.vatScheme,
+      missingPurchase: true,
+    };
+  });
+  const rows = [...missing, ...ledger];
 
   return (
     <div className="bg-black/40 border border-white/10 rounded-xl shadow-xl overflow-hidden">
       <div className="p-4 border-b border-white/10">
         <h3 className="text-lg font-semibold text-white/80">
-          Acquisition Ledger — {vehicleId ? (ledger[0]?.vehicle ?? "This vehicle") : "All Vehicles"}
+          Acquisition Ledger — {vehicleId ? (rows[0]?.vehicle ?? "This vehicle") : "All Vehicles"}
         </h3>
       </div>
 
@@ -87,14 +111,14 @@ export default function BookkeepingTable({ vehicleId }: BookkeepingTableProps) {
         </thead>
 
         <tbody>
-          {ledger.map((row) => (
+          {rows.map((row) => (
             <tr
               key={row.id}
               onClick={() => navigate(`/bookkeeping/entry/${row.id}`)}
               className="border-t border-white/10 hover:bg-white/5 transition cursor-pointer"
             >
               <td className="p-3">{row.vehicle}</td>
-              <td className="p-3">{formatMoney(row.purchase)}</td>
+              <td className="p-3">{row.missingPurchase ? <span className="text-yellow-200/90">Not recorded</span> : formatMoney(row.purchase)}</td>
               <td className="p-3">{formatMoney(row.totalCost)}</td>
               <td className="p-3">{formatMoney(row.expectedSale)}</td>
               <td className={`p-3 ${row.profit === null ? "text-white/60" : row.profit < 0 ? "text-red-300" : "text-green-300"}`}>{formatMoney(row.profit)}</td>
@@ -117,8 +141,8 @@ export default function BookkeepingTable({ vehicleId }: BookkeepingTableProps) {
                   <span className="text-white/60">—</span>
                 )}
               </td>
-              <td className="p-3">{row.source}</td>
-              <td className="p-3">{formatDate(row.date) ?? row.date}</td>
+              <td className={`p-3 ${row.missingPurchase ? "text-yellow-200/90" : ""}`}>{row.source}</td>
+              <td className="p-3">{row.date ? (formatDate(row.date) ?? row.date) : "—"}</td>
               <td className="p-3">
                 <FiChevronRight className="text-white/60 hover:text-yellow-300 transition" />
               </td>

@@ -19,6 +19,13 @@ import { useAuth } from "@/context/AuthContext";
 import { useGuardedLoad } from "@/lib/useGuardedLoad";
 import { canSeeMoney } from "@/lib/permissions";
 
+// What recording a price for a car with no purchase at all needs besides the price.
+export interface NewPurchaseDetails {
+  date: string; // YYYY-MM-DD
+  vatRate: number; // a fraction, 0.2 = 20% (ignored under the Margin Scheme)
+  vatIncluded: boolean;
+}
+
 interface BookkeepingContextValue {
   costs: CostEntry[];
   purchases: PurchaseEntry[];
@@ -42,7 +49,7 @@ interface BookkeepingContextValue {
   // Records what a car really cost on the purchase the books already hold for it,
   // and works out the VAT due on its Margin Scheme sale in the same save. False when
   // nothing was saved (books not ready, no purchase for that car, price not above 0).
-  recordPurchasePrice: (vehicleId: string, price: number, scheme: "margin" | "standard") => boolean;
+  recordPurchasePrice: (vehicleId: string, price: number, scheme: "margin" | "standard", newPurchase?: NewPurchaseDetails) => boolean;
   updateSale: (id: string, patch: Partial<SaleEntry>) => void;
   addTransaction: (entry: TransactionEntry) => void;
 
@@ -266,14 +273,37 @@ export function BookkeepingProvider({ children }: BookkeepingProviderProps) {
   //
   // false when nothing was saved: the books are not ready to be written, the car has
   // no purchase on record, or the price is not a real amount above zero.
-  const recordPurchasePrice = (vehicleId: string, price: number, scheme: "margin" | "standard"): boolean => {
+  // Gives a car its purchase price. A purchase the books hold with no usable
+  // price is fixed in place. A car with NO purchase at all (a sold car imported
+  // from a spreadsheet, say) gets one attached to it, but only when the caller
+  // passes `newPurchase` (the date and, for Standard VAT, the rate), so nothing
+  // is invented. Never makes a second purchase for a car that already has one.
+  const recordPurchasePrice = (
+    vehicleId: string,
+    price: number,
+    scheme: "margin" | "standard",
+    newPurchase?: NewPurchaseDetails
+  ): boolean => {
     if (!isPositiveAmount(price)) return false;
     if (!guardSave()) return false;
     const current = getPurchaseForVehicle(vehicleId);
-    if (!current) return false;
+    if (!current && !newPurchase) return false;
+    if (!current && newPurchase && !/^\d{4}-\d{2}-\d{2}$/.test(newPurchase.date)) return false;
 
-    const fixed = enrichPurchase({ ...current, purchasePrice: price, vatScheme: scheme });
-    const updatedPurchases = purchases.map((p) => (p === current ? fixed : p));
+    const fixed = current
+      ? enrichPurchase({ ...current, purchasePrice: price, vatScheme: scheme })
+      : enrichPurchase({
+          id: crypto.randomUUID(),
+          vehicleId,
+          purchasePrice: price,
+          date: newPurchase!.date,
+          vatScheme: scheme,
+          vatRate: newPurchase!.vatRate,
+          vatIncluded: newPurchase!.vatIncluded,
+          vatAmount: 0,
+          netAmount: price,
+        });
+    const updatedPurchases = current ? purchases.map((p) => (p === current ? fixed : p)) : [...purchases, fixed];
     const updatedSales = sales.map((s) => (s.vehicleId === vehicleId && s.vatScheme === "margin" ? withSaleVat(s, fixed) : s));
 
     setPurchases(updatedPurchases);

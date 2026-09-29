@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useBookkeeping } from "./BookkeepingProvider";
-import { readMoney } from "@/lib/parseMoney";
+import { readMoney, readPercent, percentToRate } from "@/lib/parseMoney";
 import { focusField } from "@/lib/focusField";
 
 interface RecordPurchasePriceModalProps {
@@ -8,17 +8,32 @@ interface RecordPurchasePriceModalProps {
   // The car's own VAT scheme: under the Margin Scheme its purchase carries no VAT.
   scheme: "margin" | "standard";
   vehicleLabel?: string;
+  // false when the books hold no purchase for this car at all: one is then
+  // attached to the car, so the date (and, for Standard VAT, the rate) is asked too.
+  hasPurchase?: boolean;
   onClose: () => void;
+}
+
+// Today as the dealer sees it (YYYY-MM-DD), not UTC's.
+function todayLocal(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 // A purchase saved with no usable price (a blank that was once saved as £0, or a price
 // that could not be read) reads "Not recorded", and until this there was no way to
 // give it one: purchases could not be edited. This records what the car cost on the
 // purchase the books already hold, and works out the VAT due on its Margin Scheme
-// sale in the same save.
-export default function RecordPurchasePriceModal({ vehicleId, scheme, vehicleLabel, onClose }: RecordPurchasePriceModalProps) {
+// sale in the same save. A car with no purchase at all (a sold car imported from a
+// spreadsheet, say) gets one attached to it here, rather than a second copy of the
+// car being made through Add Purchase.
+export default function RecordPurchasePriceModal({ vehicleId, scheme, vehicleLabel, hasPurchase = true, onClose }: RecordPurchasePriceModalProps) {
   const { recordPurchasePrice } = useBookkeeping();
+  const creating = !hasPurchase;
   const [price, setPrice] = useState("");
+  const [date, setDate] = useState(todayLocal());
+  const [vatRate, setVatRate] = useState("20");
+  const [vatIncluded, setVatIncluded] = useState(true);
   const [submitted, setSubmitted] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -26,14 +41,22 @@ export default function RecordPurchasePriceModal({ vehicleId, scheme, vehicleLab
   const priceError = priceRead.ok ? null : priceRead.message;
   const showPriceError = priceError !== null && (submitted || price.trim() !== "");
 
+  const dateError = creating && !/^\d{4}-\d{2}-\d{2}$/.test(date) ? "Enter the date the car was bought." : null;
+  // Only a Standard VAT purchase has a rate; it is required then, never assumed.
+  const rateRead = readPercent(vatRate);
+  const rateError = creating && scheme === "standard" && !rateRead.ok ? rateRead.message : null;
+
   function handleSave() {
     setSaveError(null);
-    if (!priceRead.ok) {
+    if (!priceRead.ok || dateError || rateError) {
       setSubmitted(true);
-      focusField("recordpurchaseprice-price");
+      focusField(!priceRead.ok ? "recordpurchaseprice-price" : dateError ? "recordpurchaseprice-date" : "recordpurchaseprice-vat-rate");
       return;
     }
-    if (!recordPurchasePrice(vehicleId, priceRead.value, scheme)) {
+    const details = creating
+      ? { date, vatRate: scheme === "standard" && rateRead.ok ? percentToRate(rateRead.value) : 0, vatIncluded: scheme === "standard" ? vatIncluded : false }
+      : undefined;
+    if (!recordPurchasePrice(vehicleId, priceRead.value, scheme, details)) {
       setSaveError("Nothing was saved. Check your connection and that your role can record purchases, then try again.");
       return;
     }
@@ -43,10 +66,12 @@ export default function RecordPurchasePriceModal({ vehicleId, scheme, vehicleLab
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
       <div className="bg-black/80 border border-white/10 p-6 rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <h2 className="text-white/80 text-xl font-semibold mb-2">Record Purchase Price</h2>
+        <h2 className="text-white/80 text-xl font-semibold mb-2">{creating ? "Record What You Paid" : "Record Purchase Price"}</h2>
         <p className="text-white/60 text-sm mb-4">
-          {vehicleLabel ? `${vehicleLabel} was` : "This car was"} saved with no usable purchase price. Enter what it really
-          cost. Profit is worked out from it{scheme === "margin" ? ", and so is the VAT due on a Margin Scheme sale" : ""}.
+          {creating
+            ? `${vehicleLabel || "This car"} has no purchase in the books. Enter what it cost and when you bought it.`
+            : `${vehicleLabel ? `${vehicleLabel} was` : "This car was"} saved with no usable purchase price. Enter what it really cost.`}{" "}
+          Profit is worked out from it{scheme === "margin" ? ", and so is the VAT due on a Margin Scheme sale" : ""}.
         </p>
 
         <label htmlFor="recordpurchaseprice-price" className="text-white/60 text-sm">Purchase Price (£)</label>
@@ -67,6 +92,45 @@ export default function RecordPurchasePriceModal({ vehicleId, scheme, vehicleLab
           </p>
         ) : (
           <div className="mb-4" />
+        )}
+
+        {creating && (
+          <>
+            <label htmlFor="recordpurchaseprice-date" className="text-white/60 text-sm">Date Bought</label>
+            <input id="recordpurchaseprice-date"
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              aria-invalid={submitted && dateError !== null}
+              className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-1"
+            />
+            {submitted && dateError ? (
+              <p role="alert" className="text-red-400 text-sm mb-4">{dateError}</p>
+            ) : (
+              <div className="mb-4" />
+            )}
+
+            {scheme === "standard" ? (
+              <>
+                <label htmlFor="recordpurchaseprice-vat-rate" className="text-white/60 text-sm">VAT Rate on This Purchase (%)</label>
+                <input id="recordpurchaseprice-vat-rate"
+                  type="text"
+                  inputMode="decimal"
+                  value={vatRate}
+                  onChange={(e) => setVatRate(e.target.value)}
+                  aria-invalid={submitted && rateError !== null}
+                  className="w-full p-2 rounded bg-black/40 border border-white/10 text-white/80 mb-1"
+                />
+                {submitted && rateError && <p role="alert" className="text-red-400 text-sm mb-2">{rateError}</p>}
+                <label className="flex items-center gap-2 text-white/60 text-sm mb-4 mt-2">
+                  <input type="checkbox" checked={vatIncluded} onChange={(e) => setVatIncluded(e.target.checked)} />
+                  The price includes VAT
+                </label>
+              </>
+            ) : (
+              <p className="text-white/50 text-xs mb-4">Bought under the Margin Scheme: there is no VAT on the purchase.</p>
+            )}
+          </>
         )}
 
         {saveError && (
