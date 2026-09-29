@@ -1,8 +1,8 @@
 import { Express, Request, Response } from "express";
-import { readCollection, readTenantCollection, writeTenantCollection, readTenantDoc } from "./db";
+import { readCollection, readTenantCollection, writeTenantCollection, readTenantDoc, writeTenantDoc } from "./db";
 import { requireAuth, requireOwner, type AuthUser, type Dealership, type StoredUser } from "./auth";
 import { RATES_COLLECTION } from "./routes/pay";
-import { normaliseDoc, EMPTY_SECURITY_DOC } from "./pilotBrainShield";
+import { normaliseDoc, EMPTY_SECURITY_DOC, withoutExpiredEvents, type SecurityDoc } from "./pilotBrainShield";
 
 // Where Pilot Brain keeps each person's chat and the facts she remembers
 // about them (routes/pilotBrain.ts reads and writes these).
@@ -13,6 +13,17 @@ export const PILOT_BRAIN_MEMORIES = "pilotBrainMemories";
 // person's own export below, filtered to their own events — it is personal
 // data about them (their own flagged words), not just a security record.
 export const PILOT_BRAIN_SECURITY_LOG = "pilotBrainSecurity";
+
+// The single read path for the security log: every caller (the owner's
+// GET /pilot-brain/security-log, a message being screened, this export) goes
+// through here, so the 90-day prune is persisted no matter which of them
+// happens to be the one to notice an event has expired.
+export function readSecurityLog(dealershipId: string): SecurityDoc {
+  const stored = normaliseDoc(readTenantDoc<unknown>(dealershipId, PILOT_BRAIN_SECURITY_LOG, EMPTY_SECURITY_DOC));
+  const live = withoutExpiredEvents(stored, Date.now());
+  if (live !== stored) writeTenantDoc(dealershipId, PILOT_BRAIN_SECURITY_LOG, live);
+  return live;
+}
 
 interface OwnedRecord {
   id: string;
@@ -57,7 +68,7 @@ export function buildPersonalExport(user: StoredUser) {
   const dealership = readCollection<Dealership>("dealerships").find(x => x.id === d);
   const messages = readTenantCollection<Row & { fromUserId?: string; toUserId?: string }>(d, "staffMessages");
   const jobs = readTenantCollection<Row & { assignedToUserId?: string | null }>(d, "jobs");
-  const security = normaliseDoc(readTenantDoc<unknown>(d, PILOT_BRAIN_SECURITY_LOG, EMPTY_SECURITY_DOC));
+  const security = readSecurityLog(d);
 
   return {
     about:

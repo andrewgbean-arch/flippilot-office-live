@@ -231,6 +231,26 @@ export interface SecurityDoc {
 
 export const EMPTY_SECURITY_DOC: SecurityDoc = { events: [], blocked: {}, probes: {}, lockedUntil: {} };
 export const MAX_EVENTS = 200;
+// How long a flagged/blocked event is kept, matching the 90-day analysis
+// window used elsewhere in this app (leads, costs, margins, appointments).
+// MAX_EVENTS alone only bounds the log by count, not by time, so a quiet
+// dealership could otherwise keep someone's flagged words indefinitely —
+// including a departed teammate's, with no purpose left for keeping them.
+export const SECURITY_EVENT_RETENTION_DAYS = 90;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// Events past SECURITY_EVENT_RETENTION_DAYS, dropped. Called on every read
+// (see readSecurityLog in personalData.ts), not just when something else
+// happens to write the doc, so the drop is never left only in what a reader
+// sees.
+export function withoutExpiredEvents(doc: SecurityDoc, now: number): SecurityDoc {
+  const cutoff = now - SECURITY_EVENT_RETENTION_DAYS * DAY_MS;
+  const events = doc.events.filter(e => {
+    const at = Date.parse(e.at);
+    return Number.isFinite(at) && at > cutoff;
+  });
+  return events.length === doc.events.length ? doc : { ...doc, events };
+}
 export const STRIKE_WINDOW_MS = 60 * 60 * 1000;
 export const STRIKES_TO_LOCK = 5;
 export const LOCK_MS = 30 * 60 * 1000;

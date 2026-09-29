@@ -25,6 +25,7 @@ import { buildBusinessSummary } from "./routes/pilotBrain.js";
 import { announceWantedArrivals } from "./routes/wanted.js";
 import { PROMPT_HEADERS } from "./pilotBrainShield.js";
 import { systemText, withSystemText } from "./pilotBrainPrompt.js";
+import { PILOT_BRAIN_SECURITY_LOG } from "./personalData.js";
 
 // Real HTTP-level integration tests against the actual Express app —
 // exactly the class of test that would have caught both bugs a manual
@@ -3279,6 +3280,26 @@ describe("Pilot Brain — shielded from fishing and corruption", () => {
     expect((await request(app).get("/pilot-brain/security-log")).status).toBe(401);
     expect((await log(a.token)).events).toHaveLength(1);
     expect((await log(b.token)).events).toHaveLength(0);
+  });
+
+  it("forgets a flagged event after 90 days, and drops it from storage the moment anyone reads the log", async () => {
+    const owner = await signup("shield-log-retention");
+    const id = owner.user.dealershipId;
+    writeTenantDoc(id, PILOT_BRAIN_SECURITY_LOG, {
+      events: [
+        { id: "old", at: daysAgo(91), userId: owner.user.id, userName: "Owner", kind: "blocked_message", categories: ["override"], snippet: "old attack" },
+        { id: "recent", at: daysAgo(89), userId: owner.user.id, userName: "Owner", kind: "blocked_message", categories: ["override"], snippet: "recent attack" },
+      ],
+      blocked: {},
+      probes: {},
+      lockedUntil: {},
+    });
+
+    expect((await log(owner.token)).events.map((e: any) => e.id)).toEqual(["recent"]);
+    // A dealership that never triggers another flagged message would
+    // otherwise keep the old one in storage forever: the read itself has to
+    // forget it, not just hide it in the response.
+    expect(readTenantDoc<any>(id, PILOT_BRAIN_SECURITY_LOG, {}).events.map((e: any) => e.id)).toEqual(["recent"]);
   });
 
   it("pauses a person's chat after repeated attacks, even for harmless messages, until it lapses or the owner lifts it", async () => {

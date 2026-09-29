@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { PILOT_BRAIN_MESSAGES, PILOT_BRAIN_MEMORIES, PILOT_BRAIN_SECURITY_LOG } from "../personalData";
+import { PILOT_BRAIN_MESSAGES, PILOT_BRAIN_MEMORIES, PILOT_BRAIN_SECURITY_LOG, readSecurityLog } from "../personalData";
 import { Readable } from "stream";
 import { availableVoices, resolveVoice, speechRequest } from "../pilotBrainVoices";
 import { Express, Request } from "express";
@@ -35,11 +35,9 @@ import { lookInsidePromptSection } from "../pilotBrainTabs";
 import { prepareEditPromptSection } from "../pilotBrainEdits";
 import { oneLine } from "../engines/promptText";
 import {
-  EMPTY_SECURITY_DOC,
   LOCKED_MESSAGE,
   deflection,
   lockedUntil,
-  normaliseDoc,
   recordBlocked,
   recordEvent,
   recordProbe,
@@ -134,9 +132,9 @@ const SECURITY_DOC = PILOT_BRAIN_SECURITY_LOG;
 const withReminder = (prompt: SystemPrompt, ...sections: string[]) =>
   appendToSystem(prompt, sections.length > 0 ? `${sections.join("\n")}\n\n${securityReminder()}` : securityReminder());
 
-function readSecurity(dealershipId: string): SecurityDoc {
-  return normaliseDoc(readTenantDoc<unknown>(dealershipId, SECURITY_DOC, EMPTY_SECURITY_DOC));
-}
+// readSecurityLog (personalData.ts) is the one read path for this doc, so
+// the 90-day event retention is persisted here too, not just on export.
+const readSecurity = readSecurityLog;
 
 const MESSAGES_COLLECTION = PILOT_BRAIN_MESSAGES;
 const MEMORIES_COLLECTION = PILOT_BRAIN_MEMORIES;
