@@ -1490,6 +1490,36 @@ describe("requireAuth checks the stored account on every request, not the token'
     const adminRes = await request(app).get("/auth/me").set("Authorization", `Bearer ${admin.token}`);
     expect(adminRes.status).toBe(200);
   });
+
+  // supportMessages is a global collection (support.ts), not tenant-scoped
+  // like the tables deleteTenantData clears — a doomed dealership's own
+  // support history (their name, email and words) would otherwise outlive
+  // the dealership, orphaned in a collection deleteTenantData never touches.
+  it("also erases the deleted dealership's own support messages, not just their account", async () => {
+    const doomed = await signup("stored-del-support-owner");
+    const admin = await signup("stored-del-support-admin");
+
+    const sendRes = await request(app)
+      .post("/support/messages")
+      .set("Authorization", `Bearer ${doomed.token}`)
+      .send({ message: "Please help, my trial expired early." });
+    expect(sendRes.status).toBe(200);
+    expect(readCollection<any>("supportMessages").some(m => m.dealershipId === doomed.user.dealershipId)).toBe(true);
+
+    const prevAdminEmail = process.env.ADMIN_EMAIL;
+    process.env.ADMIN_EMAIL = admin.email;
+    try {
+      const deleteRes = await request(app)
+        .delete(`/admin/dealerships/${doomed.user.dealershipId}`)
+        .set("Authorization", `Bearer ${admin.token}`);
+      expect(deleteRes.status).toBe(200);
+    } finally {
+      if (prevAdminEmail === undefined) delete process.env.ADMIN_EMAIL;
+      else process.env.ADMIN_EMAIL = prevAdminEmail;
+    }
+
+    expect(readCollection<any>("supportMessages").some(m => m.dealershipId === doomed.user.dealershipId)).toBe(false);
+  });
 });
 
 // The owner-facing way to do what the block above does by editing the

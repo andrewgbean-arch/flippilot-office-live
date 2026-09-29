@@ -1,6 +1,7 @@
 import { Express, Request } from "express";
 import { readCollection, writeCollection, deleteTenantData } from "../db";
 import { trialEndsAtFrom } from "../trial";
+import type { SupportMessage } from "./support";
 import {
   requireAuth,
   requireOwner,
@@ -231,6 +232,14 @@ export default function registerDealershipRoute(app: Express) {
       readCollection<StoredUser>("users").filter(u => u.dealershipId !== dealershipId)
     );
     deleteTenantData(dealershipId);
+    // supportMessages is a GLOBAL collection (support.ts), not part of
+    // deleteTenantData's tenant-scoped tables — without this, a message a
+    // deleted dealership's staff sent (their name, email and words) would
+    // outlive the dealership itself, orphaned but still holding real people.
+    writeCollection(
+      "supportMessages",
+      readCollection<SupportMessage>("supportMessages").filter(m => m.dealershipId !== dealershipId)
+    );
 
     res.json({ ok: true });
   });
