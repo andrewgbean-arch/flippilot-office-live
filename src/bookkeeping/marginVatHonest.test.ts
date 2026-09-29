@@ -58,7 +58,7 @@ import RecordPurchasePriceModal from "@/bookkeeping/RecordPurchasePriceModal";
 import AddSaleModal from "@/bookkeeping/AddSaleModal";
 import { byId, buttonByText, typeInto, alerts, screenText, findAll, textOf } from "@/lib/testing/elementTree";
 import { marginVatForSale } from "./vatUtils";
-import { withSaleVat, trustedSaleVat } from "./saleVat";
+import { withSaleVat, trustedSaleVat, salePricePaid } from "./saleVat";
 import { hubTotals } from "./profitTotals";
 import type { SaleEntry } from "./types";
 
@@ -709,5 +709,49 @@ describe("the ledger table lists a sold car that has no purchase", () => {
     expect(row).toContain("Not recorded");
     expect(row).toContain("No purchase recorded");
     expect(row).toContain("£6,000");
+  });
+});
+
+/* ------------- a Standard VAT sale with VAT added ON TOP of the price ------------- */
+// The stored salePrice of such a sale is the price BEFORE VAT. The car's page used
+// to show it as the "Sale Price", never the amount the customer actually paid.
+
+describe("salePricePaid: what the customer actually paid", () => {
+  it("VAT on top: the price plus its VAT", () => {
+    expect(salePricePaid({ salePrice: 5000, vatScheme: "standard", vatIncluded: false }, 1000)).toEqual({ paid: 6000, beforeVat: 5000, vatOnTop: true });
+  });
+  it("VAT on top but not worked out: the paid amount is unknown, never guessed", () => {
+    expect(salePricePaid({ salePrice: 5000, vatScheme: "standard", vatIncluded: false }, null)).toEqual({ paid: null, beforeVat: 5000, vatOnTop: true });
+  });
+  it("a price that includes VAT, and every margin sale, is what was paid", () => {
+    expect(salePricePaid({ salePrice: 6000, vatScheme: "standard", vatIncluded: true }, 1000)).toEqual({ paid: 6000, beforeVat: null, vatOnTop: false });
+    expect(salePricePaid({ salePrice: 6000, vatScheme: "margin", vatIncluded: false }, 166.67)).toEqual({ paid: 6000, beforeVat: null, vatOnTop: false });
+  });
+  it("a sale with no real price is not recorded", () => {
+    expect(salePricePaid({ salePrice: 0, vatScheme: "standard", vatIncluded: true }, null).paid).toBeNull();
+  });
+});
+
+describe("the car's page shows what the customer paid", () => {
+  const page = () => {
+    screen = mount(BookkeepingEntryScreen as (p: object) => unknown, {}) as Mounted<any, any>;
+    return screen;
+  };
+  const standardPurchase = purchase(4000, { vatScheme: "standard", vatRate: 0.2, vatIncluded: true, vatAmount: 666.67, netAmount: 3333.33 });
+
+  it("VAT on top: Sale Price is the £6,000 paid, with the £5,000 + £1,000 VAT spelled out", async () => {
+    const sale = withSaleVat(baseSale({ salePrice: 5000, vatScheme: "standard", vatIncluded: false }), undefined);
+    await openBooks({ purchases: [standardPurchase], sales: [sale] });
+    const t = screenText(page().result);
+    expect(t).toContain("Sale Price: £6,000");
+    expect(t).toContain("£5,000 plus £1,000.00 VAT added on top");
+  });
+
+  it("VAT included in the price: shown as before, with no 'added on top' line", async () => {
+    const sale = withSaleVat(baseSale({ salePrice: 6000, vatScheme: "standard", vatIncluded: true }), undefined);
+    await openBooks({ purchases: [standardPurchase], sales: [sale] });
+    const t = screenText(page().result);
+    expect(t).toContain("Sale Price: £6,000");
+    expect(t).not.toContain("added on top");
   });
 });

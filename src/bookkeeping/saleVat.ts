@@ -60,3 +60,19 @@ export function trustedSaleVat(sale: Pick<SaleEntry, "vatScheme" | "salePrice" |
   const net = typeof sale.netAmount === "number" && Number.isFinite(sale.netAmount) ? sale.netAmount : null;
   return { vat, net };
 }
+
+// What the customer actually paid for a sale. With VAT added ON TOP of the price
+// (a Standard VAT sale saved with "price includes VAT: no"), the stored salePrice
+// is the price BEFORE VAT, and the car's page used to show that as the "Sale Price",
+// never the amount the customer paid. Every other sale's price already includes
+// any VAT. `vat` is the sale's trusted VAT (trustedSaleVat), or null when it is not
+// worked out, in which case the paid amount is unknown rather than guessed.
+export function salePricePaid(
+  sale: Pick<SaleEntry, "salePrice" | "vatScheme" | "vatIncluded">,
+  vat: number | null
+): { paid: number | null; beforeVat: number | null; vatOnTop: boolean } {
+  const price = isPositiveAmount(sale.salePrice) ? sale.salePrice : null;
+  const vatOnTop = sale.vatScheme === "standard" && sale.vatIncluded === false;
+  if (!vatOnTop) return { paid: price, beforeVat: null, vatOnTop: false };
+  return { paid: price !== null && vat !== null ? price + vat : null, beforeVat: price, vatOnTop: true };
+}

@@ -9,7 +9,7 @@ import { useInventory } from "@/context/InventoryProvider";
 import AddCostModal from "./AddCostModal";
 import AddSaleModal from "./AddSaleModal";
 import RecordPurchasePriceModal from "./RecordPurchasePriceModal";
-import { trustedSaleVat } from "./saleVat";
+import { salePricePaid, trustedSaleVat } from "./saleVat";
 
 // Ask before removing a record that changes a car's profit. With no browser to ask
 // in (a test, a server render) there is nobody to ask, so it goes ahead.
@@ -43,6 +43,8 @@ export default function BookkeepingEntryScreen() {
   const totalCost = getTotalCostForVehicle(vehicleId!);
   // The sale's VAT and net, only as far as they can be trusted (see saleVat.ts).
   const saleVat = sale ? trustedSaleVat(sale) : { vat: null, net: null };
+  // What the customer paid: with VAT added on top, the stored price is before VAT.
+  const paid = sale ? salePricePaid(sale, saleVat.vat) : null;
 
   // null = not worked out (no sale yet, or no purchase price recorded). It must
   // not be shown as £0 profit and 0.0% margin, which reads as a car that broke even.
@@ -223,8 +225,17 @@ export default function BookkeepingEntryScreen() {
             <p><span className="text-white/60">Invoice No:</span> {sale.invoiceNumber}</p>
             <p>
               <span className="text-white/60">Sale Price:</span>{" "}
-              {isPositiveAmount(sale.salePrice) ? formatMoney(sale.salePrice) : "Not recorded"}
+              {paid?.paid != null
+                ? formatMoney(paid.paid)
+                : paid?.vatOnTop && paid.beforeVat != null
+                  ? `${formatMoney(paid.beforeVat)} before VAT`
+                  : "Not recorded"}
             </p>
+            {paid?.vatOnTop && paid.paid != null && paid.beforeVat != null && (
+              <p className="text-white/60 text-sm">
+                {formatMoney(paid.beforeVat)} plus {formatMoney(saleVat.vat, { pence: true })} VAT added on top
+              </p>
+            )}
             <p><span className="text-white/60">Buyer:</span> {sale.buyer || "—"}</p>
             {sale.buyerEmail && <p><span className="text-white/60">Email:</span> {sale.buyerEmail}</p>}
             {sale.buyerPhone && <p><span className="text-white/60">Phone:</span> {sale.buyerPhone}</p>}
