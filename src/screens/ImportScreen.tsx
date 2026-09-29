@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useInventory } from "@/context/InventoryProvider";
 import { useConsumables } from "@/context/ConsumablesContext";
 import { useBookkeeping } from "@/bookkeeping/BookkeepingProvider";
-import { parseCSVWithHeaders, guessColumn, readCsvFile } from "@/lib/csv";
+import { parseCSVWithHeaders, guessColumns, readCsvFile } from "@/lib/csv";
 import { readImportPrices, readImportCounts, unreadablePriceSummary, unreadableCountSummary } from "./importPrices";
 
 type ImportType = "vehicles" | "consumables";
@@ -23,7 +23,7 @@ const VEHICLE_FIELDS: FieldSpec[] = [
   { key: "mileage", label: "Mileage", numeric: true, aliases: ["mileage", "miles", "odometer"] },
   { key: "colour", label: "Colour", aliases: ["colour", "color"] },
   { key: "buyPrice", label: "Buy / Trade Price", numeric: true, aliases: ["buy price", "trade price", "cost price", "purchase price", "cost"] },
-  { key: "sellPrice", label: "Sell / Retail Price", numeric: true, aliases: ["sell price", "retail price", "asking price", "price"] },
+  { key: "sellPrice", label: "Sell / Retail Price", numeric: true, aliases: ["sell price", "sale price", "selling price", "retail price", "asking price", "price"] },
   { key: "notes", label: "Notes", aliases: ["notes", "comments"] },
 ];
 
@@ -98,13 +98,8 @@ export default function ImportScreen() {
     setHeaders(parsed.headers);
     setRows(parsed.rows);
 
-    const guessed: Record<string, string> = {};
     const activeFields = type === "vehicles" ? VEHICLE_FIELDS : CONSUMABLE_FIELDS;
-    for (const f of activeFields) {
-      const match = guessColumn(parsed.headers, f.aliases);
-      if (match) guessed[f.key] = match;
-    }
-    setMapping(guessed);
+    setMapping(guessColumns(parsed.headers, activeFields));
   }
 
   // Every row mapped to target field values, plus whether it's usable

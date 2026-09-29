@@ -31,6 +31,7 @@ import {
 } from "react-icons/fi";
 import { formatMoney } from "@/lib/formatMoney";
 import { canSeeMoney } from "@/lib/permissions";
+import { localMonthKey, missingProfitNote, monthProfit } from "./monthProfit";
 
 type Props = {
   brain?: any;
@@ -50,12 +51,14 @@ function HeroStat({
   icon,
   accent,
   onClick,
+  note,
 }: {
   label: string;
   value: string | number;
   icon: ReactNode;
   accent: keyof typeof HERO_ACCENTS;
   onClick: () => void;
+  note?: string | null;
 }) {
   return (
     <button
@@ -65,6 +68,7 @@ function HeroStat({
       <div className="text-xl mb-2">{icon}</div>
       <div className="text-2xl font-extrabold text-white">{value}</div>
       <div className="text-xs text-white/50 mt-1">{label}</div>
+      {note && <div className="text-[11px] text-yellow-200/80 mt-1">{note}</div>}
     </button>
   );
 }
@@ -145,17 +149,12 @@ export default function DealerDashboard({ brain }: Props) {
   const inStock = money ? safeVehicles.filter((v) => !soldVehicleIds.has(v.id)) : unsold(safeVehicles);
   const stockValue = inStock.reduce((sum, v) => sum + (v.priceRetail ?? 0), 0);
 
-  const monthPrefix = new Date().toISOString().slice(0, 7); // "2026-09"
+  // The dealer's own month, not UTC's (which is an hour behind in summer).
+  const monthPrefix = localMonthKey(); // "2026-09"
   const salesThisMonth = sales.filter((s) => s.date?.startsWith(monthPrefix));
-  // A vehicle can be sold without a matching purchase record (e.g.
-  // imported from a CSV, which only creates the inventory row) — those
-  // just don't contribute a figure here rather than being counted as
-  // £0 profit, so this stays an honest (if occasionally partial) total
-  // rather than a silently wrong one.
-  const profitThisMonth = salesThisMonth.reduce(
-    (sum, s) => sum + (getProfitForVehicle(s.vehicleId)?.profit ?? 0),
-    0
-  );
+  // A sale with no purchase record (e.g. a car imported from a CSV) has no
+  // profit to add, so it's left out and the card says so (monthProfit.ts).
+  const { total: profitThisMonth, missing: salesWithoutProfit } = monthProfit(sales, getProfitForVehicle, monthPrefix);
 
   const openLeads = leads.filter((l) => l.status !== "won" && l.status !== "lost");
   const todaysAppointments = appointments.filter(
@@ -256,6 +255,7 @@ export default function DealerDashboard({ brain }: Props) {
               value={formatMoney(profitThisMonth, { pence: "auto" })}
               icon={<FiTrendingUp />}
               accent={profitThisMonth >= 0 ? "green" : "red"}
+              note={missingProfitNote(salesWithoutProfit)}
               onClick={() => navigate("/bookkeeping")}
             />
             <HeroStat

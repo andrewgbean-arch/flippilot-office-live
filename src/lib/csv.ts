@@ -122,18 +122,56 @@ export function downloadCSV(filename: string, csvText: string) {
   URL.revokeObjectURL(url);
 }
 
-// Best-effort auto-match of a target field to one of the file's real
-// headers, so most real-world exports need zero manual remapping —
-// staff only need to fix whatever didn't guess correctly.
-export function guessColumn(headers: string[], aliases: string[]): string | null {
+// A header as lower-case words: "Sale Price (£)" -> ["sale", "price"].
+const words = (text: string) => text.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+
+// True when every word of the alias appears, in order and side by side, in the header.
+// Whole words only, so "reg" no longer matches "Region" and "cost" no longer matches "Costa".
+function containsWords(header: string, alias: string): boolean {
+  const h = words(header);
+  const a = words(alias);
+  if (a.length === 0) return false;
+  for (let i = 0; i + a.length <= h.length; i++) {
+    if (a.every((w, j) => h[i + j] === w)) return true;
+  }
+  return false;
+}
+
+// Best-effort auto-match of each target field to one of the file's real
+// headers, so most real-world exports need zero manual remapping; staff only
+// fix whatever didn't guess correctly. An exact header match beats any partial
+// one, for every field, before partial matches are tried; a partial match must
+// be whole words; and no column is given to two fields. Before, a partial
+// "price" let a "Purchase Price" column be picked as the SELL price as well as
+// the buy price, so an imported car could show its cost as its asking price.
+export function guessColumns(headers: string[], fields: { key: string; aliases: string[] }[]): Record<string, string> {
   const normalized = headers.map((h) => h.trim().toLowerCase());
-  for (const alias of aliases) {
-    const idx = normalized.indexOf(alias);
-    if (idx !== -1) return headers[idx] ?? null;
+  const used = new Set<number>();
+  const result: Record<string, string> = {};
+
+  const claim = (key: string, idx: number) => {
+    used.add(idx);
+    result[key] = headers[idx]!;
+  };
+
+  for (const f of fields) {
+    for (const alias of f.aliases) {
+      const idx = normalized.findIndex((h, i) => !used.has(i) && h === alias);
+      if (idx !== -1) {
+        claim(f.key, idx);
+        break;
+      }
+    }
   }
-  for (const alias of aliases) {
-    const idx = normalized.findIndex((h) => h.includes(alias));
-    if (idx !== -1) return headers[idx] ?? null;
+  for (const f of fields) {
+    if (f.key in result) continue;
+    for (const alias of f.aliases) {
+      const idx = normalized.findIndex((h, i) => !used.has(i) && containsWords(h, alias));
+      if (idx !== -1) {
+        claim(f.key, idx);
+        break;
+      }
+    }
   }
-  return null;
+  return result;
 }
