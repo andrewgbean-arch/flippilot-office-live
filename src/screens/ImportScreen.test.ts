@@ -320,3 +320,41 @@ describe("the purchases are saved as one batch, and a failure is reported", () =
     expect(findAll(screen(), (el) => el.props.role === "alert")).toHaveLength(0);
   });
 });
+
+describe("the date each imported car was bought", () => {
+  const today = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+
+  it("uses the file's Date Bought column, read the UK way round, instead of the import timestamp", async () => {
+    await chooseFile(["Make,Model,Buy Price,Date Bought", "Ford,Focus,5000,14/08/2026", "Audi,A3,4500,2026-07-01", "BMW,X1,6000,3/2/25"].join("\n"));
+    await pressImport("Import 3 Vehicles");
+    expect(purchases.map((p) => p.date)).toEqual(["2026-08-14", "2026-07-01", "2025-02-03"]);
+  });
+
+  it("a car with no date in the file gets today's date as a plain date, never a UTC timestamp", async () => {
+    await chooseFile(["Make,Model,Buy Price", "Ford,Focus,5000"].join("\n"));
+    await pressImport("Import 1 Vehicle");
+    expect(purchases[0].date).toBe(today());
+    expect(purchases[0].date).not.toContain("T");
+  });
+
+  it("an unreadable or future date uses today's, is flagged in the preview and counted after", async () => {
+    await chooseFile(["Make,Model,Buy Price,Purchase Date", "Ford,Focus,5000,31/02/2026", "Audi,A3,4500,01/01/2999", "BMW,X1,6000,14/08/2026"].join("\n"));
+    expect(screenText(screen())).toContain("Ready, but Date Bought can't be read, so today's date will be used");
+    await pressImport("Import 3 Vehicles");
+    expect(purchases.map((p) => p.date)).toEqual([today(), today(), "2026-08-14"]);
+    expect(screenText(screen())).toContain("2 rows had a date bought that could not be read, so today's date was used for those cars' purchase.");
+  });
+
+  it("each date stays with its own car when a car already in stock is left out", async () => {
+    spies.importVehicles = (rows) => {
+      imported.push(...rows);
+      return rows.map((r, i) => ({ id: `car-${i}`, buyPrice: r.buyPrice ?? null }));
+    };
+    await chooseFile(["Make,Model,Registration,Buy Price,Date Bought", "Ford,Focus,AB12CDE,5000,01/06/2026", "Ford,Focus,AB12 CDE,5100,02/06/2026", "Audi,A3,XY99ZZZ,4500,03/06/2026"].join("\n"));
+    await pressImport("Import 3 Vehicles");
+    expect(purchases.map((p) => [p.purchasePrice, p.date])).toEqual([[5000, "2026-06-01"], [4500, "2026-06-03"]]);
+  });
+});

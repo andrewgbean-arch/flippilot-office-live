@@ -3,7 +3,7 @@ import { useInventory } from "@/context/InventoryProvider";
 import { useConsumables } from "@/context/ConsumablesContext";
 import { useBookkeeping } from "@/bookkeeping/BookkeepingProvider";
 import { parseCSVWithHeaders, guessColumns, readCsvFile } from "@/lib/csv";
-import { readImportPrices, readImportCounts, unreadablePriceSummary, unreadableCountSummary } from "./importPrices";
+import { readImportPrices, readImportCounts, readImportDate, unreadablePriceSummary, unreadableCountSummary, unreadableDateSummary, unreadableRowWarning, DATE_BOUGHT_LABEL } from "./importPrices";
 
 type ImportType = "vehicles" | "consumables";
 
@@ -24,6 +24,7 @@ const VEHICLE_FIELDS: FieldSpec[] = [
   { key: "colour", label: "Colour", aliases: ["colour", "color"] },
   { key: "buyPrice", label: "Buy / Trade Price", numeric: true, aliases: ["buy price", "trade price", "cost price", "purchase price", "cost"] },
   { key: "sellPrice", label: "Sell / Retail Price", numeric: true, aliases: ["sell price", "sale price", "selling price", "retail price", "asking price", "price"] },
+  { key: "dateBought", label: DATE_BOUGHT_LABEL, aliases: ["date bought", "purchase date", "date purchased", "bought date", "bought on", "acquired"] },
   { key: "notes", label: "Notes", aliases: ["notes", "comments"] },
 ];
 
@@ -56,6 +57,7 @@ export default function ImportScreen() {
     skipped: number;
     unreadablePrices: number;
     unreadableCounts: number;
+    unreadableDates: number;
     // Cars that were imported with a buy price whose purchase record could NOT be
     // saved to the books.
     purchasesNotSaved: number;
@@ -121,7 +123,13 @@ export default function ImportScreen() {
       // "abc", "45k"): the import leaves them blank, and says so, rather than
       // dropping them silently.
       const unreadablePrices =
-        type === "vehicles" ? [...readImportPrices(values).unreadable, ...readImportCounts(values).unreadable] : [];
+        type === "vehicles"
+          ? [
+              ...readImportPrices(values).unreadable,
+              ...readImportCounts(values).unreadable,
+              ...(readImportDate(values.dateBought).unreadable ? [DATE_BOUGHT_LABEL] : []),
+            ]
+          : [];
       return { values, valid: missingRequired.length === 0, missingRequired, unreadablePrices };
     });
   }, [rows, headers, mapping, fields, type]);
@@ -136,6 +144,7 @@ export default function ImportScreen() {
 
       let unreadablePrices = 0;
       let unreadableCounts = 0;
+      let unreadableDates = 0;
       let purchasesNotSaved = 0;
       let alreadyInStock = 0;
 
@@ -173,6 +182,12 @@ export default function ImportScreen() {
           };
         });
         const created = importVehicles(payload);
+        // The date each car was bought, from its own row (created[i] is fresh[i]).
+        const boughtOn = fresh.map((r) => {
+          const read = readImportDate(r.values.dateBought);
+          if (read.unreadable) unreadableDates += 1;
+          return read.date;
+        });
         // Without this, an imported vehicle's buyPrice sits only on the
         // Vehicle record — Pricing Workflow (and anything else keyed off
         // bookkeeping.purchases, e.g. margin-scheme sale calculations)
@@ -187,13 +202,16 @@ export default function ImportScreen() {
         // out-of-date copy of the books, so of N priced cars only the last
         // purchase survived while the screen said "Imported N vehicles".
         const purchases = created
-          .filter((vehicle) => vehicle.buyPrice != null)
-          .map((vehicle) => ({
+          .map((vehicle, i) => ({ vehicle, date: boughtOn[i]! }))
+          .filter(({ vehicle }) => vehicle.buyPrice != null)
+          .map(({ vehicle, date }) => ({
             id: crypto.randomUUID(),
             vehicleId: vehicle.id,
             purchasePrice: vehicle.buyPrice as number,
             source: "CSV Import",
-            date: new Date().toISOString(),
+            // The Date Bought column when the file has one; otherwise the import
+            // day, as a plain date (it used to be the import's UTC timestamp).
+            date,
             vatRate: 0,
             vatIncluded: false,
             vatAmount: 0,
@@ -222,6 +240,7 @@ export default function ImportScreen() {
         skipped: builtRows.length - usable.length,
         unreadablePrices,
         unreadableCounts,
+        unreadableDates,
         purchasesNotSaved,
         alreadyInStock,
       });
@@ -389,7 +408,7 @@ export default function ImportScreen() {
                       {r.valid ? (
                         r.unreadablePrices.length > 0 ? (
                           <span className="text-yellow-300">
-                            Ready, but {r.unreadablePrices.join(" and ")} can't be read and will be left blank
+                            {unreadableRowWarning(r.unreadablePrices)}
                           </span>
                         ) : (
                           <span className="text-green-400">Ready</span>
@@ -421,6 +440,11 @@ export default function ImportScreen() {
               {unreadableCountSummary(result.unreadableCounts) && (
                 <p role="status" className="text-yellow-300 text-sm mt-2">
                   {unreadableCountSummary(result.unreadableCounts)}
+                </p>
+              )}
+              {unreadableDateSummary(result.unreadableDates) && (
+                <p role="status" className="text-yellow-300 text-sm mt-2">
+                  {unreadableDateSummary(result.unreadableDates)}
                 </p>
               )}
               {result.purchasesNotSaved > 0 && (

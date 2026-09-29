@@ -2,6 +2,9 @@ import { describe, it, expect } from "vitest";
 import {
   readImportPrices,
   readImportCounts,
+  readImportDate,
+  todayLocal,
+  unreadableRowWarning,
   unreadablePriceSummary,
   unreadableCountSummary,
   BUY_PRICE_LABEL,
@@ -121,5 +124,51 @@ describe("unreadableCountSummary", () => {
     expect(unreadableCountSummary(2)).toBe(
       "2 rows had a year or mileage that could not be read, so those were left blank. Check the year and mileage on those cars."
     );
+  });
+});
+
+describe("readImportDate (Date Bought)", () => {
+  const now = new Date(2026, 8, 29, 12); // 29 Sep 2026, local
+  it("reads ISO dates, with or without a time", () => {
+    expect(readImportDate("2026-08-14", now)).toEqual({ date: "2026-08-14", unreadable: false });
+    expect(readImportDate("2026-08-14T09:30:00Z", now)).toEqual({ date: "2026-08-14", unreadable: false });
+  });
+  it("reads UK dates day first, with / - or . and two-digit years", () => {
+    expect(readImportDate("14/08/2026", now).date).toBe("2026-08-14");
+    expect(readImportDate("3/2/25", now).date).toBe("2025-02-03");
+    expect(readImportDate("14-08-2026", now).date).toBe("2026-08-14");
+    expect(readImportDate("14.08.2026", now).date).toBe("2026-08-14");
+  });
+  it("a blank is today, not flagged", () => {
+    expect(readImportDate("", now)).toEqual({ date: "2026-09-29", unreadable: false });
+    expect(readImportDate(undefined, now)).toEqual({ date: "2026-09-29", unreadable: false });
+  });
+  it.each(["31/02/2026", "13/13/2026", "yesterday", "2026-8", "01/01/2999", "1/1/1985"])("%j is today's date and flagged", (text) => {
+    expect(readImportDate(text, now)).toEqual({ date: "2026-09-29", unreadable: true });
+  });
+});
+
+describe("unreadableRowWarning", () => {
+  it("keeps the old wording for prices, year and mileage", () => {
+    expect(unreadableRowWarning(["Year", "Mileage"])).toBe("Ready, but Year and Mileage can't be read and will be left blank");
+  });
+  it("says a date becomes today's, not blank", () => {
+    expect(unreadableRowWarning(["Date Bought"])).toBe("Ready, but Date Bought can't be read, so today's date will be used");
+    expect(unreadableRowWarning(["Sell / Retail Price", "Date Bought"])).toBe(
+      "Ready, but Sell / Retail Price can't be read and will be left blank; Date Bought can't be read, so today's date will be used"
+    );
+  });
+});
+
+describe("todayLocal", () => {
+  it("is the dealer's date, not UTC's: 00:30 on 30 Sep in the UK is still 29 Sep in UTC", () => {
+    const saved = process.env.TZ;
+    process.env.TZ = "Europe/London";
+    try {
+      expect(todayLocal(new Date(Date.UTC(2026, 8, 29, 23, 30)))).toBe("2026-09-30");
+    } finally {
+      if (saved === undefined) delete process.env.TZ;
+      else process.env.TZ = saved;
+    }
   });
 });
