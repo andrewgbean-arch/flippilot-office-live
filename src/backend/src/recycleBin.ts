@@ -68,11 +68,18 @@ export function tooManyRemovedMessage(list: BinList, count: number): string {
   return `That save would have removed ${count} ${many} at once, so nothing was saved. The page was probably out of date: reload it and try again.`;
 }
 
+// The promise on the Recently deleted screen is that a record is kept for
+// BIN_DAYS. Without persisting the drop here, a dealership that never
+// deletes or restores anything else (the only other places that write this
+// collection) would keep expired records — full lead/job/contact data —
+// in storage past that promise, hidden only because every reader filters
+// them out of what it returns.
 function liveEntries(dealershipId: string, now: Date): BinEntry[] {
   const cutoff = now.getTime() - BIN_DAYS * DAY_MS;
-  return readTenantCollection<BinEntry>(dealershipId, BIN_COLLECTION).filter(
-    (e) => new Date(e.deletedAt).getTime() > cutoff
-  );
+  const stored = readTenantCollection<BinEntry>(dealershipId, BIN_COLLECTION);
+  const live = stored.filter((e) => new Date(e.deletedAt).getTime() > cutoff);
+  if (live.length !== stored.length) writeTenantCollection(dealershipId, BIN_COLLECTION, live);
+  return live;
 }
 
 /** Everything in the bin that is still within BIN_DAYS, newest first. */

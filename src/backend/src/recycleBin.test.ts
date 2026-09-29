@@ -146,13 +146,19 @@ describe("Recently deleted", () => {
     expect(after.find((e: any) => e.id === entry.id)).toBeUndefined();
   });
 
-  it("forgets anything older than the time it keeps things for", async () => {
+  it("forgets anything older than the time it keeps things for, and drops it from storage on the read that notices", async () => {
     const old = new Date(Date.now() - (BIN_DAYS + 1) * 24 * 60 * 60 * 1000).toISOString();
+    const recent = new Date().toISOString();
     writeTenantCollection(owner.dealershipId, "recentlyDeleted", [
       { id: "old-entry", list: "leads", record: { id: "ancient", name: "Ancient lead" }, deletedAt: old, deletedBy: { id: "x", name: "x" } },
+      { id: "fresh-entry", list: "leads", record: { id: "new", name: "New lead" }, deletedAt: recent, deletedBy: { id: "x", name: "x" } },
     ]);
     const items = (await request(app).get("/recently-deleted").set(auth(owner))).body.items;
     expect(items.find((e: any) => e.id === "old-entry")).toBeUndefined();
+    // A dealership that never deletes or restores anything else would
+    // otherwise keep an expired lead's full record in storage forever:
+    // the read itself has to forget it, not just hide it in the response.
+    expect(readTenantCollection<any>(owner.dealershipId, "recentlyDeleted").map((e: any) => e.id)).toEqual(["fresh-entry"]);
   });
 
   it("belongs to one dealership: another can't see or restore it", async () => {
