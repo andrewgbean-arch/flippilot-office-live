@@ -10,7 +10,7 @@ import {
   MonthlyReport,
 } from "./types";
 import { calculateVat } from "./vatUtils";
-import { withSaleVat } from "./saleVat";
+import { saleIncome, salePaidAmount, withSaleVat } from "./saleVat";
 import { isPositiveAmount } from "@/lib/parseMoney";
 import { hubTotals, carProfit } from "./profitTotals";
 import { purchaseVatSettings } from "./purchaseVat";
@@ -362,14 +362,17 @@ export function BookkeepingProvider({ children }: BookkeepingProviderProps) {
     // counts as "not recorded": the profit is unknown (null), never worked out
     // against a £0 cost or as a loss on a sale of £0. So a sale of nothing can
     // never print "-Infinity%" or "NaN%" either.
-    const worked = carProfit(purchase.purchasePrice, sale.salePrice, totalCosts);
+    // Worked from what the customer paid (saleVat.ts), so a VAT-on-top sale isn't
+    // shown the VAT's worth less profit than the same sale with the VAT included.
+    const paid = salePaidAmount(sale);
+    const worked = carProfit(purchase.purchasePrice, paid, totalCosts);
     if (!worked) return null;
 
     return {
       vehicleId,
       purchasePrice: purchase.purchasePrice,
       totalCosts,
-      salePrice: sale.salePrice,
+      salePrice: paid ?? sale.salePrice,
       profit: worked.profit,
       margin: worked.margin,
     };
@@ -381,7 +384,7 @@ export function BookkeepingProvider({ children }: BookkeepingProviderProps) {
     purchases.reduce((sum, p) => sum + p.purchasePrice, 0);
 
   const getTotalIncome = () =>
-    sales.reduce((sum, s) => sum + s.salePrice, 0);
+    sales.reduce((sum, s) => sum + saleIncome(s), 0);
 
   // Profit on SOLD cars, worked out car by car like getProfitForVehicle. This
   // used to be income minus ALL spend, which counted every unsold car as a
@@ -413,7 +416,7 @@ export function BookkeepingProvider({ children }: BookkeepingProviderProps) {
       monthCosts.reduce((sum, c) => sum + c.amount, 0) +
       monthPurchases.reduce((sum, p) => sum + p.purchasePrice, 0);
 
-    const totalIncome = monthSales.reduce((sum, s) => sum + s.salePrice, 0);
+    const totalIncome = monthSales.reduce((sum, s) => sum + saleIncome(s), 0);
 
     return {
       month,

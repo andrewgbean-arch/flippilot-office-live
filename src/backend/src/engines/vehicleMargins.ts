@@ -14,7 +14,7 @@
 // buyer.
 
 import { oneLine } from "./promptText";
-import { recordedPrice } from "./recordedPrice";
+import { recordedPrice, recordedSalePrice } from "./recordedPrice";
 
 export interface MarginVehicle {
   id?: unknown;
@@ -134,7 +134,7 @@ export function summariseVehicleMargins(
 
   const known: KnownSale[] = [];
   for (const [vehicleId, sale] of recentSales) {
-    const salePrice = recordedPrice(sale.salePrice);
+    const salePrice = recordedSalePrice(sale);
     const purchasePrice = recordedPrice(purchases.get(vehicleId)?.purchasePrice);
     if (salePrice === null || purchasePrice === null) continue;
 

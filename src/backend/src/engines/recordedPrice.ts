@@ -18,3 +18,29 @@
 export function recordedPrice(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : null;
 }
+
+// A SALE's recorded price, as the amount the customer paid: what the Bookkeeping
+// screens call the sale price and work profit "before VAT on the sale" from.
+//
+// Every sale's salePrice already includes any VAT, except a Standard VAT sale saved
+// with "price includes VAT: no" (VAT added ON TOP): its salePrice is the price
+// before VAT and the customer paid that plus its vatAmount. Reading salePrice as it
+// stands made such a sale show the VAT's worth less profit and revenue than the same
+// sale saved with the VAT included. When that VAT isn't recorded, the paid amount is
+// unknown (null), never guessed. The web app's saleVat.ts (salePricePaid) holds the
+// same rule.
+export function recordedSalePrice(sale: unknown): number | null {
+  const s = (sale ?? {}) as { salePrice?: unknown; vatScheme?: unknown; vatIncluded?: unknown; vatAmount?: unknown };
+  const price = recordedPrice(s.salePrice);
+  if (price === null) return null;
+  if (s.vatScheme !== "standard" || s.vatIncluded !== false) return price;
+  const vat = s.vatAmount;
+  return typeof vat === "number" && Number.isFinite(vat) && vat >= 0 ? price + vat : null;
+}
+
+// A sale's contribution to REVENUE totals: the amount paid, or, when that is
+// unknown, the recorded price before VAT, or nothing. Revenue sums used to add
+// salePrice as it stood, including a NaN or negative from a bad save.
+export function saleRevenue(sale: unknown): number {
+  return recordedSalePrice(sale) ?? recordedPrice((sale as { salePrice?: unknown } | null)?.salePrice) ?? 0;
+}

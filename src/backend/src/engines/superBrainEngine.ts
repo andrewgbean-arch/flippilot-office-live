@@ -21,6 +21,7 @@
 // "confirmed"), and returns nothing at all rather than a weak guess
 // when the real sample is too thin.
 
+import { saleRevenue } from "./recordedPrice";
 import type { InvestigationReport, Opportunity as AdvisorOpportunity } from "./advisorEngine";
 import type { MarketOpportunity, MarketHealth } from "./marketEngine";
 import type { WatcherAlert, BusinessHealth } from "./watcherEngine";
@@ -135,7 +136,7 @@ export function forecastRevenue(
   const windowDays = (now - Math.min(...dates)) / DAY_MS;
   if (windowDays < 14) return null;
 
-  const totalRevenue = recent.reduce((sum, s) => sum + s.salePrice, 0);
+  const totalRevenue = recent.reduce((sum, s) => sum + saleRevenue(s), 0);
   const dailyRate = totalRevenue / windowDays;
   const projectedRevenue = Math.round(dailyRate * 30);
 

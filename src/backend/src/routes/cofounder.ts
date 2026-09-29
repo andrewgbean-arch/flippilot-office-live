@@ -15,7 +15,7 @@ import {
 import { runWatcher } from "../engines/watcherEngine";
 import { investigate, findOpportunities } from "../engines/advisorEngine";
 import { getStoredMarketData } from "./marketIntelligence";
-import { recordedPrice } from "../engines/recordedPrice";
+import { recordedPrice, recordedSalePrice, saleRevenue } from "../engines/recordedPrice";
 import { scoreOpportunities, runCrossModuleInvestigation, getTodaysPriorities } from "../engines/superBrainEngine";
 
 const GOALS_COLLECTION = "pilotBrainGoals";
@@ -40,7 +40,7 @@ const PERIOD_DAYS: Record<BusinessGoal["period"], number> = { monthly: 30, quart
 // Real current value for a real goal's metric — every branch reads
 // directly from real stored data, the same collections every earlier
 // version already reads from.
-function computeCurrentMetricValue(
+export function computeCurrentMetricValue(
   metric: GoalMetric,
   period: BusinessGoal["period"],
   vehicles: any[],
@@ -61,7 +61,7 @@ function computeCurrentMetricValue(
     return recentSales.length;
   }
   if (metric === "revenue") {
-    return recentSales.reduce((sum, s) => sum + s.salePrice, 0);
+    return recentSales.reduce((sum, s) => sum + saleRevenue(s), 0);
   }
   // profit
   return recentSales.reduce((sum, s) => {
@@ -72,7 +72,7 @@ function computeCurrentMetricValue(
     // profit that can be worked out (engines/recordedPrice.ts): otherwise it is
     // left out, as on the Bookkeeping hub, never counted against a cost of 0.
     const bought = recordedPrice(purchase.purchasePrice);
-    const sold = recordedPrice(s.salePrice);
+    const sold = recordedSalePrice(s);
     if (bought === null || sold === null) return sum;
     return sum + (sold - bought - costs);
   }, 0);

@@ -35,7 +35,7 @@ import {
 } from "../decisionTypes";
 import { MARGIN_WINDOW_DAYS } from "./vehicleMargins";
 import { LEAD_WINDOW_DAYS, MOT_BOOKING_STATUS } from "./leadSources";
-import { recordedPrice } from "./recordedPrice";
+import { recordedPrice, recordedSalePrice } from "./recordedPrice";
 
 const DAY_MS = 86400000;
 const MONTH_DAYS = 30;
@@ -232,7 +232,7 @@ function measure(inputs: SimulationInputs): Measures {
     const purchase = purchases.get(vehicleId);
     // A price counts only when it is a real amount above zero (recordedPrice.ts), the
     // same rule as the Bookkeeping hub and vehicleMargins.ts.
-    const salePrice = recordedPrice(sale.salePrice);
+    const salePrice = recordedSalePrice(sale);
     const purchasePrice = recordedPrice(purchase?.purchasePrice);
     const amounts = (costsByCar.get(vehicleId) ?? []).map(c => num(c.amount));
     // A cost that is not a real number means the total cannot be trusted.

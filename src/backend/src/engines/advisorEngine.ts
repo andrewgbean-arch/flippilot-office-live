@@ -13,7 +13,7 @@
 // project memory correction) — this engine is the first thing in this
 // app to actually read it server-side.
 
-import { recordedPrice } from "./recordedPrice";
+import { recordedPrice, recordedSalePrice, saleRevenue } from "./recordedPrice";
 
 interface Vehicle {
   id: string;
@@ -118,7 +118,7 @@ export function profitForVehicle(vehicleId: string, bookkeeping: Bookkeeping): n
   // (recordedPrice.ts): the profit is unknown, as on the Bookkeeping hub, never
   // worked out against a cost of 0 or as a loss on a sale of 0.
   const bought = recordedPrice(purchase.purchasePrice);
-  const sold = recordedPrice(sale.salePrice);
+  const sold = recordedSalePrice(sale);
   if (bought === null || sold === null) return null;
   const totalCosts = bookkeeping.costs
     .filter(c => c.vehicleId === vehicleId)
@@ -144,8 +144,8 @@ export function investigate(
   const currentSales = bookkeeping.sales.filter(s => inWindow(s.date, now, windowDays, 0));
   const previousSales = bookkeeping.sales.filter(s => inWindow(s.date, now, windowDays * 2, windowDays));
 
-  const currentRevenue = currentSales.reduce((sum, s) => sum + s.salePrice, 0);
-  const previousRevenue = previousSales.reduce((sum, s) => sum + s.salePrice, 0);
+  const currentRevenue = currentSales.reduce((sum, s) => sum + saleRevenue(s), 0);
+  const previousRevenue = previousSales.reduce((sum, s) => sum + saleRevenue(s), 0);
 
   const currentProfit = currentSales.reduce((sum, s) => sum + (profitForVehicle(s.vehicleId, bookkeeping) ?? 0), 0);
   const previousProfit = previousSales.reduce((sum, s) => sum + (profitForVehicle(s.vehicleId, bookkeeping) ?? 0), 0);

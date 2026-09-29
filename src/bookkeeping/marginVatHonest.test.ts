@@ -755,3 +755,25 @@ describe("the car's page shows what the customer paid", () => {
     expect(t).not.toContain("added on top");
   });
 });
+
+describe("profit and income on a VAT-on-top sale are worked from what the customer paid", () => {
+  const standardPurchase = purchase(4000, { vatScheme: "standard", vatRate: 0.2, vatIncluded: true, vatAmount: 666.67, netAmount: 3333.33 });
+
+  it("£5,000 + £1,000 VAT on top: profit £2,000 and income £6,000, the same as £6,000 with VAT included", async () => {
+    const onTop = withSaleVat(baseSale({ salePrice: 5000, vatScheme: "standard", vatIncluded: false }), undefined);
+    await openBooks({ purchases: [standardPurchase], sales: [onTop] });
+    expect(ctx().getProfitForVehicle("v1")).toMatchObject({ profit: 2000, salePrice: 6000 });
+    expect(ctx().getTotalIncome()).toBe(6000);
+    books!.unmount();
+
+    const included = withSaleVat(baseSale({ salePrice: 6000, vatScheme: "standard", vatIncluded: true }), undefined);
+    await openBooks({ purchases: [standardPurchase], sales: [included] });
+    expect(ctx().getProfitForVehicle("v1")).toMatchObject({ profit: 2000, salePrice: 6000 });
+    expect(ctx().getTotalIncome()).toBe(6000);
+  });
+
+  it("a VAT-on-top sale whose VAT isn't recorded has an unknown profit, not one short of the VAT", async () => {
+    await openBooks({ purchases: [standardPurchase], sales: [baseSale({ salePrice: 5000, vatScheme: "standard", vatIncluded: false, vatAmount: null })] });
+    expect(ctx().getProfitForVehicle("v1")).toBeNull();
+  });
+});

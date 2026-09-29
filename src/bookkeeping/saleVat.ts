@@ -76,3 +76,18 @@ export function salePricePaid(
   if (!vatOnTop) return { paid: price, beforeVat: null, vatOnTop: false };
   return { paid: price !== null && vat !== null ? price + vat : null, beforeVat: price, vatOnTop: true };
 }
+
+// The sale price that profit and revenue are worked from: what the customer paid
+// (salePricePaid above), or null when that isn't a real amount. Profit is shown
+// "before VAT on the sale"; a VAT-on-top sale read as its stored price showed the
+// VAT's worth less profit than the same sale saved with the VAT included. The
+// backend's engines/recordedPrice.ts (recordedSalePrice) holds the same rule.
+export function salePaidAmount(sale: SaleEntry): number | null {
+  return salePricePaid(sale, trustedSaleVat(sale).vat).paid;
+}
+
+// A sale's share of an income total: the amount paid, or when that is unknown the
+// recorded price before VAT, or nothing.
+export function saleIncome(sale: SaleEntry): number {
+  return salePaidAmount(sale) ?? (isPositiveAmount(sale.salePrice) ? sale.salePrice : 0);
+}

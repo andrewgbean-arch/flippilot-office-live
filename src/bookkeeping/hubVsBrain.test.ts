@@ -3,6 +3,9 @@ import { hubTotals } from "./profitTotals";
 import { summariseVehicleMargins, formatMoney } from "../backend/src/engines/vehicleMargins";
 import { countEvidence } from "../backend/src/engines/decisionAnalysis";
 import type { CostEntry, PurchaseEntry, SaleEntry } from "./types";
+import { withSaleVat, salePaidAmount } from "./saleVat";
+import { recordedSalePrice, saleRevenue } from "../backend/src/engines/recordedPrice";
+import { profitForVehicle } from "../backend/src/engines/advisorEngine";
 
 // ONE ledger, fed to the Bookkeeping hub (the web app's hubTotals) and to Pilot Brain's
 // per-car profit and evidence counts (the backend engines). Pilot Brain's own text says
@@ -82,5 +85,55 @@ describe("the hub and Pilot Brain agree about which cars have a profit", () => {
     expect(hub.profit).toBe(380);
     expect(brainKnown(book)).toBe(1);
     expect(summariseVehicleMargins(book, [], NOW).join("\n")).toContain("Total £380 on £5,000 of sales");
+  });
+});
+
+/* ------------- VAT added ON TOP of the price: the same sale either way ------------- */
+// A Standard VAT sale saved with "price includes VAT: no" stores the price BEFORE VAT.
+// Read as it stood, it showed £1,000 less profit and revenue than the identical sale
+// saved with the VAT included. Both the hub and Pilot Brain now work from what the
+// customer paid, so the two ways of saving one sale agree, everywhere.
+
+describe("VAT added on top: the same profit and revenue as the same sale with VAT included", () => {
+  const purchase = { id: "p", vehicleId: "a", purchasePrice: 4000, date: dateDaysAgo(60) };
+  const onTop = withSaleVat({ id: "s", vehicleId: "a", salePrice: 5000, invoiceNumber: "INV-1", date: dateDaysAgo(10), vatScheme: "standard", vatRate: 0.2, vatIncluded: false, vatAmount: null, netAmount: null } as SaleEntry, undefined);
+  const included = withSaleVat({ ...onTop, salePrice: 6000, vatIncluded: true } as SaleEntry, undefined);
+  const book = (sale: SaleEntry) => ({ purchases: [purchase], sales: [sale], costs: [] as unknown[] });
+
+  it("the web hub: £2,000 profit on £6,000 either way", () => {
+    for (const sale of [onTop, included]) {
+      const hub = hubTotals([purchase as PurchaseEntry], [sale], []);
+      expect(hub).toMatchObject({ profit: 2000, revenue: 6000, soldCounted: 1 });
+    }
+  });
+
+  it("Pilot Brain's per-car margins say the same as the hub", () => {
+    for (const sale of [onTop, included]) {
+      const lines = summariseVehicleMargins(book(sale), [], NOW);
+      expect(lines[1]).toContain(`Total ${formatMoney(2000)} on ${formatMoney(6000)} of sales`);
+    }
+  });
+
+  it("the advisor's per-car profit and the revenue totals agree too", () => {
+    for (const sale of [onTop, included]) {
+      expect(profitForVehicle("a", book(sale) as any)).toBe(2000);
+      expect(saleRevenue(sale)).toBe(6000);
+    }
+  });
+
+  it("web and backend read the paid amount the same way, and unknown VAT stays unknown", () => {
+    expect(salePaidAmount(onTop)).toBe(6000);
+    expect(recordedSalePrice(onTop)).toBe(6000);
+    const vatUnknown = { ...onTop, vatAmount: null } as SaleEntry;
+    expect(salePaidAmount(vatUnknown)).toBeNull();
+    expect(recordedSalePrice(vatUnknown)).toBeNull();
+    // Revenue still counts at least the price before VAT.
+    expect(saleRevenue(vatUnknown)).toBe(5000);
+  });
+
+  it("a Margin Scheme sale is untouched", () => {
+    const margin = { ...onTop, vatScheme: "margin", salePrice: 6000 } as SaleEntry;
+    expect(recordedSalePrice(margin)).toBe(6000);
+    expect(salePaidAmount(margin)).toBe(6000);
   });
 });

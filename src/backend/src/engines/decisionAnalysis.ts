@@ -17,7 +17,7 @@
 //    lists nothing unknown is refused outright.
 
 import { readTenantCollection, readTenantDoc } from "../db";
-import { recordedPrice } from "./recordedPrice";
+import { recordedPrice, recordedSalePrice } from "./recordedPrice";
 import { toMemoryLine } from "../untrustedText";
 import {
   CONTEXT_MAX,
@@ -126,7 +126,7 @@ export function countEvidence(bookkeeping: MarginBookkeeping, leads: unknown, no
     recentSales += 1;
 
     // A price is real only above zero (recordedPrice.ts), as in vehicleMargins.ts.
-    const salePrice = recordedPrice(sale.salePrice);
+    const salePrice = recordedSalePrice(sale);
     const purchasePrice = recordedPrice(purchases.get(vehicleId)?.purchasePrice);
     if (salePrice === null || purchasePrice === null) continue;
     // A cost that is not a real number means the profit cannot be trusted.

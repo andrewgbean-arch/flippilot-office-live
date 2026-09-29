@@ -1,5 +1,6 @@
 import type { CostEntry, PurchaseEntry, SaleEntry } from "./types";
 import { isPositiveAmount } from "@/lib/parseMoney";
+import { salePaidAmount } from "./saleVat";
 
 // The four headline figures on the Bookkeeping hub, kept free of React.
 //
@@ -106,13 +107,14 @@ export function hubTotals(
       soldWithoutPurchase += 1;
       continue;
     }
-    const car = carProfit(purchase.purchasePrice, sale.salePrice, costsByCar.get(vehicleId) ?? 0);
+    const paid = salePaidAmount(sale);
+    const car = carProfit(purchase.purchasePrice, paid, costsByCar.get(vehicleId) ?? 0);
     if (!car) {
       soldWithoutPrice += 1;
       continue;
     }
     profit += car.profit;
-    revenue += amount(sale.salePrice);
+    revenue += paid ?? 0; // never null here: carProfit needs a real sale price
     soldCounted += 1;
   }
 
