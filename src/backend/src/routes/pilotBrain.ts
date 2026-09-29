@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { PILOT_BRAIN_MESSAGES, PILOT_BRAIN_MEMORIES } from "../personalData";
+import { PILOT_BRAIN_MESSAGES, PILOT_BRAIN_MEMORIES, PILOT_BRAIN_SECURITY_LOG } from "../personalData";
 import { Readable } from "stream";
 import { availableVoices, resolveVoice, speechRequest } from "../pilotBrainVoices";
 import { Express, Request } from "express";
@@ -125,7 +125,7 @@ const speakLimiter = rateLimit({
   message: { ok: false, error: "Too many voice requests — please try again shortly." },
 });
 
-const SECURITY_DOC = "pilotBrainSecurity";
+const SECURITY_DOC = PILOT_BRAIN_SECURITY_LOG;
 
 // The security reminder has to be the LAST thing she reads, after whatever
 // sections a particular call adds, so it is put on at the very end. The

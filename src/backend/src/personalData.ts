@@ -1,12 +1,18 @@
 import { Express, Request, Response } from "express";
-import { readCollection, readTenantCollection, writeTenantCollection } from "./db";
+import { readCollection, readTenantCollection, writeTenantCollection, readTenantDoc } from "./db";
 import { requireAuth, requireOwner, type AuthUser, type Dealership, type StoredUser } from "./auth";
 import { RATES_COLLECTION } from "./routes/pay";
+import { normaliseDoc, EMPTY_SECURITY_DOC } from "./pilotBrainShield";
 
 // Where Pilot Brain keeps each person's chat and the facts she remembers
 // about them (routes/pilotBrain.ts reads and writes these).
 export const PILOT_BRAIN_MESSAGES = "pilotBrainMessages";
 export const PILOT_BRAIN_MEMORIES = "pilotBrainMemories";
+// Owner-visible record of what her shield turned away, withheld or refused
+// to remember (pilotBrainShield.ts / routes/pilotBrain.ts). Included in a
+// person's own export below, filtered to their own events — it is personal
+// data about them (their own flagged words), not just a security record.
+export const PILOT_BRAIN_SECURITY_LOG = "pilotBrainSecurity";
 
 interface OwnedRecord {
   id: string;
@@ -43,14 +49,15 @@ function withPhotoCount<T extends Record<string, unknown>>(row: T) {
 // "download my data" (a UK GDPR subject access request). Their own records in
 // full, the team messages they sent or received, the message-board posts they
 // signed with their name (anonymous posts carry no name, so none are theirs),
-// and the jobs assigned to them. Never the password hash. Not included: the
-// owner's Pilot Brain security log, which is kept as a security record.
+// the jobs assigned to them, and their OWN events in Pilot Brain's security
+// log (never anyone else's — that stays owner-only). Never the password hash.
 export function buildPersonalExport(user: StoredUser) {
   const d = user.dealershipId;
   const own = (collection: string) => readTenantCollection<Row>(d, collection).filter(r => r.userId === user.id);
   const dealership = readCollection<Dealership>("dealerships").find(x => x.id === d);
   const messages = readTenantCollection<Row & { fromUserId?: string; toUserId?: string }>(d, "staffMessages");
   const jobs = readTenantCollection<Row & { assignedToUserId?: string | null }>(d, "jobs");
+  const security = normaliseDoc(readTenantDoc<unknown>(d, PILOT_BRAIN_SECURITY_LOG, EMPTY_SECURITY_DOC));
 
   return {
     about:
@@ -68,7 +75,13 @@ export function buildPersonalExport(user: StoredUser) {
     },
     diary: own("diary"),
     notifications: own("notifications"),
-    pilotBrain: { conversation: own(PILOT_BRAIN_MESSAGES), memories: own(PILOT_BRAIN_MEMORIES) },
+    pilotBrain: {
+      conversation: own(PILOT_BRAIN_MESSAGES),
+      memories: own(PILOT_BRAIN_MEMORIES),
+      securityLog: security.events
+        .filter(e => e.userId === user.id)
+        .map(({ id, at, kind, categories, snippet }) => ({ id, at, kind, categories, snippet })),
+    },
     clockIns: own("timekeeping"),
     leave: own("leave"),
     shifts: own("shifts"),
