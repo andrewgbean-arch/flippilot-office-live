@@ -215,12 +215,13 @@ export default function DealerSidebar() {
 
       {!isHome && (
         <Link to="/dealer-dashboard" className="mb-8 flex flex-col items-center" aria-label="FlipPilot Dealer OS, go to the dashboard">
-          {/* The FlipPilot gold logo in its Dealer OS form (FPD monogram, no
-              consumer tagline), with gold-foil spaced capitals under it like the
-              FlipPilot app's SCAN · CHECK · FLIP.
+          {/* The Dealer OS logo: a gold rev-counter with FP at its centre, the
+              swirly gold FlipPilot script under it, then gold-foil spaced
+              capitals like the FlipPilot app's SCAN · CHECK · FLIP.
               The app name, not a heading: each page carries its own h1. */}
-          <img src="/brand/flippilot-logo.webp" alt="" width={140} height={131} className="w-[140px] h-auto drop-shadow-[0_0_18px_rgba(255,215,0,0.35)]" />
-          <p className="brand-caps -mt-1 text-[13px]">DEALER OS</p>
+          <img src="/brand/flippilot-dial.webp" alt="" width={130} height={112} className="w-[130px] h-auto" />
+          <span className="brand-script text-[2rem] -mt-1" data-text="FlipPilot">FlipPilot</span>
+          <p className="brand-caps text-[11px]">DEALER OS</p>
         </Link>
       )}
 

@@ -1,15 +1,17 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <!-- Browser-tab icon: the Dealer OS FPD monogram in gold. At tab size the
-       full circular logo is unreadable, so this is just the letters. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="64" height="64">
+  <!-- FlipPilot Dealer OS app icon: a gold tile with a navy F whose middle bar
+       becomes the FlipPilot plane arrow. -->
   <defs>
-    <linearGradient id="fpGold" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#FFF4C4"/>
-      <stop offset="45%" stop-color="#FFD700"/>
-      <stop offset="100%" stop-color="#C58B00"/>
+    <linearGradient id="tile" gradientUnits="userSpaceOnUse" x1="60" y1="0" x2="160" y2="512">
+      <stop offset="0" stop-color="#7a5200"/><stop offset=".16" stop-color="#d4a017"/><stop offset=".36" stop-color="#fff4c4"/>
+      <stop offset=".48" stop-color="#ffd700"/><stop offset=".63" stop-color="#b8860b"/><stop offset=".79" stop-color="#ffe57a"/><stop offset="1" stop-color="#8a6200"/>
     </linearGradient>
   </defs>
-  <rect width="64" height="64" rx="14" fill="#0A1128"/>
-  <rect x="1.5" y="1.5" width="61" height="61" rx="12.5" fill="none" stroke="#FFD700" stroke-opacity="0.45" stroke-width="1.5"/>
-  <text x="32" y="43" text-anchor="middle" textLength="54" lengthAdjust="spacingAndGlyphs"
-        font-family="'Arial Black', 'Arial', sans-serif" font-weight="900" font-size="30" fill="url(#fpGold)">FPD</text>
+  <rect x="8" y="8" width="496" height="496" rx="116" fill="url(#tile)"/>
+       <rect x="14" y="14" width="484" height="484" rx="110" fill="none" stroke="#fff4c4" stroke-opacity=".55" stroke-width="4"/>
+  <g transform="translate(0 0) scale(1)" fill="none" stroke="#0a1128" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M160 386 V132 H356" stroke-width="54"/>
+    <path d="M160 254 H286" stroke-width="54"/>
+    <path d="M300 330 L396 236 L404 346 L362 318 Z" fill="#0a1128" stroke-width="14"/>
+  </g>
 </svg>
