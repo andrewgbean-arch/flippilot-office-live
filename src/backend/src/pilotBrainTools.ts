@@ -29,6 +29,7 @@ import { anthropicMessagesUrl } from "./pilotBrainWeb";
 import { lookInside, lookInsideToolDefinition, type LookInput, type TabSource } from "./pilotBrainTabs";
 import { MAX_TOOL_ROUNDS, isToolUse, runToolCalls, type ClientTools } from "./pilotBrainToolCore";
 import { logUsage, systemParam, type SystemPrompt } from "./pilotBrainPrompt";
+import { withoutVoidedSales } from "./saleVoids";
 
 export { MAX_TOOL_ROUNDS, MAX_TOOL_CALLS_PER_CHAT, type ClientTools } from "./pilotBrainToolCore";
 
@@ -47,7 +48,7 @@ export function tenantTabSource(dealershipId: string): TabSource {
     // malformed rows dropped); every other tab is a plain collection.
     list: name => (name === "decisions" ? listDecisions(dealershipId) : readTenantCollection<unknown>(dealershipId, name)),
     bookkeeping: () => {
-      const doc = readTenantDoc<Record<string, unknown>>(dealershipId, "bookkeeping", {});
+      const doc = withoutVoidedSales(readTenantDoc<Record<string, unknown>>(dealershipId, "bookkeeping", {}));
       return {
         purchases: Array.isArray(doc.purchases) ? doc.purchases : [],
         sales: Array.isArray(doc.sales) ? doc.sales : [],

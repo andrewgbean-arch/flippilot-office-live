@@ -5,6 +5,7 @@ import { requireAuth, requireStaffRole, type AuthUser } from "../auth";
 import { MAX_SIMULATIONS, decisionState, parseConfidence, type SimulationSnapshot } from "../decisionTypes";
 import { mutateDecision } from "../decisionStore";
 import { parseSimulationRequest, runSimulation, type SimulationInputs } from "../engines/simulator";
+import { withoutVoidedSales } from "../saleVoids";
 
 // The Simulator routes (Pilot Brain V8). OWNER OR MANAGER ONLY.
 //
@@ -24,11 +25,11 @@ function authUser(req: Request): AuthUser {
 }
 
 // Everything the engine reads, straight from this dealership's own storage.
-function readInputs(dealershipId: string, now: number): SimulationInputs {
+export function readInputs(dealershipId: string, now: number): SimulationInputs {
   return {
     vehicles: readTenantCollection<unknown>(dealershipId, "vehicles"),
     leads: readTenantCollection<unknown>(dealershipId, "leads"),
-    bookkeeping: readTenantDoc<unknown>(dealershipId, "bookkeeping", {}),
+    bookkeeping: withoutVoidedSales(readTenantDoc<unknown>(dealershipId, "bookkeeping", {})),
     now,
   };
 }

@@ -2,6 +2,7 @@ import { Express, Request } from "express";
 import { readTenantDoc, writeTenantDoc } from "../db";
 import { requireStaffRole, type AuthUser } from "../auth";
 import { bookkeepingDocFromBody } from "../wholeListGuard";
+import { keepVoidedSales } from "../saleVoids";
 
 function dealershipId(req: Request): string {
   return (req as Request & { user: AuthUser }).user.dealershipId;
@@ -49,6 +50,9 @@ export default function registerBookkeepingRoute(app: Express) {
     // or a partial or broken body would blank the ones it left out.
     const data: BookkeepingDoc | null = bookkeepingDocFromBody(req, res);
     if (!data) return;
+    // Voiding a sale is one way: an out-of-date screen can't undo it (saleVoids.ts).
+    const stored = readTenantDoc<{ sales?: unknown }>(dealershipId(req), "bookkeeping", EMPTY_BOOKKEEPING);
+    data.sales = keepVoidedSales(stored.sales, data.sales as Record<string, unknown>[]);
     writeTenantDoc(dealershipId(req), "bookkeeping", data);
     res.json({ ok: true, ...data });
   });

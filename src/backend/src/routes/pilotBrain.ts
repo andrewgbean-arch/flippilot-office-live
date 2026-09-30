@@ -68,6 +68,7 @@ import { formatPounds } from "../money";
 import { canSeeMoney, isMoneyGoalMetric } from "../roleAccess";
 import { canAfford, creditSummary, refundCredit, spendCredit } from "../pilotBrainCredit";
 import { readTasterState, recordTasterBriefing, recordTasterQuestion, tasterQuestionsRemaining, TASTER_QUESTIONS } from "../pilotBrainTaster";
+import { withoutVoidedSales } from "../saleVoids";
 
 interface BookkeepingDoc {
   purchases: { vehicleId: string; purchasePrice: number; date: string }[];
@@ -78,7 +79,8 @@ interface BookkeepingDoc {
 const EMPTY_BOOKKEEPING: BookkeepingDoc = { purchases: [], sales: [], costs: [] };
 
 function readBookkeeping(dealershipId: string): BookkeepingDoc {
-  return readTenantDoc<BookkeepingDoc>(dealershipId, "bookkeeping", EMPTY_BOOKKEEPING);
+  // Voided sales are left out of every figure (saleVoids.ts).
+  return withoutVoidedSales(readTenantDoc<BookkeepingDoc>(dealershipId, "bookkeeping", EMPTY_BOOKKEEPING));
 }
 
 export interface PilotBrainMessage {

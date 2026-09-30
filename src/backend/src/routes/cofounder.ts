@@ -17,6 +17,7 @@ import { investigate, findOpportunities } from "../engines/advisorEngine";
 import { getStoredMarketData } from "./marketIntelligence";
 import { recordedPrice, recordedSalePrice, saleRevenue } from "../engines/recordedPrice";
 import { scoreOpportunities, runCrossModuleInvestigation, getTodaysPriorities } from "../engines/superBrainEngine";
+import { withoutVoidedSales } from "../saleVoids";
 
 const GOALS_COLLECTION = "pilotBrainGoals";
 
@@ -79,7 +80,8 @@ export function computeCurrentMetricValue(
 }
 
 function readBookkeeping(dealershipId: string): BookkeepingDoc {
-  return readTenantDoc<BookkeepingDoc>(dealershipId, "bookkeeping", EMPTY_BOOKKEEPING);
+  // Voided sales are left out of every figure (saleVoids.ts).
+  return withoutVoidedSales(readTenantDoc<BookkeepingDoc>(dealershipId, "bookkeeping", EMPTY_BOOKKEEPING));
 }
 
 export function computeAllGoalProgress(dealershipId: string, now: number): GoalProgress[] {

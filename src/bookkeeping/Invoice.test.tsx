@@ -7,7 +7,7 @@ const state = vi.hoisted(() => ({
   dealer: { name: "Test Motors", vatNumber: "GB123456789", address: "1 High St", phone: "01234 567890" } as any,
 }));
 
-vi.mock("@/bookkeeping/BookkeepingProvider", () => ({ useBookkeeping: () => ({ sales: state.sales }) }));
+vi.mock("@/bookkeeping/BookkeepingProvider", () => ({ useBookkeeping: () => ({ sales: state.sales.filter((x) => !x.voided), allSales: state.sales }) }));
 vi.mock("@/context/InventoryProvider", () => ({
   useInventory: () => ({
     vehicles: [{ id: "v1", make: "Ford", model: "Focus", reg: "AB12CDE", year: 2018, mileage: 42000 }],
@@ -276,5 +276,36 @@ describe("the rest of the page is unchanged", () => {
     expect(text).toContain("Invoice INV-0007");
     expect(text).toContain("Print / Save as PDF");
     expect(text).toContain("Email to Customer");
+  });
+});
+
+describe("a voided sale's invoice", () => {
+  const voided = () => ({ ...storedSale({ price: 6000 }), voided: { at: "2026-03-20T09:00:00.000Z", reason: "Buyer pulled out", byName: "Pat" } });
+  function renderAt(url: string, sales: SaleEntry[]): string {
+    state.sales = sales;
+    return renderToStaticMarkup(
+      <MemoryRouter initialEntries={[url]}>
+        <Routes>
+          <Route path="/bookkeeping/invoice/:vehicleId" element={<Invoice />} />
+        </Routes>
+      </MemoryRouter>
+    );
+  }
+
+  it("opens from the car's page link, marked VOID with the reason, and can't be emailed", () => {
+    const html = renderAt("/bookkeeping/invoice/v1?sale=s1", [voided()]);
+    expect(html).toContain("Invoice INV-0007 (VOID)");
+    expect(html).toContain("This sale was voided on 2026-03-20 by Pat: Buyer pulled out");
+    expect(html).not.toContain("Email to Customer");
+  });
+
+  it("the car's plain invoice link doesn't show a voided sale as its live one", () => {
+    const html = renderAt("/bookkeeping/invoice/v1", [voided()]);
+    expect(html).toContain("No Sale Recorded");
+  });
+
+  it("a live sale's invoice has no VOID mark", () => {
+    const html = renderAt("/bookkeeping/invoice/v1", [storedSale({ price: 6000 })]);
+    expect(html).not.toContain("VOID");
   });
 });

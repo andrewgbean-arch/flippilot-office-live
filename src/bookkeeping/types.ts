@@ -120,6 +120,10 @@ export interface SaleEntry {
   // used to compute the margin, kept alongside the result so the
   // ledger can show its working rather than just a final VAT figure.
   marginPurchasePrice?: number;
+
+  // Set when the sale was recorded by mistake and has been VOIDED (saleStatus.ts):
+  // the record and its invoice number stay, and every figure leaves it out.
+  voided?: { at: string; reason: string; byName: string };
 }
 
 

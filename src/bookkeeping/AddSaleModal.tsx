@@ -18,7 +18,7 @@ interface AddSaleModalProps {
 }
 
 export default function AddSaleModal({ vehicleId: initialVehicleId, existing, onClose }: AddSaleModalProps) {
-  const { sales, addSale, updateSale, getPurchaseForVehicle } = useBookkeeping();
+  const { allSales, addSale, updateSale, getPurchaseForVehicle } = useBookkeeping();
   const { vehicles, updateVehicleSale } = useInventory();
 
   // Was a fixed prop with no way to change it — now an editable
@@ -122,7 +122,8 @@ export default function AddSaleModal({ vehicleId: initialVehicleId, existing, on
         id: crypto.randomUUID(),
         vehicleId,
         salePrice: numericPrice,
-        invoiceNumber: nextInvoiceNumber(sales),
+        // Numbered from EVERY sale, voided ones too, so a voided invoice's number is never reused.
+        invoiceNumber: nextInvoiceNumber(allSales),
         date,
         vatScheme: isMarginScheme ? "margin" : "standard",
         vatRate: rate,

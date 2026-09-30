@@ -11,6 +11,7 @@ import {
 } from "./types";
 import { calculateVat } from "./vatUtils";
 import { saleIncome, salePaidAmount, withSaleVat } from "./saleVat";
+import { activeSales } from "./saleStatus";
 import { isPositiveAmount } from "@/lib/parseMoney";
 import { hubTotals, carProfit } from "./profitTotals";
 import { purchaseVatSettings } from "./purchaseVat";
@@ -63,6 +64,10 @@ interface BookkeepingContextValue {
   // nothing was saved (books not ready, no purchase for that car, price not above 0).
   recordPurchasePrice: (vehicleId: string, price: number, scheme: "margin" | "standard", newPurchase?: NewPurchaseDetails) => boolean;
   editPurchase: (vehicleId: string, edit: PurchaseEdit) => boolean;
+  // Every sale including voided ones (sales above leaves them out): for invoice
+  // numbering and the car's history.
+  allSales: SaleEntry[];
+  voidSale: (saleId: string, reason: string, byName: string) => boolean;
   updateSale: (id: string, patch: Partial<SaleEntry>) => void;
   addTransaction: (entry: TransactionEntry) => void;
 
@@ -105,6 +110,8 @@ export function BookkeepingProvider({ children }: BookkeepingProviderProps) {
   const [costs, setCosts] = useState<CostEntry[]>([]);
   const [purchases, setPurchases] = useState<PurchaseEntry[]>([]);
   const [sales, setSales] = useState<SaleEntry[]>([]);
+  // The sales every figure reads: voided ones are left out (saleStatus.ts).
+  const liveSales = activeSales(sales);
   const [transactions, setTransactions] = useState<TransactionEntry[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -264,7 +271,7 @@ export function BookkeepingProvider({ children }: BookkeepingProviderProps) {
   const updateSale = (id: string, patch: Partial<SaleEntry>) => {
     if (!guardSave()) return;
     const existing = sales.find((s) => s.id === id);
-    if (!existing) return;
+    if (!existing || existing.voided) return; // a voided sale is frozen
 
     const merged: SaleEntry = { ...existing, ...patch };
     const enriched = withSaleVat(merged, getPurchaseForVehicle(merged.vehicleId));
@@ -318,7 +325,7 @@ export function BookkeepingProvider({ children }: BookkeepingProviderProps) {
           netAmount: price,
         });
     const updatedPurchases = current ? purchases.map((p) => (p === current ? fixed : p)) : [...purchases, fixed];
-    const updatedSales = sales.map((s) => (s.vehicleId === vehicleId && s.vatScheme === "margin" ? withSaleVat(s, fixed) : s));
+    const updatedSales = sales.map((s) => (s.vehicleId === vehicleId && s.vatScheme === "margin" && !s.voided ? withSaleVat(s, fixed) : s));
 
     setPurchases(updatedPurchases);
     setSales(updatedSales);
@@ -349,11 +356,26 @@ export function BookkeepingProvider({ children }: BookkeepingProviderProps) {
       ...(edit.source?.trim() ? { source: edit.source.trim() } : {}),
     });
     const updatedPurchases = purchases.map((p) => (p === current ? fixed : p));
-    const updatedSales = sales.map((s) => (s.vehicleId === vehicleId && s.vatScheme === "margin" ? withSaleVat(s, fixed) : s));
+    const updatedSales = sales.map((s) => (s.vehicleId === vehicleId && s.vatScheme === "margin" && !s.voided ? withSaleVat(s, fixed) : s));
 
     setPurchases(updatedPurchases);
     setSales(updatedSales);
     persist({ purchases: updatedPurchases, sales: updatedSales });
+    return true;
+  };
+
+  // Voids a sale recorded by mistake: it keeps its figures and invoice number, gains
+  // `voided` (when, why, who), and every figure leaves it out from then on. A reason
+  // is required. The server refuses to let a later save undo it (saleVoids.ts).
+  const voidSale = (saleId: string, reason: string, byName: string): boolean => {
+    const why = reason.trim();
+    if (!why) return false;
+    if (!guardSave()) return false;
+    const target = sales.find((s) => s.id === saleId);
+    if (!target || target.voided) return false;
+    const updated = sales.map((s) => (s.id === saleId ? { ...s, voided: { at: new Date().toISOString(), reason: why, byName } } : s));
+    setSales(updated);
+    persist({ sales: updated });
     return true;
   };
 
@@ -392,7 +414,7 @@ export function BookkeepingProvider({ children }: BookkeepingProviderProps) {
     purchases.find((p) => p.vehicleId === vehicleId);
 
   const getSaleForVehicle = (vehicleId: string) =>
-    sales.find((s) => s.vehicleId === vehicleId);
+    liveSales.find((s) => s.vehicleId === vehicleId);
 
   // PROFIT ENGINE
   const getProfitForVehicle = (vehicleId: string): ProfitSummary | null => {
@@ -429,7 +451,7 @@ export function BookkeepingProvider({ children }: BookkeepingProviderProps) {
     purchases.reduce((sum, p) => sum + p.purchasePrice, 0);
 
   const getTotalIncome = () =>
-    sales.reduce((sum, s) => sum + saleIncome(s), 0);
+    liveSales.reduce((sum, s) => sum + saleIncome(s), 0);
 
   // Profit on SOLD cars, worked out car by car like getProfitForVehicle. This
   // used to be income minus ALL spend, which counted every unsold car as a
@@ -455,7 +477,7 @@ export function BookkeepingProvider({ children }: BookkeepingProviderProps) {
   const getMonthlyReport = (month: string): MonthlyReport => {
     const monthCosts = costs.filter((c) => c.date.startsWith(month));
     const monthPurchases = purchases.filter((p) => p.date.startsWith(month));
-    const monthSales = sales.filter((s) => s.date.startsWith(month));
+    const monthSales = liveSales.filter((s) => s.date.startsWith(month));
 
     const totalSpend =
       monthCosts.reduce((sum, c) => sum + c.amount, 0) +
@@ -474,7 +496,8 @@ export function BookkeepingProvider({ children }: BookkeepingProviderProps) {
   const value: BookkeepingContextValue = {
     costs,
     purchases,
-    sales,
+    sales: liveSales,
+    allSales: sales,
     transactions,
     suppliers,
     loading,
@@ -489,6 +512,7 @@ export function BookkeepingProvider({ children }: BookkeepingProviderProps) {
     addSale,
     recordPurchasePrice,
     editPurchase,
+    voidSale,
     updateSale,
     addTransaction,
 

@@ -1,5 +1,5 @@
 import { formatMoney } from "@/lib/formatMoney";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useBookkeeping } from "./BookkeepingProvider";
 import { useInventory } from "@/context/InventoryProvider";
 import { useDealer } from "@/context/DealerContext";
@@ -14,11 +14,17 @@ import "@/staff/StaffDashboard.css";
 export default function Invoice() {
   const { vehicleId } = useParams();
   const navigate = useNavigate();
-  const { sales } = useBookkeeping();
+  const { sales, allSales } = useBookkeeping();
+  const [params] = useSearchParams();
+  // ?sale=<id> opens that sale's invoice, a voided one included (the car's page
+  // links its voided sales here); otherwise the car's live sale.
+  const wantedSale = params.get("sale");
   const { vehicles } = useInventory();
   const { dealer } = useDealer();
 
-  const sale = sales.find((s) => s.vehicleId === vehicleId);
+  const sale = wantedSale
+    ? allSales.find((s) => s.id === wantedSale && s.vehicleId === vehicleId)
+    : sales.find((s) => s.vehicleId === vehicleId);
   const vehicle = vehicles.find((v) => v.id === vehicleId);
 
   if (!sale || !vehicle) {
@@ -104,7 +110,7 @@ export default function Invoice() {
   return (
     <div className="sn-panel sn-panel--full" style={{ margin: 24 }}>
       <div className="sn-rota-header">
-        <h1 className="sn-panel__title">Invoice {sale.invoiceNumber}</h1>
+        <h1 className="sn-panel__title">Invoice {sale.invoiceNumber}{sale.voided ? " (VOID)" : ""}</h1>
         <div className="sn-rota-week-nav">
           <button className="sn-btn sn-btn--ghost" onClick={() => navigate(-1)}>
             ← Back
@@ -112,7 +118,7 @@ export default function Invoice() {
           <button className="sn-btn sn-btn--gold" onClick={() => window.print()}>
             Print / Save as PDF
           </button>
-          {invoiceMailto ? (
+          {sale.voided ? null : invoiceMailto ? (
             <a className="sn-btn sn-btn--gold" href={invoiceMailto}>
               Email to Customer
             </a>
@@ -123,6 +129,16 @@ export default function Invoice() {
           )}
         </div>
       </div>
+
+      {sale.voided && (
+        <div role="alert" style={{ border: "2px solid #ff6b6b", borderRadius: 8, padding: "10px 14px", margin: "8px 0 16px", color: "#ff9b9b" }}>
+          <strong style={{ fontSize: 20, letterSpacing: 2 }}>VOID</strong>
+          <div>
+            This sale was voided on {sale.voided.at.slice(0, 10)} by {sale.voided.byName}: {sale.voided.reason}. It is kept for
+            the record and is not counted in any figures.
+          </div>
+        </div>
+      )}
 
       <div className="sn-contract-doc printable-invoice">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>

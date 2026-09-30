@@ -17,6 +17,7 @@ const state = vi.hoisted(() => ({
   provider: null as any,
   car: { id: "v1", make: "Ford", model: "Focus", vatScheme: "margin" } as any,
   markedSold: [] as { id: string; price: number }[],
+  vehicleEdits: [] as { id: string; patch: Record<string, unknown> }[],
 }));
 
 vi.mock("react", async (importOriginal) => {
@@ -43,6 +44,7 @@ vi.mock("@/context/InventoryProvider", () => ({
   useInventory: () => ({
     vehicles: [state.car],
     updateVehicleSale: (id: string, price: number) => void state.markedSold.push({ id, price }),
+    updateVehicle: (id: string, patch: Record<string, unknown>) => void state.vehicleEdits.push({ id, patch }),
   }),
 }));
 vi.mock("react-router-dom", () => ({
@@ -56,6 +58,8 @@ import BookkeepingTable from "@/bookkeeping/BookkeepingTable";
 import BookkeepingEntryScreen from "@/bookkeeping/BookkeepingEntryScreen";
 import RecordPurchasePriceModal from "@/bookkeeping/RecordPurchasePriceModal";
 import AddSaleModal from "@/bookkeeping/AddSaleModal";
+import VoidSaleModal from "@/bookkeeping/VoidSaleModal";
+import { nextInvoiceNumber } from "./invoiceUtils";
 import { byId, buttonByText, typeInto, alerts, screenText, findAll, textOf } from "@/lib/testing/elementTree";
 import { marginVatForSale } from "./vatUtils";
 import { withSaleVat, trustedSaleVat, salePricePaid } from "./saleVat";
@@ -78,6 +82,7 @@ beforeEach(() => {
   closed = 0;
   refuseSaves = false;
   state.markedSold = [];
+  state.vehicleEdits = [];
   state.car = { id: "v1", make: "Ford", model: "Focus", vatScheme: "margin" };
   vi.stubGlobal("fetch", async (_url: unknown, init?: { method?: string; body?: string }) => {
     if ((init?.method ?? "GET").toUpperCase() === "PUT") {
@@ -871,5 +876,140 @@ describe("the car's page and the Edit Purchase form", () => {
     expect(closed).toBe(1);
     expect(state.doc.purchases![0]).toMatchObject({ purchasePrice: 4500, date: "2026-02-11", source: "Part exchange" });
     expect(ctx().getProfitForVehicle("v1")!.profit).toBe(1500);
+  });
+});
+
+/* ------------------------------ voiding a sale ------------------------------ */
+// A sale recorded by mistake couldn't be removed. Now it can be VOIDED: it stays in
+// the books with its invoice number, marked VOID, and every figure leaves it out.
+
+describe("voidSale: a sale recorded by mistake", () => {
+  const sold = () => withSaleVat(baseSale(), { purchasePrice: 5000 });
+
+  it("marks the sale VOID with when, why and who, in ONE save, and keeps it in the books", async () => {
+    await openBooks({ purchases: [purchase(5000)], sales: [sold()] });
+    puts = [];
+    expect(ctx().voidSale("s1", "  Recorded on the wrong car  ", "Pat")).toBe(true);
+    await settle();
+    expect(puts).toHaveLength(1);
+    expect(state.doc.sales).toHaveLength(1);
+    expect(state.doc.sales![0].voided).toMatchObject({ reason: "Recorded on the wrong car", byName: "Pat" });
+    expect(state.doc.sales![0].voided.at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(state.doc.sales![0]).toMatchObject({ salePrice: 6000, invoiceNumber: "INV-0001" });
+  });
+
+  it("every figure then leaves it out: the car's profit, income, the live sale and the hub", async () => {
+    await openBooks({ purchases: [purchase(5000)], sales: [sold()] });
+    expect(ctx().getProfitForVehicle("v1")!.profit).toBe(1000);
+    ctx().voidSale("s1", "Buyer pulled out", "Pat");
+    await settle();
+    expect(ctx().getProfitForVehicle("v1")).toBeNull();
+    expect(ctx().getSaleForVehicle("v1")).toBeUndefined();
+    expect(ctx().getTotalIncome()).toBe(0);
+    expect(ctx().sales).toHaveLength(0);
+    expect(ctx().allSales).toHaveLength(1);
+    expect(hubTotals(ctx().purchases, ctx().sales, [])).toMatchObject({ profit: 0, revenue: 0, soldCounted: 0, boughtNotSold: 1 });
+  });
+
+  it("needs a reason, and can't void twice", async () => {
+    await openBooks({ purchases: [purchase(5000)], sales: [sold()] });
+    puts = [];
+    expect(ctx().voidSale("s1", "   ", "Pat")).toBe(false);
+    expect(puts).toEqual([]);
+    ctx().voidSale("s1", "wrong car", "Pat");
+    await settle();
+    expect(ctx().voidSale("s1", "again", "Pat")).toBe(false);
+  });
+
+  it("a voided sale is frozen: editing it does nothing", async () => {
+    await openBooks({ purchases: [purchase(5000)], sales: [{ ...sold(), voided: { at: "2026-03-11T10:00:00.000Z", reason: "x", byName: "Pat" } }] });
+    puts = [];
+    ctx().updateSale("s1", { salePrice: 1 });
+    await settle();
+    expect(puts).toEqual([]);
+  });
+
+  it("the car can be sold again, and the new invoice number never reuses the voided one", async () => {
+    const voided = { ...sold(), voided: { at: "2026-03-11T10:00:00.000Z", reason: "x", byName: "Pat" } };
+    await openBooks({ purchases: [purchase(5000)], sales: [voided] });
+    expect(nextInvoiceNumber(ctx().allSales)).toBe("INV-0002");
+    ctx().addSale({ ...baseSale({ id: "s2", invoiceNumber: nextInvoiceNumber(ctx().allSales), salePrice: 6500 }) });
+    await settle();
+    expect(ctx().getSaleForVehicle("v1")).toMatchObject({ id: "s2", invoiceNumber: "INV-0002" });
+    expect(ctx().getProfitForVehicle("v1")!.profit).toBe(1500);
+  });
+});
+
+describe("voiding from the car's page", () => {
+  const page = () => {
+    screen = mount(BookkeepingEntryScreen as (p: object) => unknown, {}) as Mounted<any, any>;
+    return screen;
+  };
+
+  it("offers Void sale on a live sale, and the form needs a reason", async () => {
+    await openBooks({ purchases: [purchase(5000)], sales: [withSaleVat(baseSale(), { purchasePrice: 5000 })] });
+    const p = page();
+    buttonByText(p.result, "Void sale")!.props.onClick();
+    await settle();
+    expect(findAll(p.result, (el) => el.type === VoidSaleModal)[0]!.props.sale).toMatchObject({ id: "s1" });
+    screen!.unmount();
+
+    puts = [];
+    screen = mount(VoidSaleModal as (p: any) => unknown, { sale: state.doc.sales![0], vehicleLabel: "Ford Focus", onClose: () => void closed++ }) as Mounted<any, any>;
+    await settle();
+    buttonByText(screen.result, "Void Sale")!.props.onClick();
+    await settle();
+    expect(alerts(screen.result)[0]).toContain("Say why");
+    expect(closed).toBe(0);
+    expect(puts).toEqual([]);
+  });
+
+  it("voids with the reason, puts the car back in stock, and closes", async () => {
+    await openBooks({ purchases: [purchase(5000)], sales: [withSaleVat(baseSale(), { purchasePrice: 5000 })] });
+    screen = mount(VoidSaleModal as (p: any) => unknown, { sale: state.doc.sales![0], vehicleLabel: "Ford Focus", onClose: () => void closed++ }) as Mounted<any, any>;
+    await settle();
+    typeInto(byId(screen.result, "voidsale-reason"), "Recorded on the wrong car");
+    await settle();
+    buttonByText(screen.result, "Void Sale")!.props.onClick();
+    await settle();
+    expect(closed).toBe(1);
+    expect(state.doc.sales![0].voided.reason).toBe("Recorded on the wrong car");
+    expect(state.vehicleEdits).toEqual([{ id: "v1", patch: { status: "new" } }]);
+  });
+
+  it("leaves the car sold when 'put back in stock' is unticked", async () => {
+    await openBooks({ purchases: [purchase(5000)], sales: [withSaleVat(baseSale(), { purchasePrice: 5000 })] });
+    screen = mount(VoidSaleModal as (p: any) => unknown, { sale: state.doc.sales![0], onClose: () => void closed++ }) as Mounted<any, any>;
+    await settle();
+    typeInto(byId(screen.result, "voidsale-reason"), "wrong car");
+    byId(screen.result, "voidsale-restock")!.props.onChange({ target: { checked: false } });
+    await settle();
+    buttonByText(screen.result, "Void Sale")!.props.onClick();
+    await settle();
+    expect(state.doc.sales![0].voided).toBeDefined();
+    expect(state.vehicleEdits).toEqual([]);
+  });
+
+  it("afterwards the page shows no live sale, lists the voided one, and offers Record Sale again", async () => {
+    const voided = { ...withSaleVat(baseSale(), { purchasePrice: 5000 }), voided: { at: "2026-03-11T10:00:00.000Z", reason: "Buyer pulled out", byName: "Pat" } };
+    await openBooks({ purchases: [purchase(5000)], sales: [voided] });
+    const t = screenText(page().result);
+    expect(t).toContain("No sale recorded yet.");
+    expect(t).toContain("VOID · Invoice INV-0001");
+    expect(t).toContain("Voided 2026-03-11 by Pat: Buyer pulled out");
+    expect(buttonByText(screen!.result, "Record Sale")).toBeDefined();
+    expect(buttonByText(screen!.result, "Void sale")).toBeUndefined();
+  });
+});
+
+describe("the Record Sale form after a void", () => {
+  it("numbers the new invoice past the voided one, never reusing it", async () => {
+    const voided = { ...withSaleVat(baseSale(), { purchasePrice: 5000 }), voided: { at: "2026-03-11T10:00:00.000Z", reason: "x", byName: "Pat" } };
+    await openBooks({ purchases: [purchase(5000)], sales: [voided] });
+    await openSaleForm();
+    await typeSale("addsalemodal-sale-price", "6500");
+    await saveSale();
+    const fresh = state.doc.sales!.find((s: SaleEntry) => !s.voided)!;
+    expect(fresh.invoiceNumber).toBe("INV-0002");
   });
 });

@@ -41,6 +41,7 @@ vi.mock("react", async (importOriginal) => {
 vi.mock("@/bookkeeping/BookkeepingProvider", () => ({
   useBookkeeping: () => ({
     sales: [],
+    allSales: [],
     addSale: (e: any) => spies.addSale!(e),
     updateSale: (id: string, p: any) => spies.updateSale!(id, p),
     addCost: (e: any) => spies.addCost!(e),

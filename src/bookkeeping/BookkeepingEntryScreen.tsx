@@ -9,6 +9,7 @@ import { useInventory } from "@/context/InventoryProvider";
 import AddCostModal from "./AddCostModal";
 import AddSaleModal from "./AddSaleModal";
 import RecordPurchasePriceModal from "./RecordPurchasePriceModal";
+import VoidSaleModal from "./VoidSaleModal";
 import { salePricePaid, trustedSaleVat } from "./saleVat";
 
 // Ask before removing a record that changes a car's profit. With no browser to ask
@@ -24,6 +25,7 @@ export default function BookkeepingEntryScreen() {
   const {
     costs,
     sales,
+    allSales,
     getTotalCostForVehicle,
     getProfitForVehicle,
     deleteCost,
@@ -39,6 +41,8 @@ export default function BookkeepingEntryScreen() {
   const purchase = purchases.find((p) => p.vehicleId === vehicleId);
   const vehicleCosts = costs.filter((c) => c.vehicleId === vehicleId);
   const sale = sales.find((s) => s.vehicleId === vehicleId);
+  // This car's voided sales, kept for the record (saleStatus.ts).
+  const voidedSales = allSales.filter((s) => s.vehicleId === vehicleId && s.voided);
 
   const totalCost = getTotalCostForVehicle(vehicleId!);
   // The sale's VAT and net, only as far as they can be trusted (see saleVat.ts).
@@ -54,11 +58,12 @@ export default function BookkeepingEntryScreen() {
   const [showSaleModal, setShowSaleModal] = React.useState(false);
   const [showPurchasePriceModal, setShowPurchasePriceModal] = React.useState(false);
   const [showEditPurchaseModal, setShowEditPurchaseModal] = React.useState(false);
+  const [showVoidSaleModal, setShowVoidSaleModal] = React.useState(false);
 
   // A car with no purchase in the books (a sold car imported from a spreadsheet,
   // say) still has a ledger: it shows "No purchase recorded" and a way to add one.
   // Only a car that exists nowhere is "not found".
-  if (!purchase && !vehicle && !sale) {
+  if (!purchase && !vehicle && !sale && voidedSales.length === 0) {
     return (
       <div className="p-10 text-white">
         <h2 className="text-2xl font-bold text-red-400">Vehicle Not Found</h2>
@@ -98,6 +103,10 @@ export default function BookkeepingEntryScreen() {
           existing={purchase}
           onClose={() => setShowEditPurchaseModal(false)}
         />
+      )}
+
+      {showVoidSaleModal && sale && (
+        <VoidSaleModal sale={sale} vehicleLabel={vehicleLabel ?? ""} onClose={() => setShowVoidSaleModal(false)} />
       )}
 
       {showSaleModal && (
@@ -280,10 +289,41 @@ export default function BookkeepingEntryScreen() {
               >
                 Edit Sale
               </button>
+              <button
+                onClick={() => setShowVoidSaleModal(true)}
+                className="px-3 py-2 rounded border border-red-400/50 text-red-300 hover:bg-red-500/10"
+              >
+                Void sale
+              </button>
             </div>
           </>
         ) : (
           <p className="text-white/60">No sale recorded yet.</p>
+        )}
+
+        {voidedSales.length > 0 && (
+          <div className="mt-5 border-t border-white/10 pt-4">
+            <h3 className="text-white/70 font-semibold mb-2">Voided sales</h3>
+            <ul className="space-y-2">
+              {voidedSales.map((v) => (
+                <li key={v.id} className="p-3 rounded bg-black/30 border border-red-400/20 text-sm">
+                  <p className="text-white/80">
+                    <span className="text-red-300 font-semibold">VOID</span> · Invoice {v.invoiceNumber} ·{" "}
+                    {isPositiveAmount(v.salePrice) ? formatMoney(v.salePrice) : "no price"} · sold {v.date}
+                  </p>
+                  <p className="text-white/60">
+                    Voided {v.voided!.at.slice(0, 10)} by {v.voided!.byName}: {v.voided!.reason}
+                  </p>
+                  <button
+                    onClick={() => navigate(`/bookkeeping/invoice/${vehicleId}?sale=${encodeURIComponent(v.id)}`)}
+                    className="mt-1 text-xs text-yellow-300/80 hover:text-yellow-200"
+                  >
+                    View the voided invoice
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
       </div>
 

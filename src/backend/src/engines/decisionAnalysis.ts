@@ -36,6 +36,7 @@ import {
 import { oneLine } from "./promptText";
 import { LEAD_WINDOW_DAYS, MOT_BOOKING_STATUS } from "./leadSources";
 import { MARGIN_WINDOW_DAYS, formatMoney, type MarginBookkeeping } from "./vehicleMargins";
+import { withoutVoidedSales } from "../saleVoids";
 
 /* ------------------------------------------------------------------ */
 /* Limits (one place, so the prompts, the validators and the tests agree) */
@@ -150,7 +151,7 @@ export function countEvidence(bookkeeping: MarginBookkeeping, leads: unknown, no
 
 // The same records buildBusinessSummary reads, counted.
 export function readEvidence(dealershipId: string, now: number): AnalysisEvidence {
-  const raw = readTenantDoc<unknown>(dealershipId, "bookkeeping", {});
+  const raw = withoutVoidedSales(readTenantDoc<unknown>(dealershipId, "bookkeeping", {}));
   const bookkeeping: MarginBookkeeping = isRecord(raw) ? raw : {};
   return countEvidence(bookkeeping, readTenantCollection<unknown>(dealershipId, "leads"), now);
 }
