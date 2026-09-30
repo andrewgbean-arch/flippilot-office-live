@@ -165,10 +165,12 @@ const loginLimiter = rateLimit({
 // sign up their own throwaway dealerships) — that's real test traffic
 // hitting the real route, not something to mock around, so the limit
 // is raised only under NODE_ENV=test (Vitest's own default) rather
-// than weakened for production.
+// than weakened for production. integration.test.ts alone now signs up
+// more than 500 in one run (it went over on 30 Sep 2026 and the last tests
+// in the file failed at signup), so the test ceiling has room to spare.
 const signupLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
-  limit: process.env.NODE_ENV === "test" ? 500 : 20,
+  limit: process.env.NODE_ENV === "test" ? 2000 : 20,
   standardHeaders: true,
   legacyHeaders: false,
   message: { ok: false, error: "Too many signup attempts — try again later." },
