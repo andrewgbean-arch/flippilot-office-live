@@ -46,14 +46,28 @@ export async function loadBookkeeping(): Promise<BookkeepingDoc | null> {
   return { costs, purchases, sales, transactions, suppliers, categories };
 }
 
-export async function saveBookkeeping(doc: BookkeepingDoc): Promise<void> {
+// Costs the screen deliberately deleted. The server MERGES every save into what it
+// holds (backend bookkeepingMerge.ts), keeping entries this screen never saw (a
+// colleague's), so a deletion has to be named to happen at all.
+export type RemovedEntries = { costs?: string[] };
+
+// Saves, and hands back the merged ledger the server now holds (null when the
+// save failed or the reply isn't a whole ledger), so the screen can show entries
+// someone else added since it loaded.
+export async function saveBookkeeping(doc: BookkeepingDoc, removed?: RemovedEntries): Promise<BookkeepingDoc | null> {
   try {
-    await fetch(`${BASE_URL}/bookkeeping`, {
+    const res = await fetch(`${BASE_URL}/bookkeeping`, {
       method: "PUT",
       headers: { "Content-Type": "application/json", ...authHeaders() },
-      body: JSON.stringify(doc),
+      body: JSON.stringify(removed ? { ...doc, removed } : doc),
     });
+    if (!res.ok) return null;
+    const data = (await res.json()) as Partial<Record<keyof BookkeepingDoc, unknown>>;
+    const lists = ["costs", "purchases", "sales", "transactions", "suppliers", "categories"] as const;
+    if (!lists.every((k) => Array.isArray(data[k]))) return null;
+    return data as BookkeepingDoc;
   } catch (err) {
     console.error("saveBookkeeping: backend unreachable", err);
+    return null;
   }
 }

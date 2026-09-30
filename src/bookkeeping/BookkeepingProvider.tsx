@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode } from "react";
+import React, { createContext, useContext, useRef, useState, ReactNode } from "react";
 import {
   CostEntry,
   PurchaseEntry,
@@ -15,7 +15,7 @@ import { activeSales } from "./saleStatus";
 import { isPositiveAmount } from "@/lib/parseMoney";
 import { hubTotals, carProfit } from "./profitTotals";
 import { purchaseVatSettings } from "./purchaseVat";
-import { loadBookkeeping, saveBookkeeping, type BookkeepingDoc } from "./bookkeepingStorage.web";
+import { loadBookkeeping, saveBookkeeping, type BookkeepingDoc, type RemovedEntries } from "./bookkeepingStorage.web";
 import { useAuth } from "@/context/AuthContext";
 import { useGuardedLoad } from "@/lib/useGuardedLoad";
 import { canSeeMoney } from "@/lib/permissions";
@@ -112,6 +112,9 @@ export function BookkeepingProvider({ children }: BookkeepingProviderProps) {
   const [sales, setSales] = useState<SaleEntry[]>([]);
   // The sales every figure reads: voided ones are left out (saleStatus.ts).
   const liveSales = activeSales(sales);
+  // Costs deleted on this screen, so a merged ledger handed back by an earlier
+  // save can't put them back on screen.
+  const deletedCostIds = useRef(new Set<string>());
   const [transactions, setTransactions] = useState<TransactionEntry[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -161,15 +164,40 @@ export function BookkeepingProvider({ children }: BookkeepingProviderProps) {
   // with whichever field(s) it just changed; everything else is taken
   // from current state. Each mutator checks guardSave() first, so
   // nothing reaches here (or changes on screen) before a good load.
-  function persist(next: Partial<BookkeepingDoc>) {
-    saveBookkeeping({
-      costs: next.costs ?? costs,
-      purchases: next.purchases ?? purchases,
-      sales: next.sales ?? sales,
-      transactions: next.transactions ?? transactions,
-      suppliers: next.suppliers ?? suppliers,
-      categories: next.categories ?? categories,
+  //
+  // The server MERGES a save into what it holds, so a colleague's entries made
+  // since this screen loaded are kept, and a deletion has to be named (`removed`).
+  // What it hands back is added to this screen: entries it didn't have yet. Nothing
+  // on screen is overwritten or removed by it, and a cost deleted here is never
+  // brought back.
+  function persist(next: Partial<BookkeepingDoc>, removed?: RemovedEntries) {
+    void saveBookkeeping(
+      {
+        costs: next.costs ?? costs,
+        purchases: next.purchases ?? purchases,
+        sales: next.sales ?? sales,
+        transactions: next.transactions ?? transactions,
+        suppliers: next.suppliers ?? suppliers,
+        categories: next.categories ?? categories,
+      },
+      removed
+    ).then((merged) => {
+      if (merged) addOthersEntries(merged);
     });
+  }
+
+  function addOthersEntries(merged: BookkeepingDoc) {
+    const addMissing = <T extends { id: string }>(prev: T[], server: T[], skip?: ReadonlySet<string>): T[] => {
+      const have = new Set(prev.map((e) => e.id));
+      const extra = server.filter((e) => e && typeof e.id === "string" && !have.has(e.id) && !skip?.has(e.id));
+      return extra.length > 0 ? [...prev, ...extra] : prev;
+    };
+    setCosts((prev) => addMissing(prev, merged.costs, deletedCostIds.current));
+    setPurchases((prev) => addMissing(prev, merged.purchases));
+    setSales((prev) => addMissing(prev, merged.sales));
+    setTransactions((prev) => addMissing(prev, merged.transactions));
+    setSuppliers((prev) => addMissing(prev, merged.suppliers));
+    setCategories((prev) => addMissing(prev, merged.categories));
   }
 
   // COSTS
@@ -202,8 +230,9 @@ export function BookkeepingProvider({ children }: BookkeepingProviderProps) {
   const deleteCost = (id: string) => {
     if (!guardSave()) return;
     const updated = costs.filter((c) => c.id !== id);
+    deletedCostIds.current.add(id);
     setCosts(updated);
-    persist({ costs: updated });
+    persist({ costs: updated }, { costs: [id] });
   };
 
   // PURCHASES

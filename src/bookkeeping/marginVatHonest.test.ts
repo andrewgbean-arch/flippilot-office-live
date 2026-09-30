@@ -1013,3 +1013,60 @@ describe("the Record Sale form after a void", () => {
     expect(fresh.invoiceNumber).toBe("INV-0002");
   });
 });
+
+/* --------------------- two people using Books at the same time --------------------- */
+// The server merges each save into what it holds (backend bookkeepingMerge.ts), so a
+// deletion has to be named, and the merged ledger it hands back shows this screen
+// what a colleague added since it loaded.
+
+describe("saves when someone else is using Books too", () => {
+  const cost = (id: string, amount = 100) => ({ id, vehicleId: "v1", type: "parts", amount, vatRate: 0.2, vatIncluded: true, vatReclaimable: true, vatAmount: 16.67, netAmount: 83.33, date: "2026-03-05" });
+
+  it("deleting a cost names it in the save, so the server knows it was meant", async () => {
+    await openBooks({ costs: [cost("c1"), cost("c2")] });
+    puts = [];
+    ctx().deleteCost("c1");
+    await settle();
+    expect(puts[0].removed).toEqual({ costs: ["c1"] });
+    expect(puts[0].costs.map((c: { id: string }) => c.id)).toEqual(["c2"]);
+  });
+
+  it("an ordinary save names no deletions", async () => {
+    await openBooks({ costs: [cost("c1")] });
+    puts = [];
+    ctx().addCost(cost("c3"));
+    await settle();
+    expect(puts[0].removed).toBeUndefined();
+  });
+
+  it("a colleague's entry in the server's merged reply appears on this screen", async () => {
+    await openBooks({ costs: [cost("mine")] });
+    vi.stubGlobal("fetch", async (_url: unknown, init?: { method?: string; body?: string }) => {
+      if ((init?.method ?? "GET").toUpperCase() === "PUT") {
+        const body = JSON.parse(init!.body!);
+        const merged = { ...body, costs: [...body.costs, cost("theirs")], sales: [...body.sales, baseSale({ id: "s-theirs" })] };
+        delete merged.removed;
+        return reply(200, { ok: true, ...merged });
+      }
+      return reply(200, { ok: true, ...state.doc });
+    });
+    ctx().addCost(cost("new"));
+    await settle();
+    expect(ctx().costs.map((c: { id: string }) => c.id).sort()).toEqual(["mine", "new", "theirs"]);
+    expect(ctx().sales.map((s: { id: string }) => s.id)).toEqual(["s-theirs"]);
+  });
+
+  it("a cost deleted here never comes back from a merged reply", async () => {
+    await openBooks({ costs: [cost("gone"), cost("keep")] });
+    vi.stubGlobal("fetch", async (_url: unknown, init?: { method?: string; body?: string }) => {
+      if ((init?.method ?? "GET").toUpperCase() === "PUT") {
+        // A reply that still has it (an earlier save's merge, say).
+        return reply(200, { ok: true, ...state.doc, costs: [cost("gone"), cost("keep")] });
+      }
+      return reply(200, { ok: true, ...state.doc });
+    });
+    ctx().deleteCost("gone");
+    await settle();
+    expect(ctx().costs.map((c: { id: string }) => c.id)).toEqual(["keep"]);
+  });
+});

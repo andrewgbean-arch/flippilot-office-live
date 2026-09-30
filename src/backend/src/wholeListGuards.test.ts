@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import request from "supertest";
 import app from "./app.js";
-import { readCollection, writeCollection, deleteTenantData } from "./db.js";
+import { readCollection, writeCollection, deleteTenantData, writeTenantDoc } from "./db.js";
 
 // The routes that REPLACE a dealership's whole list (or the whole ledger)
 // with what the request holds. They used to turn a missing or wrongly-typed
@@ -40,7 +40,7 @@ async function signup(suffix: string) {
   });
   cleanupEmails.push(email);
   cleanupDealershipIds.push(res.body.user.dealershipId);
-  return { token: res.body.token as string };
+  return { token: res.body.token as string, dealershipId: res.body.user.dealershipId as string };
 }
 
 async function joinStaff(ownerToken: string, staffRole: "sales" | "finance" | "manager" | "general") {
@@ -61,10 +61,13 @@ async function joinStaff(ownerToken: string, staffRole: "sales" | "finance" | "m
 }
 
 let ownerToken = "";
+let ownerDealershipId = "";
 let salesToken = "";
 
 beforeAll(async () => {
-  ownerToken = (await signup("owner")).token;
+  const owner = await signup("owner");
+  ownerToken = owner.token;
+  ownerDealershipId = owner.dealershipId;
   salesToken = await joinStaff(ownerToken, "sales");
 });
 
@@ -219,7 +222,7 @@ describe.each(LIST_ROUTES)("PUT $path replaces a whole list, so it refuses anyth
   }
 });
 
-describe("PUT /bookkeeping replaces the whole ledger, so it refuses anything that is not a whole ledger", () => {
+describe("PUT /bookkeeping takes the whole ledger, so it refuses anything that is not a whole ledger", () => {
   const LEDGER = {
     costs: [{ id: "cost-1", vehicleId: "car-1", amount: 120, date: "2030-01-05" }],
     purchases: [{ id: "purchase-1", vehicleId: "car-1", purchasePrice: 4000, date: "2030-01-01" }],
@@ -230,9 +233,10 @@ describe("PUT /bookkeeping replaces the whole ledger, so it refuses anything tha
   };
   const EMPTY_LEDGER = { costs: [], purchases: [], sales: [], transactions: [], suppliers: [], categories: [] };
 
+  // Written straight to storage: a save now MERGES (bookkeepingMerge.ts), so it
+  // can't clear what earlier tests left behind.
   async function seed() {
-    const res = await request(app).put("/bookkeeping").set(auth(ownerToken)).send(LEDGER);
-    expect(res.status).toBe(200);
+    writeTenantDoc(ownerDealershipId, "bookkeeping", LEDGER);
   }
   async function stored() {
     const res = await request(app).get("/bookkeeping").set(auth(ownerToken));
@@ -269,11 +273,19 @@ describe("PUT /bookkeeping replaces the whole ledger, so it refuses anything tha
     expect(typeof res.body.error).toBe("string");
   });
 
-  it("still accepts a ledger where every list is genuinely empty and stores it", async () => {
+  it("accepts a ledger where every list is empty, but no longer wipes the stored entries with it", async () => {
     await seed();
     const res = await request(app).put("/bookkeeping").set(auth(ownerToken)).send(EMPTY_LEDGER);
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ ok: true, ...EMPTY_LEDGER });
+    // A save is merged: entries it doesn't have are someone else's, and are kept.
+    expect(res.body).toEqual({ ok: true, ...LEDGER });
+    expect(await stored()).toEqual(LEDGER);
+  });
+
+  it("an empty ledger saved over an empty one stays empty", async () => {
+    writeTenantDoc(ownerDealershipId, "bookkeeping", EMPTY_LEDGER);
+    const res = await request(app).put("/bookkeeping").set(auth(ownerToken)).send(EMPTY_LEDGER);
+    expect(res.status).toBe(200);
     expect(await stored()).toEqual(EMPTY_LEDGER);
   });
 
