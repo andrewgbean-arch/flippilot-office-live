@@ -1,7 +1,10 @@
-import { Express } from "express";
+import { randomBytes, timingSafeEqual } from "crypto";
+import { Express, Request } from "express";
 import rateLimit from "express-rate-limit";
-import { readTenantCollection } from "../db";
+import { readCollection, readTenantCollection, writeCollection } from "../db";
 import { isSampleVehicleId } from "../sampleVehicles";
+import { requireAuth, requireOwner, type AuthUser, type Dealership } from "../auth";
+import { publicOrigin } from "./photos";
 
 // Same unauthenticated-by-design reasoning as the URL itself (see
 // below) — but with no limiter at all, a known feed URL could be
@@ -43,6 +46,32 @@ type VehicleLike = {
   vatScheme?: string;
   status: string;
 };
+
+// The feed carries the advert description, VAT scheme, condition and every
+// photo — more than the genuinely public storefront/passport show — so it
+// can't rely on dealershipId alone being hard to find (the same id is
+// embedded in the public /store/:id link a dealer shares on purpose). This
+// generates a random per-dealership token the first time anyone asks for
+// one (Marketplace Sync, on load) rather than needing a migration for every
+// dealership that existed before this fix.
+export function getOrCreateSyndicationToken(dealershipId: string): string | null {
+  const dealerships = readCollection<Dealership>("dealerships");
+  const dealership = dealerships.find(d => d.id === dealershipId);
+  if (!dealership) return null;
+
+  if (!dealership.syndicationFeedToken) {
+    dealership.syndicationFeedToken = randomBytes(24).toString("hex");
+    writeCollection("dealerships", dealerships);
+  }
+  return dealership.syndicationFeedToken;
+}
+
+function tokenMatches(expected: string, given: unknown): boolean {
+  if (typeof given !== "string" || given.length === 0) return false;
+  const expectedBuf = Buffer.from(expected);
+  const givenBuf = Buffer.from(given);
+  return expectedBuf.length === givenBuf.length && timingSafeEqual(expectedBuf, givenBuf);
+}
 
 function csvEscape(value: unknown): string {
   const str = value == null ? "" : String(value);
@@ -97,21 +126,21 @@ function vehiclesToCsv(vehicles: VehicleLike[]): string {
 export default function registerSyndicationRoute(app: Express) {
   // Works today, no external credentials needed — point a portal's feed
   // importer (or Motors.co.uk's daily feed intake) at this URL, or just
-  // download it for manual upload. Scoped by dealershipId in the path
-  // rather than requireAuth, so a portal's feed importer can fetch this
-  // on a schedule with no login flow of its own.
+  // download it for manual upload. Scoped by dealershipId in the path and a
+  // secret ?token= in the query string, rather than requireAuth, so a
+  // portal's feed importer can fetch this on a schedule with no login flow
+  // of its own — same "whoever holds the link can read it" shape as a
+  // private iCal link.
   //
-  // dealershipId is NOT actually a secret in this app — a security
-  // review found it's the same id embedded in the genuinely public
-  // /store/:dealershipId storefront (meant to be shared on the dealer's
-  // own website/social pages), which this route's original comment
-  // wrongly assumed was "unguessable by design" like a private iCal
-  // link. Since anyone who's seen a dealer's public store link can
-  // derive this feed URL, it can only ever return what's already
-  // public via /public/:dealershipId/vehicles — same sold-stock filter
-  // applied here, and listingDescription (the deliberately public-
-  // facing copy) instead of notes (internal-only, never meant to leave
-  // the dealer's own account) in the Description column.
+  // dealershipId alone is NOT a secret in this app — it's the same id
+  // embedded in the genuinely public /store/:id storefront a dealer shares
+  // on purpose — but this feed carries fields that storefront deliberately
+  // doesn't (advert description, VAT scheme, condition, every photo, not
+  // just one thumbnail), so an earlier version of this route that trusted
+  // dealershipId alone was handing that out to anyone who'd ever seen the
+  // dealer's public store link. The token (getOrCreateSyndicationToken,
+  // above) is the part that actually has to stay secret; see
+  // GET /syndication/feed-url for how a dealer gets their own.
   //
   // A separate, earlier fix caught this reading from the GLOBAL
   // `vehicles` collection — a completely different, disconnected data
@@ -126,6 +155,14 @@ export default function registerSyndicationRoute(app: Express) {
     const dealershipId = req.params.dealershipId;
     if (!dealershipId) return res.status(400).json({ ok: false, error: "Missing dealership id" });
 
+    const expectedToken = getOrCreateSyndicationToken(dealershipId);
+    // Same reply whether the dealership doesn't exist or the token is
+    // wrong/missing — no reason to confirm a dealershipId is real to
+    // someone who can't produce its token.
+    if (!expectedToken || !tokenMatches(expectedToken, req.query.token)) {
+      return res.status(404).json({ ok: false, error: "Not found" });
+    }
+
     const vehicles = readTenantCollection<VehicleLike>(dealershipId, "vehicles")
       .filter(v => String(v.status ?? "").toLowerCase() !== "sold")
       .filter(v => !isSampleVehicleId(v.id));
@@ -137,6 +174,44 @@ export default function registerSyndicationRoute(app: Express) {
       "attachment; filename=stock-feed.csv"
     );
     res.send(csv);
+  });
+
+  // Lets Marketplace Sync show/copy the real, token-bearing feed URL without
+  // the web app ever constructing it from dealershipId alone. Any signed-in
+  // teammate can fetch it — the page itself has never been owner-only, and
+  // whoever can already see Manage Team's invite links could get the same
+  // information by asking an owner to paste it, so restricting this
+  // specifically would just be friction, not a real boundary.
+  app.get("/syndication/feed-url", requireAuth, (req, res) => {
+    const user = (req as Request & { user: AuthUser }).user;
+    const token = getOrCreateSyndicationToken(user.dealershipId);
+    if (!token) return res.status(404).json({ ok: false, error: "Dealership not found" });
+
+    res.json({
+      ok: true,
+      feedUrl: `${publicOrigin(req)}/syndication/${user.dealershipId}/feed.csv?token=${token}`,
+    });
+  });
+
+  // If a token leaks (shared with the wrong portal, pasted somewhere public),
+  // the owner needs a way to cut it off without FlipPilot support being
+  // involved — the old link 404s immediately, and the dealer re-shares the
+  // new one with whoever should still have it. Owner-only: the token is a
+  // credential for a business integration, not a preference every teammate
+  // should be able to invalidate for the others.
+  app.post("/syndication/regenerate-token", requireAuth, requireOwner, (req, res) => {
+    const user = (req as Request & { user: AuthUser }).user;
+    const dealerships = readCollection<Dealership>("dealerships");
+    const dealership = dealerships.find(d => d.id === user.dealershipId);
+    if (!dealership) return res.status(404).json({ ok: false, error: "Dealership not found" });
+
+    dealership.syndicationFeedToken = randomBytes(24).toString("hex");
+    writeCollection("dealerships", dealerships);
+
+    res.json({
+      ok: true,
+      feedUrl: `${publicOrigin(req)}/syndication/${user.dealershipId}/feed.csv?token=${dealership.syndicationFeedToken}`,
+    });
   });
 
   // Lets the UI show real connection status per platform instead of

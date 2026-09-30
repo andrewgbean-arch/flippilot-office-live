@@ -162,6 +162,15 @@ export interface Dealership {
   // owner picks it in Settings; 0 = never. Unset means the web app's default
   // (15 minutes, src/lib/idleSignOut.ts), so it is on unless turned off.
   autoSignOutMinutes?: number;
+  // Secret query-string token gating GET /syndication/:dealershipId/feed.csv
+  // (syndication.ts) — that feed carries fields (advert description, VAT
+  // scheme, condition, every photo) beyond what the genuinely public
+  // storefront/passport show, so it can't rely on dealershipId alone being
+  // hard to find (it's the same id embedded in the public /store/:id link).
+  // Generated lazily on first use by getOrCreateSyndicationToken, not at
+  // signup, so existing dealerships pick one up the first time anyone opens
+  // Marketplace Sync rather than needing a migration.
+  syndicationFeedToken?: string;
 }
 
 // What the owner may choose for Dealership.autoSignOutMinutes (0 = off).

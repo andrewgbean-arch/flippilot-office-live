@@ -5,6 +5,7 @@ import { SupernovaGlowCard } from "@/components/supernova/SupernovaGlowCard";
 import { useAuth } from "@/context/AuthContext";
 
 import { BASE_URL } from "@/lib/apiBaseUrl";
+import { authHeaders } from "@/lib/authToken";
 
 type PlatformStatus = {
   available: boolean;
@@ -41,15 +42,31 @@ export function PlatformCard({ label, platform }: { label: string; platform: Pla
 
 export default function MarketplaceSync() {
   const { user } = useAuth();
-  // Was a single hardcoded URL reading a global, disconnected
-  // collection — every dealer got the same (always-empty) feed. Real
-  // per-dealer inventory only exists scoped by dealershipId, so the
-  // feed URL has to be too.
-  const feedUrl = user ? `${BASE_URL}/syndication/${user.dealershipId}/feed.csv` : null;
+  // The URL carries a secret ?token= the server generates per dealership —
+  // dealershipId alone isn't enough to keep this feed private (it's the
+  // same id shown on the public storefront link), so it's fetched from the
+  // server rather than built here from dealershipId like the old version
+  // did.
+  const [feedUrl, setFeedUrl] = useState<string | null>(null);
+  const [feedUrlError, setFeedUrlError] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
 
   const [status, setStatus] = useState<StatusResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+
+  function loadFeedUrl() {
+    setFeedUrlError(false);
+    fetch(`${BASE_URL}/syndication/feed-url`, { headers: authHeaders() })
+      .then(res => (res.ok ? res.json() : Promise.reject(res)))
+      .then(data => setFeedUrl(data.feedUrl))
+      .catch(() => setFeedUrlError(true));
+  }
+
+  useEffect(() => {
+    if (!user) return;
+    loadFeedUrl();
+  }, [user]);
 
   useEffect(() => {
     fetch(`${BASE_URL}/syndication/status`)
@@ -65,6 +82,15 @@ export default function MarketplaceSync() {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
+  }
+
+  function regenerateFeedUrl() {
+    setRegenerating(true);
+    fetch(`${BASE_URL}/syndication/regenerate-token`, { method: "POST", headers: authHeaders() })
+      .then(res => (res.ok ? res.json() : Promise.reject(res)))
+      .then(data => setFeedUrl(data.feedUrl))
+      .catch(() => setFeedUrlError(true))
+      .finally(() => setRegenerating(false));
   }
 
   return (
@@ -105,7 +131,26 @@ export default function MarketplaceSync() {
           >
             {copied ? "Copied!" : "Copy Feed URL"}
           </button>
+          {user?.role === "owner" && (
+            <button
+              onClick={regenerateFeedUrl}
+              disabled={regenerating}
+              className="px-4 py-2 rounded-lg bg-black/40 border border-white/20 text-white/70 font-semibold hover:bg-black/60 transition disabled:opacity-50"
+            >
+              {regenerating ? "Getting a new link…" : "Get a New Link"}
+            </button>
+          )}
         </div>
+        {feedUrlError && (
+          <p className="text-red-400 text-sm mt-3">
+            Couldn't get your feed link. <button onClick={loadFeedUrl} className="underline">Try again</button>.
+          </p>
+        )}
+        {user?.role === "owner" && (
+          <p className="text-white/40 text-xs mt-3">
+            Only share this link with a portal you actually use — whoever has it can read your live stock. If it's ever shared by mistake, press Get a New Link to shut off the old one.
+          </p>
+        )}
       </SupernovaGlowCard>
 
       <SupernovaSectionDivider label="Direct Portal Connections: Not Available Yet" />

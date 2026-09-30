@@ -583,6 +583,14 @@ export const chapter: TourChapter = {
             question: "How do I give a portal a feed link?",
             steps: ["Check the portal has agreed to collect a feed from you.", "Press Copy Feed URL.", "Send them the link yourself."],
           },
+          {
+            question: "I shared the link with the wrong portal — what now?",
+            steps: [
+              "Press Get a New Link (owner only).",
+              "The old link stops working immediately.",
+              "Send the new link to the portals you actually meant to share it with.",
+            ],
+          },
         ],
         tips: [
           "Sold cars are left out, and the file is rebuilt every time it's opened, so it's always current.",

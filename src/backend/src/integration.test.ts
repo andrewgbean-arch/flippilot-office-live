@@ -24,6 +24,7 @@ import {
   readTenantDoc,
 } from "./db.js";
 import { buildBusinessSummary } from "./routes/pilotBrain.js";
+import { getOrCreateSyndicationToken } from "./routes/syndication.js";
 import { announceWantedArrivals } from "./routes/wanted.js";
 import { PROMPT_HEADERS } from "./pilotBrainShield.js";
 import { systemText, withSystemText } from "./pilotBrainPrompt.js";
@@ -161,18 +162,77 @@ describe("unauthenticated access is blocked on real data routes", () => {
   });
 });
 
-describe("syndication feed — deliberately unauthenticated, but tenant-scoped", () => {
-  it("returns 200 with just a header row for a dealership with no vehicles, not an error", async () => {
+describe("syndication feed — no login needed, but a secret token is required", () => {
+  it("returns 200 with just a header row for a dealership with no vehicles, not an error, given the right token", async () => {
     const { user } = await signup("synd");
-    const res = await request(app).get(`/syndication/${user.dealershipId}/feed.csv`);
+    const token = getOrCreateSyndicationToken(user.dealershipId);
+    const res = await request(app).get(`/syndication/${user.dealershipId}/feed.csv?token=${token}`);
     expect(res.status).toBe(200);
     expect(res.text).toContain("Registration,Make,Model");
   });
 
-  it("returns 200 with an empty-looking feed for a bogus dealershipId, not a crash or someone else's data", async () => {
-    const res = await request(app).get("/syndication/00000000-not-a-real-id/feed.csv");
-    expect(res.status).toBe(200);
-    expect(res.text.split("\r\n").length).toBeLessThanOrEqual(2); // header only
+  it("returns 404 for a bogus dealershipId, not a crash or someone else's data", async () => {
+    const res = await request(app).get("/syndication/00000000-not-a-real-id/feed.csv?token=anything");
+    expect(res.status).toBe(404);
+  });
+
+  it("returns 404 with no token at all — dealershipId alone is not enough (it's the same id on the public storefront link)", async () => {
+    const { user } = await signup("synd-no-token");
+    const res = await request(app).get(`/syndication/${user.dealershipId}/feed.csv`);
+    expect(res.status).toBe(404);
+  });
+
+  it("returns 404 for the right dealership with the wrong token", async () => {
+    const { user } = await signup("synd-wrong-token");
+    getOrCreateSyndicationToken(user.dealershipId);
+    const res = await request(app).get(`/syndication/${user.dealershipId}/feed.csv?token=not-the-real-token`);
+    expect(res.status).toBe(404);
+  });
+
+  it("GET /syndication/feed-url (signed in) hands back a URL that actually works, and needs no separate login to use", async () => {
+    const { token: authToken, user } = await signup("synd-url");
+    const urlRes = await request(app).get("/syndication/feed-url").set("Authorization", `Bearer ${authToken}`);
+    expect(urlRes.status).toBe(200);
+    expect(urlRes.body.feedUrl).toContain(`/syndication/${user.dealershipId}/feed.csv?token=`);
+
+    const path = urlRes.body.feedUrl.replace(/^https?:\/\/[^/]+/, "");
+    const feedRes = await request(app).get(path);
+    expect(feedRes.status).toBe(200);
+    expect(feedRes.text).toContain("Registration,Make,Model");
+  });
+
+  it("GET /syndication/feed-url is refused with no login", async () => {
+    const res = await request(app).get("/syndication/feed-url");
+    expect(res.status).toBe(401);
+  });
+
+  it("owner can regenerate the token, which shuts off the old link immediately", async () => {
+    const { token: authToken, user } = await signup("synd-regen");
+    const before = getOrCreateSyndicationToken(user.dealershipId);
+    const oldRes = await request(app).get(`/syndication/${user.dealershipId}/feed.csv?token=${before}`);
+    expect(oldRes.status).toBe(200);
+
+    const regen = await request(app)
+      .post("/syndication/regenerate-token")
+      .set("Authorization", `Bearer ${authToken}`);
+    expect(regen.status).toBe(200);
+    expect(regen.body.feedUrl).not.toContain(before);
+
+    const oldLinkNow = await request(app).get(`/syndication/${user.dealershipId}/feed.csv?token=${before}`);
+    expect(oldLinkNow.status).toBe(404);
+
+    const newToken = new URL(regen.body.feedUrl).searchParams.get("token");
+    const newLink = await request(app).get(`/syndication/${user.dealershipId}/feed.csv?token=${newToken}`);
+    expect(newLink.status).toBe(200);
+  });
+
+  it("a non-owner staff member cannot regenerate the token", async () => {
+    const owner = await signup("synd-regen-staff");
+    const staff = await joinStaff(owner.token, "manager");
+    const res = await request(app)
+      .post("/syndication/regenerate-token")
+      .set("Authorization", `Bearer ${staff.token}`);
+    expect(res.status).toBe(403);
   });
 });
 
@@ -2041,7 +2101,8 @@ describe("public store page and stock feed never publish the old seeded demo car
     expect(storefront.status).toBe(200);
     expect(storefront.body.items.map((v: any) => v.model)).toEqual(["Astra Real"]);
 
-    const feed = await request(app).get(`/syndication/${dealer.user.dealershipId}/feed.csv`);
+    const feedToken = getOrCreateSyndicationToken(dealer.user.dealershipId);
+    const feed = await request(app).get(`/syndication/${dealer.user.dealershipId}/feed.csv?token=${feedToken}`);
     expect(feed.status).toBe(200);
     expect(feed.text).toContain("Astra Real");
     for (const demoModel of ["M2 Competition", "Focus RS", "208 Active"]) {
