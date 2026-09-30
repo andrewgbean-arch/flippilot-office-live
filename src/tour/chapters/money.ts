@@ -197,11 +197,28 @@ export const chapter: TourChapter = {
               "On the Purchase card, click Record purchase price.",
               "Enter what the car really cost.",
               "Click Save Purchase Price. The profit, and the VAT on a Margin Scheme sale, are worked out straight away.",
+              "If the car has no purchase at all (it came in from a spreadsheet, say), the button reads Record what you paid and asks the date bought too.",
+            ],
+          },
+          {
+            question: "How do I fix a purchase price I typed wrong?",
+            steps: [
+              "On the Purchase card, click Edit purchase.",
+              "Correct the price, the date bought or where it came from.",
+              "Click Save Changes. The profit, and the VAT on a Margin Scheme sale, follow straight away.",
             ],
           },
           {
             question: "How do I correct a sale?",
             steps: ["Click Edit Sale on the Sale card.", "Change the price, VAT details, buyer or date.", "Click Update Sale."],
+          },
+          {
+            question: "How do I cancel a sale recorded by mistake, or one that fell through?",
+            steps: [
+              "Click Void sale on the Sale card.",
+              "Say why, and leave Put the car back in stock ticked if the car is for sale again.",
+              "Click Void Sale. It stays in your books marked VOID, is left out of every figure, and its invoice number is never used again. This can't be undone.",
+            ],
           },
           {
             question: "How do I remove a cost entered by mistake?",
@@ -215,6 +232,7 @@ export const chapter: TourChapter = {
         tips: [
           "Email to Customer doesn't attach a PDF: it writes the invoice details into the email. Save the PDF and attach it yourself if the customer needs one.",
           "Emptying the buyer's email or phone on Edit Sale won't clear it. Type the new details over the old ones instead.",
+          "A voided sale's invoice still opens from the car's page, marked VOID, so you can show what happened. It can't be emailed.",
         ],
       },
     },
