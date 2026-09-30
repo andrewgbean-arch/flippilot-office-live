@@ -127,6 +127,11 @@ if (!process.env.CREDENTIAL_ENCRYPTION_KEY || process.env.CREDENTIAL_ENCRYPTION_
     '⚠️  CREDENTIAL_ENCRYPTION_KEY is missing or invalid — /email-settings (dealer-supplied SendGrid keys) will fail until this is set to a 64-character hex string in backend/.env. Generate one with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"'
   );
 }
+if (!process.env.MESSAGE_ENCRYPTION_KEY || process.env.MESSAGE_ENCRYPTION_KEY.length !== 64) {
+  console.warn(
+    '⚠️  MESSAGE_ENCRYPTION_KEY is missing or invalid — staff messages are being stored as plain text until this is set to a 64-character hex string in backend/.env. Generate one with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"'
+  );
+}
 
 app.get("/", (_req, res) => {
   res.json({

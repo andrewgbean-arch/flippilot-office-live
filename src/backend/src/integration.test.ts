@@ -4840,6 +4840,50 @@ describe("message photos — lifecycle, limits and hardening", () => {
   });
 });
 
+// A 1:1 staff message's text is encrypted at rest (messageCrypto.ts) once
+// MESSAGE_ENCRYPTION_KEY is set — real end-to-end proof, through the actual
+// routes, that the database never holds the plain words and the people in
+// the conversation still see them normally.
+describe("staff messages — the text is encrypted at rest", () => {
+  const auth = (token: string) => ({ Authorization: `Bearer ${token}` });
+  const prevKey = process.env.MESSAGE_ENCRYPTION_KEY;
+  beforeAll(() => {
+    process.env.MESSAGE_ENCRYPTION_KEY = "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4";
+  });
+  afterAll(() => {
+    if (prevKey === undefined) delete process.env.MESSAGE_ENCRYPTION_KEY;
+    else process.env.MESSAGE_ENCRYPTION_KEY = prevKey;
+  });
+
+  it("stores ciphertext, not the real words, but both people in the conversation still read it normally", async () => {
+    const owner = await signup("msgcrypto-owner");
+    const alice = await joinStaff(owner.token, "sales");
+    const bob = await joinStaff(owner.token, "general");
+    const secret = "the customer will pay £3200 cash, keep it between us";
+
+    const sent = await request(app)
+      .post("/staff-messages")
+      .set(auth(alice.token))
+      .send({ toUserId: bob.user.id, message: secret });
+    expect(sent.status).toBe(200);
+    // The sender's own response shows the real text straight away.
+    expect(sent.body.message.message).toBe(secret);
+
+    const stored = readTenantCollection<{ message: string }>(owner.user.dealershipId, "staffMessages");
+    expect(stored).toHaveLength(1);
+    expect(stored[0]!.message).not.toContain(secret);
+    expect(stored[0]!.message).not.toContain("3200");
+    expect(stored[0]!.message).toMatch(/^[A-Za-z0-9+/]+=*:[A-Za-z0-9+/]+=*:[A-Za-z0-9+/]*=*$/); // iv:authTag:data
+
+    const inbox = await request(app).get("/staff-messages").set(auth(bob.token));
+    expect(inbox.status).toBe(200);
+    expect(inbox.body.messages[0].message).toBe(secret);
+
+    const ownExport = await request(app).get("/me/data-export").set(auth(alice.token));
+    expect(ownExport.body.teamMessages.sent[0].message).toBe(secret);
+  });
+});
+
 // Pilot Brain talks to EVERY signed-in member of a dealership (its gate is
 // per dealership, not per role). So what it is given must be limited to what
 // everyone on the team may already see: it must never be handed wages,

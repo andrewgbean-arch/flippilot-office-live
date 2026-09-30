@@ -3,6 +3,7 @@ import { readCollection, readTenantCollection, writeTenantCollection, readTenant
 import { requireAuth, requireOwner, type AuthUser, type Dealership, type StoredUser } from "./auth";
 import { RATES_COLLECTION } from "./routes/pay";
 import { normaliseDoc, EMPTY_SECURITY_DOC, withoutExpiredEvents, type SecurityDoc } from "./pilotBrainShield";
+import { decryptMessage } from "./messageCrypto";
 
 // Where Pilot Brain keeps each person's chat and the facts she remembers
 // about them (routes/pilotBrain.ts reads and writes these).
@@ -56,6 +57,13 @@ function withPhotoCount<T extends Record<string, unknown>>(row: T) {
   return Array.isArray(photoIds) && photoIds.length > 0 ? { ...rest, photos: photoIds.length } : rest;
 }
 
+// staffMessages.ts stores a message's text encrypted (messageCrypto.ts) —
+// a person's own export should read like the conversation they had, not
+// ciphertext.
+function withDecryptedMessage<T extends Record<string, unknown>>(row: T): T {
+  return typeof row.message === "string" ? { ...row, message: decryptMessage(row.message) } : row;
+}
+
 // Everything Dealer OS holds about one person in their dealership, for a
 // "download my data" (a UK GDPR subject access request). Their own records in
 // full, the team messages they sent or received, the message-board posts they
@@ -99,8 +107,8 @@ export function buildPersonalExport(user: StoredUser) {
     workPattern: own("workPatterns"),
     payRate: own(RATES_COLLECTION)[0] ?? null,
     teamMessages: {
-      sent: messages.filter(m => m.fromUserId === user.id).map(withPhotoCount),
-      received: messages.filter(m => m.toUserId === user.id).map(withPhotoCount),
+      sent: messages.filter(m => m.fromUserId === user.id).map(withDecryptedMessage).map(withPhotoCount),
+      received: messages.filter(m => m.toUserId === user.id).map(withDecryptedMessage).map(withPhotoCount),
     },
     messageBoardPosts: own("feedback").map(withPhotoCount),
     jobsAssignedToYou: jobs

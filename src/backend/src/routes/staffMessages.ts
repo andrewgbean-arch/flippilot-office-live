@@ -4,6 +4,7 @@ import { detachMessagePhotos, readCollection, readTenantCollection, writeTenantC
 import { requireAuth, type AuthUser, type StoredUser } from "../auth";
 import { parsePhotoIds } from "../photoStore";
 import { attachPhotosToMessage, publicOrigin, withPhotoUrls } from "./photos";
+import { encryptMessage, decryptMessage } from "../messageCrypto";
 
 export interface StaffMessage {
   id: string;
@@ -86,9 +87,14 @@ export default function registerStaffMessagesRoute(app: Express) {
       return res.status(attached.status).json({ ok: false, error: attached.error });
     }
 
+    // Stored encrypted (see messageCrypto.ts); everything else here —
+    // the notification preview below, and the response this call sends
+    // back to the sender — keeps using `entry`, which still holds the
+    // real text.
+    const stored: StaffMessage = { ...entry, message: encryptMessage(entry.message) };
     const existing = readTenantCollection<StaffMessage>(user.dealershipId, COLLECTION);
     try {
-      writeTenantCollection(user.dealershipId, COLLECTION, [...existing, entry]);
+      writeTenantCollection(user.dealershipId, COLLECTION, [...existing, stored]);
     } catch (err) {
       // The photos were attached a moment ago; don't leave them pointing at
       // a message that was never saved.
@@ -132,11 +138,12 @@ export default function registerStaffMessagesRoute(app: Express) {
         changed = true;
       }
     });
-    if (changed) writeTenantCollection(user.dealershipId, COLLECTION, all);
+    if (changed) writeTenantCollection(user.dealershipId, COLLECTION, all); // still encrypted — `all`'s message fields are never touched above
 
     const mine = all
       .filter(m => m.fromUserId === user.id || m.toUserId === user.id)
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .map(m => ({ ...m, message: decryptMessage(m.message) }));
 
     // Photo links are issued here, and only for messages this person is
     // part of (the filter above is what makes a 1:1 photo private).
