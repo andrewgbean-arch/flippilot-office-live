@@ -310,7 +310,7 @@ export default function NewVehicle() {
             <select id="newvehicle-vat-scheme-for-when-this-vehicle-is-sold"
               value={vatScheme}
               onChange={(e) => setVatScheme(e.target.value as "margin" | "standard")}
-              className="bg-black/40 border border-white/20 rounded-xl px-4 py-3 text-white w-full"
+              className="bg-blue-600 border border-white/20 rounded-xl px-4 py-3 text-black w-full"
             >
               <option value="margin">Margin Scheme — no VAT invoice on purchase (private seller, trade-in, most used cars)</option>
               <option value="standard">Standard VAT — VAT invoice received on purchase</option>
@@ -331,7 +331,7 @@ export default function NewVehicle() {
                 <select id="newvehicle-vat-rate-on-this-purchase"
                   value={vatRate}
                   onChange={(e) => setVatRate(e.target.value)}
-                  className="bg-black/40 border border-white/20 rounded-xl px-4 py-3 text-white w-full"
+                  className="bg-blue-600 border border-white/20 rounded-xl px-4 py-3 text-black w-full"
                 >
                   <option value="20">20% (Standard)</option>
                   <option value="5">5% (Reduced)</option>

@@ -361,7 +361,7 @@ export default function EditVehicle({ vehicleId }: EditVehicleProps) {
             <select id="editvehicle-vat-scheme-for-when-this-vehicle-is-sold"
               value={vatScheme}
               onChange={(e) => setVatScheme(e.target.value as "margin" | "standard")}
-              className="bg-black/40 border border-white/20 rounded-xl px-4 py-3 text-white w-full"
+              className="bg-blue-600 border border-white/20 rounded-xl px-4 py-3 text-black w-full"
             >
               <option value="margin">Margin Scheme — no VAT invoice on purchase</option>
               <option value="standard">Standard VAT — VAT invoice received on purchase</option>
