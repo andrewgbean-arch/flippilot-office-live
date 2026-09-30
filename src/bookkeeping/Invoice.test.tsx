@@ -309,3 +309,19 @@ describe("a voided sale's invoice", () => {
     expect(html).not.toContain("VOID");
   });
 });
+
+describe("printing a voided invoice", () => {
+  it("the printed sheet itself says VOID, not only the banner above it", () => {
+    state.sales = [{ ...storedSale({ price: 6000 }), voided: { at: "2026-03-20T09:00:00.000Z", reason: "Buyer pulled out", byName: "Pat" } }];
+    const html = renderToStaticMarkup(
+      <MemoryRouter initialEntries={["/bookkeeping/invoice/v1?sale=s1"]}>
+        <Routes>
+          <Route path="/bookkeeping/invoice/:vehicleId" element={<Invoice />} />
+        </Routes>
+      </MemoryRouter>
+    );
+    const sheet = html.slice(html.indexOf("printable-invoice"));
+    expect(sheet).toContain("VOID: voided on 2026-03-20. Buyer pulled out");
+    expect(sheet).toMatch(/Invoice \(VOID\)|VAT Invoice \(VOID\)/);
+  });
+});

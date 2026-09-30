@@ -141,6 +141,12 @@ export default function Invoice() {
       )}
 
       <div className="sn-contract-doc printable-invoice">
+        {/* Printing shows only this sheet, so a voided invoice says VOID on the paper too. */}
+        {sale.voided && (
+          <p style={{ border: "3px solid #c62828", color: "#c62828", fontWeight: 800, fontSize: 22, letterSpacing: 3, textAlign: "center", padding: "6px 10px", margin: "0 0 12px" }}>
+            VOID: voided on {sale.voided.at.slice(0, 10)}. {sale.voided.reason}
+          </p>
+        )}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <div>
             <p style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>{dealer?.name ?? "Your Dealership"}</p>
@@ -149,7 +155,7 @@ export default function Invoice() {
             {dealer?.vatNumber && <p style={{ margin: "2px 0" }}>VAT No: {dealer.vatNumber}</p>}
           </div>
           <div style={{ textAlign: "right" }}>
-            <p style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>{invoiceTitle}</p>
+            <p style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>{invoiceTitle}{sale.voided ? " (VOID)" : ""}</p>
             <p style={{ margin: "2px 0" }}>No: {sale.invoiceNumber}</p>
             <p style={{ margin: "2px 0" }}>Date: {invoiceDate}</p>
           </div>
