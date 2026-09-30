@@ -3,6 +3,7 @@
 // tested on their own.
 
 import { createHmac, timingSafeEqual } from "crypto";
+import sharp from "sharp";
 
 export type PhotoMime = "image/jpeg" | "image/png" | "image/webp";
 
@@ -170,6 +171,25 @@ export function decodeImageDataUrl(
 
 function tooBigMessage(): string {
   return `That photo is too large (the limit is ${(MAX_PHOTO_BYTES / 1_000_000).toFixed(1)} MB) — it should have been shrunk on the phone first`;
+}
+
+// A phone camera's photo carries EXIF metadata by default, including GPS
+// coordinates of exactly where it was taken — a vehicle photo can end up on
+// a PUBLIC store page or Car Passport, and a message photo is a person's
+// own, so neither should ever leave this app still carrying that. rotate()
+// with no arguments bakes in the EXIF orientation as real pixels first (so
+// nothing ends up sideways), and metadata is stripped by not calling
+// withMetadata() — sharp only keeps it if asked to.
+export async function stripPhotoMetadata(bytes: Buffer, mime: PhotoMime): Promise<Buffer> {
+  const image = sharp(bytes).rotate();
+  switch (mime) {
+    case "image/jpeg":
+      return image.jpeg().toBuffer();
+    case "image/png":
+      return image.png().toBuffer();
+    case "image/webp":
+      return image.webp().toBuffer();
+  }
 }
 
 // The id inside one of OUR photo URLs (".../photos/<uuid>.jpg"), or null

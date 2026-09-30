@@ -1,11 +1,13 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from "vitest";
 import request from "supertest";
+import sharp from "sharp";
 import app from "./app.js";
 import { getJwtSecret, MAX_STAFF_ACCOUNTS } from "./auth.js";
 import {
   signedMessagePhotoUrl,
   MAX_MESSAGE_PHOTO_BYTES_PER_DEALERSHIP,
   MAX_VEHICLE_PHOTO_BYTES_PER_DEALERSHIP,
+  stripPhotoMetadata,
 } from "./photoStore.js";
 import {
   readCollection,
@@ -3973,6 +3975,23 @@ describe("pay summary — access control and wiring", () => {
   });
 });
 
+// A real, sharp-decodable JPEG for tests that upload a photo through the
+// real routes — needed now that every upload is re-encoded server-side to
+// strip EXIF/GPS (see stripPhotoMetadata), so the old fake byte-signature
+// fixtures (still used below for pure format-sniffing / reject-junk checks)
+// can't be decoded by the upload routes any more.
+async function realTestJpeg(): Promise<Buffer> {
+  return sharp({ create: { width: 4, height: 4, channels: 3, background: { r: 120, g: 60, b: 200 } } }).jpeg().toBuffer();
+}
+// Old-style fake bytes: a real signature, then padding — never decodable,
+// but that's exactly what's needed to trip the raw upload-size limit,
+// which is checked before any image decoding happens.
+function oversizedFakeBytes(length: number): Buffer {
+  const buf = Buffer.alloc(length);
+  Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]).copy(buf);
+  return buf;
+}
+
 // Vehicle photos: the picture is stored on the server and the vehicle only
 // carries a URL. What matters here is that a photo is public only when it
 // should be, can't be attached to or removed from someone else's stock,
@@ -3980,12 +3999,14 @@ describe("pay summary — access control and wiring", () => {
 // from a web screen that hadn't seen it yet, without ever resurrecting a
 // deleted one.
 describe("vehicle photos — hosted storage", () => {
-  const JPEG_HEAD = [0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10];
-  const fakeJpeg = (length = 200) => {
-    const buf = Buffer.alloc(length);
-    Buffer.from(JPEG_HEAD).copy(buf);
-    return buf;
-  };
+  let REAL_JPEG: Buffer;
+  beforeAll(async () => {
+    REAL_JPEG = await realTestJpeg();
+  });
+  // A real image now (see realTestJpeg above) — the length argument is
+  // kept only so existing call sites don't all need editing; it no longer
+  // controls anything, since the server decides the final size.
+  const fakeJpeg = (_length = 200) => REAL_JPEG;
   const jpegDataUrl = (bytes: Buffer = fakeJpeg()) => `data:image/jpeg;base64,${bytes.toString("base64")}`;
   const auth = (token: string) => ({ Authorization: `Bearer ${token}` });
 
@@ -4055,7 +4076,10 @@ describe("vehicle photos — hosted storage", () => {
     expect(img.headers["content-type"]).toBe("image/jpeg");
     expect(img.headers["cache-control"]).toContain("immutable");
     expect(img.headers["cross-origin-resource-policy"]).toBe("cross-origin");
-    expect(Buffer.compare(img.body as Buffer, bytes)).toBe(0);
+    // Served bytes are what the server actually stored — the scrubbed
+    // (EXIF-stripped) version of what was uploaded, not the original bytes.
+    const expected = await stripPhotoMetadata(bytes, "image/jpeg");
+    expect(Buffer.compare(img.body as Buffer, expected)).toBe(0);
   });
 
   it("builds the URL from the proxy's forwarded protocol, or from PUBLIC_API_URL when that is set", async () => {
@@ -4090,7 +4114,7 @@ describe("vehicle photos — hosted storage", () => {
     ]) {
       expect((await upload(owner.token, "car-1", bad)).status).toBe(400);
     }
-    expect((await upload(owner.token, "car-1", jpegDataUrl(fakeJpeg(1_600_000)))).status).toBe(413);
+    expect((await upload(owner.token, "car-1", jpegDataUrl(oversizedFakeBytes(1_600_000)))).status).toBe(413);
 
     expect(countPhotos(dealershipId, "vehicle")).toBe(0);
     expect((await stock(owner.token))[0].images).toBeNull();
@@ -4267,11 +4291,14 @@ describe("vehicle photos — hosted storage", () => {
 // an anonymous board post must not record who uploaded it.
 describe("message photos — private sharing in 1:1 and team messages", () => {
   const auth = (token: string) => ({ Authorization: `Bearer ${token}` });
-  const fakeJpeg = (length = 300) => {
-    const buf = Buffer.alloc(length);
-    Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]).copy(buf);
-    return buf;
-  };
+  let REAL_JPEG: Buffer;
+  beforeAll(async () => {
+    REAL_JPEG = await realTestJpeg();
+  });
+  // A real image now — the length argument is kept only so existing call
+  // sites don't all need editing; it no longer controls anything, since
+  // the server decides the final size.
+  const fakeJpeg = (_length = 300) => REAL_JPEG;
   const jpegDataUrl = (bytes: Buffer = fakeJpeg()) => `data:image/jpeg;base64,${bytes.toString("base64")}`;
 
   const upload = (token: string, dataUrl: unknown) =>
@@ -4323,7 +4350,10 @@ describe("message photos — private sharing in 1:1 and team messages", () => {
     expect(img.headers["content-type"]).toBe("image/jpeg");
     expect(img.headers["cache-control"]).toContain("private");
     expect(img.headers["cross-origin-resource-policy"]).toBe("cross-origin");
-    expect(Buffer.compare(img.body as Buffer, bytes)).toBe(0);
+    // Served bytes are what the server actually stored — scrubbed of
+    // metadata — not the original uploaded bytes.
+    const expected = await stripPhotoMetadata(bytes, "image/jpeg");
+    expect(Buffer.compare(img.body as Buffer, expected)).toBe(0);
 
     // A bystander in the same dealership isn't part of it.
     expect(await inbox(carol.token)).toEqual([]);
@@ -4501,7 +4531,7 @@ describe("message photos — private sharing in 1:1 and team messages", () => {
     for (const bad of [undefined, "hello", `data:image/jpeg;base64,${svg.toString("base64")}`]) {
       expect((await upload(alice.token, bad)).status).toBe(400);
     }
-    expect((await upload(alice.token, jpegDataUrl(fakeJpeg(1_600_000)))).status).toBe(413);
+    expect((await upload(alice.token, jpegDataUrl(oversizedFakeBytes(1_600_000)))).status).toBe(413);
     expect((await request(app).post("/message-photos").send({ dataUrl: jpegDataUrl() })).status).toBe(401);
 
     const email = `integration-test-${runId}-msgphoto-pending@test.local`;
@@ -4563,11 +4593,14 @@ describe("message photos — private sharing in 1:1 and team messages", () => {
 // and the access log.
 describe("message photos — lifecycle, limits and hardening", () => {
   const auth = (token: string) => ({ Authorization: `Bearer ${token}` });
-  const fakeJpeg = (length = 300) => {
-    const buf = Buffer.alloc(length);
-    Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]).copy(buf);
-    return buf;
-  };
+  let REAL_JPEG: Buffer;
+  beforeAll(async () => {
+    REAL_JPEG = await realTestJpeg();
+  });
+  // A real image now — the length argument is kept only so existing call
+  // sites don't all need editing; it no longer controls anything, since
+  // the server decides the final size.
+  const fakeJpeg = (_length = 300) => REAL_JPEG;
   const jpegDataUrl = (bytes: Buffer = fakeJpeg()) => `data:image/jpeg;base64,${bytes.toString("base64")}`;
   const hoursAgo = (h: number) => new Date(Date.now() - h * 3_600_000).toISOString();
 
@@ -4669,21 +4702,38 @@ describe("message photos — lifecycle, limits and hardening", () => {
   });
 
   it("stops a dealership using more disk than its share, for message photos and for listing photos", async () => {
+    // The server decides the final stored size now (every photo is
+    // re-encoded to strip EXIF/GPS), so measure it for real instead of
+    // declaring an arbitrary upload size.
     const { owner, alice, dealershipId } = await setup();
+    const probe = await upload(alice.token);
+    expect(probe.status).toBe(200);
+    const photoSize = getPhoto(probe.body.photo.id)!.size;
 
-    // 100 bytes of room left in the message-photo allowance
-    seed(dealershipId, { refId: "msg-big", uploadedBy: alice.user.id, size: MAX_MESSAGE_PHOTO_BYTES_PER_DEALERSHIP - 100 });
-    const tooBig = await upload(alice.token, fakeJpeg(200));
+    // Together with the probe above, leaves exactly one byte too few for
+    // another message photo this size.
+    seed(dealershipId, {
+      refId: "msg-big",
+      uploadedBy: alice.user.id,
+      size: MAX_MESSAGE_PHOTO_BYTES_PER_DEALERSHIP - photoSize * 2 + 1,
+    });
+    const tooBig = await upload(alice.token);
     expect(tooBig.status).toBe(409);
     expect(tooBig.body.error).toContain("message-photo storage");
-    expect((await upload(alice.token, fakeJpeg(50))).status).toBe(200); // still fits
 
-    // the same for listing photos
+    // The same for listing photos — a separate pool from message photos,
+    // so the dealership's message usage above doesn't affect it.
     await request(app).put("/inventory").set(auth(owner.token)).send({ items: [{ id: "car-9", make: "Ford", model: "Ka", images: null, status: "in stock" }] });
-    seed(dealershipId, { kind: "vehicle", refId: "car-9", uploadedBy: alice.user.id, size: MAX_VEHICLE_PHOTO_BYTES_PER_DEALERSHIP - 100 });
-    const vehicleFull = await request(app).post("/inventory/car-9/photos").set(auth(owner.token)).send({ dataUrl: jpegDataUrl(fakeJpeg(200)) });
+    seed(dealershipId, { kind: "vehicle", refId: "car-9", uploadedBy: alice.user.id, size: MAX_VEHICLE_PHOTO_BYTES_PER_DEALERSHIP - photoSize + 1 });
+    const vehicleFull = await request(app).post("/inventory/car-9/photos").set(auth(owner.token)).send({ dataUrl: jpegDataUrl() });
     expect(vehicleFull.status).toBe(409);
     expect(vehicleFull.body.error).toContain("storage limit");
+
+    // And a photo that DOES fit still succeeds — a fresh dealership, so
+    // the "too big" filler above can't affect this.
+    const other = await setup();
+    seed(other.dealershipId, { refId: "msg-fits", uploadedBy: other.alice.user.id, size: MAX_MESSAGE_PHOTO_BYTES_PER_DEALERSHIP - photoSize });
+    expect((await upload(other.alice.token)).status).toBe(200);
   });
 
   it("an older client that sends no photoIds still works: 1:1 and board, with an empty photos list", async () => {

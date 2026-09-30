@@ -27,6 +27,7 @@ import {
   MAX_VEHICLE_PHOTO_BYTES_PER_DEALERSHIP,
   photoIdFromUrl,
   signedMessagePhotoUrl,
+  stripPhotoMetadata,
   UNATTACHED_GRACE_MS,
   UNSENT_ABANDONED_AFTER_MS,
 } from "../photoStore";
@@ -146,12 +147,22 @@ export default function registerPhotosRoute(app: Express) {
   // Step one of sharing a photo in a message: upload it, get an id back,
   // then send the message with that id in `photoIds`. No link comes back
   // here — links are only issued inside a message payload.
-  app.post("/message-photos", (req, res) => {
+  app.post("/message-photos", async (req, res) => {
     const user = authedUser(req);
 
     const decoded = decodeImageDataUrl(req.body?.dataUrl);
     if (!decoded.ok) {
       return res.status(decoded.status).json({ ok: false, error: decoded.error });
+    }
+    // Strips EXIF (including GPS: exactly where the photo was taken) before
+    // anything else touches the bytes — a private photo a person sends here
+    // is theirs, not something this app should also be recording their
+    // location for.
+    let scrubbed: Buffer;
+    try {
+      scrubbed = await stripPhotoMetadata(decoded.bytes, decoded.mime);
+    } catch {
+      return res.status(400).json({ ok: false, error: "That photo couldn't be read — add it again and retry" });
     }
 
     // Forget photos that were uploaded but never sent.
@@ -176,7 +187,7 @@ export default function registerPhotosRoute(app: Express) {
           "You have a lot of photos waiting to be sent from the last couple of hours. Send them in a message, or wait a little and try again.",
       });
     }
-    if (photoBytes(user.dealershipId, "message") + decoded.bytes.length > MAX_MESSAGE_PHOTO_BYTES_PER_DEALERSHIP) {
+    if (photoBytes(user.dealershipId, "message") + scrubbed.length > MAX_MESSAGE_PHOTO_BYTES_PER_DEALERSHIP) {
       return res.status(409).json({
         ok: false,
         error: "Your dealership has used all its message-photo storage — contact support",
@@ -191,8 +202,8 @@ export default function registerPhotosRoute(app: Express) {
       refId: null,
       uploadedBy: user.id,
       mime: decoded.mime,
-      size: decoded.bytes.length,
-      data: decoded.bytes,
+      size: scrubbed.length,
+      data: scrubbed,
       createdAt: new Date().toISOString(),
     });
     res.json({ ok: true, photo: { id } });
@@ -209,21 +220,30 @@ export default function registerPhotosRoute(app: Express) {
 
   // Any signed-in staff member may add a photo — same as editing stock.
   // (Behind the /inventory login + approval + subscription gate in app.ts.)
-  app.post("/inventory/:vehicleId/photos", (req, res) => {
+  app.post("/inventory/:vehicleId/photos", async (req, res) => {
     const user = authedUser(req);
     const vehicleId = req.params.vehicleId;
 
-    const vehicles = readTenantCollection<VehicleRecord>(user.dealershipId, "vehicles");
-    const index = vehicles.findIndex(v => v.id === vehicleId);
     // Only ever a vehicle in THIS dealership; another dealer's id looks
-    // exactly like one that doesn't exist.
-    if (index === -1) {
+    // exactly like one that doesn't exist. A fresh read is taken again
+    // below, right before the actual write — this is just a fast fail.
+    const exists = readTenantCollection<VehicleRecord>(user.dealershipId, "vehicles").some(v => v.id === vehicleId);
+    if (!exists) {
       return res.status(404).json({ ok: false, error: "That vehicle wasn't found" });
     }
 
     const decoded = decodeImageDataUrl(req.body?.dataUrl);
     if (!decoded.ok) {
       return res.status(decoded.status).json({ ok: false, error: decoded.error });
+    }
+    // Strips EXIF (including GPS: exactly where the photo was taken) before
+    // it is ever stored — this photo can end up on a public store page or
+    // Car Passport, and should never carry that with it.
+    let scrubbed: Buffer;
+    try {
+      scrubbed = await stripPhotoMetadata(decoded.bytes, decoded.mime);
+    } catch {
+      return res.status(400).json({ ok: false, error: "That photo couldn't be read — add it again and retry" });
     }
 
     if (listPhotoMeta(user.dealershipId, "vehicle", String(vehicleId)).length >= MAX_PHOTOS_PER_VEHICLE) {
@@ -234,7 +254,7 @@ export default function registerPhotosRoute(app: Express) {
     }
     if (
       countPhotos(user.dealershipId, "vehicle") >= MAX_PHOTOS_PER_DEALERSHIP ||
-      photoBytes(user.dealershipId, "vehicle") + decoded.bytes.length > MAX_VEHICLE_PHOTO_BYTES_PER_DEALERSHIP
+      photoBytes(user.dealershipId, "vehicle") + scrubbed.length > MAX_VEHICLE_PHOTO_BYTES_PER_DEALERSHIP
     ) {
       return res.status(409).json({
         ok: false,
@@ -250,15 +270,23 @@ export default function registerPhotosRoute(app: Express) {
       refId: String(vehicleId),
       uploadedBy: user.id,
       mime: decoded.mime,
-      size: decoded.bytes.length,
-      data: decoded.bytes,
+      size: scrubbed.length,
+      data: scrubbed,
       createdAt: new Date().toISOString(),
     });
 
     const url = hostedPhotoUrl(publicOrigin(req), id, decoded.mime);
     try {
       // Read-modify-write with nothing awaited in between, so no other
-      // request can slip a change in and get overwritten.
+      // request can slip a change in and get overwritten. Taken fresh here
+      // (not the earlier existence check), since the strip above awaited.
+      const vehicles = readTenantCollection<VehicleRecord>(user.dealershipId, "vehicles");
+      const index = vehicles.findIndex(v => v.id === vehicleId);
+      if (index === -1) {
+        // Deleted while this upload was in flight.
+        deletePhoto(user.dealershipId, id);
+        return res.status(404).json({ ok: false, error: "That vehicle wasn't found" });
+      }
       const vehicle = vehicles[index] as VehicleRecord;
       const current = Array.isArray(vehicle.images) ? vehicle.images : [];
       const images = [...current, url];

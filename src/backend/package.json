@@ -23,6 +23,7 @@
     "helmet": "^7.0.0",
     "jsonwebtoken": "^9.0.3",
     "morgan": "^1.10.0",
+    "sharp": "^0.35.5",
     "stripe": "^22.6.2"
   },
   "devDependencies": {

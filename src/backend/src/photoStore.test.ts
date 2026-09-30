@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import sharp from "sharp";
 import {
   decodeImageDataUrl,
   hostedPhotoUrl,
@@ -12,6 +13,7 @@ import {
   photoIdFromUrl,
   signedMessagePhotoUrl,
   sniffImageMime,
+  stripPhotoMetadata,
 } from "./photoStore";
 
 const JPEG_HEAD = [0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10];
@@ -273,5 +275,65 @@ describe("redactSignedLinks — keeping private photo links out of the access lo
     for (const url of ["/inventory?limit=5", "/staff-messages", "/photos/x.jpg", "/x?signature=abc", "/x?sig=short", ""]) {
       expect(redactSignedLinks(url)).toBe(url);
     }
+  });
+});
+
+describe("stripPhotoMetadata — a phone camera's photo shouldn't also record where it was taken", () => {
+  // sharp's real EXIF writer accepts a GPS key at runtime (its own docs
+  // show it), the .d.ts here just doesn't model it — a test-only cast.
+  const GPS_EXIF = {
+    IFD0: { Copyright: "A. Staffmember" },
+    GPS: {
+      GPSLatitude: "51/1,30/1,0/1",
+      GPSLatitudeRef: "N",
+      GPSLongitude: "0/1,7/1,0/1",
+      GPSLongitudeRef: "W",
+    },
+  } as unknown as sharp.Exif;
+
+  // A real image carrying GPS coordinates and a camera-owner field, exactly
+  // as a phone camera would produce, encoded directly AS the target format
+  // — not the fake byte-signature fixtures above, which sharp can't decode,
+  // and not stripped of metadata already by an intermediate re-encode.
+  function withGps(mime: "image/jpeg" | "image/png" | "image/webp"): Promise<Buffer> {
+    const image = sharp({ create: { width: 6, height: 4, channels: 3, background: { r: 200, g: 80, b: 40 } } }).withMetadata({
+      exif: GPS_EXIF,
+    });
+    return (mime === "image/jpeg" ? image.jpeg() : mime === "image/png" ? image.png() : image.webp()).toBuffer();
+  }
+
+  it("removes GPS and every other EXIF field, for every format this app accepts", async () => {
+    for (const mime of ["image/jpeg", "image/png", "image/webp"] as const) {
+      const original = await withGps(mime);
+      const before = await sharp(original).metadata();
+      expect(before.exif, mime).toBeDefined(); // the fixture really does carry EXIF
+
+      const scrubbed = await stripPhotoMetadata(original, mime);
+      const after = await sharp(scrubbed).metadata();
+      expect(after.exif, mime).toBeUndefined();
+      // Still a real, same-size, correctly-typed image — not corrupted.
+      expect(after.width, mime).toBe(6);
+      expect(after.height, mime).toBe(4);
+      expect(sniffImageMime(scrubbed), mime).toBe(mime);
+    }
+  });
+
+  it("bakes in the EXIF rotation as real pixels before stripping, so nothing comes out sideways", async () => {
+    // Orientation 6 = rotated 90° clockwise: a 6x4 source should become a
+    // physically 4x6 image once the rotation is applied for real.
+    const rotated = await sharp({ create: { width: 6, height: 4, channels: 3, background: { r: 10, g: 200, b: 10 } } })
+      .withMetadata({ orientation: 6 })
+      .jpeg()
+      .toBuffer();
+
+    const scrubbed = await stripPhotoMetadata(rotated, "image/jpeg");
+    const after = await sharp(scrubbed).metadata();
+    expect(after.width).toBe(4);
+    expect(after.height).toBe(6);
+    expect(after.orientation).toBeUndefined(); // baked in, not left for a viewer to apply again
+  });
+
+  it("refuses cleanly instead of throwing when the bytes aren't a real image", async () => {
+    await expect(stripPhotoMetadata(Buffer.from("not an image"), "image/jpeg")).rejects.toBeTruthy();
   });
 });

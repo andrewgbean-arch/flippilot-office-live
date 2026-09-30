@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, beforeEach } from "vitest";
 import request from "supertest";
 import path from "node:path";
+import sharp from "sharp";
 import { randomUUID } from "node:crypto";
 import { hostedPhotoUrl } from "./photoStore.js";
 import { mergeVehicleSave, parseDeletedIds } from "./inventoryMerge.js";
@@ -429,7 +430,9 @@ describe("the order of the saved list", () => {
 describe("the phone app's use of stock and photos is unchanged", () => {
   it("reads the stock, adds a photo, sees it on the car, and removes it again — the car stays throughout", async () => {
     const owner = await setup(["car-1", "car-2"]);
-    const jpeg = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]), Buffer.alloc(200)]);
+    // A real, decodable JPEG — the upload route re-encodes it server-side
+    // to strip EXIF/GPS, so a fake byte-signature fixture won't do.
+    const jpeg = await sharp({ create: { width: 4, height: 4, channels: 3, background: { r: 90, g: 90, b: 90 } } }).jpeg().toBuffer();
 
     expect(ids(await stock(owner.token))).toEqual(["car-1", "car-2"]);
 
