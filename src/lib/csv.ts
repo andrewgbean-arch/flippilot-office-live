@@ -89,14 +89,24 @@ export function parseCSVWithHeaders(text: string): ParsedCSV {
   return { headers: headers ?? [], rows };
 }
 
+// A cell starting with one of these is read as a formula, not text, the
+// moment it's opened in Excel, Google Sheets or LibreOffice — and several
+// of the fields exported below (a vehicle's colour, a cost's label, a
+// sale's buyer) are free text a person typed, sometimes starting life as
+// an unvetted name on the public booking form. A leading apostrophe is
+// the standard fix: every one of those programs reads it as "this cell is
+// text", and the apostrophe itself is never shown or printed.
+const FORMULA_TRIGGER = /^[=+\-@\t\r]/;
+
 // Reverse of parseCSV — quotes a field only when it actually needs it
 // (contains a comma, quote, or newline), so a plain CSV of simple
 // values stays readable rather than every cell wrapped in quotes.
 function csvField(value: string): string {
-  if (/[",\n\r]/.test(value)) {
-    return `"${value.replace(/"/g, '""')}"`;
+  const safe = FORMULA_TRIGGER.test(value) ? `'${value}` : value;
+  if (/[",\n\r]/.test(safe)) {
+    return `"${safe.replace(/"/g, '""')}"`;
   }
-  return value;
+  return safe;
 }
 
 export function toCSV(headers: string[], rows: (string | number | null | undefined)[][]): string {
