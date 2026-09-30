@@ -24,6 +24,7 @@ import {
 import { sendEmail } from "../email";
 import { appLink } from "../appUrl";
 import { takeResetEmailSlot } from "../resetRequestLimit";
+import { recordEvent } from "../changeHistory";
 import { trialEndsAtFrom } from "../trial";
 
 const RESET_INVALID_MESSAGE = "This reset link is invalid or has expired";
@@ -277,6 +278,12 @@ export default function registerAuthRoute(app: Express) {
     };
 
     writeCollection("users", [...users, newUser]);
+    // Nobody is signed in yet on this request: the new teammate is who did it.
+    recordEvent(newUser.dealershipId, "Team", newUser.name, [{ field: "role", after: newUser.staffRole ?? "staff" }], {
+      recordId: newUser.id,
+      action: "added",
+      actor: { id: newUser.id, name: newUser.name, role: "staff", ...(newUser.staffRole ? { staffRole: newUser.staffRole } : {}) },
+    });
 
     const authToken = signToken(toPublicUser(newUser), scopeFromBody(req.body));
     res.json({

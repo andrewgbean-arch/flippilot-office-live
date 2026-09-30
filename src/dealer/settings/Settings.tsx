@@ -893,9 +893,25 @@ export default function Settings() {
             <SupernovaGlowButton label={downloadingMine ? "Preparing…" : "Download My Data"} onClick={downloadMine} />
           </div>
           {myDataError && <p role="alert" className="text-red-400 text-sm mt-3">{myDataError}</p>}
+          {/* Staff must be told their changes are recorded (changeHistory.ts). */}
+          <p className="text-white/50 text-xs mt-4">
+            Changes you make to records (stock, leads, customers, the books, jobs, the rota and pay) are kept for 90 days, with your
+            name, so the owner can see who changed what. Your own list is in Download My Data.
+          </p>
         </SupernovaGlowCard>
 
         <AutoSignOutCard />
+
+        {user?.role === "owner" && (
+          <SupernovaGlowCard>
+            <h2 className="text-yellow-300 font-bold text-xl mb-3">Change History</h2>
+            <p className="text-white/70 mb-4">
+              See who changed what, when, and what it was before: every change to stock, leads, customers, the books, jobs, the
+              rota, pay and the team in the last 90 days. Only you can see it.
+            </p>
+            <SupernovaGlowButton label="Open Change History" onClick={() => navigate("/dealer/change-history")} />
+          </SupernovaGlowCard>
+        )}
 
         {/* Team — inviting, changing a role or the Pilot Brain switch is an
             ownership-level decision (owner only); removing someone who has

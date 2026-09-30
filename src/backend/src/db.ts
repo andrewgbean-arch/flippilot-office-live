@@ -120,15 +120,53 @@ export function readTenantCollection<T>(
   }
 }
 
+// Something that wants to see tenant saves as they happen: the change history
+// (changeHistory.ts). `wants` is asked first, so a save it doesn't follow
+// costs nothing extra; `saw` gets what was stored before and what is stored now.
+// A watcher that fails never fails the save.
+export interface TenantWriteWatcher {
+  wants(collection: string): boolean;
+  saw(dealershipId: string, collection: string, before: unknown, after: unknown): void;
+}
+let watcher: TenantWriteWatcher | null = null;
+export function watchTenantWrites(w: TenantWriteWatcher | null): void {
+  watcher = w;
+}
+
+function readStored(dealershipId: string, collection: string): unknown {
+  const row = db
+    .prepare("SELECT data FROM tenant_data WHERE dealership_id = ? AND collection = ?")
+    .get(dealershipId, collection) as { data: string } | undefined;
+  if (!row) return undefined;
+  try {
+    return JSON.parse(row.data);
+  } catch {
+    return undefined;
+  }
+}
+
+function writeTenantRow(dealershipId: string, collection: string, data: unknown): void {
+  const w = watcher && watcher.wants(collection) ? watcher : null;
+  const before = w ? readStored(dealershipId, collection) : undefined;
+  const text = JSON.stringify(data);
+  db.prepare(
+    `INSERT INTO tenant_data (dealership_id, collection, data) VALUES (?, ?, ?)
+     ON CONFLICT(dealership_id, collection) DO UPDATE SET data = excluded.data`
+  ).run(dealershipId, collection, text);
+  if (!w) return;
+  try {
+    w.saw(dealershipId, collection, before, JSON.parse(text));
+  } catch (err) {
+    console.error("Change history: couldn't record a save", err);
+  }
+}
+
 export function writeTenantCollection<T>(
   dealershipId: string,
   collection: string,
   data: T[]
 ): void {
-  db.prepare(
-    `INSERT INTO tenant_data (dealership_id, collection, data) VALUES (?, ?, ?)
-     ON CONFLICT(dealership_id, collection) DO UPDATE SET data = excluded.data`
-  ).run(dealershipId, collection, JSON.stringify(data));
+  writeTenantRow(dealershipId, collection, data);
 }
 
 // Same tenant-scoped storage as above, but for a single object
@@ -157,10 +195,7 @@ export function writeTenantDoc<T>(
   collection: string,
   data: T
 ): void {
-  db.prepare(
-    `INSERT INTO tenant_data (dealership_id, collection, data) VALUES (?, ?, ?)
-     ON CONFLICT(dealership_id, collection) DO UPDATE SET data = excluded.data`
-  ).run(dealershipId, collection, JSON.stringify(data));
+  writeTenantRow(dealershipId, collection, data);
 }
 
 // Removes every row (vehicles/leads/staff/bookkeeping — everything)
@@ -170,6 +205,7 @@ export function writeTenantDoc<T>(
 export function deleteTenantData(dealershipId: string): void {
   db.prepare("DELETE FROM tenant_data WHERE dealership_id = ?").run(dealershipId);
   db.prepare("DELETE FROM photos WHERE dealership_id = ?").run(dealershipId);
+  db.prepare("DELETE FROM change_history WHERE dealership_id = ?").run(dealershipId);
 }
 
 /* --------------------------------------------------
@@ -197,6 +233,155 @@ export function revokeSession(sid: string, expiresAtSec: number): void {
 
 export function isSessionRevoked(sid: string): boolean {
   return db.prepare("SELECT 1 FROM revoked_sessions WHERE sid = ?").get(sid) !== undefined;
+}
+
+/* --------------------------------------------------
+   Change history
+
+   Who changed which record, when, and what it was before (changeHistory.ts
+   decides what goes in; routes/changeHistory.ts shows it to the owner).
+   One row per record changed. `changes` is JSON: [{ field, before, after }].
+   Kept 90 days, then deleted.
+-------------------------------------------------- */
+db.exec(`
+  CREATE TABLE IF NOT EXISTS change_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    dealership_id TEXT NOT NULL,
+    at TEXT NOT NULL,
+    actor_id TEXT,
+    actor_name TEXT NOT NULL,
+    actor_role TEXT NOT NULL,
+    area TEXT NOT NULL,
+    record_id TEXT,
+    record_label TEXT NOT NULL,
+    action TEXT NOT NULL,
+    changes TEXT NOT NULL
+  );
+`);
+db.exec("CREATE INDEX IF NOT EXISTS change_history_by_dealership ON change_history (dealership_id, id);");
+db.exec("CREATE INDEX IF NOT EXISTS change_history_by_time ON change_history (at);");
+
+export type ChangeAction = "added" | "changed" | "removed" | "note";
+export interface FieldChange {
+  field: string;
+  before?: string;
+  after?: string;
+}
+export interface ChangeRow {
+  id: number;
+  dealershipId: string;
+  at: string;
+  actorId: string | null;
+  actorName: string;
+  actorRole: string;
+  area: string;
+  recordId: string | null;
+  recordLabel: string;
+  action: ChangeAction;
+  changes: FieldChange[];
+}
+
+export function insertChanges(rows: Omit<ChangeRow, "id">[]): void {
+  if (rows.length === 0) return;
+  const insert = db.prepare(
+    `INSERT INTO change_history (dealership_id, at, actor_id, actor_name, actor_role, area, record_id, record_label, action, changes)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  );
+  db.exec("BEGIN");
+  try {
+    for (const r of rows) {
+      insert.run(r.dealershipId, r.at, r.actorId, r.actorName, r.actorRole, r.area, r.recordId, r.recordLabel, r.action, JSON.stringify(r.changes));
+    }
+    db.exec("COMMIT");
+  } catch (err) {
+    db.exec("ROLLBACK");
+    throw err;
+  }
+}
+
+export interface ChangeFilter {
+  since: string;
+  beforeId?: number;
+  actorId?: string;
+  area?: string;
+  search?: string;
+  limit: number;
+}
+
+const likeText = (s: string) => `%${s.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+
+export function listChanges(dealershipId: string, f: ChangeFilter): ChangeRow[] {
+  const where = ["dealership_id = ?", "at >= ?"];
+  const args: (string | number)[] = [dealershipId, f.since];
+  if (f.beforeId !== undefined) (where.push("id < ?"), args.push(f.beforeId));
+  if (f.actorId) (where.push("actor_id = ?"), args.push(f.actorId));
+  if (f.area) (where.push("area = ?"), args.push(f.area));
+  if (f.search) {
+    where.push("(record_label LIKE ? ESCAPE '\\' OR changes LIKE ? ESCAPE '\\' OR actor_name LIKE ? ESCAPE '\\')");
+    args.push(likeText(f.search), likeText(f.search), likeText(f.search));
+  }
+  args.push(f.limit);
+  const rows = db
+    .prepare(
+      `SELECT id, dealership_id AS dealershipId, at, actor_id AS actorId, actor_name AS actorName, actor_role AS actorRole,
+              area, record_id AS recordId, record_label AS recordLabel, action, changes
+       FROM change_history WHERE ${where.join(" AND ")} ORDER BY id DESC LIMIT ?`
+    )
+    .all(...args) as (Omit<ChangeRow, "changes"> & { changes: string })[];
+  return rows.map((r) => ({ ...r, changes: parseChanges(r.changes) }));
+}
+
+function parseChanges(text: string): FieldChange[] {
+  try {
+    const v = JSON.parse(text);
+    return Array.isArray(v) ? v : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Everyone who has changed something since `since`, and the areas they changed, for the page's filters. */
+export function changeFacets(dealershipId: string, since: string): { people: { id: string | null; name: string }[]; areas: string[] } {
+  const people = db
+    .prepare(
+      `SELECT actor_id AS id, MAX(actor_name) AS name FROM change_history
+       WHERE dealership_id = ? AND at >= ? GROUP BY actor_id ORDER BY name`
+    )
+    .all(dealershipId, since) as { id: string | null; name: string }[];
+  const areas = (
+    db.prepare("SELECT DISTINCT area FROM change_history WHERE dealership_id = ? AND at >= ? ORDER BY area").all(dealershipId, since) as {
+      area: string;
+    }[]
+  ).map((r) => r.area);
+  return { people, areas };
+}
+
+/** The history a person made, for their own "Download my data". */
+export function changesBy(dealershipId: string, actorId: string, since: string): ChangeRow[] {
+  const rows = db
+    .prepare(
+      `SELECT id, dealership_id AS dealershipId, at, actor_id AS actorId, actor_name AS actorName, actor_role AS actorRole,
+              area, record_id AS recordId, record_label AS recordLabel, action, changes
+       FROM change_history WHERE dealership_id = ? AND actor_id = ? AND at >= ? ORDER BY id`
+    )
+    .all(dealershipId, actorId, since) as (Omit<ChangeRow, "changes"> & { changes: string })[];
+  return rows.map((r) => ({ ...r, changes: parseChanges(r.changes) }));
+}
+
+export function deleteChangesBefore(iso: string): number {
+  return Number(db.prepare("DELETE FROM change_history WHERE at < ?").run(iso).changes);
+}
+
+/** Erasure: every entry about these records, or with this text anywhere in it. */
+export function deleteChangesAbout(dealershipId: string, recordIds: readonly string[], mentioning: readonly string[]): number {
+  let n = 0;
+  const byId = db.prepare("DELETE FROM change_history WHERE dealership_id = ? AND record_id = ?");
+  for (const id of recordIds) n += Number(byId.run(dealershipId, id).changes);
+  const byText = db.prepare(
+    "DELETE FROM change_history WHERE dealership_id = ? AND (record_label LIKE ? ESCAPE '\\' OR changes LIKE ? ESCAPE '\\')"
+  );
+  for (const text of mentioning) if (text) n += Number(byText.run(dealershipId, likeText(text), likeText(text)).changes);
+  return n;
 }
 
 /* --------------------------------------------------

@@ -20,6 +20,8 @@ const PAGE_NEEDS: { prefix: string; need: PageNeed }[] = [
   { prefix: "/pilot-brain/decisions", need: "staff" },
   { prefix: "/dealer/sales/wanted", need: "wanted" },
   { prefix: "/billing", need: "owner" },
+  // every teammate's changes, managers included (routes/changeHistory.ts)
+  { prefix: "/dealer/change-history", need: "owner" },
 ];
 
 export const NEED_WHO: Record<PageNeed, string> = {

@@ -4,6 +4,7 @@ import { createHmac, randomUUID, timingSafeEqual } from "crypto";
 import jwt from "jsonwebtoken";
 import { Request, Response, NextFunction } from "express";
 import { isSessionRevoked, readCollection } from "./db";
+import { runAsActor } from "./requestActor";
 
 const TOKEN_TTL = "7d";
 
@@ -454,11 +455,14 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
     return res.status(403).json({ ok: false, error: "That isn't available from the phone app. Please use Dealer OS on a computer." });
   }
 
-  (req as Request & { user: AuthUser }).user = toPublicUser(stored);
+  const user = toPublicUser(stored);
+  (req as Request & { user: AuthUser }).user = user;
   // Kept so a route that hands out a fresh login (a password change) gives
   // the same kind back.
   if ((claims as { scope?: unknown }).scope === "phone") res.locals.tokenScope = "phone";
-  next();
+  // The rest of the request runs as this person, so whatever it saves is put in
+  // the change history under their name (changeHistory.ts).
+  runAsActor({ id: user.id, name: user.name, role: user.role, ...(user.staffRole ? { staffRole: user.staffRole } : {}) }, next);
 }
 
 // Gates the cross-dealership support inbox to whoever actually runs

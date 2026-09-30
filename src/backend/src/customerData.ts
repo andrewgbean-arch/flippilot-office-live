@@ -1,6 +1,8 @@
 import { Express, Request } from "express";
-import { readTenantCollection, readTenantDoc, writeTenantCollection } from "./db";
+import { deleteChangesAbout, readTenantCollection, readTenantDoc, writeTenantCollection } from "./db";
 import { requireStaffRole, type AuthUser } from "./auth";
+import { withoutChangeHistory } from "./requestActor";
+import { recordEvent } from "./changeHistory";
 
 // A customer (or anyone the dealership holds details about) asks "what do you
 // hold about me?" or "delete me" (UK GDPR access and erasure requests). The
@@ -165,35 +167,57 @@ export default function registerCustomerDataRoute(app: Express) {
     const now = new Date().toISOString();
     const noted: { list: string; id: string; erasedAt: string; erasedByName: string }[] = [];
     const erased: Record<string, number> = {};
+    // The person's email addresses and numbers exactly as they were typed, to
+    // find them in the change history too.
+    const theirDetails = new Set<string>(who.email ? [who.email] : []);
+    const remember = (r: Rec | undefined, emailField: string, phoneField: string) => {
+      for (const v of [r?.[emailField], r?.[phoneField]]) if (typeof v === "string" && v.trim()) theirDetails.add(v.trim());
+    };
 
-    for (const place of ERASABLE) {
-      const all = readTenantCollection<Rec>(d, place.collection);
-      const kept = all.filter(r => !matches(r, place.email, place.phone, who));
-      erased[place.collection] = all.length - kept.length;
-      if (kept.length === all.length) continue;
-      for (const r of all) {
-        if (kept.includes(r)) continue;
-        if (typeof r.id === "string") noted.push({ list: place.collection, id: r.id, erasedAt: now, erasedByName: user.name });
+    // Erasing must not copy the person's details into the change history on
+    // the way out (changeHistory.ts), so these saves are left out of it.
+    withoutChangeHistory(() => {
+      for (const place of ERASABLE) {
+        const all = readTenantCollection<Rec>(d, place.collection);
+        const kept = all.filter(r => !matches(r, place.email, place.phone, who));
+        erased[place.collection] = all.length - kept.length;
+        if (kept.length === all.length) continue;
+        for (const r of all) {
+          if (kept.includes(r)) continue;
+          remember(r, place.email, place.phone);
+          if (typeof r.id === "string") noted.push({ list: place.collection, id: r.id, erasedAt: now, erasedByName: user.name });
+        }
+        writeTenantCollection(d, place.collection, kept);
       }
-      writeTenantCollection(d, place.collection, kept);
-    }
 
-    const bin = readTenantCollection<Rec>(d, "recentlyDeleted");
-    const keptBin = bin.filter(e => !binEntryMatches(e, who));
-    erased.recentlyDeleted = bin.length - keptBin.length;
-    for (const e of bin) {
-      if (keptBin.includes(e)) continue;
-      const record = (e as { list?: unknown; record?: Rec }).record;
-      const list = (e as { list?: unknown }).list;
-      if (typeof list === "string" && typeof record?.id === "string") {
-        noted.push({ list, id: record.id, erasedAt: now, erasedByName: user.name });
+      const bin = readTenantCollection<Rec>(d, "recentlyDeleted");
+      const keptBin = bin.filter(e => !binEntryMatches(e, who));
+      erased.recentlyDeleted = bin.length - keptBin.length;
+      for (const e of bin) {
+        if (keptBin.includes(e)) continue;
+        const record = (e as { list?: unknown; record?: Rec }).record;
+        const list = (e as { list?: unknown }).list;
+        remember(record, "email", "phone");
+        if (typeof list === "string" && typeof record?.id === "string") {
+          noted.push({ list, id: record.id, erasedAt: now, erasedByName: user.name });
+        }
       }
-    }
-    if (keptBin.length !== bin.length) writeTenantCollection(d, "recentlyDeleted", keptBin);
+      if (keptBin.length !== bin.length) writeTenantCollection(d, "recentlyDeleted", keptBin);
 
-    // Kept as the record that the request was carried out: ids and who did it,
-    // never the person's details.
-    if (noted.length > 0) writeTenantCollection(d, ERASED, [...readTenantCollection(d, ERASED), ...noted]);
+      // Kept as the record that the request was carried out: ids and who did it,
+      // never the person's details.
+      if (noted.length > 0) writeTenantCollection(d, ERASED, [...readTenantCollection(d, ERASED), ...noted]);
+    });
+
+    // And out of the history as well: every entry about an erased record, or
+    // with their email address or number in it.
+    deleteChangesAbout(d, noted.map(n => n.id), [...theirDetails]);
+    const total = Object.values(erased).reduce((a, b) => a + b, 0);
+    if (total > 0) {
+      recordEvent(d, "Customer data", "A customer's details were erased at their request (not kept)", [
+        { field: "records erased", after: String(total) },
+      ]);
+    }
 
     const { sales } = findCustomerData(d, who);
     res.json({ ok: true, erased, keptSales: sales.length, keptNote: KEPT_NOTE });

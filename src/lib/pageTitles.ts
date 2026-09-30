@@ -61,6 +61,7 @@ export const PAGE_TITLES: Record<string, string> = {
   "/dealer/settings": "Settings",
   "/dealer/settings/email": "Email settings",
   "/dealer/settings/recently-deleted": "Recently deleted",
+  "/dealer/change-history": "Change History",
   "/dealer/settings/customer-data": "Customer data requests",
   "/billing": "Billing",
 

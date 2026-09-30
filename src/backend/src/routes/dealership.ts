@@ -1,6 +1,7 @@
 import { Express, Request } from "express";
 import { readCollection, writeCollection, deleteTenantData } from "../db";
 import { trialEndsAtFrom } from "../trial";
+import { fieldChanges, recordEvent } from "../changeHistory";
 import type { SupportMessage } from "./support";
 import {
   requireAuth,
@@ -98,6 +99,10 @@ export default function registerDealershipRoute(app: Express) {
       return res.status(404).json({ ok: false, error: "Dealership not found" });
     }
 
+    const PROFILE = ["name", "phone", "address", "vatNumber", "autoSignOutMinutes"] as const;
+    const pick = (d: Dealership) => Object.fromEntries(PROFILE.map(f => [f, d[f]]));
+    const before = pick(dealership);
+
     if (name !== undefined) dealership.name = String(name).trim();
     if (phone !== undefined) {
       const trimmed = String(phone).trim();
@@ -117,6 +122,10 @@ export default function registerDealershipRoute(app: Express) {
     if (autoSignOutMinutes !== undefined) dealership.autoSignOutMinutes = autoSignOutMinutes;
 
     writeCollection("dealerships", dealerships);
+    const changes = fieldChanges(before, pick(dealership));
+    if (changes.length > 0) {
+      recordEvent(dealership.id, "Dealership settings", dealership.name, changes, { recordId: dealership.id, action: "changed" });
+    }
     res.json({ ok: true, dealership });
   });
 

@@ -18,6 +18,7 @@ import {
 } from "../auth";
 import { toDateKeyLocal, type Shift, type WorkPattern } from "./planner";
 import { RATES_COLLECTION, type PayRate } from "./pay";
+import { recordEvent } from "../changeHistory";
 import { erasePrivateDataOf } from "../personalData";
 
 // jobs.ts stores whatever array the client PUTs and has no backend type
@@ -165,8 +166,15 @@ export default function registerTeamRoute(app: Express) {
     if (isStaffRoleDemotion(found.target.staffRole, staffRole)) {
       cancelSharedInviteLinks(found.target.dealershipId);
     }
+    const oldRole = found.target.staffRole;
     found.target.staffRole = staffRole;
     writeCollection("users", found.users);
+    if (oldRole !== staffRole) {
+      recordEvent(found.target.dealershipId, "Team", found.target.name, [{ field: "role", before: oldRole ?? "staff", after: staffRole }], {
+        recordId: found.target.id,
+        action: "changed",
+      });
+    }
     res.json({ ok: true, member: toPublicUser(found.target) });
   });
 
@@ -188,9 +196,16 @@ export default function registerTeamRoute(app: Express) {
     // Stored only as an explicit false; "allowed" (the default) is
     // represented by absence, so an account made before this existed is
     // never silently different from one that was just switched back on.
+    const wasAllowed = found.target.pilotBrainAllowed !== false;
     if (allowed) delete found.target.pilotBrainAllowed;
     else found.target.pilotBrainAllowed = false;
     writeCollection("users", found.users);
+    if (wasAllowed !== allowed) {
+      const onOff = (v: boolean) => (v ? "allowed" : "not allowed");
+      recordEvent(found.target.dealershipId, "Team", found.target.name, [
+        { field: "Pilot Brain", before: onOff(wasAllowed), after: onOff(allowed) },
+      ], { recordId: found.target.id, action: "changed" });
+    }
     res.json({ ok: true, member: toPublicUser(found.target) });
   });
 
@@ -206,6 +221,9 @@ export default function registerTeamRoute(app: Express) {
     // succeeding.
     cancelSharedInviteLinks(found.target.dealershipId);
     writeCollection("users", found.users.filter(u => u.id !== found.target.id));
+    recordEvent(found.target.dealershipId, "Team", found.target.name, [
+      { field: "role", before: found.target.staffRole ?? "staff" },
+    ], { recordId: found.target.id, action: "removed" });
     releaseMemberFromTeamData(found.target.dealershipId, found.target.id);
     erasePrivateDataOf(found.target.dealershipId, found.target.id);
 

@@ -484,6 +484,15 @@ export const chapter: TourChapter = {
             ],
           },
           {
+            question: "How do I see who changed something?",
+            steps: [
+              "The owner clicks Open Change History on the Change History card.",
+              "Pick how far back, who, or what (Stock, Leads, Books and so on), or search for a reg, a name or a price.",
+              "Each line shows who did it, when, and what it was before and after. A removed record lists everything it held.",
+              "Changes are kept for 90 days.",
+            ],
+          },
+          {
             question: "How do I change when Dealer OS signs everyone out?",
             steps: [
               "Go to the Automatic Sign-Out card. Only the owner can change it.",

@@ -1,5 +1,6 @@
 import { Express, Request, Response } from "express";
-import { readCollection, readTenantCollection, writeTenantCollection, readTenantDoc, writeTenantDoc } from "./db";
+import { changesBy, readCollection, readTenantCollection, writeTenantCollection, readTenantDoc, writeTenantDoc } from "./db";
+import { historySince } from "./changeHistory";
 import { requireAuth, requireOwner, type AuthUser, type Dealership, type StoredUser } from "./auth";
 import { RATES_COLLECTION } from "./routes/pay";
 import { normaliseDoc, EMPTY_SECURITY_DOC, withoutExpiredEvents, type SecurityDoc } from "./pilotBrainShield";
@@ -114,6 +115,16 @@ export function buildPersonalExport(user: StoredUser) {
     jobsAssignedToYou: jobs
       .filter(j => j.assignedToUserId === user.id)
       .map(j => ({ id: j.id, title: j.title ?? null, status: j.status ?? null, dueDate: j.dueDate ?? null })),
+    // The change history's record of what they did (changeHistory.ts, kept 90
+    // days). When, where, what kind of change and which fields: not the record's
+    // name or the values, which are usually other people's details (a customer's
+    // phone number, say), not theirs.
+    changesYouMade: changesBy(d, user.id, historySince()).map(c => ({
+      at: c.at,
+      area: c.area,
+      action: c.action,
+      fields: c.changes.map(f => f.field),
+    })),
   };
 }
 

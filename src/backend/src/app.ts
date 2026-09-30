@@ -30,6 +30,9 @@ import registerAiListingRoute from "./routes/aiListing";
 import registerPilotBrainRoute from "./routes/pilotBrain";
 import registerPersonalDataRoute from "./personalData";
 import registerCustomerDataRoute from "./customerData";
+import registerChangeHistoryRoute from "./routes/changeHistory";
+// Starts the change history watching saves (see that file).
+import "./changeHistory";
 import registerMarketIntelligenceRoute from "./routes/marketIntelligence";
 import registerOperatorRoute from "./routes/operator";
 import registerCofounderRoute from "./routes/cofounder";
@@ -214,6 +217,7 @@ app.use(
     "/contacts",
     "/recently-deleted",
     "/customer-data",
+    "/change-history",
     "/customers",
     "/email-settings",
     "/pay",
@@ -260,6 +264,7 @@ registerAiListingRoute(app);
 registerPilotBrainRoute(app);
 registerPersonalDataRoute(app);
 registerCustomerDataRoute(app);
+registerChangeHistoryRoute(app);
 registerMarketIntelligenceRoute(app);
 registerOperatorRoute(app);
 registerCofounderRoute(app);
