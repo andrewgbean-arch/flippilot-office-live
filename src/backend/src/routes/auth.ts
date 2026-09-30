@@ -1,11 +1,12 @@
 import { Express } from "express";
 import { scopeFromBody } from "../phoneScope";
 import { randomUUID } from "crypto";
-import { readCollection, writeCollection } from "../db";
+import { readCollection, revokeSession, writeCollection } from "../db";
 import {
   hashPassword,
   verifyPassword,
   signToken,
+  verifyToken,
   requireAuth,
   verifyInviteToken,
   isInviteRevoked,
@@ -325,6 +326,25 @@ export default function registerAuthRoute(app: Express) {
     const user = (req as any).user as AuthUser;
     const dealership = readCollection<Dealership>("dealerships").find(d => d.id === user.dealershipId);
     res.json({ ok: true, user, approvalStatus: dealership?.approvalStatus ?? "approved" });
+  });
+
+  // Log out: the login this request carries stops working on the server, not
+  // only in the browser that forgot it, so a copy of it taken off a shared
+  // showroom computer is no use to anyone. Only that one login: the same
+  // person stays signed in on their other devices.
+  //
+  // Not behind requireAuth, and always ok: a login that has already run out,
+  // was already logged out, or was never real has nothing left to cancel, and
+  // the device is signed out either way. Only a genuinely signed login is
+  // ever written down (verifyToken checks the signature).
+  app.post("/auth/logout", (req, res) => {
+    const header = req.headers.authorization;
+    const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
+    const claims = token ? (verifyToken(token) as (AuthUser & { jti?: unknown; exp?: unknown }) | null) : null;
+    if (claims && typeof claims.jti === "string" && typeof claims.exp === "number") {
+      revokeSession(claims.jti, claims.exp);
+    }
+    res.json({ ok: true });
   });
 
   // "Security Options" in Settings previously had no onClick at all.

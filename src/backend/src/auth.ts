@@ -1,9 +1,9 @@
 import bcrypt from "bcryptjs";
 import { phoneMayUse } from "./phoneScope";
-import { createHmac, timingSafeEqual } from "crypto";
+import { createHmac, randomUUID, timingSafeEqual } from "crypto";
 import jwt from "jsonwebtoken";
 import { Request, Response, NextFunction } from "express";
-import { readCollection } from "./db";
+import { isSessionRevoked, readCollection } from "./db";
 
 const TOKEN_TTL = "7d";
 
@@ -176,6 +176,10 @@ export async function verifyPassword(
 // (sessionPasswordStamp). When the password changes or is reset, every login
 // made before that stops working (requireAuth), so a phone or laptop someone
 // else had signed in on is logged out, not left in for up to 7 days.
+//
+// `jti` gives each login its own id, so "Log out" can cancel that one login
+// on the server (POST /auth/logout, revokeSession) and leave the same
+// person's other devices signed in.
 export function signToken(user: AuthUser, scope?: "phone"): string {
   const stored = readCollection<StoredUser>("users").find(u => u.id === user.id);
   return jwt.sign(
@@ -190,7 +194,7 @@ export function signToken(user: AuthUser, scope?: "phone"): string {
       ...(stored ? { pwv: sessionPasswordStamp(stored.passwordHash) } : {}),
     },
     getJwtSecret(),
-    { expiresIn: TOKEN_TTL }
+    { expiresIn: TOKEN_TTL, jwtid: randomUUID() }
   );
 }
 
@@ -402,6 +406,13 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
 
   const claims = verifyToken(token);
   if (!claims) {
+    return res.status(401).json({ ok: false, error: "Invalid or expired session" });
+  }
+
+  // This login was logged out (POST /auth/logout). Logins made before they
+  // carried an id can't be picked out, and run out on their own within 7 days.
+  const sid = (claims as { jti?: unknown }).jti;
+  if (typeof sid === "string" && isSessionRevoked(sid)) {
     return res.status(401).json({ ok: false, error: "Invalid or expired session" });
   }
 

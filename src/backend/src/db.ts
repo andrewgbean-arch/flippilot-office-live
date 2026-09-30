@@ -173,6 +173,33 @@ export function deleteTenantData(dealershipId: string): void {
 }
 
 /* --------------------------------------------------
+   Logins cancelled by "Log out"
+
+   A login is a signed token (auth.ts) that stays valid until it runs out,
+   so forgetting it in the browser didn't stop a copy of it working for up
+   to 7 days. Logging out now lists the login's id here until the moment it
+   would have run out anyway; requireAuth refuses anything listed. Nothing
+   else is kept: no user, no dealership, just the id and when it expires.
+   Rows past that are useless and are cleared on the next log out.
+-------------------------------------------------- */
+db.exec(`
+  CREATE TABLE IF NOT EXISTS revoked_sessions (
+    sid TEXT PRIMARY KEY,
+    expires_at INTEGER NOT NULL
+  );
+`);
+
+/** Cancels one login until `expiresAtSec` (its own `exp`, in seconds). */
+export function revokeSession(sid: string, expiresAtSec: number): void {
+  db.prepare("DELETE FROM revoked_sessions WHERE expires_at <= ?").run(Math.floor(Date.now() / 1000));
+  db.prepare("INSERT INTO revoked_sessions (sid, expires_at) VALUES (?, ?) ON CONFLICT(sid) DO NOTHING").run(sid, expiresAtSec);
+}
+
+export function isSessionRevoked(sid: string): boolean {
+  return db.prepare("SELECT 1 FROM revoked_sessions WHERE sid = ?").get(sid) !== undefined;
+}
+
+/* --------------------------------------------------
    Hosted photos
 
    The picture files themselves. They used to live as base64 text inside

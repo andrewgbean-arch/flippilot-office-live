@@ -160,6 +160,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   function logout() {
+    // Cancel this login on the server too (POST /auth/logout), so a copy of it
+    // taken off this computer stops working now, not in up to 7 days. The
+    // screen doesn't wait for it: if the server can't be reached, this device
+    // is still signed out and the login simply runs out on its own.
+    const token = getAuthToken();
+    if (token) {
+      try {
+        fetch(`${BASE_URL}/auth/logout`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+          keepalive: true,
+        }).catch(() => {});
+      } catch {
+        // Signing out on this device must never fail because of the server call.
+      }
+    }
     setAuthToken(null);
     setUser(null);
     setApprovalStatus("approved");
