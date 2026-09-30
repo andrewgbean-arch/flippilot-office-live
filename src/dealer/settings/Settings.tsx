@@ -30,6 +30,7 @@ import { roleChangeStep } from "./roleLadder";
 import InviteShareOptions from "./InviteShareOptions";
 import { buildInviteShare, canShareNatively, inviteShareMode, shareInvite } from "./inviteShare";
 import PilotBrainSecurityCard from "./PilotBrainSecurityCard";
+import AutoSignOutCard from "./AutoSignOutCard";
 
 import { BASE_URL } from "@/lib/apiBaseUrl";
 import { canSeeMoney } from "@/lib/permissions";
@@ -893,6 +894,8 @@ export default function Settings() {
           </div>
           {myDataError && <p role="alert" className="text-red-400 text-sm mt-3">{myDataError}</p>}
         </SupernovaGlowCard>
+
+        <AutoSignOutCard />
 
         {/* Team — inviting, changing a role or the Pilot Brain switch is an
             ownership-level decision (owner only); removing someone who has

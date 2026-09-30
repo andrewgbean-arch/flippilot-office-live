@@ -156,7 +156,16 @@ export interface Dealership {
   // that predates this) means 0, so old dealerships and the links already
   // out there keep working until the first removal.
   inviteEpoch?: number;
+  // Sign everyone out of Dealer OS after this many minutes with no mouse,
+  // keyboard or touch (the web app's IdleSignOut), so a computer left signed
+  // in on the showroom floor can't be used by whoever walks up to it. The
+  // owner picks it in Settings; 0 = never. Unset means the web app's default
+  // (15 minutes, src/lib/idleSignOut.ts), so it is on unless turned off.
+  autoSignOutMinutes?: number;
 }
+
+// What the owner may choose for Dealership.autoSignOutMinutes (0 = off).
+export const AUTO_SIGN_OUT_CHOICES: readonly number[] = [0, 15, 30, 60];
 
 export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, 12);

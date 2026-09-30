@@ -483,6 +483,14 @@ export const chapter: TourChapter = {
               "Click Save Changes.",
             ],
           },
+          {
+            question: "How do I change when Dealer OS signs everyone out?",
+            steps: [
+              "Go to the Automatic Sign-Out card. Only the owner can change it.",
+              "Pick 15 minutes, 30 minutes, 1 hour or Never. It saves straight away, for everyone.",
+              "A minute before signing out, Dealer OS asks \"Still there?\". Move the mouse or press a key to stay in.",
+            ],
+          },
         ],
         tips: [
           "Removing someone, or moving them to a lower role, cancels every invite link you've already shared. Make a new link for anyone you're still expecting.",

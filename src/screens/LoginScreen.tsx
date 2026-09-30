@@ -1,11 +1,16 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { InstallAppBanner } from "@/components/InstallAppBanner";
+import { clearIdleSignOutNote, idleSignOutNote } from "@/lib/idleSignOut";
 
 export default function LoginScreen() {
   const { login } = useAuth();
   const navigate = useNavigate();
+
+  // Why you're here, after an automatic sign-out (IdleSignOut). Shown once.
+  const [idleNote] = useState(() => idleSignOutNote());
+  useEffect(() => clearIdleSignOutNote(), []);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -39,6 +44,12 @@ export default function LoginScreen() {
           <h1 className="text-2xl font-bold text-yellow-300">FlipPilot Dealer OS</h1>
           <p className="text-white/60 text-sm mt-1">Sign in to your dealership</p>
         </div>
+
+        {idleNote && !error && (
+          <p role="status" className="text-yellow-200 text-sm bg-yellow-400/10 border border-yellow-400/30 rounded-lg px-3 py-2">
+            {idleNote}
+          </p>
+        )}
 
         {error && (
           <p className="text-red-300 text-sm bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2">

@@ -10,6 +10,7 @@ import {
   staffAccountCount,
   MAX_STAFF_ACCOUNTS,
   VALID_STAFF_ROLES,
+  AUTO_SIGN_OUT_CHOICES,
   type AuthUser,
   type Dealership,
   type StaffRole,
@@ -31,6 +32,8 @@ import {
 //        (login and /auth/me carry it), but this route is deliberately open to a
 //        dealership still awaiting approval so a client can show its real status
 //        (see app.ts), and it is not sensitive
+//   autoSignOutMinutes                  - DealerContext, for IdleSignOut: a
+//        teammate is signed out after the owner's chosen quiet time too
 // The phone companion app reads `name` only. dealershipMeFields.test.ts checks
 // this list against the callers' source, so the two cannot drift silently.
 export const TEAMMATE_DEALERSHIP_FIELDS = [
@@ -43,6 +46,7 @@ export const TEAMMATE_DEALERSHIP_FIELDS = [
   "trialEndsAt",
   "pilotBrainEnabled",
   "approvalStatus",
+  "autoSignOutMinutes",
 ] as const satisfies readonly (keyof Dealership)[];
 
 // The owner's view is the stored record itself; anyone else's is only the
@@ -74,12 +78,17 @@ export default function registerDealershipRoute(app: Express) {
   // previously had no backing endpoint at all, just a button with no
   // onClick. Only name/phone/address are editable here; billing/
   // subscription fields stay untouched regardless of what's posted.
+  // autoSignOutMinutes is the Settings "Sign out when nobody's using it"
+  // choice, one of AUTO_SIGN_OUT_CHOICES.
   app.put("/dealership/me", requireAuth, requireOwner, (req, res) => {
     const user = (req as Request & { user: AuthUser }).user;
-    const { name, phone, address, vatNumber } = req.body ?? {};
+    const { name, phone, address, vatNumber, autoSignOutMinutes } = req.body ?? {};
 
     if (name !== undefined && !String(name).trim()) {
       return res.status(400).json({ ok: false, error: "Dealership name can't be empty" });
+    }
+    if (autoSignOutMinutes !== undefined && !AUTO_SIGN_OUT_CHOICES.includes(autoSignOutMinutes)) {
+      return res.status(400).json({ ok: false, error: "Choose 15, 30 or 60 minutes, or never." });
     }
 
     const dealerships = readCollection<Dealership>("dealerships");
@@ -105,6 +114,7 @@ export default function registerDealershipRoute(app: Express) {
       if (trimmed) dealership.vatNumber = trimmed;
       else delete dealership.vatNumber;
     }
+    if (autoSignOutMinutes !== undefined) dealership.autoSignOutMinutes = autoSignOutMinutes;
 
     writeCollection("dealerships", dealerships);
     res.json({ ok: true, dealership });

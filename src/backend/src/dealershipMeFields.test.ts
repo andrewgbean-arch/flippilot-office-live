@@ -56,7 +56,8 @@ const getMe = (token: string) => request(app).get("/dealership/me").set(bearer(t
 // the comment on TEAMMATE_DEALERSHIP_FIELDS): DealerContext reads id, name,
 // phone, address, vatNumber; TrialBanner and BillingScreen read
 // subscriptionStatus and trialEndsAt; BillingScreen reads pilotBrainEnabled;
-// approvalStatus is what this route is documented as being open for.
+// approvalStatus is what this route is documented as being open for;
+// DealerContext reads autoSignOutMinutes for the auto sign-out.
 const READ_BY_THE_APP = [
   "id",
   "name",
@@ -67,6 +68,7 @@ const READ_BY_THE_APP = [
   "trialEndsAt",
   "pilotBrainEnabled",
   "approvalStatus",
+  "autoSignOutMinutes",
 ];
 const NEVER_FOR_TEAMMATES = ["stripeCustomerId", "stripeSubscriptionId", "inviteEpoch"];
 
@@ -94,6 +96,7 @@ beforeAll(async () => {
             stripeCustomerId: "cus_TEST123",
             stripeSubscriptionId: "sub_TEST123",
             inviteEpoch: 3,
+            autoSignOutMinutes: 30,
           }
         : d
     )
@@ -168,7 +171,7 @@ describe("GET /dealership/me for a teammate", () => {
     expect(new Date(res.body.dealership.trialEndsAt).getTime()).toBeGreaterThan(Date.now());
     expect(res.body.dealership.name).toBe(stored.name);
     // a field that was never set stays absent, as it does in the owner's copy
-    for (const field of ["phone", "address", "vatNumber", "pilotBrainEnabled"]) {
+    for (const field of ["phone", "address", "vatNumber", "pilotBrainEnabled", "autoSignOutMinutes"]) {
       expect(res.body.dealership, field).not.toHaveProperty(field);
     }
   });
@@ -210,6 +213,27 @@ describe("PUT /dealership/me", () => {
     expect(res.status).toBe(200);
     expect(res.body.dealership).toEqual(storedDealership(owner.user.dealershipId));
     expect(res.body.dealership).toMatchObject({ stripeCustomerId: "cus_TEST123", inviteEpoch: 3, phone: "01803 000 111" });
+  });
+
+  it("the owner can choose when everyone is signed out: 15, 30 or 60 minutes, or never", async () => {
+    for (const minutes of [0, 15, 60, 30]) {
+      const res = await request(app).put("/dealership/me").set(bearer(owner.token)).send({ autoSignOutMinutes: minutes });
+      expect(res.status, String(minutes)).toBe(200);
+      expect(storedDealership(owner.user.dealershipId).autoSignOutMinutes).toBe(minutes);
+    }
+    // saving something else leaves it alone
+    await request(app).put("/dealership/me").set(bearer(owner.token)).send({ phone: "01803 000 222" });
+    expect(storedDealership(owner.user.dealershipId).autoSignOutMinutes).toBe(30);
+  });
+
+  it("refuses any other time, and a teammate can't change it", async () => {
+    for (const bad of [1, 5, 14, 45, 15.5, -15, 600, "15", null, true, [15]]) {
+      const res = await request(app).put("/dealership/me").set(bearer(owner.token)).send({ autoSignOutMinutes: bad });
+      expect(res.status, JSON.stringify(bad)).toBe(400);
+    }
+    const res = await request(app).put("/dealership/me").set(bearer(teammates.manager)).send({ autoSignOutMinutes: 0 });
+    expect(res.status).toBe(403);
+    expect(storedDealership(owner.user.dealershipId).autoSignOutMinutes).toBe(30);
   });
 });
 

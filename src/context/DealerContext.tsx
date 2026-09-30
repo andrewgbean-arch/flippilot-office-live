@@ -11,14 +11,19 @@ interface DealerInfo {
   phone?: string;
   address?: string;
   vatNumber?: string;
+  // Settings: sign everyone out after this many minutes unused (0 = never,
+  // unset = the default). See lib/idleSignOut.ts.
+  autoSignOutMinutes?: number;
 }
+
+type DealerPatch = { name?: string; phone?: string; address?: string; vatNumber?: string; autoSignOutMinutes?: number };
 
 // Context shape
 interface DealerContextType {
   dealer: DealerInfo | null;
   loading: boolean;
   setDealer: (dealer: DealerInfo) => void;
-  updateDealer: (patch: { name?: string; phone?: string; address?: string; vatNumber?: string }) => Promise<void>;
+  updateDealer: (patch: DealerPatch) => Promise<void>;
 }
 
 // Create context
@@ -34,8 +39,16 @@ const DealerContext = createContext<DealerContextType | undefined>(undefined);
 // billing/trial status) and can save edits back to it.
 export function DealerContextProvider({ children }: { children: React.ReactNode }) {
   const [dealer, setDealer] = useState<DealerInfo | null>(null);
-  const [loading, setLoading] = useState(true);
   const { user } = useAuth();
+  // Which signed-in dealership the load below has finished for (whether it
+  // worked or not). `loading` is worked out from it on every render, so it is
+  // true from the very render a user appears until their own dealership has
+  // arrived. A flag set by the effect was a render late: the automatic
+  // sign-out saw "loaded, no setting", used the 15-minute default over an
+  // owner's longer time or "never", and signed out on page load.
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
+  const wanted = user?.dealershipId ?? null;
+  const loading = wanted !== null && loadedFor !== wanted;
 
   // Was `}, [])` — fetched once at app boot and never again. Since
   // every provider like this one sits above the router and never
@@ -48,10 +61,8 @@ export function DealerContextProvider({ children }: { children: React.ReactNode 
   // dealershipId makes this re-run exactly when a real login completes
   // (or a different account logs in over an old session in the same tab).
   useEffect(() => {
-    if (!user?.dealershipId) {
-      setLoading(false);
-      return;
-    }
+    const dealershipId = user?.dealershipId;
+    if (!dealershipId) return;
 
     (async () => {
       try {
@@ -64,17 +75,18 @@ export function DealerContextProvider({ children }: { children: React.ReactNode 
             phone: data.dealership.phone,
             address: data.dealership.address,
             vatNumber: data.dealership.vatNumber,
+            autoSignOutMinutes: data.dealership.autoSignOutMinutes,
           });
         }
       } catch (err) {
         console.error("DealerContext: failed to load dealership", err);
       } finally {
-        setLoading(false);
+        setLoadedFor(dealershipId);
       }
     })();
   }, [user?.dealershipId]);
 
-  async function updateDealer(patch: { name?: string; phone?: string; address?: string; vatNumber?: string }) {
+  async function updateDealer(patch: DealerPatch) {
     const res = await fetch(`${BASE_URL}/dealership/me`, {
       method: "PUT",
       headers: { "Content-Type": "application/json", ...authHeaders() },
@@ -90,6 +102,7 @@ export function DealerContextProvider({ children }: { children: React.ReactNode 
       phone: data.dealership.phone,
       address: data.dealership.address,
       vatNumber: data.dealership.vatNumber,
+      autoSignOutMinutes: data.dealership.autoSignOutMinutes,
     });
   }
 
