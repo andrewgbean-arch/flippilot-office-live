@@ -24,6 +24,18 @@ export interface NewPurchaseDetails {
   date: string; // YYYY-MM-DD
   vatRate: number; // a fraction, 0.2 = 20% (ignored under the Margin Scheme)
   vatIncluded: boolean;
+  source?: string; // where it was bought from (optional)
+}
+
+// Correcting a purchase the books already hold: the price, the date it was
+// bought, where from, and (Standard VAT only) its VAT.
+export interface PurchaseEdit {
+  purchasePrice: number;
+  date: string; // YYYY-MM-DD
+  source?: string;
+  vatScheme: "margin" | "standard"; // the car's scheme (old purchases may not store one)
+  vatRate: number; // a fraction, 0.2 = 20% (ignored under the Margin Scheme)
+  vatIncluded: boolean;
 }
 
 interface BookkeepingContextValue {
@@ -50,6 +62,7 @@ interface BookkeepingContextValue {
   // and works out the VAT due on its Margin Scheme sale in the same save. False when
   // nothing was saved (books not ready, no purchase for that car, price not above 0).
   recordPurchasePrice: (vehicleId: string, price: number, scheme: "margin" | "standard", newPurchase?: NewPurchaseDetails) => boolean;
+  editPurchase: (vehicleId: string, edit: PurchaseEdit) => boolean;
   updateSale: (id: string, patch: Partial<SaleEntry>) => void;
   addTransaction: (entry: TransactionEntry) => void;
 
@@ -300,10 +313,42 @@ export function BookkeepingProvider({ children }: BookkeepingProviderProps) {
           vatScheme: scheme,
           vatRate: newPurchase!.vatRate,
           vatIncluded: newPurchase!.vatIncluded,
+          ...(newPurchase!.source?.trim() ? { source: newPurchase!.source.trim() } : {}),
           vatAmount: 0,
           netAmount: price,
         });
     const updatedPurchases = current ? purchases.map((p) => (p === current ? fixed : p)) : [...purchases, fixed];
+    const updatedSales = sales.map((s) => (s.vehicleId === vehicleId && s.vatScheme === "margin" ? withSaleVat(s, fixed) : s));
+
+    setPurchases(updatedPurchases);
+    setSales(updatedSales);
+    persist({ purchases: updatedPurchases, sales: updatedSales });
+    return true;
+  };
+
+  // Corrects a purchase the books already hold. There was no way to: a price typed
+  // wrong (45000 for 4500) stayed wrong, and so did the car's profit and the VAT due
+  // on its Margin Scheme sale. The car's VAT scheme is used; the VAT is worked out
+  // again from the new figures, and a Margin Scheme sale's VAT with it, in ONE save.
+  // A Standard VAT sale is left alone: its invoice doesn't depend on the purchase.
+  const editPurchase = (vehicleId: string, edit: PurchaseEdit): boolean => {
+    if (!isPositiveAmount(edit.purchasePrice)) return false;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(edit.date)) return false;
+    if (!guardSave()) return false;
+    const current = getPurchaseForVehicle(vehicleId);
+    if (!current) return false;
+
+    const { source: _oldSource, ...rest } = current;
+    const fixed = enrichPurchase({
+      ...rest,
+      purchasePrice: edit.purchasePrice,
+      date: edit.date,
+      vatScheme: edit.vatScheme,
+      vatRate: edit.vatRate,
+      vatIncluded: edit.vatIncluded,
+      ...(edit.source?.trim() ? { source: edit.source.trim() } : {}),
+    });
+    const updatedPurchases = purchases.map((p) => (p === current ? fixed : p));
     const updatedSales = sales.map((s) => (s.vehicleId === vehicleId && s.vatScheme === "margin" ? withSaleVat(s, fixed) : s));
 
     setPurchases(updatedPurchases);
@@ -443,6 +488,7 @@ export function BookkeepingProvider({ children }: BookkeepingProviderProps) {
     addPurchases,
     addSale,
     recordPurchasePrice,
+    editPurchase,
     updateSale,
     addTransaction,
 

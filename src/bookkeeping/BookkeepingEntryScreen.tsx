@@ -53,6 +53,7 @@ export default function BookkeepingEntryScreen() {
   const [showCostModal, setShowCostModal] = React.useState(false);
   const [showSaleModal, setShowSaleModal] = React.useState(false);
   const [showPurchasePriceModal, setShowPurchasePriceModal] = React.useState(false);
+  const [showEditPurchaseModal, setShowEditPurchaseModal] = React.useState(false);
 
   // A car with no purchase in the books (a sold car imported from a spreadsheet,
   // say) still has a ledger: it shows "No purchase recorded" and a way to add one.
@@ -86,6 +87,16 @@ export default function BookkeepingEntryScreen() {
           vehicleLabel={vehicleLabel ?? ""}
           hasPurchase={purchase !== undefined}
           onClose={() => setShowPurchasePriceModal(false)}
+        />
+      )}
+
+      {showEditPurchaseModal && purchase && (
+        <RecordPurchasePriceModal
+          vehicleId={vehicleId!}
+          scheme={(vehicle?.vatScheme ?? purchase.vatScheme) === "standard" ? "standard" : "margin"}
+          vehicleLabel={vehicleLabel ?? ""}
+          existing={purchase}
+          onClose={() => setShowEditPurchaseModal(false)}
         />
       )}
 
@@ -128,6 +139,14 @@ export default function BookkeepingEntryScreen() {
             className="mt-2 mb-2 px-3 py-2 bg-blue-500 text-black rounded hover:bg-blue-400"
           >
             Record purchase price
+          </button>
+        )}
+        {isPositiveAmount(purchase.purchasePrice) && (
+          <button
+            onClick={() => setShowEditPurchaseModal(true)}
+            className="mt-1 mb-2 px-3 py-1 text-sm rounded bg-white/10 text-white/70 hover:bg-white/20"
+          >
+            Edit purchase
           </button>
         )}
         <p><span className="text-white/60">Purchased From:</span> {purchase.source}</p>

@@ -777,3 +777,99 @@ describe("profit and income on a VAT-on-top sale are worked from what the custom
     expect(ctx().getProfitForVehicle("v1")).toBeNull();
   });
 });
+
+/* -------------------- correcting a purchase that has a price -------------------- */
+// A purchase could not be edited once it had a price: 45000 typed for 4500 stayed,
+// and so did the wrong profit and the wrong VAT due on the car's Margin Scheme sale.
+
+describe("editPurchase: correcting a purchase", () => {
+  const edit = (over: Record<string, unknown> = {}) => ({ purchasePrice: 5000, date: "2026-02-20", source: "BCA", vatScheme: "margin" as const, vatRate: 0, vatIncluded: false, ...over });
+
+  it("fixes a typed-wrong price, and the Margin Scheme sale's VAT and the profit follow, in ONE save", async () => {
+    const sale = withSaleVat(baseSale(), { purchasePrice: 45000 });
+    await openBooks({ purchases: [purchase(45000)], sales: [sale] });
+    puts = [];
+    expect(ctx().editPurchase("v1", edit())).toBe(true);
+    await settle();
+    expect(puts).toHaveLength(1);
+    expect(state.doc.purchases).toHaveLength(1);
+    expect(state.doc.purchases![0]).toMatchObject({ id: "p1", purchasePrice: 5000, date: "2026-02-20", source: "BCA", vatScheme: "margin", vatAmount: 0, netAmount: 5000 });
+    expect(state.doc.sales![0].vatAmount).toBeCloseTo(166.6667, 3);
+    expect(ctx().getProfitForVehicle("v1")!.profit).toBe(1000);
+  });
+
+  it("a Standard VAT purchase gets its VAT worked out again; a Standard VAT sale is left alone", async () => {
+    const standardSale = baseSale({ vatScheme: "standard", vatIncluded: true, vatAmount: 1000, netAmount: 5000 });
+    await openBooks({ purchases: [purchase(9999, { vatScheme: "standard", vatRate: 0.2, vatIncluded: true })], sales: [standardSale] });
+    ctx().editPurchase("v1", edit({ purchasePrice: 6000, vatScheme: "standard", vatRate: 0.2, vatIncluded: true }));
+    await settle();
+    expect(state.doc.purchases![0].vatAmount).toBeCloseTo(1000, 10);
+    expect(state.doc.sales![0]).toEqual(standardSale);
+  });
+
+  it("only touches that car", async () => {
+    const other = purchase(3000, { id: "p2", vehicleId: "v2" });
+    await openBooks({ purchases: [purchase(45000), other] });
+    ctx().editPurchase("v1", edit());
+    await settle();
+    expect(state.doc.purchases![1]).toEqual(other);
+  });
+
+  it.each([
+    ["a zero price", { purchasePrice: 0 }],
+    ["a bad date", { date: "20/02/2026" }],
+  ])("refuses %s: nothing is saved", async (_n, over) => {
+    await openBooks({ purchases: [purchase(45000)] });
+    puts = [];
+    expect(ctx().editPurchase("v1", edit(over))).toBe(false);
+    await settle();
+    expect(puts).toEqual([]);
+  });
+
+  it("refuses a car with no purchase (that's Record what you paid)", async () => {
+    await openBooks({});
+    expect(ctx().editPurchase("v1", edit())).toBe(false);
+  });
+});
+
+describe("the car's page and the Edit Purchase form", () => {
+  const page = () => {
+    screen = mount(BookkeepingEntryScreen as (p: object) => unknown, {}) as Mounted<any, any>;
+    return screen;
+  };
+
+  it("offers Edit purchase on a purchase with a price, and opens the form filled in with it", async () => {
+    await openBooks({ purchases: [purchase(45000)] });
+    const p = page();
+    buttonByText(p.result, "Edit purchase")!.props.onClick();
+    await settle();
+    const modal = findAll(p.result, (el) => el.type === RecordPurchasePriceModal)[0]!;
+    expect(modal.props.existing).toMatchObject({ id: "p1", purchasePrice: 45000 });
+  });
+
+  it("does not offer Edit purchase when the price is not recorded (Record purchase price is there instead)", async () => {
+    await openBooks({ purchases: [purchase(0)] });
+    const p = page();
+    expect(buttonByText(p.result, "Edit purchase")).toBeUndefined();
+    expect(buttonByText(p.result, "Record purchase price")).toBeDefined();
+  });
+
+  it("the form shows the current figures, and Save Changes corrects the purchase", async () => {
+    await openBooks({ purchases: [purchase(45000, { source: "Auction" })], sales: [withSaleVat(baseSale(), { purchasePrice: 45000 })] });
+    screen = mount(RecordPurchasePriceModal as (p: any) => unknown, { vehicleId: "v1", scheme: "margin", existing: state.doc.purchases![0], onClose: () => void closed++ }) as Mounted<any, any>;
+    await settle();
+    expect(textOf(screen.result)).toContain("Edit Purchase");
+    expect(byId(screen.result, "recordpurchaseprice-price")!.props.value).toBe("45000");
+    expect(byId(screen.result, "recordpurchaseprice-date")!.props.value).toBe("2026-03-01");
+    expect(byId(screen.result, "recordpurchaseprice-source")!.props.value).toBe("Auction");
+    typeInto(byId(screen.result, "recordpurchaseprice-price"), "4500");
+    typeInto(byId(screen.result, "recordpurchaseprice-date"), "2026-02-11");
+    typeInto(byId(screen.result, "recordpurchaseprice-source"), "Part exchange");
+    await settle();
+    buttonByText(screen.result, "Save Changes")!.props.onClick();
+    await settle();
+    expect(closed).toBe(1);
+    expect(state.doc.purchases![0]).toMatchObject({ purchasePrice: 4500, date: "2026-02-11", source: "Part exchange" });
+    expect(ctx().getProfitForVehicle("v1")!.profit).toBe(1500);
+  });
+});
