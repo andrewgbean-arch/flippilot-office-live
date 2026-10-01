@@ -996,10 +996,13 @@ export default function Settings() {
           <h2 className="text-yellow-300 font-bold text-xl mb-3">Product Tour</h2>
           <p className="text-white/70 mb-4">
             Walk back through the main parts of FlipPilot — useful for a refresher, or to show a
-            new team member around.
+            new team member around. Or watch a short how-to video, about a minute each.
           </p>
 
-          <SupernovaGlowButton label="Take the Tour" onClick={startTour} />
+          <div className="flex flex-wrap gap-3">
+            <SupernovaGlowButton label="Take the Tour" onClick={startTour} />
+            <SupernovaGlowButton label="How-to Videos" onClick={() => navigate("/how-to-videos")} />
+          </div>
         </SupernovaGlowCard>
 
       </section>

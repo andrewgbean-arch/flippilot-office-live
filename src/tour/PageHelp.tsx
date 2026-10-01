@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useNavigate } from "react-router-dom";
-import { FiHelpCircle, FiMessageCircle, FiPlayCircle, FiX, FiMap } from "react-icons/fi";
+import { useLocation, useNavigate } from "react-router-dom";
+import { FiFilm, FiHelpCircle, FiMessageCircle, FiPlayCircle, FiX, FiMap } from "react-icons/fi";
 import { useTour } from "./TourProvider";
+import { useAuth } from "@/context/AuthContext";
+import { videosForPage } from "@/help/howtoVideos";
+import HowtoVideoPlayer from "@/help/HowtoVideoPlayer";
 
 // "Help with this page": a button on every screen. It opens a panel with
 // Wendy's walk-round of the screen you're on, the written guide for it (what
@@ -11,10 +14,14 @@ import { useTour } from "./TourProvider";
 export default function PageHelp() {
   const tour = useTour();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const closeRef = useRef<HTMLButtonElement>(null);
   const page = tour.thisPage;
   const guide = page?.guide;
+  // The short how-to videos about this screen (src/help/howtoVideos.ts).
+  const videos = videosForPage(pathname, user);
 
   // Closes on Escape, and when the tour starts (the panel would sit on top of it).
   useEffect(() => {
@@ -107,7 +114,30 @@ export default function PageHelp() {
                   <FiMap aria-hidden className="shrink-0 text-xl text-yellow-300" />
                   The full tour, or any other screen
                 </button>
+                <button
+                  onClick={() => {
+                    setOpen(false);
+                    navigate("/how-to-videos");
+                  }}
+                  className="flex items-center gap-3 rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-left font-semibold transition hover:border-yellow-400/60"
+                >
+                  <FiFilm aria-hidden className="shrink-0 text-xl text-yellow-300" />
+                  All the how-to videos
+                </button>
               </div>
+
+              {videos.length > 0 && (
+                <section>
+                  <h3 className="mb-2 text-sm font-bold uppercase tracking-wider text-white/60">
+                    {videos.length === 1 ? "Watch how (about a minute)" : "Watch how"}
+                  </h3>
+                  <div className="grid gap-3">
+                    {videos.map((v) => (
+                      <HowtoVideoPlayer key={v.id} video={v} compact />
+                    ))}
+                  </div>
+                </section>
+              )}
 
               {guide ? (
                 <>
