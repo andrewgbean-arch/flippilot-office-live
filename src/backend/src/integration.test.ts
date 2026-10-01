@@ -5478,6 +5478,98 @@ describe("Pilot Brain web access", () => {
     const list = await request(app).get("/pilot-brain/voices").set(asOwner());
     expect(list.body.voices.map((v: { id: string }) => v.id)).toEqual(["alloy", "echo", "fable", "onyx", "nova", "shimmer"]);
   });
+
+  describe("when ElevenLabs refuses (out of credit, say), the nearest OpenAI voice says it instead", () => {
+    const quotaExceeded = () =>
+      new Response(JSON.stringify({ detail: { code: "quota_exceeded", message: "You have 0 credits remaining" } }), { status: 401 });
+    function stubVoices(openAiStatus = 200) {
+      const calls: { provider: string; voice: string }[] = [];
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (url: any, init: any) => {
+          if (String(url).includes("api.elevenlabs.io")) {
+            calls.push({ provider: "elevenlabs", voice: String(url).split("/text-to-speech/")[1]!.split("/")[0]! });
+            return quotaExceeded();
+          }
+          if (String(url).includes("api.openai.com")) {
+            calls.push({ provider: "openai", voice: JSON.parse(init.body).voice });
+            return openAiStatus === 200 ? new Response("fake-mp3-bytes", { status: 200 }) : new Response("nope", { status: openAiStatus });
+          }
+          throw new Error(`unexpected fetch to ${url}`);
+        })
+      );
+      return calls;
+    }
+    const speak = (voice: string) => request(app).post("/pilot-brain/speak").set(asOwner()).send({ text: "Hello Boss.", voice });
+
+    it("Wendy's reply is spoken by nova, and the reply says so", async () => {
+      process.env.ELEVENLABS_API_KEY = "test-elevenlabs-key";
+      process.env.OPENAI_API_KEY = "test-openai-key";
+      try {
+        const calls = stubVoices();
+        const res = await speak("wendy");
+        expect(res.status).toBe(200);
+        expect(res.headers["x-pilot-voice"]).toBe("nova");
+        expect(calls).toEqual([
+          { provider: "elevenlabs", voice: "UryOOkXFzyQ2AZGyEJ2g" },
+          { provider: "openai", voice: "nova" },
+        ]);
+      } finally {
+        delete process.env.ELEVENLABS_API_KEY;
+      }
+    });
+
+    it("Pilot's (the male voice) by onyx", async () => {
+      process.env.ELEVENLABS_API_KEY = "test-elevenlabs-key";
+      process.env.OPENAI_API_KEY = "test-openai-key";
+      try {
+        const calls = stubVoices();
+        const res = await speak("pilot");
+        expect(res.status).toBe(200);
+        expect(res.headers["x-pilot-voice"]).toBe("onyx");
+        expect(calls.map((c) => c.voice)).toEqual(["5NDrq8EroHbiPJVnz4dL", "onyx"]);
+      } finally {
+        delete process.env.ELEVENLABS_API_KEY;
+      }
+    });
+
+    it("if the stand-in fails too, it's the same honest error as before", async () => {
+      process.env.ELEVENLABS_API_KEY = "test-elevenlabs-key";
+      process.env.OPENAI_API_KEY = "test-openai-key";
+      try {
+        const calls = stubVoices(500);
+        const res = await speak("wendy");
+        expect(res.status).toBe(502);
+        expect(res.body.error).toBe("Could not generate voice right now.");
+        expect(calls).toHaveLength(2);
+      } finally {
+        delete process.env.ELEVENLABS_API_KEY;
+      }
+    });
+
+    it("with no OpenAI key there's no stand-in to try", async () => {
+      process.env.ELEVENLABS_API_KEY = "test-elevenlabs-key";
+      delete process.env.OPENAI_API_KEY;
+      try {
+        const calls = stubVoices();
+        const res = await speak("wendy");
+        expect(res.status).toBe(502);
+        expect(calls).toEqual([{ provider: "elevenlabs", voice: "UryOOkXFzyQ2AZGyEJ2g" }]);
+      } finally {
+        delete process.env.ELEVENLABS_API_KEY;
+        process.env.OPENAI_API_KEY = "test-openai-key";
+      }
+    });
+
+    it("an OpenAI voice that fails isn't retried as another", async () => {
+      delete process.env.ELEVENLABS_API_KEY;
+      process.env.OPENAI_API_KEY = "test-openai-key";
+      const calls = stubVoices(500);
+      const res = await speak("fable");
+      expect(res.status).toBe(502);
+      expect(calls).toEqual([{ provider: "openai", voice: "fable" }]);
+    });
+  });
 });
 
 describe("Wanted requests — a stranger asks a dealer to watch for a car", () => {

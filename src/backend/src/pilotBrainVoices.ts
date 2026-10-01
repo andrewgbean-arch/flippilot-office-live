@@ -63,6 +63,21 @@ export function resolveVoice(requested: unknown, env: VoiceEnv = process.env): P
   return wanted ?? voices[0] ?? null;
 }
 
+// The nearest OpenAI voice to each FlipPilot voice.
+const OPENAI_STAND_IN: Record<string, string> = { wendy: "nova", pilot: "onyx" };
+
+/**
+ * When a FlipPilot voice can't be produced right now (ElevenLabs refused:
+ * out of credit, a bad key, an outage), the nearest OpenAI voice says the
+ * reply instead, so it is never silent. Null when there is no stand-in: the
+ * failed voice was already an OpenAI one, or no OpenAI key is set.
+ */
+export function standInVoice(failed: PilotVoice, env: VoiceEnv = process.env): PilotVoice | null {
+  if (failed.provider !== "elevenlabs" || !env.OPENAI_API_KEY) return null;
+  const id = OPENAI_STAND_IN[failed.id] ?? "nova";
+  return OPENAI_VOICES.find((v) => v.id === id) ?? null;
+}
+
 /** The request that produces MP3 audio for `text` in `voice`, ready for fetch(). */
 export function speechRequest(voice: PilotVoice, text: string, env: VoiceEnv = process.env): { url: string; init: RequestInit } {
   if (voice.provider === "elevenlabs") {

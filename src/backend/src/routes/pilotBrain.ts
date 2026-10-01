@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 import { PILOT_BRAIN_MESSAGES, PILOT_BRAIN_MEMORIES, PILOT_BRAIN_SECURITY_LOG, readSecurityLog } from "../personalData";
 import { Readable } from "stream";
-import { availableVoices, resolveVoice, speechRequest } from "../pilotBrainVoices";
+import { availableVoices, resolveVoice, speechRequest, standInVoice } from "../pilotBrainVoices";
 import { Express, Request } from "express";
 import rateLimit from "express-rate-limit";
 import { readCollection, readTenantCollection, writeTenantCollection, readTenantDoc, writeTenantDoc } from "../db";
@@ -1130,15 +1130,28 @@ export default function registerPilotBrainRoute(app: Express) {
     }
 
     try {
-      const request = speechRequest(selectedVoice, stripWebSourcesFooter(text).trim());
-      const response = await fetch(request.url, request.init);
+      const spoken = stripWebSourcesFooter(text).trim();
+      const request = speechRequest(selectedVoice, spoken);
+      let response = await fetch(request.url, request.init);
+      let voiceUsed = selectedVoice;
 
       if (!response.ok) {
         const errText = await response.text();
         console.error(`pilot-brain/speak: ${selectedVoice.provider} error`, response.status, errText);
-        // The provider never produced any audio, so nothing was really
-        // spent — give the credit back rather than charging for a reply
-        // nobody heard.
+        // FlipPilot's own voice couldn't be made (ElevenLabs out of credit,
+        // say): the nearest OpenAI voice says it instead, rather than nothing.
+        const standIn = standInVoice(selectedVoice);
+        if (standIn) {
+          const retry = speechRequest(standIn, spoken);
+          response = await fetch(retry.url, retry.init);
+          if (response.ok) voiceUsed = standIn;
+          else console.error(`pilot-brain/speak: stand-in ${standIn.provider} error`, response.status, await response.text());
+        }
+      }
+
+      if (!response.ok) {
+        // No voice produced any audio, so nothing was really spent — give
+        // the credit back rather than charging for a reply nobody heard.
         refundCredit(user.dealershipId, "voiceReply", "Refunded: voice generation failed");
         return res.status(502).json({ ok: false, error: "Could not generate voice right now." });
       }
@@ -1150,7 +1163,7 @@ export default function registerPilotBrainRoute(app: Express) {
       // for a longer reply. The frontend plays progressively as this
       // streams in (see PilotBrainChat.tsx's speak()).
       res.set("Content-Type", "audio/mpeg");
-      res.set("X-Pilot-Voice", selectedVoice.id);
+      res.set("X-Pilot-Voice", voiceUsed.id);
       Readable.fromWeb(response.body as import("stream/web").ReadableStream<Uint8Array>).pipe(res);
     } catch (err) {
       console.error("pilot-brain/speak: request failed", err);
