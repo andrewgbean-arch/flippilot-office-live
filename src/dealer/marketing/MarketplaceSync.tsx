@@ -54,6 +54,7 @@ export default function MarketplaceSync() {
   const [status, setStatus] = useState<StatusResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [copyFailed, setCopyFailed] = useState(false);
 
   function loadFeedUrl() {
     setFeedUrlError(false);
@@ -78,10 +79,18 @@ export default function MarketplaceSync() {
 
   function copyFeedUrl() {
     if (!feedUrl) return;
-    navigator.clipboard.writeText(feedUrl).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
+    setCopyFailed(false);
+    navigator.clipboard.writeText(feedUrl).then(
+      () => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      },
+      // A browser can refuse clipboard access (permissions policy, an
+      // embedded context, an older browser) — without this the button
+      // would silently do nothing, leaving the dealer thinking it's
+      // broken rather than telling them to select and copy it by hand.
+      () => setCopyFailed(true)
+    );
   }
 
   function regenerateFeedUrl() {
@@ -145,6 +154,19 @@ export default function MarketplaceSync() {
           <p className="text-red-400 text-sm mt-3">
             Couldn't get your feed link. <button onClick={loadFeedUrl} className="underline">Try again</button>.
           </p>
+        )}
+        {copyFailed && feedUrl && (
+          <div className="mt-3">
+            <p className="text-red-400 text-sm mb-1">
+              Couldn't copy automatically — select the link below and copy it yourself.
+            </p>
+            <input
+              readOnly
+              value={feedUrl}
+              onFocus={e => e.currentTarget.select()}
+              className="w-full px-3 py-2 rounded-lg bg-black/40 border border-white/20 text-white/80 text-xs"
+            />
+          </div>
         )}
         {user?.role === "owner" && (
           <p className="text-white/40 text-xs mt-3">
