@@ -5,6 +5,7 @@ import { useTour } from "@/tour/TourProvider";
 import { REPORT_TABS, reportTabFor } from "@/dealer/reports/reportTabs";
 import { useAuth } from "@/context/AuthContext";
 import { canOpenPage } from "@/lib/pageAccess";
+import { LiveClockText, LiveDial } from "@/components/LiveDial";
 
 // A menu entry that starts the guided tour instead of opening a page.
 const TOUR_LINK = "#tour";
@@ -219,9 +220,10 @@ export default function DealerSidebar() {
               swirly gold FlipPilot script under it, then gold-foil spaced
               capitals like the FlipPilot app's SCAN · CHECK · FLIP.
               The app name, not a heading: each page carries its own h1. */}
-          <img src="/brand/flippilot-dial.webp" alt="" width={130} height={112} className="w-[130px] h-auto" />
+          <LiveDial />
           <span className="brand-script text-[2rem] -mt-1" data-text="FlipPilot">FlipPilot</span>
           <p className="brand-caps text-[11px]">DEALER OS</p>
+          <LiveClockText className="brand-caps mt-1 text-[13px] tabular-nums" />
         </Link>
       )}
 
