@@ -742,44 +742,178 @@ function fbm(x, y, z, o = 5) { let s = 0, a = 0.5, f = 1, n = 0; for (let i = 0;
 
 /* ---------------- renderer / scene ---------------- */
 const canvas = $('#c');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+const IN_FRAME = (() => { try { return window.top !== window.self; } catch (e) { return true; } })();
+const SAFE = (() => {
+  const store = (() => { for (const k of ['localStorage', 'sessionStorage']) { try { const s = window[k]; s.setItem('__hd', '1'); s.removeItem('__hd'); return s; } catch (e) { } } return null; })();
+  const get = (k) => { try { return store ? store.getItem(k) : null; } catch (e) { return null; } };
+  const put = (k, v) => { try { if (store) { if (v == null) store.removeItem(k); else store.setItem(k, v); } } catch (e) { } };
+  const RANK = { lite: 0, high: 1, ultra: 2 }, NAME = ['lite', 'high', 'ultra'];
+  const minQ = (a, b) => NAME[Math.min(a in RANK ? RANK[a] : 2, b in RANK ? RANK[b] : 2)];
+  const loc = location.search + '&' + location.hash.replace(/^#/, '&');
+  const arg = (k) => { const m = new RegExp('[?&]' + k + '(?:=([\\w-]*))?(?=&|$)').exec(loc); return m ? (m[1] ?? '') : null; };
+  const urlQ = (arg('q') || arg('quality') || '').toLowerCase();
+  const safeURL = arg('safe') !== null, liteURL = arg('lite') !== null;
+  const recovered = arg('recovered'), reloads = parseInt(arg('r') || '0', 10) || 0;
+  // Crash sentinel. Life cycle: booting -> running <-> paused -> closed. 'lost' = WebGL context lost.
+  // At startup, anything other than closed/paused means the previous session died without saying goodbye.
+  const RUN = 'halcyon_run';
+  let prev = null; try { prev = JSON.parse(get(RUN) || 'null'); } catch (e) { }
+  const fresh = !!(prev && Date.now() - (prev.t || 0) < 3 * 864e5);
+  const died = fresh && (prev.state === 'booting' || prev.state === 'running' || prev.state === 'lost');
+  const crashes = died ? (prev.crashes || 0) + 1 : ((prev && prev.crashes) || 0);
+  let cap = (prev && prev.capQ in RANK) ? prev.capQ : 'ultra', why = (prev && prev.capWhy) || '';
+  if (died) {
+    const pq = prev.q in RANK ? prev.q : 'ultra';
+    cap = minQ(cap, (prev.state === 'booting' || crashes >= 2) ? 'lite' : NAME[Math.max(0, RANK[pq] - 1)]);
+    why = prev.state === 'lost' ? 'gpu' : prev.state === 'booting' ? 'boot' : 'crash';
+  }
+  const rec = { state: 'booting', q: null, t: Date.now(), crashes, capQ: cap === 'ultra' ? null : cap, capWhy: why || null };
+  const write = () => { rec.t = Date.now(); put(RUN, JSON.stringify(rec)); };
+  return {
+    RANK, NAME, minQ, get, put, IN_FRAME,
+    urlQ: urlQ in RANK ? urlQ : null, lite: liteURL || safeURL, safe: safeURL || crashes >= 2 || reloads >= 2,
+    died, crashes, cap, why, recovered, reloads, storage: !!store,
+    note(patch) { Object.assign(rec, patch); write(); },
+    clearCap() { rec.capQ = null; rec.capWhy = null; write(); },
+    get rec() { return rec; },
+  };
+})();
+
+function detectGPU(gl) {
+  let r = '', v = '';
+  try { const x = gl.getExtension('WEBGL_debug_renderer_info'); r = String(gl.getParameter(x ? x.UNMASKED_RENDERER_WEBGL : gl.RENDERER) || ''); v = String(gl.getParameter(x ? x.UNMASKED_VENDOR_WEBGL : gl.VENDOR) || ''); } catch (e) { }
+  const s = r + ' ' + v;
+  const maxTex = gl.getParameter(gl.MAX_TEXTURE_SIZE) || 0, maxSamples = gl.getParameter(gl.MAX_SAMPLES) || 0;
+  const mem = navigator.deviceMemory || 0, cores = navigator.hardwareConcurrency || 0;
+  let tier = 'high', why = 'unrecognised GPU';
+  if (/SwiftShader|llvmpipe|softpipe|lavapipe|Software|Basic Render|Mesa OffScreen|VMware|VirtualBox|Parallels/i.test(s)) { tier = 'lite'; why = 'software rendering'; }
+  else if (/Mali|Adreno|PowerVR|Vivante|VideoCore|Tegra|Immortalis/i.test(s)) { tier = 'lite'; why = 'mobile GPU'; }
+  else if (/Intel/i.test(s) && /\bArc\b/i.test(s)) { tier = 'ultra'; why = 'discrete GPU'; }
+  else if (/Intel/i.test(s)) { tier = 'high'; why = 'Intel integrated graphics'; }
+  else if (/Apple/i.test(s)) { tier = /M\d+ (Pro|Max|Ultra)/i.test(s) ? 'ultra' : 'high'; why = 'Apple GPU'; }
+  else if (/AMD|Radeon|ATI/i.test(s)) { const dgpu = /\bRX\s?\d{3,4}|Radeon\s*Pro\s*W|Radeon\s*VII/i.test(s); tier = dgpu ? 'ultra' : 'high'; why = dgpu ? 'discrete GPU' : 'AMD integrated graphics'; }
+  else if (/NVIDIA|GeForce|Quadro|RTX|GTX/i.test(s)) { const weak = /\bMX\s?\d{2,3}|\bGT\s?\d{3,4}\b|\b9\d0M\b/i.test(s); tier = weak ? 'high' : 'ultra'; why = weak ? 'entry-level GPU' : 'discrete GPU'; }
+  if ((maxTex && maxTex < 8192) || maxSamples < 4) { tier = 'lite'; why += ', limited GPU caps'; }
+  if (mem && mem <= 4) { tier = 'lite'; why += `, ${mem} GB RAM`; } else if (mem && mem < 8) tier = SAFE.minQ(tier, 'high');
+  if (cores && cores <= 2) tier = 'lite';
+  return { tier, why, renderer: r, vendor: v, maxTex, maxSamples, mem, cores };
+}
+
+function fatalGL(msg) {
+  const L = document.getElementById('loading');
+  const t = msg + ' If the game crashed before, your browser may have paused 3D graphics for this page: close other tabs, restart the browser, and try again.';
+  if (L) L.textContent = '⚠️ ' + t; else document.body.insertAdjacentHTML('beforeend', `<p style="color:#fff;padding:16px">${t}</p>`);
+}
+let renderer;
+try {
+  // antialias:false — the composer's MSAA target already antialiases; OutputPass is the only thing drawn to the canvas,
+  // so a multisampled default framebuffer (4 samples x (RGBA8 + D24S8) = 32 B/px) bought nothing.
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: false, depth: false, stencil: false, powerPreference: 'high-performance' });
+} catch (e) { fatalGL("Your browser couldn't start 3D graphics (WebGL 2)."); throw e; }
+const GPU = detectGPU(renderer.getContext());
+
 let quality = 'ultra';
-// First launch: phones and tablets start on High, computers on Ultra.
-const firstQuality = () => (matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) < 900) ? 'lite' : 'ultra';
-try { quality = localStorage.getItem('halcyon_quality') || firstQuality(); } catch (e) { quality = firstQuality(); }
-function pixelRatioFor(q) { return Math.min(window.devicePixelRatio || 1, q === 'ultra' ? 1.75 : 1); }
+const firstQuality = () => (matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) < 900) ? 'lite' : GPU.tier;
+{
+  const stored = SAFE.get('halcyon_quality');
+  // a stored pick above what this GPU should run is only honoured after the player confirmed it once (see setQuality)
+  const storedOK = stored in SAFE.RANK && (SAFE.RANK[stored] <= SAFE.RANK[GPU.tier] || SAFE.get('halcyon_q_confirmed') === stored);
+  quality = SAFE.urlQ || (SAFE.lite ? 'lite' : null) || (storedOK ? stored : firstQuality());
+  if (!SAFE.urlQ) quality = SAFE.minQ(quality, SAFE.cap);
+  SAFE.note({ state: 'booting', q: quality });
+}
+let GOV_SCALE = 1;                                   // runtime governor's resolution scale (p4_game.js)
+const MPX = { ultra: 3.7e6, high: 2.1e6, lite: 1.2e6 }; // drawing-buffer pixel budget per tier
+function pixelRatioFor(q) {
+  const d = window.devicePixelRatio || 1, css = Math.max(1, innerWidth * innerHeight);
+  const cap = Math.min(q === 'ultra' ? 1.75 : 1, Math.sqrt(MPX[q] / css)) * (SAFE.safe ? 0.75 : 1);
+  return Math.max(0.5, Math.min(d, cap) * GOV_SCALE);
+}
 renderer.setPixelRatio(pixelRatioFor(quality));
 renderer.setSize(innerWidth, innerHeight);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.05;
 renderer.shadowMap.enabled = quality === 'ultra';
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-const maxAniso = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+const maxAniso = Math.min(quality === 'lite' ? 2 : 8, renderer.capabilities.getMaxAnisotropy());
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x010207);
 const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.05, 5000);
 camera.position.set(-60, 25, -70);
 const pmrem = new THREE.PMREMGenerator(renderer);
-scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture; pmrem.dispose();
 scene.environmentIntensity = 0.28;
 
 // Render the scene into a multisampled target so edges stay smooth through post-processing.
-const msaaFor = (q) => q === 'lite' ? 0 : 4;
+const msaaFor = (q) => q === 'ultra' ? 4 : q === 'high' ? 2 : 0;
 const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(innerWidth, innerHeight, { type: THREE.HalfFloatType, samples: msaaFor(quality) }));
 composer.setPixelRatio(renderer.getPixelRatio()); composer.setSize(innerWidth, innerHeight);
-function setComposerQuality(q) { for (const rt of [composer.renderTarget1, composer.renderTarget2]) { rt.samples = msaaFor(q); rt.dispose(); } }
+// Only the scene target is multisampled; post passes write into a plain target. pinComposer() keeps
+// RenderPass drawing into the scene target every frame (the composer would otherwise swap them).
+const sceneRT = composer.renderTarget2, postRT = composer.renderTarget1;
+postRT.samples = 0; postRT.depthBuffer = false; sceneRT.resolveDepthBuffer = false;
+function pinComposer() { composer.readBuffer = sceneRT; composer.writeBuffer = postRT; }
+function setComposerQuality(q, samples = msaaFor(q)) { if (sceneRT.samples !== samples) { sceneRT.samples = samples; sceneRT.dispose(); } }
 composer.addPass(new RenderPass(scene, camera));
 const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.62, 0.55, 0.82);
 bloom.enabled = quality !== 'lite';
 composer.addPass(bloom);
 composer.addPass(new OutputPass());
 const BLOOM_BASE = 0.62;
+/* ---- context loss: pause, explain, reload one tier lower (never loop) ---- */
+let ctxLost = false;
+const qLabel = (q) => q === 'ultra' ? 'Ultra' : q === 'high' ? 'High' : 'Lite';
+function reloadLower(why) {
+  const lower = SAFE.NAME[Math.max(0, SAFE.RANK[quality] - 1)];
+  const safe = SAFE.RANK[quality] === 0 || SAFE.safe;
+  try { if (typeof gameState !== 'undefined' && gameState === 'play' && typeof saveGame === 'function') saveGame(true); } catch (e) { }
+  SAFE.note({ state: 'closed', capQ: lower, capWhy: why });   // clean exit, but remember the cap
+  const h = `#q=${lower}${safe ? '&safe' : ''}&recovered=${why}&r=${SAFE.reloads + 1}`;
+  try { history.replaceState(null, '', location.pathname + location.search + h); } catch (e) { try { location.hash = h; } catch (e2) { } }
+  location.reload();
+}
+function gpuOverlay(phase) {
+  let o = document.getElementById('gpuLost');
+  if (!o) {
+    o = document.createElement('div'); o.id = 'gpuLost'; o.setAttribute('role', 'alertdialog'); o.setAttribute('aria-live', 'assertive');
+    o.style.cssText = 'position:fixed;inset:0;z-index:2147483000;display:grid;place-items:center;padding:16px;background:rgba(2,4,10,.94);color:#e8eefc;font:16px/1.5 system-ui,sans-serif;text-align:center';
+    document.body.appendChild(o);
+  }
+  const lower = SAFE.NAME[Math.max(0, SAFE.RANK[quality] - 1)];
+  const auto = SAFE.reloads < 2;                    // at most two automatic restarts, then the player decides
+  o.innerHTML = `<div style="max-width:440px">
+    <h2 style="margin:0 0 8px;font:700 22px Orbitron,system-ui,sans-serif">Graphics paused</h2>
+    <p style="margin:0 0 10px">Your computer's graphics chip ran out of room, so the game stopped drawing to keep your browser${SAFE.IN_FRAME ? ' (and Claude)' : ''} running. Your progress is safe.</p>
+    <p style="margin:0 0 14px">${auto ? `Restarting in <b>${qLabel(lower)}</b> mode in <b id="gpuCount">5</b> s.` : 'Close other tabs or apps, then restart in Safe mode.'}</p>
+    <button id="gpuGo" style="font:600 16px system-ui;padding:10px 18px;border-radius:10px;border:0;background:#ffd27a;color:#10131a;cursor:pointer">Restart in ${qLabel(lower)} now</button></div>`;
+  o.querySelector('#gpuGo').onclick = () => reloadLower('gpu');
+  if (auto) {
+    let n = 5; clearInterval(o._t);
+    o._t = setInterval(() => { n--; const c = o.querySelector('#gpuCount'); if (c) c.textContent = n; if (n <= 0) { clearInterval(o._t); reloadLower('gpu'); } }, 1000);
+  }
+}
+canvas.addEventListener('webglcontextlost', (e) => {
+  e.preventDefault();                                // three.js does this too; keep it explicit
+  if (ctxLost) return; ctxLost = true;
+  SAFE.note({ state: 'lost' });                      // if the whole tab dies next, the next launch still starts lower
+  try { if (Sound.ctx) Sound.ctx.suspend(); } catch (err) { }
+  try { Voice.stop(); } catch (err) { }
+  gpuOverlay('lost');
+}, false);
+canvas.addEventListener('webglcontextrestored', () => gpuOverlay('restored'), false);
+canvas.addEventListener('webglcontextcreationerror', () => fatalGL('Your browser refused to start 3D graphics for this page.'), false);
+
+/* ---- sentinel life cycle ---- */
+addEventListener('pagehide', () => SAFE.note({ state: 'closed' }));
+document.addEventListener('visibilitychange', () => { if (ctxLost || SAFE.rec.state === 'booting') return; SAFE.note({ state: document.hidden ? 'paused' : 'running' }); });
+setInterval(() => { if (!document.hidden && !ctxLost && SAFE.rec.state === 'running') SAFE.note({}); }, 15000);
+
 
 const uTime = { value: 0 };
 
 /* ---------------- canvas texture helpers ---------------- */
-function makeCanvas(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
+function makeCanvas(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; c.getContext('2d', { willReadFrequently: true }); return c; }
 function toTex(c, srgb = true, rep = 1) {
   const t = new THREE.CanvasTexture(c);
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
@@ -4285,8 +4419,8 @@ const Title = (() => {
   }
   // the gas giant's clouds are painted once, on the GPU, into a mipmapped equirectangular map
   function bakeGas() {
-    const w = quality === 'lite' ? 1024 : 2048;
-    const rt = new THREE.WebGLRenderTarget(w, w / 2, { type: THREE.HalfFloatType, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false });
+    const w = quality === 'ultra' ? 2048 : 1024;
+    const rt = new THREE.WebGLRenderTarget(w, w / 2, { type: quality === 'ultra' ? THREE.HalfFloatType : THREE.UnsignedByteType, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false });
     rt.texture.wrapS = THREE.RepeatWrapping; rt.texture.anisotropy = maxAniso;
     const mat = new THREE.ShaderMaterial({ vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`,
       fragmentShader: NOISE + GAS + `varying vec2 vUv; void main(){ float ph = vUv.x*6.2831853, th = (1.0 - vUv.y)*3.14159265; gl_FragColor = vec4(gasCol(vec3(-cos(ph)*sin(th), cos(th), sin(ph)*sin(th))), 1.0); }`, depthTest: false, depthWrite: false });
@@ -4473,7 +4607,12 @@ const Title = (() => {
   }
 
   /* ------------------------------------------------- entering and leaving */
-  function titlePR() { const d = window.devicePixelRatio || 1; return quality === 'ultra' ? Math.max(pixelRatioFor(quality), Math.min(d, 2) * prCur) : pixelRatioFor(quality); }
+  function titlePR() {
+    const base = pixelRatioFor(quality);
+    if (quality !== 'ultra' || GPU.tier !== 'ultra' || SAFE.safe) return base;      // no title-only DPR raise on iGPUs
+    const d = window.devicePixelRatio || 1, css = Math.max(1, innerWidth * innerHeight);
+    return Math.max(base, Math.min(d, 2, Math.sqrt(MPX.ultra / css)) * prCur * GOV_SCALE);
+  }
   function applyPR() {
     renderer.setPixelRatio(titlePR()); onResize();
     const pr = renderer.getPixelRatio(), sc = innerHeight * pr * 0.5;
@@ -4487,11 +4626,11 @@ const Title = (() => {
     if (dofPass.material.defines.TAPS !== taps) { dofPass.material.defines.TAPS = taps; dofPass.material.needsUpdate = true; }
     if (cinePass.material.defines.RAYS !== rays) { cinePass.material.defines.RAYS = rays; cinePass.material.needsUpdate = true; }
   }
+  // Only the scene target carries depth (the DOF pass reads it); the post target never needs it.
   function attachDepth(on) {
-    for (const rt of [composer.renderTarget1, composer.renderTarget2]) {
-      if (on && !rt.depthTexture) { rt.depthTexture = new THREE.DepthTexture(rt.width, rt.height); rt.dispose(); }
-      else if (!on && rt.depthTexture) { const d = rt.depthTexture; rt.depthTexture = null; rt.dispose(); d.dispose(); }
-    }
+    const rt = sceneRT;
+    if (on && !rt.depthTexture) { rt.depthTexture = new THREE.DepthTexture(rt.width, rt.height); rt.resolveDepthBuffer = true; rt.dispose(); }
+    else if (!on && rt.depthTexture) { const d = rt.depthTexture; rt.depthTexture = null; rt.resolveDepthBuffer = false; rt.dispose(); d.dispose(); }
   }
   function enterWorld() {
     if (applied || !built) return; applied = true;
@@ -4505,6 +4644,12 @@ const Title = (() => {
     W.sunLight.color.setRGB(1, 0.93, 0.84); scene.environmentIntensity = saved.env * 0.45;
     // the garden's grow-sun hangs above the hull; outside it would scorch the hull white
     saved.gardenSun = W.gardenSun ? W.gardenSun.intensity : null; if (W.gardenSun) W.gardenSun.intensity = 0;
+    // the crew stand unposed at the origin during the title: hide their meshes (not their lights,
+    // which would change the light count and recompile everything) and freeze the interior shadows
+    saved.charMeshes = [];
+    const rigs = [player, dog, ...Object.values(npcs), ...spiders, queen, ...bugs].map(c => c && c.rig && c.rig.g).filter(Boolean);
+    for (const g of rigs) g.traverse(o => { if ((o.isMesh || o.isPoints || o.isLine) && o.visible) { o.visible = false; saved.charMeshes.push(o); } });
+    saved.shadowAuto = renderer.shadowMap.autoUpdate; renderer.shadowMap.autoUpdate = false; renderer.shadowMap.needsUpdate = true;
     G.visible = true;
     const outIdx = composer.passes.length - 1;
     composer.insertPass(dofPass, outIdx); composer.insertPass(cinePass, outIdx + 1);
@@ -4520,6 +4665,8 @@ const Title = (() => {
     if (W.gardenSun && saved.gardenSun != null) W.gardenSun.intensity = saved.gardenSun;
     W.sunLight.position.copy(saved.light[0]); W.sunLight.color.copy(saved.light[1]); W.sunLight.intensity = saved.light[2];
     if (W.starMat) W.starMat.uniforms.uPR.value = saved.starPR; if (W.stars && saved.starPos) W.stars.position.copy(saved.starPos);
+    if (saved.charMeshes) { saved.charMeshes.forEach(o => o.visible = true); saved.charMeshes = null; }
+    renderer.shadowMap.autoUpdate = saved.shadowAuto ?? true; renderer.shadowMap.needsUpdate = true;
     G.visible = false;
     composer.removePass(dofPass); composer.removePass(cinePass); attachDepth(false);
     renderer.setPixelRatio(pixelRatioFor(quality)); onResize();
@@ -4773,7 +4920,7 @@ const Title = (() => {
     const du = dofPass.uniforms; du.uAp.value = damp(du.uAp.value, ap, 5, dt); du.uFocus.value = damp(du.uFocus.value, dofFocus, 3, dt); du.uMax.value = dofMax * renderer.getPixelRatio() * innerHeight / 1080;
     du.uNear.value = camera.near; du.uFar.value = camera.far;
     renderer.getDrawingBufferSize(du.uRes.value);
-    dofPass.enabled = quality !== 'lite' && du.uAp.value > 0.3 && !!composer.renderTarget1.depthTexture;
+    dofPass.enabled = quality !== 'lite' && du.uAp.value > 0.3 && !!sceneRT.depthTexture;
     // plumes and bloom
     for (const p of F.plumes) p.m.material.uniforms.uPow.value = damp(p.m.material.uniforms.uPow.value, plumePow * p.k, 4, dt);
     bloom.strength = saved.bloom[0] * bloomK;
@@ -4955,7 +5102,6 @@ const Title = (() => {
   }
   function update(dt) {
     if (!built || !applied) { orbitCam(dt); return; }
-    watchFPS();
     if (mode === 'loading' || mode === 'gate') {
       gateCam(dt);
       if (mode === 'gate' && skipRequested) { skipRequested = false; goMenu(true); }
@@ -4987,11 +5133,11 @@ const Title = (() => {
   if (/[?&]debug/.test(location.search)) window.HDT = {
     at(t) { if (mode !== 'cine') { setMode('cine'); cineEnd = false; } paused = true; prevPt = t - 0.01; pt = t; cardIdx = -2; subIdx = -2; ui.card.classList.remove('on'); ui.subs.classList.remove('on'); if (t < 41) showLogo(false); },
     play() { paused = false; }, menu() { paused = false; goMenu(true); },
-    get pt() { return pt; }, get mode() { return mode; }, get passes() { return composer.passes.length; }, get depth() { return !!(composer.renderTarget1.depthTexture || composer.renderTarget2.depthTexture); },
+    get pt() { return pt; }, get mode() { return mode; }, get passes() { return composer.passes.length; }, get depth() { return !!sceneRT.depthTexture; },
     sun: sunDir, HP, cinePass: () => cinePass, dofPass: () => dofPass, hide: () => hide(), show: () => show(), get score() { return Score.alive; }, get music() { return [Sound.musicOn, musicHeld, musicPref]; },
   };
 
-  return { init, ready, update, hide, show };
+  return { init, ready, update, hide, show, applyPR, active: () => applied };
 })();
 
 /* =====================================================================
@@ -6734,7 +6880,9 @@ function updateLightLOD() {
 const clock = new THREE.Clock(); const camRay = new THREE.Raycaster(); const camLook = new V3();
 const DT_CAP = /[?&]debug/.test(location.search) ? 0.2 : 0.05;
 function tick() {
+  if (ctxLost) return;
   requestAnimationFrame(tick);
+  { const now = performance.now(); if (lastFrameT) govTick(now - lastFrameT); lastFrameT = now; }
   const dt = Math.min(clock.getDelta(), DT_CAP); time += dt; uTime.value = time;
   // world time can freeze for a hit or slow down for the final blow; the camera and UI keep real time
   let wdt = dt * worldScale; if (hitStopT > 0) { hitStopT -= dt; wdt = 0; }
@@ -6773,8 +6921,11 @@ function tick() {
   }
   if (shakeAmt > 0.001) { camera.position.x += (Math.random() - 0.5) * shakeAmt * 0.3; camera.position.y += (Math.random() - 0.5) * shakeAmt * 0.3; camera.position.z += (Math.random() - 0.5) * shakeAmt * 0.3; shakeAmt *= Math.exp(-dt * 5); }
   updateHover(); updateLightLOD();
-  composer.render();
+  govShadowFrame();
+  if (!qualityBusy) { pinComposer(); composer.render(); }
 }
+let lastFrameT = 0;
+
 
 /* =====================================================================
    BOOT
@@ -6784,13 +6935,68 @@ function onResize() {
   renderer.setSize(innerWidth, innerHeight); composer.setPixelRatio(renderer.getPixelRatio()); composer.setSize(innerWidth, innerHeight); bloom.setSize(innerWidth, innerHeight);
   const s = innerHeight * renderer.getPixelRatio() * 0.5; if (FX) FX.mat.uniforms.uScale.value = s; if (DUST) DUST.mat.uniforms.uScale.value = s;
 }
-addEventListener('resize', onResize);
-function setQuality(q) {
-  quality = q; try { localStorage.setItem('halcyon_quality', q); } catch (e) { }
+let resizeT = 0;
+function onResizeDebounced() { clearTimeout(resizeT); resizeT = setTimeout(onResize, 150); }
+addEventListener('resize', onResizeDebounced);
+let qualityBusy = false;
+function setQuality(q, opts = {}) {
+  const user = opts.user !== false;
+  if (user && SAFE.RANK[q] > SAFE.RANK[GPU.tier]) SAFE.put('halcyon_q_confirmed', q);
+  quality = q;
+  if (user) { GOV.ceiling = q; GOV.level = 0; GOV_SCALE = 1; SAFE.clearCap(); try { localStorage.setItem('halcyon_quality', q); } catch (e) { } }
+  SAFE.note({ q });
   renderer.setPixelRatio(pixelRatioFor(q)); renderer.shadowMap.enabled = q === 'ultra'; bloom.enabled = q !== 'lite'; setComposerQuality(q); if (typeof setCharQuality === 'function') setCharQuality(q);
   scene.traverse(o => { if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => m.needsUpdate = true); });
-  btnLabel('#btnQuality', '✨', q === 'ultra' ? 'Ultra' : q === 'high' ? 'High' : 'Lite'); onResize();
+  btnLabel('#btnQuality', '✨', qLabel(q)); onResize();
+  qualityBusy = true;
+  precompileAll().catch(() => { }).finally(() => { qualityBusy = false; GOV.hold = 3; });
 }
+
+/* Frame-time governor. Cheap knobs first (no shader recompiles), a tier drop only as a last resort, never above the player's pick. */
+const GOV = {
+  level: 0, ceiling: quality, hold: 4, sum: 0, n: 0, slow: 0, fast: 0, severe: 0, frame: 0, shadowEvery: 1,
+  STEPS: [
+    { scale: 1.0, msaa: true, shadowEvery: 1 },
+    { scale: 0.85, msaa: true, shadowEvery: 1 },
+    { scale: 0.85, msaa: false, shadowEvery: 2 },
+    { scale: 0.7, msaa: false, shadowEvery: 3 },
+    { scale: 0.6, msaa: false, shadowEvery: 4 },
+  ],
+};
+function govApply() {
+  const s = GOV.STEPS[GOV.level];
+  GOV_SCALE = s.scale; GOV.shadowEvery = s.shadowEvery; renderer.shadowMap.autoUpdate = s.shadowEvery === 1;
+  const want = s.msaa ? msaaFor(quality) : 0;
+  setComposerQuality(quality, want);
+  if (Title.active && Title.active()) Title.applyPR(); else { renderer.setPixelRatio(pixelRatioFor(quality)); onResize(); }
+  GOV.hold = 2; GOV.sum = GOV.n = GOV.slow = GOV.fast = 0;
+}
+function govStep(d) {
+  const max = GOV.STEPS.length - 1;
+  if (d > 0 && GOV.level >= max) {
+    const lower = SAFE.NAME[SAFE.RANK[quality] - 1];
+    if (lower) { setQuality(lower, { user: false }); GOV.level = 1; govApply(); toast(`Graphics lowered to ${qLabel(lower)} to keep the game smooth`, 2600); }
+    return;
+  }
+  const next = clamp(GOV.level + d, 0, max); if (next === GOV.level) return;
+  GOV.level = next; govApply();
+}
+function govTick(ms) {
+  if (document.hidden || qualityBusy || ctxLost) return;
+  if (GOV.hold > 0) { GOV.hold -= Math.min(ms, 250) / 1000; return; }
+  if (ms > 1200) { if (++GOV.severe >= 2) { GOV.severe = 0; govStep(+2); } return; } // two near-freezes: jump two steps
+  if (ms > 250) return;                                // single hitch (GC, tab switch, compile): ignore
+  GOV.sum += ms; GOV.n++;
+  if (GOV.sum < 2000) return;                          // judge ~2 s windows
+  const avg = GOV.sum / GOV.n; GOV.sum = GOV.n = 0; GOV.severe = 0;
+  if (avg > 36) { GOV.fast = 0; if (++GOV.slow >= 2) { GOV.slow = 0; govStep(+1); } }       // < ~28 fps for 4 s
+  else if (avg < 20) { GOV.slow = 0; if (++GOV.fast >= 6) { GOV.fast = 0; govStep(-1); } }  // smooth for 12 s: give quality back (within the tier only)
+  else { GOV.slow = GOV.fast = 0; }
+}
+function govShadowFrame() {
+  if (GOV.shadowEvery > 1) { GOV.frame = (GOV.frame + 1) % GOV.shadowEvery; renderer.shadowMap.needsUpdate = GOV.frame === 0; }
+}
+
 /* ---------- voice picker: cast each character from the voices this browser has ---------- */
 const VOICE_CAST = [
   ['HALO', 'HALO (ship AI)', 'Captain Vega. Captain. Please wake up.'],
@@ -6843,7 +7049,11 @@ function wireUI() {
   Voice.onchange = () => { if (!$('#voicePanel').classList.contains('hidden')) renderVoicePanel(); };
   btnLabel('#btnVoice', '🗣', 'Voices'); btnLabel('#btnMusic', '🎵', 'Music: On'); btnLabel('#btnView', '👁', 'View: Behind'); btnLabel('#btnHelp', '❔', 'Help');
   $('#btnMusic').onclick = () => { Sound.init(); Sound.setMusic(!Sound.musicOn); btnLabel('#btnMusic', '🎵', Sound.musicOn ? 'Music: On' : 'Music: Off'); };
-  $('#btnQuality').onclick = () => setQuality(quality === 'ultra' ? 'high' : quality === 'high' ? 'lite' : 'ultra');
+  $('#btnQuality').onclick = async () => {
+    const next = quality === 'ultra' ? 'high' : quality === 'high' ? 'lite' : 'ultra';
+    if (next === 'ultra' && GPU.tier !== 'ultra') { const c = await choose('Ultra is very demanding and may crash this computer\'s graphics (and your browser). Use it anyway?', ['Stay on Lite', 'Switch to High', 'Use Ultra anyway']); if (c === 1) return setQuality('high'); if (c !== 2) return; }
+    setQuality(next);
+  };
   btnLabel('#btnQuality', '✨', quality === 'ultra' ? 'Ultra' : quality === 'high' ? 'High' : 'Lite');
   $('#btnFull').onclick = (e) => { e.stopPropagation(); Sound.click(); toggleFullscreen(); };
   $('#btnFullTitle').onclick = (e) => { e.stopPropagation(); Sound.click(); toggleFullscreen(); };
@@ -6875,23 +7085,63 @@ function wireUI() {
   $('#btnAgain').onclick = () => location.reload();
   $('#btnLinger').onclick = () => { el.ending.classList.add('hidden'); endCine(); letterbox(false); gameState = 'play'; setHUD(true); actionBusy = false; npcs.zib.follow = true; dog.act = null; toast('Take your time, Captain. Home will wait a minute longer.', 3000); };
 }
+/* Shader programs are compiled for the render target the scene really draws into (the composer's
+   scene target, not the screen), in small batches with a frame in between, so no single frame
+   links dozens of programs: on Windows each one is a slow HLSL compile inside the browser's
+   shared GPU process, and a long stall there can take the whole browser down. */
+async function precompileAll(progress) {
+  const frame = () => new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
+  // compile leaf drawables one batch at a time; lights are always gathered from the whole scene,
+  // so every batch gets exactly the light setup the real frames use
+  const items = [];
+  scene.traverse(o => { if ((o.isMesh || o.isPoints || o.isLine || o.isSprite) && o.material) { let lit = false; o.traverse(c => { if (c.isLight) lit = true; }); if (!lit) items.push(o); } });
+  const withTarget = (fn) => { const prev = renderer.getRenderTarget(); renderer.setRenderTarget(sceneRT); try { return fn(); } finally { renderer.setRenderTarget(prev); } };
+  const B = 30;
+  for (let i = 0; i < items.length; i += B) {
+    const ps = withTarget(() => items.slice(i, i + B).map(o => renderer.compileAsync ? renderer.compileAsync(o, camera, scene) : (renderer.compile(o, camera, scene), null)));
+    try { await Promise.all(ps); } catch (e) { }
+    if (progress) progress(Math.min(items.length, i + B), items.length);
+    await frame();
+  }
+  // anything left over (e.g. meshes with lights inside them) — everything else is already cached
+  const rest = withTarget(() => renderer.compileAsync ? renderer.compileAsync(scene, camera) : (renderer.compile(scene, camera), null));
+  try { await rest; } catch (e) { }
+}
+async function bootTail() {
+  tick();
+  await new Promise(r => setTimeout(r, 3000));       // first frames presented without dying
+  SAFE.note({ state: document.hidden ? 'paused' : 'running', crashes: SAFE.crashes });
+  setTimeout(() => { if (!ctxLost) SAFE.note({ crashes: 0 }); }, 5 * 60e3); // five clean minutes forgive old crashes
+}
+function safeNotice() {
+  const msgs = [];
+  if (SAFE.recovered) msgs.push(`Your graphics chip needed a break, so the game restarted in ${qLabel(quality)} mode.`);
+  else if (SAFE.died) msgs.push(`The game closed unexpectedly last time, so it started in ${qLabel(quality)} mode to protect your browser.`);
+  else if (!SAFE.get('halcyon_quality') && !SAFE.urlQ && !SAFE.lite && GPU.tier !== 'ultra') msgs.push(`Started on ${qLabel(quality)} for this computer (${GPU.why}).`);
+  if (msgs.length) toast(msgs[0] + ' You can change it in Settings.', 6000);
+}
+
 async function boot() {
   const frame = () => new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
+  const slowT = setTimeout(offerSafeLink, 15000);
   try {
     setLoading('Forging hull plates…'); await frame();
     buildWorld();
     setLoading('Growing the garden, waking the crew…'); await frame();
     FX = new Particles(4000, THREE.AdditiveBlending); DUST = new Particles(3000, THREE.NormalBlending);
-    spawnCharacters(); wireHotspots(); initExtras(); wireUI();
+    spawnCharacters(); await frame();
+    wireHotspots(); initExtras(); wireUI(); await frame();
     setLoading('Painting a small blue planet…'); await frame();
     buildEarth();
     resetTransient(); applyWorld(); updateBars(); updateInventory(); W.sunLight.intensity = 2.2;
     gameState = 'title';
     setLoading('Compiling shaders…'); await frame();
     Title.init(); orbitCam(0); updateLightLOD();
-    try { if (renderer.compileAsync) await renderer.compileAsync(scene, camera); } catch (e) { }
-    tick();
-    setLoading(''); window.__halcyonReady = true; Title.ready();
+    try { await precompileAll((i, n) => setLoading(`Preparing graphics… ${Math.round(i / n * 100)}%`)); } catch (e) { }
+    // one warm-up frame behind the loader builds the shadow, bloom and output programs
+    renderer.shadowMap.needsUpdate = true; pinComposer(); composer.render(); await frame();
+    bootTail();
+    clearTimeout(slowT); setLoading(''); window.__halcyonReady = true; Title.ready(); safeNotice();
   } catch (e) { console.error(e); setLoading('⚠️ Something went wrong while building the ship: ' + e.message); }
 }
 
@@ -7393,7 +7643,25 @@ function updateExtras(dt, wdt) {
 function initExtras() { initBlobs(); initTreasures(); getBall(); }
 
 /* ---------- start ---------- */
-boot();
+function startGate() {
+  const L = el.loading; L.textContent = '';
+  const p = document.createElement('p'); p.style.cssText = 'margin:0 0 10px;max-width:420px';
+  p.textContent = SAFE.died ? `Halcyon Drift closed unexpectedly last time. It will start in ${qLabel(quality)} mode.` : `Ready to load in ${qLabel(quality)} mode for this computer.`;
+  const b = document.createElement('button'); b.type = 'button'; b.textContent = '▶ Load the game';
+  b.style.cssText = 'font:600 16px system-ui;padding:10px 18px;border-radius:10px;border:0;background:#ffd27a;color:#10131a;cursor:pointer';
+  b.onclick = () => { L.textContent = ''; boot(); };
+  L.append(p, b); b.focus();
+}
+function offerSafeLink() {                         // boot() taking >15 s: give the player a way out
+  const L = el.loading; if (!L || !L.textContent || SAFE.safe) return;
+  const a = document.createElement('button'); a.type = 'button'; a.textContent = 'Taking a while? Restart in Safe mode';
+  a.style.cssText = 'display:block;margin:10px auto 0;font:600 14px system-ui;background:none;border:1px solid #8fa4c8;color:#e8eefc;border-radius:8px;padding:6px 12px;cursor:pointer';
+  a.onclick = () => { quality = 'lite'; reloadLower('slow'); };
+  L.after(a); setTimeout(() => a.remove(), 60000);
+}
+// Inside the Claude page, a game that crashed last time waits for a click instead of booting by itself.
+if (SAFE.IN_FRAME && !SAFE.recovered && SAFE.died) startGate(); else boot();
+
 // Developer hook: open with ?debug to poke at the game from the browser console.
 if (/[?&]debug/.test(location.search)) window.HD = { get S() { return S; }, player, dog, npcs, queen, HS, W, ROOMS, walkTo, interact, dogAbility, applyWorld, saveGame, loadGame, camera, renderer, setCamMode,
   nav: { planPath, resolveMove, doorLocked, regionAt, insideObs, obstacles, minX, maxX, ROOM_Z, CORR_Z, HALF_W }, doors, Voice, hintStep, showHint,
