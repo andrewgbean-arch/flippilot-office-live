@@ -282,6 +282,7 @@ button:disabled{opacity:.38;cursor:not-allowed}
 #bottom{position:absolute;left:16px;right:16px;bottom:16px;display:flex;gap:14px;align-items:flex-end;pointer-events:none}
 #bottom > *{pointer-events:auto}
 #crew{padding:12px;width:330px;flex:none}
+#crew .hp{display:none} /* nothing in the ship can hurt you any more */
 .hp{display:flex;align-items:center;gap:10px;font-size:11px;letter-spacing:.14em;color:var(--muted);margin-bottom:10px}
 .hp span{font-family:'Orbitron';white-space:nowrap}
 .hp .bar{flex:1}
@@ -372,6 +373,32 @@ button:disabled{opacity:.38;cursor:not-allowed}
 #endRank .stars{display:block;font-size:28px;letter-spacing:.2em;text-shadow:0 0 16px rgba(255,200,90,.7)}
 #endRank .stars i{font-style:normal;color:rgba(255,255,255,.18);text-shadow:none}
 @media (prefers-reduced-motion: reduce){#objBanner,#chapterCard{transition:none}}
+
+/* puzzle screens */
+#puzzle{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:38;padding:18px 20px 16px;width:min(460px,calc(100vw - 24px));max-height:calc(100vh - 24px);overflow:auto;text-align:center}
+#puzzle .pz-kicker{font-family:'Orbitron';font-size:10.5px;letter-spacing:.3em;color:var(--accent);margin-bottom:4px}
+#puzzle h3{font-family:'Orbitron';letter-spacing:.12em;margin:0 0 6px;font-size:17px;color:#fff}
+#pzText{margin:0 0 12px;font-size:13.5px;line-height:1.45;color:#c6d6ec}
+#pzMsg{min-height:20px;margin:10px 0 0;font-size:14px;color:var(--gold)}
+#pzMsg.good{color:#7dffb0}
+.crane-grid{display:grid;grid-template-columns:28px repeat(3,1fr);gap:8px;align-items:center;margin:0 auto;max-width:340px}
+.crane-grid .lab{font-family:'Orbitron';font-size:12px;color:var(--muted)}
+.crane-grid button{aspect-ratio:1;font-family:'Orbitron';font-size:13px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:0;
+  background:repeating-linear-gradient(45deg,rgba(255,200,60,.08) 0 6px,rgba(0,0,0,0) 6px 12px),rgba(14,24,40,.8)}
+.crane-grid button .ic{font-size:22px}
+.crane-grid button.tried{opacity:.45}
+.crane-grid button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.pipe-wrap{display:flex;align-items:center;justify-content:center;gap:6px}
+.pipe-end{font-family:'Orbitron';font-size:10px;letter-spacing:.1em;color:var(--muted);width:44px;line-height:1.3}
+.pipe-end.on{color:#6fe3ff;text-shadow:0 0 10px #6fe3ff}
+.pipe-grid{display:grid;grid-template-columns:repeat(4,minmax(0,64px));gap:5px}
+.pipe-grid button{aspect-ratio:1;padding:0;border-radius:10px;background:rgba(8,14,26,.9)}
+.pipe-grid button svg{width:100%;height:100%;display:block;transition:transform .18s ease}
+.pipe-grid button .p{stroke:#3a4c64;stroke-width:11;stroke-linecap:round;fill:none}
+.pipe-grid button.lit .p{stroke:#6fe3ff;filter:drop-shadow(0 0 4px #6fe3ff)}
+.pipe-grid button.lit{border-color:rgba(111,227,255,.6)}
+.pipe-grid button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+@media (prefers-reduced-motion: reduce){.pipe-grid button svg{transition:none}}
 
 /* keypad */
 #keypad{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:38;padding:18px;width:260px;text-align:center}
@@ -621,6 +648,14 @@ button:disabled{opacity:.38;cursor:not-allowed}
   <div class="btns vbtns"><button id="btnLogClose" type="button">Close</button></div>
 </div>
 <div id="choices" class="panel hidden"></div>
+<div id="puzzle" class="panel hidden" role="dialog" aria-modal="true" aria-labelledby="pzTitle">
+  <div class="pz-kicker" id="pzKicker"></div>
+  <h3 id="pzTitle"></h3>
+  <p id="pzText"></p>
+  <div id="pzBody"></div>
+  <p id="pzMsg" aria-live="polite"></p>
+  <div class="btns vbtns"><button id="pzClose" type="button">Close</button></div>
+</div>
 <div id="itemMenu" class="panel hidden"></div>
 <div id="keypad" class="panel hidden">
   <div class="lbl">PERSONAL LOCKER · 4-DIGIT CODE</div>
@@ -661,10 +696,11 @@ button:disabled{opacity:.38;cursor:not-allowed}
   <b>Dialogue log</b> — press <b>L</b> or 📜 Log to read back (and hear again) everything that's been said.<br>
   <b>Choices &amp; keypads</b> — press 1, 2, 3… to pick an answer, and type codes straight on your keyboard.</p>
   <p><b>Comet &amp; AVE points</b> — AVE stands for <i>Animal Valor &amp; Expertise</i>. Comet spends them on her skills:
-  <b>Sniff</b> (1) finds hidden things and makes friends, <b>Bark</b> (1) scares or lures creatures, <b>Dig</b> (2) digs up buried things,
+  <b>Sniff</b> (1) finds hidden things and makes friends, <b>Bark</b> (1) calls out and gets attention, <b>Dig</b> (2) digs up buried things,
   <b>Fetch</b> (2) reaches tight spots and tugs things free. Refill AVE by petting her (click Comet), feeding her carrots or biscuits, and at Save Beacons.</p>
   <p><b>Fetch!</b> — take the squeaky ball from Comet's bed on the Bridge, pick it in your inventory and click the floor to throw it.<br>
   <b>Lost treasures</b> — the impact scattered eight keepsakes around the ship. When there's nothing else to find, Comet's <b>Sniff</b> leads you to one with glowing paw prints; then <b>Dig</b> or <b>Fetch</b> brings it back.</p>
+  <p><b>Puzzles</b> — there's no fighting and nothing can hurt you. The meteor left the ship in a mess, and every problem is a puzzle: read what you find, talk to the crew, let Comet sniff around, and use the right thing in the right place. The crane and power-conduit consoles open their own puzzle screens.</p>
   <p><b>Save Beacons</b> — the glowing cyan pylons. Click one to save. If you fall, you return to your last save.</p>
   <p><b>Stuck?</b> Press <b>💡 Hint</b> at the top of the screen. Each press of <b>Clearer hint</b> tells you a bit more, right up to the exact answer. You can also talk to the crew, read the Captain's log, and ask Comet to sniff around.</p>
   <div class="btns" style="margin-top:10px"><button id="btnHelpClose">Close</button></div>
@@ -2335,7 +2371,7 @@ function buildCargo() {
   const lever = box(0.04, 0.3, 0.04, MAT.chrome, 0.3, 1.25, -0.3, con); W.craneLever = lever;
   hs('crane', con, { name: 'Crane Console', at: [X(-5.45), 4.6], look: new V3(X(1.5), 2, -0.5) });
   addObstacleRect(X(-7.1), 3.9, X(-6.1), 5.3);
-  // the meteor, glowing and full of eggs
+  // the meteor: Zib's rock-ship, glowing with violet crystals
   const rockGeo = new THREE.IcosahedronGeometry(1.1, 4); const rp = rockGeo.attributes.position; const cols = new Float32Array(rp.count * 3);
   for (let i = 0; i < rp.count; i++) { const v = new V3().fromBufferAttribute(rp, i); const n = fbm(v.x * 1.6 + 2, v.y * 1.6, v.z * 1.6, 4); const cr2 = fbm(v.x * 4 + 9, v.y * 4, v.z * 4, 3); v.multiplyScalar(0.75 + n * 0.5); rp.setXYZ(i, v.x, v.y * 0.75, v.z); const hot = cr2 > 0.58 ? 1 : 0; cols.set([hot, hot * 0.35, hot * 0.6], i * 3); }
   rockGeo.computeVertexNormals();
@@ -2348,8 +2384,7 @@ function buildCargo() {
   const rock = new THREE.Mesh(rockGeo, rockMat); rock.castShadow = rock.receiveShadow = true; met.add(rock);
   const cryM = new THREE.MeshPhysicalMaterial({ color: 0xb46bff, emissive: 0x7a2fff, emissiveIntensity: 1.8, roughness: 0.1, transparent: true, opacity: 0.85, clearcoat: 1 });
   for (let k = 0; k < 9; k++) { const c = new THREE.Mesh(new THREE.OctahedronGeometry(0.15, 0), cryM); const a = k * 0.7; c.position.set(Math.cos(a) * 0.9, 0.3 + (k % 3) * 0.15, Math.sin(a) * 0.8); c.scale.set(0.6, 1.8, 0.6); c.lookAt(c.position.clone().multiplyScalar(3)); c.rotateX(Math.PI / 2); met.add(c); }
-  const eggM = new THREE.MeshPhysicalMaterial({ color: 0xe8e0c8, roughness: 0.3, transparent: true, opacity: 0.75, transmission: 0, sheen: 1, sheenColor: new THREE.Color(0xffffff), emissive: 0x302010, emissiveIntensity: 0.4 });
-  for (let k = 0; k < 14; k++) { const a = k * 2.4, e = sph(0.12 + Math.random() * 0.06, eggM, Math.cos(a) * 1.0, -0.3 + Math.random() * 0.3, Math.sin(a) * 0.85, met, 12, 10); e.scale.y = 1.3; }
+  for (let k = 0; k < 8; k++) { const c = new THREE.Mesh(new THREE.OctahedronGeometry(0.11, 0), cryM); const a = k * 2.4 + 0.4; c.position.set(Math.cos(a) * 1.0, -0.2 + (k % 2) * 0.2, Math.sin(a) * 0.85); c.scale.set(0.6, 1.6, 0.6); c.lookAt(c.position.clone().multiplyScalar(3)); c.rotateX(Math.PI / 2); met.add(c); }
   hs('meteor', met, { name: 'Meteor Fragment', at: [X(-1.6), -5.3], look: new V3(X(-1.6), 0.6, -7) });
   addObstacleCircle(X(-1.6), -7.0, 1.35);
   const scorch = new THREE.Mesh(new THREE.PlaneGeometry(3, 6.5), new THREE.MeshBasicMaterial({ map: radialTex('rgba(0,0,0,0.85)', 'rgba(0,0,0,0)'), transparent: true, depthWrite: false })); scorch.rotation.set(-Math.PI / 2, 0, -1.0); scorch.position.set(1.8, 0.01, -7.2); g.add(scorch);
@@ -2373,25 +2408,28 @@ function buildCargo() {
   const seamM = emissive(0xff8a30, 4); W.seamMat = seamM; const seam = new THREE.Mesh(new THREE.TorusGeometry(1.95, 0.035, 6, 64), seamM); seam.scale.y = 0.82; seam.position.z = 0.28; patch.add(seam);
   hs('breach', hitBox(4.4, 3.6, 0.6, 5, 3, -9.0, g), { name: 'Hull Breach', at: [X(5), -7.5], look: new V3(X(5), 3, -9.2) });
   W.breachPos = new V3(X(5), 3, -9.1);
-  // the patch-kit crate, wrapped in webs
+  // the patch-kit crate, buried under cargo the impact knocked loose (the crane clears it)
   const pc = new THREE.Group(); pc.position.set(9.3, 0, -7.4); g.add(pc);
   const pcc = box(1.3, 1.0, 1.1, MAT.crateB, 0, 0.5, 0, pc, { round: 0.04 }); blockMeshes.push(pcc);
   const label = box(0.5, 0.5, 0.02, emissive(0xffffff, 0.6), 0, 0.55, 0.56, pc, { cast: false });
   box(0.34, 0.1, 0.03, new THREE.MeshBasicMaterial({ color: 0xd02020 }), 0, 0.55, 0.57, pc); box(0.1, 0.34, 0.03, new THREE.MeshBasicMaterial({ color: 0xd02020 }), 0, 0.55, 0.57, pc);
   const pweb = new THREE.Group(); pc.add(pweb); W.patchWeb = pweb;
-  for (let k = 0; k < 6; k++) { const w = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 1.6), MAT.web); w.position.set(0, 0.6, 0); w.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3); pweb.add(w); }
+  for (const [w, h, d, mat, x, y, z, rx, ry, rz] of [[1.4, 1.2, 1.3, MAT.crateO, -0.1, 1.55, 0.05, 0.08, 0.35, -0.1], [1.2, 1.0, 1.2, MAT.crateR, 0.25, 2.6, -0.1, -0.12, -0.5, 0.14], [1.1, 0.9, 1.0, MAT.crateB, -0.55, 0.45, 0.85, 0, 0.6, 0.2]]) {
+    const c = box(w, h, d, mat, x, y, z, pweb, { round: 0.04 }); c.rotation.set(rx, ry, rz);
+  }
+  // stencil on the buried crate, readable once it's uncovered
+  const stC = makeCanvas(256, 64), st = stC.getContext('2d'); st.fillStyle = 'rgba(0,0,0,0)'; st.clearRect(0, 0, 256, 64); st.fillStyle = '#f2f2f2'; st.font = '900 40px Orbitron, Arial Black, sans-serif'; st.textAlign = 'center'; st.fillText('BAY C-2', 128, 46);
+  const stM = new THREE.MeshBasicMaterial({ map: toTex(stC), transparent: true }); const sten = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.22), stM); sten.position.set(0, 0.9, 0.56); pc.add(sten);
   hs('patchCrate', pc, { name: 'Emergency Supply Crate', at: [X(9.1), -5.8], look: new V3(X(9.3), 0.6, -7.4) });
   addObstacleRect(X(8.5), -8.1, X(10.1), -6.7);
-  // webs & egg sacs everywhere
-  const webSpots = [[-10.6, 6.2, -8.6, 0.8, 0], [10.6, 6.2, 8.6, -0.8, 0], [-10.6, 6.0, 8.6, -0.8, 0], [10.6, 6.2, -8.6, 0.8, 0], [-8, 3.5, -8.95, 0, 0], [8, 4.5, 8.95, 0, 0], [-10.9, 3, 0.5 - 4, Math.PI / 2, 0], [3.9, 2.7, 7.0, 0.2, 0.3]];
-  for (const [x, y, z, ry, rx] of webSpots) { const w = new THREE.Mesh(new THREE.PlaneGeometry(3.4, 3.4), MAT.web); w.position.set(x, y, z); w.rotation.set(rx, ry, 0); g.add(w); }
-  W.eggClusters = [];
-  for (const [x, y, z] of [[-10.2, 6.5, -8.3], [9.9, 6.5, 8.1], [-9.6, 1.4, 7.1], [7.4, 6.6, -8.4]]) {
-    const c = new THREE.Group(); c.position.set(x, y, z); g.add(c); W.eggClusters.push(c);
-    for (let k = 0; k < 11; k++) { const e = sph(0.14 + Math.random() * 0.08, eggM, (Math.random() - 0.5) * 0.7, (Math.random() - 0.5) * 0.5, (Math.random() - 0.5) * 0.7, c, 12, 10); e.scale.y = 1.35; }
-  }
-  hs('eggs', W.eggClusters[2], { name: 'Egg Sacs', at: [X(-8.4), 5.8], look: new V3(X(-9.6), 1.4, 7.1) });
-  // crew member cocooned near the wall
+  // the cargo manifest: knocked off its hook in the impact, now lying under the crane console
+  const man = new THREE.Group(); man.position.set(-4.4, 0, 5.4); man.rotation.y = 0.5; g.add(man); W.manifest = man;
+  box(0.32, 0.02, 0.44, MAT.plasticD, 0, 0.012, 0, man, { cast: false });
+  const mC = makeCanvas(128, 176), mc = mC.getContext('2d'); mc.fillStyle = '#efe9dc'; mc.fillRect(0, 0, 128, 176); mc.fillStyle = '#26303c'; mc.font = '700 13px sans-serif'; mc.fillText('CARGO MANIFEST', 10, 22);
+  for (let k = 0; k < 9; k++) { mc.fillStyle = k === 5 ? '#c02020' : '#5a6470'; mc.fillRect(10, 36 + k * 14, k === 5 ? 96 : 60 + (k * 23) % 40, 5); }
+  const mPage = new THREE.Mesh(new THREE.PlaneGeometry(0.28, 0.4), new THREE.MeshStandardMaterial({ map: toTex(mC), roughness: 0.9 })); mPage.rotation.x = -Math.PI / 2; mPage.position.y = 0.025; man.add(mPage);
+  hs('manifest', man, { name: 'Cargo Manifest', at: [X(-4.4), 4.5], look: new V3(X(-4.4), 0, 5.4) });
+  // the engineer, wrapped up in cargo netting that tore loose from the ceiling
   const coc = new THREE.Group(); coc.position.set(7.4, 0, 3.4); g.add(coc); W.cocoon = coc;
   const silkTex = (() => { const C = makeCanvas(256, 256), c = C.getContext('2d'); c.fillStyle = '#d8d8d0'; c.fillRect(0, 0, 256, 256); for (let k = 0; k < 400; k++) { c.strokeStyle = `rgba(${Math.random() < 0.5 ? 255 : 150},${Math.random() < 0.5 ? 255 : 150},${Math.random() < 0.5 ? 250 : 140},0.5)`; c.lineWidth = 0.5 + Math.random() * 1.5; c.beginPath(); const y = Math.random() * 256; c.moveTo(0, y); c.bezierCurveTo(80, y + Math.random() * 40 - 20, 170, y + Math.random() * 40 - 20, 256, y + Math.random() * 30 - 15); c.stroke(); } return toTex(C); })();
   const cocM = new THREE.MeshPhysicalMaterial({ map: silkTex, roughness: 0.7, sheen: 1, sheenColor: new THREE.Color(0xffffff), transparent: true, opacity: 0.96 });
@@ -2401,7 +2439,7 @@ function buildCargo() {
   sph(0.15, new THREE.MeshPhysicalMaterial({ color: 0x7a4a30, roughness: 0.5, sheen: 0.5 }), 0, 0, 0, face, 20, 16);
   for (const s of [-1, 1]) sph(0.025, new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.1 }), s * 0.05, 0.03, 0.13, face, 10, 8);
   W.cocoonFace = face;
-  hs('cocoon', coc, { name: 'Silk Cocoon', at: [X(6.2), 2.4], look: new V3(X(7.4), 1.8, 3.4) });
+  hs('cocoon', coc, { name: 'Tangled Cargo Netting', at: [X(6.2), 2.4], look: new V3(X(7.4), 1.8, 3.4) });
   addObstacleCircle(X(7.4), 3.4, 0.6);
   // door panel to engineering
   const dp = new THREE.Group(); dp.position.set(10.9, 1.45, 2.45); g.add(dp);
@@ -5146,12 +5184,12 @@ const Title = (() => {
 const SAVE_KEY = 'halcyon_drift_save_v1';
 const AVE_MAX = 10;
 const ITEMS = {
-  torch: { name: 'UV Torch', icon: '🔦', desc: 'A high-intensity ultraviolet torch. Bugs hate it. Big bugs REALLY hate it. Select it and click a creature — or just click the creature while you carry it.' },
+  torch: { name: 'Cutting Torch', icon: '🔦', desc: 'A plasma cutting torch from your locker. It slices through tangled netting, jammed latches and anything else the impact has twisted shut.' },
   keycard: { name: 'Security Keycard', icon: '💳', desc: 'Your keycard. Slightly chewed, heavily soiled, entirely forgiven.' },
   carrot: { name: 'Carrot', icon: '🥕', desc: "Crunchy, sweet, grown under grow-lights. Comet's favourite treat (+3 AVE).", dog: 3 },
   biscuit: { name: 'Dog Biscuit', icon: '🦴', desc: 'Bone-shaped. Vacuum-sealed. Dispensed by a grateful robot (+4 AVE).', dog: 4 },
-  tomato: { name: 'Tomato', icon: '🍅', desc: 'Sun-ripe under the dome. Restores 35 health.', heal: 35 },
-  strawberry: { name: 'Strawberry', icon: '🍓', desc: 'Tiny, perfect, from the living wall. Restores 12 health.', heal: 12 },
+  tomato: { name: 'Tomato', icon: '🍅', desc: 'Sun-ripe under the dome. It smells like summer.', heal: 35 },
+  strawberry: { name: 'Strawberry', icon: '🍓', desc: 'Tiny, perfect, from the living wall.', heal: 12 },
   sunflower: { name: 'Sunflower', icon: '🌻', desc: 'The brightest bloom in the garden. It seems to hold a little of the light.' },
   patch: { name: 'Hull Patch Kit', icon: '🧰', desc: 'A self-welding nano-alloy patch. Rated for meteor holes (small to medium).' },
   coupling: { name: 'Power Coupling', icon: '⚙️', desc: "The reactor's primary power coupling. Slightly slobbery." },
@@ -5166,8 +5204,8 @@ let skipRequested = false, queenIntroSeen = false;
 
 const OBJECTIVES = [
   { text: 'Get into the Cargo Hold', done: () => S.flags.door1, show: () => true },
-  { text: 'Survive whatever is in the Cargo Hold', done: () => S.flags.queenDead, show: () => S.flags.door1 || S.flags.queenIntro },
-  { text: 'Find the missing engineer', done: () => S.flags.rafiFree, show: () => S.flags.cocoonSeen || S.flags.queenDead },
+  { text: 'Dig the emergency supplies out of the fallen cargo', done: () => S.flags.cargoClear, show: () => !!S.flags.cargoSeen },
+  { text: 'Free the trapped engineer', done: () => S.flags.rafiFree, show: () => !!S.flags.cargoSeen },
   { text: 'Seal the hull breach', done: () => S.flags.breachSealed, show: () => true },
   { text: 'Restore main power in Engineering', done: () => S.flags.powerOn, show: () => true },
   { text: 'Find a way to repair the star charts', done: () => !!S.inv.crystal || S.flags.jumped, show: () => S.flags.powerOn || S.flags.zibTalked },
@@ -5204,7 +5242,7 @@ function spawnCharacters() {
   const juno = { rig: buildHuman({ helmet: false, suit: 0xa9c9a0, accent: 0x2f8a4a, skin: 0x8d5a3c, hair: 0x15110e, hairStyle: 'bun', iris: 0x2a1a0e, pack: false, badge: 0x7dffb0 }), pos: new V3(26 - 5.1, 0, -2.45), heading: Math.PI, pose: 'work', path: [], speed: 2.5 };
   scene.add(juno.rig.g); npcs.juno = juno; addObstacleCircle(juno.pos.x, juno.pos.z, 0.4);
   hs('juno', juno.rig.g, { name: 'Dr. Juno Park', pri: 3, at: () => [juno.pos.x + 0.9, juno.pos.z + 0.9], look: () => juno.pos.clone().setY(1.5) });
-  // --- crew: Chief Engineer Rafi Okoye (starts cocooned) ---
+  // --- crew: Chief Engineer Rafi Okoye (starts tangled in the cargo netting) ---
   const rafi = { rig: buildHuman({ helmet: false, suit: 0xd8862a, accent: 0x2d3038, skin: 0x5a3a28, hair: 0x0f0c0a, hairStyle: 'curly', beard: true, goggles: true, iris: 0x1a0e06, pack: false, badge: 0xffb040 }), pos: new V3(52 + 7.4, 0, 3.4), heading: -Math.PI / 2, pose: 'idle', path: [], speed: 3.2 };
   scene.add(rafi.rig.g); rafi.rig.g.visible = false; npcs.rafi = rafi;
   hs('rafi', rafi.rig.g, { name: 'Chief Rafi Okoye', pri: 3, at: () => [rafi.pos.x - 1.0, rafi.pos.z + 0.6], look: () => rafi.pos.clone().setY(1.5) });
@@ -5216,18 +5254,7 @@ function spawnCharacters() {
   const zib = { rig: buildZib(), pos: new V3(78 + 8.6, 0, -6.7), heading: -2.4, scared: 1, follow: false };
   scene.add(zib.rig.g); npcs.zib = zib;
   hs('zib', zib.rig.g, { name: '??? (something glowing)', pri: 3, at: () => npcs.zib.follow ? [zib.pos.x + 1, zib.pos.z + 1] : [78 + 6.9, -5.3], look: () => zib.pos.clone().setY(1.1) });
-  // --- spiders ---
-  for (let i = 0; i < 5; i++) {
-    const rig = buildSpider(false); rig.g.scale.setScalar(0.8 + Math.random() * 0.3); scene.add(rig.g);
-    const sp = { rig, id: i, pos: new V3(), heading: Math.random() * TAU, state: 'wander', t: 0, hurtCd: 0, wander: null, dieT: 0, speedNow: 0 };
-    spiders.push(sp);
-    hs('spider' + i, rig.g, { name: 'Giant Spider', pri: 2, ranged: true, use: () => uvCreature(sp) });
-  }
-  queen.rig = buildSpider(true); queen.rig.g.scale.setScalar(2.4); scene.add(queen.rig.g); queen.rig.g.visible = false;
-  queen.thread = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 1, 6), new THREE.MeshBasicMaterial({ color: 0xdfe6ff, transparent: true, opacity: 0.7 })); scene.add(queen.thread); queen.thread.visible = false;
-  queen.ring = new THREE.Mesh(new THREE.RingGeometry(1.2, 1.8, 48), MAT.glowAdd(0xff2040, 0.9)); queen.ring.rotation.x = -Math.PI / 2; queen.ring.visible = false; scene.add(queen.ring);
-  hs('queen', queen.rig.g, { name: 'The Brood Queen', pri: 2, ranged: true, use: () => uvQueen() });
-  queen.light = new THREE.PointLight(0xff40c8, 0, 6, 1.8); scene.add(queen.light);
+  // (no spiders: the Cargo Hold is a puzzle now, not a fight)
   // --- skitterbugs everywhere ---
   const bugRooms = [0, 0, 0, 0, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3];
   bugRooms.forEach((ri, i) => { const b = buildBug(); scene.add(b.g); const p = randomPointInRoom(ri); const bug = { rig: b, room: ri, pos: new V3(p.x, 0, p.z), heading: Math.random() * TAU, t: 0, target: null, flee: 0, speedNow: 0 }; bugs.push(bug);
@@ -5265,7 +5292,7 @@ function regionAt(x) {
   return { room: x < 0 ? 0 : 3, corr: -1 };
 }
 function roomOf(p) { const r = regionAt(p.x); return r.room >= 0 ? r.room : (p.x - ROOMS[r.corr].cx - 13 < 0 ? r.corr : r.corr + 1); }
-function doorLocked(d) { return d === 1 ? !S.flags.door1 : d === 2 ? !(S.flags.queenDead && S.flags.breachSealed && S.flags.rafiFree) : false; }
+function doorLocked(d) { return d === 1 ? !S.flags.door1 : d === 2 ? !(S.flags.breachSealed && S.flags.rafiFree) : false; }
 function insideObs(p, o, rad) { if (o.t === 'c') return Math.hypot(p.x - o.x, p.z - o.z) < o.r + rad - 0.01; return p.x > o.x0 - rad + 0.01 && p.x < o.x1 + rad - 0.01 && p.z > o.z0 - rad + 0.01 && p.z < o.z1 + rad - 0.01; }
 function resolveMove(prev, nx, nz, rad = 0.35) {
   let x = clamp(nx, minX, maxX), z = nz;
@@ -5534,7 +5561,7 @@ function keypad() {
 function openItemMenu(id, slot) {
   const it = ITEMS[id], m = el.itemMenu; m.innerHTML = `<div class="t">${it.icon} ${it.name.toUpperCase()}</div><div class="d">${it.desc}</div>`;
   const add = (label, fn) => { const b = document.createElement('button'); b.textContent = label; b.onclick = (e) => { e.stopPropagation(); closeItemMenu(); fn(); }; m.appendChild(b); };
-  if (it.heal) add(`Eat (+${it.heal} ♥)`, () => { removeItem(id); heal(it.heal); playerPose('pet', 0.6); });
+  if (it.heal) add('Eat it', () => { removeItem(id); playerPose('pet', 0.6); Sound.heal(); floatAt(player.pos.clone().setY(2.1), 'Yum!', '#7dffb0'); });
   if (it.dog) add(`Feed to Comet (+${it.dog} AVE)`, () => feedDog(id));
   if (id === 'ball') add('Throw it for Comet…', () => { setSelected('ball'); toast('🎾 Click the floor to throw the ball', 2000); });
   else add(`Use ${it.name} on…`, () => setSelected(id));
@@ -5555,7 +5582,7 @@ const raycaster = new THREE.Raycaster(); const mouseN = new THREE.Vector2(); let
 const cine = { active: false, update: null };
 function cineCam(fn) { cine.active = true; cine.update = fn; }
 function endCine() { cine.active = false; cine.update = null; }
-function canControl() { return gameState === 'play' && !actionBusy && !dlg.open && !choiceOpen && !keypadOpen && !cine.active; }
+function canControl() { return gameState === 'play' && !actionBusy && !dlg.open && !choiceOpen && !keypadOpen && !puzzleOpen && !cine.active; }
 function setCamMode(m) {
   camMode = m; btnLabel('#btnView', '👁', m === 'fp' ? 'View: First-Person' : 'View: Behind');
   el.cross.classList.toggle('hidden', m !== 'fp' || gameState !== 'play');
@@ -5595,7 +5622,7 @@ window.addEventListener('keydown', (e) => {
     if (e.code === 'ArrowDown' || e.code === 'ArrowUp') { e.preventDefault(); const i = bs.indexOf(document.activeElement); bs[(i + (e.code === 'ArrowDown' ? 1 : bs.length - 1) + (i < 0 ? 1 : 0)) % bs.length].focus(); return; }
     if (e.code === 'Escape') { e.preventDefault(); closeChoices(); return; } }
   if (dlg.open && ['Space', 'Enter', 'KeyE'].includes(e.code)) { e.preventDefault(); advanceDialog(); return; }
-  if (e.code === 'Escape') { if (keypadOpen) keypad.cancel(); else if (!$('#logPanel').classList.contains('hidden')) $('#logPanel').classList.add('hidden'); else if (!$('#voicePanel').classList.contains('hidden')) $('#voicePanel').classList.add('hidden'); else if (!$('#hintBar').classList.contains('hidden')) hideHint(); else if (!el.help.classList.contains('hidden')) el.help.classList.add('hidden'); else if (selectedItem) setSelected(null); else cancelWalk(); closeItemMenu(); return; }
+  if (e.code === 'Escape') { if (puzzleOpen) closePuzzle(); else if (keypadOpen) keypad.cancel(); else if (!$('#logPanel').classList.contains('hidden')) $('#logPanel').classList.add('hidden'); else if (!$('#voicePanel').classList.contains('hidden')) $('#voicePanel').classList.add('hidden'); else if (!$('#hintBar').classList.contains('hidden')) hideHint(); else if (!el.help.classList.contains('hidden')) el.help.classList.add('hidden'); else if (selectedItem) setSelected(null); else cancelWalk(); closeItemMenu(); return; }
   if (gameState === 'cine' && (e.code === 'Space' || e.code === 'Enter')) { skipRequested = true; return; }
   if (e.code === 'KeyF' && !e.ctrlKey && !e.metaKey && !e.altKey && fsSupported()) { e.preventDefault(); toggleFullscreen(); return; }
   if (gameState !== 'play') return;
@@ -5702,7 +5729,7 @@ function finishWalk(ok) {
 function lockedDoorMsg(d) {
   Sound.deny();
   if (d === 1) toast('🔒 <b>BIOHAZARD LOCKDOWN</b> — security keycard required. (Door panel is to the right of the door.)', 3400);
-  if (d === 2) toast(!S.flags.queenDead ? '🔒 <b>PRESSURE LOCK</b> — hostile lifeform in the hold. Doors sealed.' : !S.flags.breachSealed ? '🔒 <b>PRESSURE LOCK</b> — seal the hull breach first.' : '🔒 <b>PRESSURE LOCK</b> — engineer override code required.', 3400);
+  if (d === 2) toast(!S.flags.breachSealed ? '🔒 <b>PRESSURE LOCK</b> — seal the hull breach first.' : '🔒 <b>PRESSURE LOCK</b> — engineer override code required.', 3400);
 }
 
 /* =====================================================================
@@ -5755,7 +5782,7 @@ function wireHotspots() {
     await say([['NARR', "Comet's bed. A squeaky bone, a bowl engraved 'CO-PILOT', and about four kilos of shed fur."], ['COMET', '*looks at the bone, then at you, then at the bone*']]); };
   HS.engConsole.use = async () => {
     const hull = S.flags.breachSealed ? '100%' : '71% — breach in Cargo', pw = S.flags.powerOn ? 'ONLINE' : 'RESERVE 12%';
-    return say([['HALO', `Ship status. Hull: ${hull}. Power: ${pw}. Oxygen: ${S.flags.valveOn ? '104' : '96'} percent of nominal, thanks to the garden. Crew: four. Dogs: one. Uninvited guests: ${S.flags.queenDead ? 'one, friendly' : 'many, unfriendly'}.`]]);
+    return say([['HALO', `Ship status. Hull: ${hull}. Power: ${pw}. Oxygen: ${S.flags.valveOn ? '104' : '96'} percent of nominal, thanks to the garden. Crew: four. Dogs: one. Uninvited guests: ${S.flags.zibFriendly ? 'one, friendly' : 'one, shy'}.`]]);
   };
   HS.sparkPanel.use = async (item) => { Sound.spark(); burst(ROOMS[0].cx + 10.6, 2.1, 6.4, 20, { speed: 4, color: [1, 0.7, 0.3], size: 0.05, grav: 9, life: 0.7 }); return say([['HALO', 'Please do not lick the power panel, Captain.'], ['VEGA', "I wasn't going to lick it."], ['HALO', 'I was addressing Comet.']]); };
   HS.bridgeWindow.use = async () => {
@@ -5815,7 +5842,7 @@ function wireHotspots() {
     if (S.flags.door1) return say([['NARR', 'ACCESS GRANTED. The door hums open whenever you approach.']]);
     if (S.inv.keycard) {
       removeItem('keycard'); Sound.pickup(); S.flags.door1 = true; applyWorld(); updateObjectives();
-      await say([['NARR', 'You swipe the keycard. The panel blinks green. ACCESS GRANTED — LOCKDOWN LIFTED.'], ['HALO', 'Captain, I am reading a very large bio-signature beyond that door. Many legs. More legs than I would like.'], !S.inv.torch ? ['HALO', "You are unarmed. There is a UV torch in your locker on the Bridge. I'm just saying."] : ['HALO', 'Keep that UV torch handy.']]);
+      await say([['NARR', 'You swipe the keycard. The panel blinks green. ACCESS GRANTED — LOCKDOWN LIFTED.'], ['HALO', "Captain, the Cargo Hold took the worst of the impact. Cargo everywhere, a hole in the hull, and Rafi's comm badge is pinging from somewhere inside."], !S.inv.torch ? ['HALO', 'You may want the cutting torch from your locker on the Bridge. Things in there will be twisted and tangled.'] : ['HALO', 'Bring that cutting torch. Things in there will be twisted and tangled.']]);
       saveGame(true); toast('💾 Auto-saved', 1600); return;
     }
     Sound.deny();
@@ -5824,12 +5851,17 @@ function wireHotspots() {
   HS.digspot.use = async () => dogAbility('dig', true);
   /* ---------------- CARGO ---------------- */
   HS.crane.use = async () => {
-    if (!fightActive()) return say([['NARR', 'The cargo crane hums, a red crate swinging gently from the hook.'], S.flags.queenDead ? ['VEGA', 'Nothing left to drop it on. Thank goodness.'] : null]);
-    if (W.crane.state !== 'ready') { Sound.deny(); toast('⏳ Crane reloading…', 1200); return; }
-    dropCrate();
+    if (S.flags.cargoClear) return say([['NARR', 'The crane hums quietly, parked over bay C-2. Job done.']]);
+    return cranePuzzle();
+  };
+  HS.manifest.use = async () => {
+    S.flags.manifestRead = true;
+    return say([['NARR', 'The cargo manifest, knocked off its hook in the impact. Most of it is coffee. One line is underlined in red:'],
+      ['NARR', '"EMERGENCY SUPPLIES (hull patch kit, blankets, rations): ROW C. Bay: count the paws on our co-pilot, then halve it."'],
+      ['VEGA', "Comet has four paws. Half of four is two. Row C, bay 2."]]);
   };
   HS.patchCrate.use = async () => {
-    if (!S.flags.queenDead) return say([['NARR', 'An emergency supply crate — with a hull patch kit inside. It is wrapped in thick silk.'], ['VEGA', "And something very large keeps circling back to guard it. Figures."]]);
+    if (!S.flags.cargoClear) return say([['NARR', 'The emergency supply crate, with a hull patch kit inside. It is buried under a pile of fallen cargo, far too heavy to shift by hand.'], ['VEGA', 'The cargo crane could lift that lot, if it knew which bay to clear. The stencil underneath says BAY C-something.']]);
     if (S.flags.patchTaken) return say([['NARR', 'Emergency blankets and ration bars. Nothing else you need.']]);
     playerPose('pet', 0.8); S.flags.patchTaken = true; addItem('patch'); return say([['NARR', 'You pull the Hull Patch Kit from the crate.'], ['HALO', 'Apply it directly to the breach, Captain. It does the rest.']]);
   };
@@ -5838,26 +5870,23 @@ function wireHotspots() {
     if (S.inv.patch) return sealBreach();
     Sound.hiss(); return say([['HALO', "Hull breach. The emergency field is holding — barely. It won't last forever."], ['VEGA', "I need something to patch it. There's always a kit in the emergency crates."]]);
   };
-  HS.meteor.use = async () => say([['NARR', 'The meteor fragment that punched through the hull. Its cracks glow violet, and it is studded with leathery egg cases.'], ['VEGA', "So that's where the spiders came from. It wasn't a meteor. It was a nest."]]);
-  HS.eggs.use = async () => say([['NARR', 'Egg sacs, glistening and faintly warm.'], S.flags.queenDead ? ['HALO', 'Bio-signs: none. They died with the Queen.'] : ['VEGA', 'Nope. Nope nope nope.']]);
+  HS.meteor.use = async () => say([['NARR', 'The meteor fragment that punched through the hull. Its cracks glow violet, and it is studded with humming crystals.'], ['HALO', 'It is hollow inside, Captain. Almost like a little ship.'], S.flags.zibTalked ? ['VEGA', "Zib's rock-ship. Long way to come for a nap."] : ['VEGA', "A hollow meteor. That's not creepy at all."]]);
   HS.cocoon.use = async (item) => {
     if (S.flags.rafiFree) return;
-    if (!S.flags.cocoonSeen) { S.flags.cocoonSeen = true; await say([['NARR', 'A human-sized cocoon, lashed to the ceiling by a silk rope. A face stares out of it.'], ['RAFI', 'MMMPH! MMF MMMPH!'], ['VEGA', "Rafi?! Hang on — literally, I guess."]]); }
-    if (!S.flags.queenDead) return say([['VEGA', "I'll get you down, Rafi. Right after the thing that put you up there stops trying to eat me."]]);
-    if (!S.inv.torch) return say([['VEGA', 'This silk is as tough as steel cable. I need to burn through it — spiders hate UV. My torch is in the Bridge locker.']]);
+    if (!S.flags.cocoonSeen) { S.flags.cocoonSeen = true; await say([['NARR', 'The cargo netting tore loose from the ceiling in the impact. Wrapped up inside it, upside-down and very cross, is Rafi.'], ['RAFI', "Captain! Get me OUT of this thing. I've been a burrito for an hour."], ['VEGA', 'Hang on, Rafi. Literally, I guess.']]); }
+    if (!S.inv.torch) return say([['VEGA', "This netting is woven steel cable. I'll need to cut through it. My cutting torch is in my locker on the Bridge."], ['RAFI', "I'll just… hang around, then."]]);
     return freeRafi();
   };
   HS.door2panel.use = async () => {
     if (!doorLocked(2)) return say([['NARR', 'PRESSURE EQUALISED. Engineering is open.']]);
     Sound.deny();
-    if (!S.flags.queenDead) return say([['HALO', 'Pressure lock engaged. And I am not opening any doors while that thing is loose.']]);
     if (!S.flags.breachSealed) return say([['HALO', 'Pressure lock engaged. Seal the hull breach and I will open Engineering.']]);
     return say([['HALO', 'The breach is sealed, but the pressure lock needs an engineer\'s override code.'], ['VEGA', 'Rafi knows the codes. …Where IS Rafi?']]);
   };
   /* ---------------- ENGINEERING ---------------- */
   HS.reactor.use = async (item) => {
     if (S.flags.powerOn) return say([['RAFI', "Listen to her purr. I told you she purrs."], ['NARR', 'The reactor thrums, bright and steady.']]);
-    if (S.inv.coupling) return installCoupling();
+    if (S.inv.coupling || (S.flags.couplingSet && !S.flags.powerOn)) return installCoupling();
     return say([['HALO', 'The reactor is idling on reserve. The primary power coupling was knocked loose in the impact.'], ['HALO', 'Sensors place it somewhere in the floor ducting.']]);
   };
   HS.vent.use = async () => {
@@ -5874,7 +5903,6 @@ function wireHotspots() {
   if (HS.engWindow) HS.engWindow.use = async () => say([['NARR', "Through the aft viewport, the Halcyon's engine bells glow a sleepy blue."], S.flags.powerOn ? ['VEGA', 'All warmed up. Just like us.'] : null]);
   /* ---------------- SAVE BEACONS ---------------- */
   for (let i = 0; i < 4; i++) HS['save' + i].use = async () => {
-    if (fightActive()) { Sound.deny(); return say([['HALO', 'The save beacon cannot sync during combat, Captain. Deal with the Queen first.']]); }
     Sound.save(); const b = W.saveBeacons.find(b => b.i === i); if (b) burst(b.g.getWorldPosition(new V3()).x, 1.7, b.g.getWorldPosition(new V3()).z, 60, { speed: 2.4, color: [0.4, 0.95, 1], size: 0.06, grav: -0.5, life: 1.4, drag: 1.5 });
     heal(100); if (S.ave < 3) gainAve(3 - S.ave);
     saveGame(); if (!S.flags.saveTip) { S.flags.saveTip = true; return say([['HALO', "Save beacon synchronised. If anything… unfortunate happens, you'll wake up here. Health restored. Comet's AVE topped up."]]); }
@@ -5892,7 +5920,7 @@ function wireHotspots() {
     if (food && c === 3) return feedDog(food);
   };
 }
-async function takeTorch() { S.flags.torchTaken = true; applyWorld(); addItem('torch'); return say([['NARR', 'You take the UV Torch.'], ['HALO', "Ultraviolet at that intensity is extremely unpleasant for arthropods. Keep it handy."]]); }
+async function takeTorch() { S.flags.torchTaken = true; applyWorld(); addItem('torch'); return say([['NARR', 'You take the Cutting Torch.'], ['HALO', 'A plasma cutter. Handy for anything tangled, jammed or twisted shut. After that impact, that may be most things.']]); }
 async function petDog() {
   playerPose('pet', 1.6); dogAct('happy', 2); Sound.happy();
   if (dog.petCd > 0) return say([['NARR', 'Comet leans into the scratches, eyes half-closed. She is already maximally happy. (Try again in a bit for more AVE.)']]);
@@ -5935,9 +5963,9 @@ function hintStep() {
   const aveTip = (cost) => S.ave < cost ? ` Comet only has ${S.ave} AVE and needs ${cost}: click her portrait to pet her, or feed her a carrot or biscuit from your inventory.` : '';
   if (!f.briefed || f.jumped) return null;
   if (!f.torchTaken) return { sig: 'torch', title: 'THE LOCKER', tiers: [
-    'Before you go anywhere dangerous, look around the Bridge. Your personal locker holds something useful.',
+    'Before you set off, look around the Bridge. Your personal locker holds something useful.',
     'The locker is on the left-hand wall of the Bridge as you face the big window. Its code is a date that matters to the Captain: check the framed photo next to the Captain\'s Log, or click Comet and read her collar tag.',
-    'Open the locker with code 0417 (Comet\'s birthday, 17 April) and take the UV Torch.'] };
+    'Open the locker with code 0417 (Comet\'s birthday, 17 April) and take the Cutting Torch.'] };
   if (!f.door1) {
     if (inv.keycard) return { sig: 'door1-card', title: 'THE CARGO HOLD DOOR', tiers: [
       'You have the keycard. Now find where to use it.',
@@ -5952,20 +5980,14 @@ function hintStep() {
       'Comet has an excellent nose. Ask her to SNIFF around the garden (button 1 by her portrait, or key 1). Dr. Park knows something too.',
       'Go into the garden and press Comet\'s SNIFF button (1 AVE). She\'ll find the spot in the carrot patch where your keycard is buried.' + aveTip(1)] };
   }
-  if (!f.queenDead) {
-    if (!f.queenIntro || !fightActive()) return { sig: 'queen-enter', title: 'THE CARGO HOLD', tiers: [
-      'The Cargo Hold is through the garden\'s far door. Something big is waiting in there.',
-      'Get ready first: tomatoes from the garden restore health, and the glowing Save Beacon saves your progress.',
-      'Save at the garden\'s Save Beacon, pick a tomato or two, then walk through the far door into the Cargo Hold.'] };
-    return { sig: 'queen-fight', title: 'THE BROOD QUEEN', tiers: [
-      'You can\'t beat the Queen head-on. Look up: there\'s a cargo crane hanging over the yellow X in the middle of the hold.',
-      'Use Comet\'s BARK to lure the Queen onto the yellow X, then click the Crane Console to drop a crate on her. Step out of the red rings she aims at you. Barking is free during this fight.',
-      'Stand at the Crane Console, on your right just inside the hold. Press BARK; when the Queen reaches the X, click the console. Three hits wins. The UV torch stuns her, and tomatoes heal you.'] };
-  }
-  if (!f.rafiFree) return { sig: 'rafi', title: 'THE MISSING ENGINEER', tiers: [
-    'Someone is still trapped in the Cargo Hold, and Engineering stays locked without them.',
-    'The silk cocoon hanging on the right-hand side of the hold has Rafi inside. The silk is tough, but spiders hate UV light.',
-    inv.torch ? 'Click the silk cocoon while you carry the UV Torch to burn Rafi free.' : 'Fetch the UV Torch from the Bridge locker (code 0417), then click the silk cocoon to burn Rafi free.'] };
+  if (!f.cargoClear) return { sig: 'cargo-crane', title: 'THE FALLEN CARGO', tiers: [
+    !f.cargoSeen ? 'The Cargo Hold is through the garden\'s far door. The impact has made a mess in there.' : 'The emergency supply crate is buried under fallen cargo. The cargo crane can lift it clear, if you tell it the right bay.',
+    'Look for the Cargo Manifest: it fell on the floor near the Crane Console, just inside the hold on the right. It says where the emergency supplies are stored.',
+    'Use the Crane Console and choose Row C, Bay 2 (the manifest says: Row C, and half the number of Comet\'s paws).'] };
+  if (!f.rafiFree) return { sig: 'rafi', title: 'THE TRAPPED ENGINEER', tiers: [
+    'Someone is trapped in the Cargo Hold, and Engineering stays locked without them.',
+    'Rafi is wrapped up in the torn cargo netting hanging on the right-hand side of the hold. The netting is steel cable: you need something that cuts.',
+    inv.torch ? 'Click the tangled cargo netting while you carry the Cutting Torch to cut Rafi free.' : 'Fetch the Cutting Torch from the Bridge locker (code 0417), then click the tangled cargo netting to cut Rafi free.'] };
   if (!f.breachSealed) {
     if (inv.patch) return { sig: 'breach-seal', title: 'THE HULL BREACH', tiers: [
       'You have the patch kit.',
@@ -5974,13 +5996,17 @@ function hintStep() {
     return { sig: 'breach-kit', title: 'THE HULL BREACH', tiers: [
       'The hole in the hull still needs sealing.',
       'There\'s a Hull Patch Kit in an emergency supply crate in the Cargo Hold.',
-      'Take the patch kit from the web-covered supply crate in the far left corner of the hold, beside the breach. Then click the breach.'] };
+      'Take the patch kit from the emergency supply crate the crane uncovered, in the far left corner of the hold beside the breach. Then click the breach.'] };
   }
   if (!f.powerOn) {
     if (!f.engineSeen) return { sig: 'power-go', title: 'MAIN POWER', tiers: [
       'Engineering is open now.',
       'It\'s through the far door of the Cargo Hold.',
       'Walk through the Cargo Hold\'s far door into Engineering.'] };
+    if (f.couplingSet) return { sig: 'power-route', title: 'THE POWER CONDUITS', tiers: [
+      'The coupling is in, but the power can\'t reach the ship. Click the reactor to open the conduit panel, then turn the tiles until light flows from the reactor (left) to the ship (right).',
+      'Click a tile to turn it. Lit tiles are already connected to the reactor, so follow the light and fix the first dark tile it reaches.',
+      'The path: from the reactor go UP into the top row, along the top row to the third tile, DOWN through the middle row, along the bottom row to the last column, then UP and out to the right. Three tiles are decoys and aren\'t needed.'] };
     if (inv.coupling) return { sig: 'power-install', title: 'MAIN POWER', tiers: [
       'You have the power coupling.',
       'Put it back where it belongs: the reactor.',
@@ -6039,9 +6065,10 @@ setInterval(() => {
 }, 1000);
 async function boltHint() {
   let h;
-  if (!S.flags.torchTaken) h = 'HINT PROTOCOL: A UV TORCH IS STORED IN THE CAPTAIN\'S LOCKER. CODE: A BIRTHDAY. NOT BOLT-7\'S BIRTHDAY. BOLT-7 DOES NOT HAVE A BIRTHDAY.';
+  if (!S.flags.torchTaken) h = 'HINT PROTOCOL: A CUTTING TORCH IS STORED IN THE CAPTAIN\'S LOCKER. CODE: A BIRTHDAY. NOT BOLT-7\'S BIRTHDAY. BOLT-7 DOES NOT HAVE A BIRTHDAY.';
   else if (!S.flags.door1) h = 'HINT PROTOCOL: YOUR KEYCARD IS IN THE GARDEN. SOIL DETECTED ON IT. ALSO DOG.';
-  else if (!S.flags.queenDead) h = 'HINT PROTOCOL: BIG SPIDER. CRANE ABOVE THE YELLOW X. FLUFFY UNIT BARKS. SPIDER COMES. CRATE GOES DOWN. SPIDER GOES DOWN.';
+  else if (!S.flags.cargoClear) h = 'HINT PROTOCOL: SUPPLIES ARE BURIED. CRANE NEEDS A BAY. THE MANIFEST KNOWS THE BAY. THE MANIFEST IS ON THE FLOOR. FLOORS ARE NOT FOR MANIFESTS.';
+  else if (!S.flags.rafiFree) h = 'HINT PROTOCOL: CHIEF OKOYE IS A BURRITO. CUTTING TORCH UNWRAPS BURRITOS.';
   else if (!S.flags.breachSealed) h = 'HINT PROTOCOL: PATCH KIT IN THE SUPPLY CRATE. APPLY TO HOLE. HOLES ARE BAD.';
   else if (!S.flags.powerOn) h = 'HINT PROTOCOL: POWER COUPLING IN ENGINEERING FLOOR VENT. FLUFFY UNIT FITS. BOLT-7 WOULD FIT BUT BOLT-7 IS ON A BREAK.';
   else if (!S.inv.crystal) h = 'HINT PROTOCOL: SMALL GLOWING ALIEN LIKES LIGHT. SUNFLOWERS ARE LIGHT YOU CAN HOLD.';
@@ -6064,7 +6091,7 @@ async function zibTalk(item) {
   }
   if (!S.flags.zibTalked) {
     S.flags.zibTalked = true; updateObjectives();
-    await say([['ZIB', 'Fluffy-one is friend. Tall-one is… friend also?'], ['VEGA', "Friend. I'm Rowan. That's Comet. Who are you?"], ['ZIB', 'Zib! Zib rode the rock-ship. Long nap. Then BOOM. Then Big-Legs woke up hungry.'],
+    await say([['ZIB', 'Fluffy-one is friend. Tall-one is… friend also?'], ['VEGA', "Friend. I'm Rowan. That's Comet. Who are you?"], ['ZIB', 'Zib! Zib rode the rock-ship. Long nap. Then BOOM. Big noises everywhere. Zib hid.'],
       ['VEGA', 'You came in on the meteor.'], ['ZIB', 'Zib is lost too. But Zib has a Remember-Stone. It knows the way to every star.'], ['HALO', "Captain — a crystalline navigation reference? That could rebuild our star charts."]]);
   }
   if (!S.flags.crystalGiven) {
@@ -6096,20 +6123,13 @@ function dogPlan(kind) {
       await say([['NARR', "Comet trots right up to the glowing creature and gives it a gentle, masked boop. It giggles — a sound like wind chimes — and floats out from behind the pipes."], ['ZIB', 'Fluffy-one! Soft! Zib likes!']]);
       if (!S.flags.ventFound) { await dogGo(X(-2), 3.3); dogAct('sniff', 1.5); Sound.whine(); await wait(1200); S.flags.ventFound = true; await say([['NARR', 'Then Comet trots to the floor vent and whines. Something is down there.']]); } } };
     if (room === 3 && !S.flags.ventFound) return { cost: 1, run: async () => { await dogGo(X(-2), 3.3); dogAct('sniff', 1.5); Sound.whine(); await wait(1200); S.flags.ventFound = true; await say([['NARR', 'Comet whines at the floor vent and paws at the grate. Something is down there.']]); } };
-    if (room === 2 && S.flags.queenDead && !S.flags.rafiFree) return { cost: 0, run: async () => { await dogGo(X(6.4), 2.6); dogAct('sniff', 1.5); Sound.whine(); await wait(1200); await say([['NARR', 'Comet whines up at the cocoon, tail wagging. She knows that smell.'], ['VEGA', "That's… Rafi?!"]]); } };
-    if (room === 2 && fightActive()) return { cost: 0, run: async () => { dogAct('sniff', 1); await say([['NARR', "Comet's hackles rise. She looks from the Queen, to the yellow X under the crane, and back to you."]]); } };
+    if (room === 2 && !S.flags.cargoClear && !S.flags.manifestRead) return { cost: 1, run: async () => { await dogGo(ROOMS[2].cx - 4.1, 4.6); dogFace({ x: ROOMS[2].cx - 4.4, z: 5.4 }); dogAct('sniff', 1.5); Sound.sniff(); await wait(1200); dogAct('sit', 1.5); await say([['NARR', 'Comet sniffs her way across the hold and sits beside a clipboard on the floor, by the Crane Console.'], ['VEGA', 'The cargo manifest! That will say where the emergency supplies are.']]); } };
+    if (room === 2 && !S.flags.rafiFree) return { cost: 0, run: async () => { await dogGo(X(6.4), 2.6); dogAct('sniff', 1.5); Sound.whine(); await wait(1200); await say([['NARR', 'Comet whines up at the bundle of netting, tail wagging. She knows that smell.'], ['RAFI', 'Is that Comet? Good girl! Now get me DOWN.']]); } };
     { const tp = treasurePlan('sniff', room); if (tp) return tp; }
     return { cost: 0, run: async () => { dogAct('sniff', 1.8); Sound.sniff(); await wait(900); await say([['NARR', ['Comet sniffs around thoroughly. Nothing new — although she seems very interested in your boots.', 'Comet sniffs, sneezes into her mask, and looks faintly embarrassed.', "Comet sniffs the air. Whatever she's looking for, it isn't here."][Math.floor(Math.random() * 3)]]]); } };
   }
   if (kind === 'bark') {
-    if (fightActive() && queen.state !== 'hidden') return { cost: 0, block: false, run: async () => {
-      await dogGo(W.crane.mark.x - 0.9, W.crane.mark.z + 0.6, 6.5); dogFace(queen.pos); dogAct('bark', 1.4); Sound.bark(true);
-      floatAt(dog.pos.clone().setY(1.2), 'WOOF! WOOF!', '#ffb36b');
-      queen.lureT = 6; if (['recover', 'tele'].includes(queen.state)) { queen.state = 'hunt'; queen.ring.visible = false; }
-      scareSpiders(dog.pos, 7);
-      toast('🐕 Comet is luring the Queen to the X — <b>use the Crane Console!</b>', 2600);
-      await wait(1100); dog.scripted = false; } };
-    if (room === 2 && spiders.some(s => s.state !== 'gone' && s.state !== 'dying')) return { cost: 1, run: async () => { dogAct('bark', 1.2); Sound.bark(true); scareSpiders(dog.pos, 9); await say([['NARR', 'Comet lets rip a volley of barks. The spiders scatter!']]); } };
+    if (room === 2 && !S.flags.rafiFree) return { cost: 0, run: async () => { dogAct('bark', 1); Sound.bark(); await wait(500); await say([['RAFI', "Comet? Up here, girl! I'm the burrito on the right!"]]); } };
     if (room === 3 && !S.flags.zibFriendly && S.flags.engineSeen) return { cost: 0, run: async () => { dogAct('bark', 1); Sound.bark(); npcs.zib.scared = 1.4; await say([['NARR', 'Comet barks. The glowing creature squeaks and shrinks even further behind the pipes. Maybe a gentler approach…']]); } };
     return { cost: 0, run: async () => { dogAct('bark', 1); Sound.bark(); await wait(500); if (room === 0 && S.flags.boltFree) { Sound.robot(); await say([['BOLT', 'BARK RECEIVED. BOLT-7 BARKS BACK. BEEP.']]); } else await say([['NARR', 'WOOF! The bark echoes down the corridor. Nothing happens, but Comet feels great about it.']]); } };
   }
@@ -6164,10 +6184,9 @@ async function fetchCoupling() {
 }
 
 /* =====================================================================
-   COMBAT — spiders, the Brood Queen, the crane, the UV torch
+   THE CARGO HOLD — the crane, the cutting torch, the engineer
    ===================================================================== */
-function fightActive() { return S.flags.queenIntro && !S.flags.queenDead && queen.state !== 'hidden'; }
-function scareSpiders(p, r) { for (const s of spiders) if (s.state !== 'gone' && s.state !== 'dying' && d2(s.pos, p) < r) { s.state = 'flee'; s.t = 4 + Math.random() * 2; } }
+function fightActive() { return false; }   // there is no fighting any more: the Cargo Hold is a puzzle
 function uvBeam(to) {
   const from = player.handTorch.getWorldPosition(new V3());
   const len = from.distanceTo(to); const m = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.2, len, 12, 1, true), MAT.glowAdd(0xb070ff, 0.85));
@@ -6176,39 +6195,8 @@ function uvBeam(to) {
   burst(to.x, to.y, to.z, 30, { speed: 3, color: [0.7, 0.4, 1], size: 0.07, grav: 0, life: 0.6, drag: 3 });
   Sound.zap(); fxFlash(to, 0xb070ff, 30);
 }
-function canUV(target) {
-  if (!S.inv.torch) { say([['VEGA', "I'm not fighting that with my bare hands. My UV torch is in the Bridge locker."]]); return false; }
-  if (torchCd > 0) { Sound.deny(); toast(`🔦 Torch recharging… ${torchCd.toFixed(1)}s`, 1000); return false; }
-  if (d2(player.pos, target) > 11) { toast('Too far away for the torch.', 1200); return false; }
-  return true;
-}
-async function uvCreature(sp) {
-  if (sp.state === 'dying' || sp.state === 'gone') return;
-  if (!canUV(sp.pos)) return;
-  faceTo(sp.pos); playerPose('aim', 0.5); torchCd = 1.2; uvBeam(sp.pos.clone().setY(0.6));
-  sp.state = 'dying'; sp.dieT = 0; Sound.hiss(); S.hits++;
-}
-async function uvQueen() {
-  if (!['hunt', 'tele', 'recover', 'confused'].includes(queen.state)) return;
-  if (!canUV(queen.pos)) return;
-  faceTo(queen.pos); playerPose('aim', 0.6); torchCd = 4.5; uvBeam(queen.pos.clone().setY(1.4));
-  queen.state = 'stun'; queen.t = 0; queen.stunDur = 2.6; queen.ring.visible = false; Sound.screech();
-  toast('✨ The Queen is stunned!', 1400);
-}
-function hurt(n, from) {
-  if (gameState !== 'play' || cine.active) return;
-  n = Math.round(n * 0.6 / (1 + Math.min(S.deaths || 0, 3) * 0.3));
-  S.hp = Math.max(0, S.hp - n); player.hurtT = 0; updateBars(); Sound.hurt(); shake(0.25 + n / 60);
-  el.dmg.style.opacity = 1; setTimeout(() => el.dmg.style.opacity = 0, 220);
-  if (from) { const dx = player.pos.x - from.x, dz = player.pos.z - from.z, d = Math.hypot(dx, dz) || 1; const r = resolveMove(player.pos, player.pos.x + dx / d * 1.3, player.pos.z + dz / d * 1.3); player.pos.x = r.x; player.pos.z = r.z; }
-  if (S.hp <= 0) die();
-  else if (S.hp < 55 && fightActive() && !queen.rescued) cometRescue();
-}
-function die() {
-  gameState = 'dead'; cancelWalk(); S.deaths++; queen.ring.visible = false; Voice.stop();
-  setBossBar(false); setHUD(false); el.tip.classList.add('hidden');
-  setTimeout(() => el.death.classList.remove('hidden'), 700); fadeTo(0.55, 900);
-}
+function hurt() { }                           // nothing in the ship can hurt you
+function die() { }
 function dropCrate() {
   const c = W.crane; c.state = 'drop'; c.t = 0; c.vy = 0; S.crates++; Sound.whoosh();
   W.craneLever.rotation.x = 0.6; setTimeout(() => W.craneLever.rotation.x = 0, 400);
@@ -6221,11 +6209,6 @@ function updateCrane(dt) {
       c.crate.position.y = 0.55; c.state = 'smash'; c.t = 0; Sound.crash(); shake(0.6);
       burst(c.mark.x, 0.4, c.mark.z, 70, { speed: 5, up: 0.8, color: [0.55, 0.5, 0.45], size: 0.12, grav: 6, life: 1.2, sys: DUST, a: 0.8, grow: 2 });
       burst(c.mark.x, 0.6, c.mark.z, 40, { speed: 6, color: [1, 0.6, 0.25], size: 0.05, grav: 12, life: 0.7 });
-      const inRange = queen.state !== 'leap' && queen.state !== 'hidden' && queen.state !== 'dying' && queen.state !== 'dead' && d2(queen.pos, c.mark) < 3.3;
-      if (inRange) { queen.hp--; updateBars(); bossHit(c.mark); queen.state = 'stun'; queen.t = 0; queen.stunDur = 3; Sound.screech(); floatAt(queen.pos.clone().setY(3), 'DIRECT HIT!', '#ff6ad0'); if (queen.hp <= 0) queenDefeated(); else toast(queen.hp === 2 ? '💥 Direct hit! Two more!' : '💥 One more hit!', 1800); }
-      else if (fightActive()) toast('Missed! Lure her under the crane first — use Comet\'s <b>BARK</b>.', 2200);
-      for (const s of spiders) if (s.state !== 'gone' && s.state !== 'dying' && d2(s.pos, c.mark) < 1.8) { s.state = 'dying'; s.dieT = 0; }
-      if (d2(player.pos, c.mark) < 1.3) hurt(20, c.mark);
     }
   } else if (c.state === 'smash') {
     c.t += dt; if (c.t > 0.6) { c.crate.visible = false; c.state = 'reload'; c.t = 0; c.crate.position.y = 7.5; }
@@ -6236,99 +6219,26 @@ function updateCrane(dt) {
   const top = 6.05, bottom = c.crate.position.y + 0.55; c.cable.scale.y = Math.max(0.05, top - bottom); c.cable.position.y = (top + bottom) / 2 - 0.0; c.hook.position.y = bottom + 0.1;
   W.craneMark.material.emissiveIntensity = fightActive() && c.state === 'ready' ? 0.6 + Math.sin(time * 5) * 0.4 : 0.3;
 }
-function updateSpiders(dt) {
-  const pRoom = roomOf(player.pos);
-  const active = S.flags.queenIntro && !S.flags.queenDead && pRoom === 2 && gameState === 'play' && !cine.active;
-  for (const sp of spiders) {
-    const g = sp.rig.g;
-    if (sp.state === 'gone') { g.visible = false; continue; }
-    g.visible = true;
-    if (sp.state === 'dying') {
-      sp.dieT += dt; curlSpider(sp.rig, clamp(sp.dieT * 2.5, 0, 1)); sp.rig.body.rotation.z = Math.min(Math.PI, sp.dieT * 5); sp.rig.body.position.y = 0.5 + Math.sin(Math.min(1, sp.dieT * 2) * Math.PI) * 0.4;
-      if (sp.dieT > 1.6) { const k = clamp(1 - (sp.dieT - 1.6) / 0.8, 0, 1); g.scale.setScalar(Math.max(0.001, k * 0.9)); }
-      if (sp.dieT > 2.4) { sp.state = 'gone'; HS['spider' + sp.id].enabled = false; }
-      g.position.copy(sp.pos); continue;
-    }
-    let tgt = null, spd = 0; sp.t -= dt; sp.hurtCd -= dt;
-    if (sp.state === 'flee') { const dx = sp.pos.x - dog.pos.x, dz = sp.pos.z - dog.pos.z, d = Math.hypot(dx, dz) || 1; tgt = { x: sp.pos.x + dx / d * 3, z: sp.pos.z + dz / d * 3 }; spd = 4.2; if (sp.t <= 0) sp.state = 'wander'; }
-    else if (active && d2(sp.pos, player.pos) < 5) { sp.state = 'chase'; tgt = player.pos; spd = 1.9; }
-    else { sp.state = 'wander'; if (!sp.wander || d2(sp.pos, sp.wander) < 0.6 || sp.t <= 0) { sp.wander = randomPointInRoom(2); sp.t = 3 + Math.random() * 4; } tgt = sp.wander; spd = active ? 1.4 : 0.9; }
-    const dx = tgt.x - sp.pos.x, dz = tgt.z - sp.pos.z, d = Math.hypot(dx, dz);
-    if (d > 0.9 || sp.state !== 'chase') {
-      const step = Math.min(d, spd * dt); if (d > 0.01) { const r = resolveMove(sp.pos, sp.pos.x + dx / d * step, sp.pos.z + dz / d * step, 0.5); r.x = clamp(r.x, ROOMS[2].cx - 10.2, ROOMS[2].cx + 10.2); sp.speedNow = Math.hypot(r.x - sp.pos.x, r.z - sp.pos.z) / dt; sp.pos.x = r.x; sp.pos.z = r.z; sp.heading = angDamp(sp.heading, Math.atan2(dx, dz), 6, dt); }
-    } else { sp.speedNow = 0; sp.heading = angDamp(sp.heading, Math.atan2(dx, dz), 8, dt); if (sp.hurtCd <= 0) { sp.hurtCd = 2.0; hurt(7, sp.pos); Sound.hiss(); } }
-    g.position.copy(sp.pos); g.rotation.y = sp.heading; animSpider(sp.rig, dt, sp.speedNow, time);
-  }
-}
-function updateQueen(dt) {
-  const q = queen, R = ROOMS[2];
-  if (q.state === 'hidden' || q.state === 'dead') { q.rig.g.visible = false; q.thread.visible = false; q.ring.visible = false; return; }
-  q.rig.g.visible = true;
-  if (gameState === 'cine' && q.state !== 'descend' && q.state !== 'dying') { q.rig.g.position.copy(q.pos); q.rig.g.rotation.y = q.heading; animSpider(q.rig, dt, 0, time); return; }
-  q.t += dt;
-  const mark = W.crane.mark; let spd = 0; const playerHere = roomOf(player.pos) === 2 && gameState === 'play';
-  const moveToward = (tx, tz, speed) => { const dx = tx - q.pos.x, dz = tz - q.pos.z, d = Math.hypot(dx, dz); if (d < 0.05) return d; const step = Math.min(d, speed * dt); const r = resolveMove(q.pos, q.pos.x + dx / d * step, q.pos.z + dz / d * step, 1.0); r.x = clamp(r.x, R.cx - 9.6, R.cx + 9.6); spd = Math.hypot(r.x - q.pos.x, r.z - q.pos.z) / dt; q.pos.x = r.x; q.pos.z = r.z; q.heading = angDamp(q.heading, Math.atan2(dx, dz), 5, dt); return d; };
-  q.light.intensity = 0; q.light.position.set(q.pos.x, 2.2, q.pos.z);
-  switch (q.state) {
-    case 'descend': { q.pos.y = Math.max(0, q.pos.y - dt * 2.4); q.thread.visible = true; q.thread.position.set(q.pos.x, (ROOM_H + q.pos.y + 1.8) / 2, q.pos.z); q.thread.scale.y = Math.max(0.1, ROOM_H - q.pos.y - 1.8); q.rig.g.rotation.x = 0; break; }
-    case 'hunt': {
-      q.thread.visible = false;
-      const lured = q.lureT > 0; if (lured) q.lureT -= dt;
-      const tgt = lured ? mark : player.pos;
-      const d = moveToward(tgt.x, tgt.z, (1.5 + (3 - q.hp) * 0.3) * (lured ? 1.6 : 1));
-      if (lured && d < 0.7) { q.state = 'confused'; q.t = 0; }
-      q.cd -= dt;
-      if (!lured && playerHere && d < 5.5 && q.cd <= 0) { q.state = 'tele'; q.t = 0; q.to.set(player.pos.x, 0, player.pos.z); q.ring.position.set(q.to.x, 0.03, q.to.z); q.ring.visible = true; Sound.hiss(); }
-      break; }
-    case 'confused': { q.heading += dt * 1.6; spd = 0.6; if (q.t > 6) { q.state = 'hunt'; q.cd = 2; q.lureT = 0; } break; }
-    case 'tele': { q.heading = angDamp(q.heading, Math.atan2(q.to.x - q.pos.x, q.to.z - q.pos.z), 10, dt); q.ring.material.opacity = 0.5 + Math.sin(q.t * 20) * 0.4; q.ring.scale.setScalar(1 + q.t * 0.15); if (q.t > 1.7 - (3 - q.hp) * 0.1) { q.state = 'leap'; q.t = 0; q.from.copy(q.pos); } break; }
-    case 'leap': {
-      const u = clamp(q.t / 0.6, 0, 1); q.pos.x = lerp(q.from.x, q.to.x, u); q.pos.z = lerp(q.from.z, q.to.z, u); q.pos.y = Math.sin(u * Math.PI) * 2.0;
-      if (u >= 1) { q.pos.y = 0; const r = resolveMove(q.pos, q.pos.x, q.pos.z, 1.0); q.pos.x = r.x; q.pos.z = r.z; q.ring.visible = false; Sound.thud(); shake(0.55); burst(q.pos.x, 0.2, q.pos.z, 40, { speed: 4, up: 0.5, color: [0.5, 0.45, 0.4], size: 0.12, grav: 5, life: 1, sys: DUST, a: 0.7, grow: 2 });
-        if (d2(player.pos, q.pos) < 1.9) hurt(25, q.pos); q.state = 'recover'; q.t = 0; }
-      break; }
-    case 'recover': { if (q.t > 1.8) { q.state = 'hunt'; q.cd = 3.2 - (3 - q.hp) * 0.3; } break; }
-    case 'stun': { q.light.intensity = 30 * (0.5 + Math.random() * 0.5); q.rig.body.rotation.z = Math.sin(q.t * 30) * 0.05; if (q.t > q.stunDur) { q.state = 'hunt'; q.cd = 1.5; q.rig.body.rotation.z = 0; } break; }
-    case 'dying': { curlSpider(q.rig, clamp(q.t / 1.2, 0, 1)); q.rig.body.rotation.z = Math.min(Math.PI, q.t * 2.4); q.rig.abd.material.emissiveIntensity = Math.max(0, 1.4 - q.t); if (q.t > 2.6) { const k = clamp(1 - (q.t - 2.6) / 1.2, 0, 1); q.rig.g.scale.setScalar(2.4 * Math.max(0.001, k)); } if (q.t > 3.8) q.state = 'dead'; break; }
-  }
-  q.speedNow = spd;
-  q.rig.g.position.copy(q.pos); q.rig.g.rotation.y = q.heading;
-  if (q.state !== 'dying') { animSpider(q.rig, dt, q.state === 'descend' ? 0.2 : spd * 0.6, time, q.state === 'tele' ? -0.25 : (q.state === 'stun' ? 0.3 : 0)); q.rig.eyeM.emissiveIntensity = q.state === 'stun' ? (Math.random() < 0.5 ? 0.3 : 5) : 3.5; q.rig.abd.material.emissiveIntensity = 1.2 + Math.sin(time * 3) * 0.4; }
-}
-async function queenIntro() {
-  S.flags.queenIntro = true; actionBusy = true; cancelWalk();
-  const R = ROOMS[2];
-  queen.state = 'descend'; queen.hp = 3; queen.pos.set(R.cx + 5, ROOM_H - 1.4, -1.5); queen.heading = -Math.PI / 2; queen.rig.g.scale.setScalar(2.4); curlSpider(queen.rig, 0); queen.rig.body.rotation.z = 0;
-  for (const s of spiders) if (s.state !== 'gone') s.state = 'wander';
-  letterbox(true); gameState = 'cine'; setHUD(false); chapter(3);
-  const camFrom = camera.position.clone();
-  cineCam((dt) => { const eye = new V3(R.cx - 3.5, 2.2, 3.2); camera.position.lerp(eye, 1 - Math.exp(-2.5 * dt)); camera.lookAt(queen.pos.x, queen.pos.y + 1.4, queen.pos.z); });
-  Sound.hiss(); await cwait(queenIntroSeen ? 800 : 2600);
-  queen.pos.y = 0; queen.state = 'confused'; queen.t = 0; Sound.screech(); shake(0.8);
-  Sound.setMood('boss');
-  if (!queenIntroSeen) await say([['HALO', 'Arachnid-class xenoform. Estimated mass: three hundred kilograms. The meteor was carrying an egg cluster.'], ['VEGA', "That's not a spider. That's a building with legs."], ['HALO', "Suggestion: the cargo crane still has reserve power. Lure her onto the yellow X and drop a crate on her. UV light will stun her, briefly."], ['COMET', 'Grrrr… WOOF!']]);
-  queenIntroSeen = true;
-  endCine(); letterbox(false); gameState = 'play'; setHUD(true); setBossBar(true); updateBars();
-  queen.state = 'hunt'; queen.cd = 2.5; actionBusy = false;
-  toast('Use Comet\'s <b>BARK</b> to lure the Queen onto the X, then click the <b>Crane Console</b>.', 4200);
-}
-async function queenDefeated() {
-  queen.state = 'dying'; queen.t = 0; queen.ring.visible = false; Sound.screech(); shake(1);
-  for (const s of spiders) if (s.state !== 'gone') { s.state = 'dying'; s.dieT = -Math.random() * 0.6; }
-  setBossBar(false); actionBusy = true;
-  S.flags.queenDead = true; applyWorld(); updateObjectives();
-  await finalBlow();
-  await say([['NARR', 'The Brood Queen lets out a final, ear-splitting shriek, curls up, and falls still. Her brood withers with her.'], ['HALO', 'Bio-signatures fading. Well done, Captain. And Comet.'], ['VEGA', 'Remind me to never, ever complain about Earth spiders again.'], ['RAFI', 'MMMPH! MMMMPH!'], ['VEGA', '…Rafi?']]);
-  actionBusy = false; saveGame(true); toast('💾 Auto-saved', 1500); dogZoomies(3);
+function updateSpiders() { }
+function updateQueen() { }
+// First time in the Cargo Hold: what the impact did, and what needs doing.
+async function cargoArrival() {
+  if (actionBusy || dlg.open) { setTimeout(cargoArrival, 1000); return; }
+  S.flags.cargoSeen = true; actionBusy = true; chapter(3); updateObjectives();
+  await say([['HALO', 'The Cargo Hold. The meteor came through that wall and threw everything loose.'], ['VEGA', 'Rafi? RAFI!'],
+    ['RAFI', "Up here, Captain! The cargo netting came down on me. I'm tied up like a parcel!"],
+    ['HALO', 'The hull breach is holding behind an emergency field, but not forever. The patch kit is in the emergency supply crate, and that crate is buried under fallen cargo.'],
+    ['HALO', 'The cargo crane can lift it clear, but the impact scrambled its targeting. It needs to be told which bay to clear.']]);
+  actionBusy = false; saveGame(true);
 }
 async function freeRafi() {
   const r = npcs.rafi, c = W.cocoon;
   faceTo(c.getWorldPosition(new V3()).setY(1.6)); playerPose('aim', 1.2);
-  for (let k = 0; k < 3; k++) { uvBeam(c.getWorldPosition(new V3()).setY(1.2 + k * 0.4)); await wait(350); }
+  for (let k = 0; k < 3; k++) { uvBeam(c.getWorldPosition(new V3()).setY(1.2 + k * 0.4)); Sound.weld(); await wait(350); }
   burst(ROOMS[2].cx + 7.4, 1.4, 3.4, 90, { speed: 2.5, color: [0.95, 0.95, 1], size: 0.06, grav: 1.5, life: 1.6, drag: 1.5 });
   c.visible = false; HS.cocoon.enabled = false; S.flags.rafiFree = true;
   r.rig.g.visible = true; r.pos.set(ROOMS[2].cx + 7.4, 0, 3.4); r.heading = -Math.PI / 2 - 0.4; Sound.thud();
-  await say([['RAFI', 'Ptoo! Blech! Silk in my BEARD, Captain.'], ['VEGA', 'Rafi! Are you alright?'], ['RAFI', "I was checking the cargo manifest when a spider the size of a van ate my afternoon. So: no. But alive. Thank you."],
+  await say([['RAFI', 'Oof! Thank you, Captain. There is cargo net in my BEARD.'], ['VEGA', 'Rafi! Are you alright?'], ['RAFI', "I was checking the manifest when the meteor hit. The whole net came down and rolled me up like a burrito. Bruised pride. Nothing else."],
     ['RAFI', S.flags.breachSealed ? "Breach is sealed? Beautiful. Override code entered — Engineering's open. The reactor coupling blew before that thing grabbed me. Meet you there." : "The reactor coupling's gone — I felt it blow before that thing grabbed me. Seal that breach and I'll punch in the override for Engineering."]]);
   applyWorld();
   updateObjectives(); saveGame(true);
@@ -6342,12 +6252,18 @@ async function sealBreach() {
   showRoomBanner(2); saveGame(true); toast('💾 Auto-saved', 1500);
 }
 async function installCoupling() {
-  removeItem('coupling'); playerPose('pet', 1.2); await wait(600); Sound.power(); W.couplingIn.visible = true;
+  if (S.inv.coupling) {
+    removeItem('coupling'); playerPose('pet', 1.2); await wait(600); Sound.thunk(); W.couplingIn.visible = true; S.flags.couplingSet = true; saveGame(true);
+    await say([['NARR', 'You slot the coupling home with a satisfying clunk. The reactor hums… and nothing else happens.'], ['RAFI', "The impact knocked the power conduits out of line. The power can't find its way to the ship."], ['RAFI', 'Turn the conduit sections until there is one clean path from the reactor to the ship. I would do it, but my hands are still shaking.']]);
+  }
+  const solved = await powerPuzzle();
+  if (!solved) return say([['RAFI', 'No rush, Captain. The reactor will wait. Click it when you want another go.']]);
+  Sound.power(); W.couplingIn.visible = true;
   S.flags.powerOn = true; powerFx.active = true; powerFx.rooms = [0, 1, 2, 3].map(() => ({ lit: 0, black: false })); applyWorldEngines(false); setShipWindows(false);
   updateObjectives(); shake(0.5); fxFlash(W.reactor.getWorldPosition(new V3()).setY(3), 0x9fe8ff, 400);
   Sound.setMood('hope');
   await powerCascade(); applyWorld(); actionBusy = true;
-  await say([['NARR', 'You slot the coupling home. The reactor thrums… stutters… then ROARS into life. All through the ship, the red emergency lights blink out and warm light floods back.'], ['HALO', 'Main power restored! All systems coming online. Oh, that feels much better.'],
+  await say([['NARR', 'The last conduit clicks into place. The reactor thrums… stutters… then ROARS into life. All through the ship, the red emergency lights blink out and warm light floods back.'], ['HALO', 'Main power restored! All systems coming online. Oh, that feels much better.'],
     ['RAFI', 'Listen to her purr! I TOLD you she purrs!'], ['HALO', 'Jump capacitors charging. However — the star charts are still corrupted. We need a navigation reference.'], S.flags.zibTalked ? ['VEGA', 'I know someone who has one.'] : null]);
   actionBusy = false; saveGame(true); toast('💾 Auto-saved', 1500); dogZoomies(2);
 }
@@ -6371,7 +6287,8 @@ function loadGame() {
   if (!data || !data.S || !Array.isArray(data.p) || data.p.length < 3 || !Array.isArray(data.d) || data.d.length < 2 || ![...data.p, ...data.d].every(Number.isFinite)) return false;
   try {
   S = Object.assign(newState(), data.S); S.inv = {}; for (const [k, v] of Object.entries(data.S.inv || {})) if (ITEMS[k] && v > 0) S.inv[k] = v | 0; S.flags = Object.assign({}, data.S.flags);
-  if (S.hp <= 0) S.hp = 60;
+  S.hp = 100;
+  if (S.flags.queenDead) { S.flags.cargoClear = true; S.flags.cargoSeen = true; } if (S.flags.queenIntro || S.flags.door1 && S.flags.cocoonSeen) S.flags.cargoSeen = true;
   player.pos.set(data.p[0], 0, data.p[1]); player.heading = data.p[2]; dog.pos.set(data.d[0], 0, data.d[1]);
   resetTransient(); applyWorld();
   const r = npcs.rafi; r.path = []; r.walking = false; if (S.flags.rafiFree) { if (!doorLocked(2)) r.pos.set(ROOMS[3].cx - 6, 0, -1.2); else r.pos.set(ROOMS[2].cx + 7.4, 0, 2.6); }
@@ -6383,10 +6300,7 @@ function resetTransient() {
   clearScan(); objSeen = null; queen.rescued = false; worldScale = 1; hitStopT = 0; powerFx.active = false; trail = null; ballFx = null; convo.def = null;
   if (ballMesh) { scene.add(ballMesh); ballMesh.visible = false; } Sound.setIntensity(0); Sound.duck(false); $('#logPanel').classList.add('hidden');
   cancelWalk(); player.pose = 'idle'; dog.path = []; dog.scripted = false; dog.act = null; dog.hidden = 0; dog.carry = null; actionBusy = false; setSelected(null);
-  queen.state = 'hidden'; queen.hp = 3; queen.lureT = 0; queen.ring.visible = false; queen.rig.g.scale.setScalar(2.4); queen.rig.body.rotation.z = 0;
   W.crane.state = 'ready'; W.crane.crate.visible = true; W.crane.crate.position.y = W.crane.hangY;
-  spiders.forEach((sp, i) => { sp.rig.g.scale.setScalar(0.85 + (i % 3) * 0.1); sp.rig.body.rotation.z = 0; curlSpider(sp.rig, 0); const p = randomPointInRoom(2); sp.pos.set(p.x, 0, p.z); sp.state = S.flags.queenDead ? 'gone' : 'wander'; HS['spider' + i].enabled = !S.flags.queenDead; });
-  if (S.flags.queenIntro && !S.flags.queenDead) { S.flags.queenIntro = false; }
   setBossBar(false); abortDialogs();
   if (keypadOpen) keypad.cancel();
   warp.lines.visible = false; W.earth.visible = false;
@@ -6396,9 +6310,9 @@ function applyWorld() {
   W.locker.pivot.rotation.y = f.lockerOpen ? -1.9 : 0; W.locker.torch.visible = !f.torchTaken; W.locker.kpMat.emissive.setHex(f.lockerOpen ? 0x40ff80 : 0xff3a2a);
   W.digSpot.visible = !!(f.keySniffed && !f.keyDug); HS.digspot.enabled = W.digSpot.visible; W.digHole.visible = !!f.keyDug;
   W.specialSunflower.visible = !f.sunflowerPicked; HS.sunflower.enabled = !f.sunflowerPicked;
-  W.patchWeb.visible = !f.queenDead;
+  W.patchWeb.visible = !f.cargoClear; W.patchWeb.position.set(0, 0, 0); W.manifest.visible = true;
   W.forcefield.visible = !f.breachSealed; W.ffLight.intensity = f.breachSealed ? 0 : 10; W.patch.visible = !!f.breachSealed;
-  W.ventGlint.visible = !f.couplingFetched; W.couplingIn.visible = !!f.powerOn;
+  W.ventGlint.visible = !f.couplingFetched; W.couplingIn.visible = !!(f.powerOn || f.couplingSet);
   W.door1Screen.material.emissive.setHex(f.door1 ? 0x40ff80 : 0xff2a1a); W.door2Screen.material.emissive.setHex(!doorLocked(2) ? 0x40ff80 : 0xff2a1a);
   W.cocoon.visible = !f.rafiFree; HS.cocoon.enabled = !f.rafiFree;
   const r = npcs.rafi; r.rig.g.visible = !!f.rafiFree;
@@ -6469,8 +6383,8 @@ async function playIntro() {
   await say([['HALO', 'Captain Vega. Captain. Please wake up.'], ['VEGA', 'Ugh… HALO? What hit us?'], ['HALO', 'A meteor fragment. It breached the Cargo Hold. Main power is offline and the jump drive is dark.'],
     ['VEGA', "Comet! Where's— oh, thank the stars."], ['COMET', 'Woof! Woof!'], ['VEGA', "Mask on and everything. Good girl. That's my co-pilot."],
     ['HALO', 'Juno is in the garden and unhurt. I cannot reach Rafi — last seen in the Cargo Hold. And BOLT-7 appears to be… spinning.'],
-    ['HALO', 'Life support is holding thanks to the Hydroponic Garden. But motion sensors in Cargo report movement. Something with a great many legs.'],
-    ['VEGA', "Of course. Four light-years from home, a hole in my ship, no power, and bugs. Alright. Let's get to work."]]);
+    ['HALO', 'Life support is holding thanks to the Hydroponic Garden. But the Cargo Hold took the worst of the impact, and the hull is breached in there.'],
+    ['VEGA', "Four light-years from home, a hole in my ship, no power, and a crew to find. Alright. Let's get to work."]]);
   S.flags.briefed = true; updateObjectives(); actionBusy = false; chapter(1);
   toast('Click or tap to walk · click things to interact · the <b>👁</b> button (or <b>V</b>) switches Behind / First-Person view · Comet\'s skills are in her panel', 6500);
   saveGame(true);
@@ -6509,7 +6423,7 @@ async function playEnding() {
   const rank = stars === 3 ? 'Legendary Co-Pilot' : stars === 2 ? 'Seasoned Captain' : 'Brave Explorer';
   $('#endRank').innerHTML = `<span class="stars">${'★'.repeat(stars)}<i>${'★'.repeat(3 - stars)}</i></span>${rank}`;
   $('#endStats').innerHTML = `<div><b>${mins}:${String(secs).padStart(2, '0')}</b>Time to home</div><div><b>${S.aveSpent}</b>AVE points spent</div><div><b>${S.crates}</b>Crates dropped</div>`
-    + `<div><b>${S.hits}</b>Spiders zapped</div><div><b>${tr}/${TREASURES.length}</b>Treasures found</div><div><b>${hints}</b>Hints used</div>`;
+    + `<div><b>${S.fetches || 0}</b>Games of fetch</div><div><b>${tr}/${TREASURES.length}</b>Treasures found</div><div><b>${hints}</b>Hints used</div>`;
   el.ending.classList.remove('hidden'); gameState = 'end'; actionBusy = false;
   memSave = null; try { localStorage.removeItem(SAVE_KEY); } catch (e) { }
 }
@@ -6841,7 +6755,7 @@ function updateAmbience(dt) {
   if (room !== lastRoom && gameState === 'play') {
     lastRoom = room; showRoomBanner(room);
     if (room === 1 && !S.flags.gardenSeen && S.flags.briefed) { S.flags.gardenSeen = true; setTimeout(() => gardenArrival(), 300); }
-    if (room === 2 && !S.flags.queenIntro && !S.flags.queenDead) setTimeout(() => queenIntro(), 150);
+    if (room === 2 && !S.flags.cargoSeen) { S.flags.cargoSeen = true; setTimeout(() => cargoArrival(), 300); }
     if (room === 3 && !S.flags.engineSeen) { S.flags.engineSeen = true; setTimeout(() => engineArrival(), 300); }
   }
   ambT -= dt; if (ambT <= 0) {
@@ -7042,6 +6956,7 @@ function wireUI() {
   $('#btnScan').onclick = (e) => { e.stopPropagation(); haloScan(); };
   $('#btnLog').onclick = (e) => { e.stopPropagation(); Sound.click(); toggleLog(); };
   $('#btnLogClose').onclick = () => $('#logPanel').classList.add('hidden');
+  $('#pzClose').onclick = (e) => { e.stopPropagation(); Sound.click(); closePuzzle(false); };
   $('#dlgLog').onclick = (e) => { e.stopPropagation(); Sound.click(); toggleLog(); };
   $('#dlgAuto').onclick = (e) => { e.stopPropagation(); Prefs.set('autoPlay', !Prefs.get('autoPlay')); syncPrefs(); toast(Prefs.get('autoPlay') ? '▶ Auto-Play on: conversations play by themselves' : 'Auto-Play off: click to continue', 1800); };
   for (const [id, k] of [['#prefAuto', 'autoPlay'], ['#prefNarr', 'narrator'], ['#prefCam', 'talkCam']]) $(id).onchange = (e) => { Prefs.set(k, e.target.checked); syncPrefs(); };
@@ -7229,7 +7144,6 @@ function initBlobs() {
   addBlob(() => ({ p: npcs.bolt.pos, v: npcs.bolt.rig.g.visible, h: 0 }), 0.75, 0.75);
   addBlob(() => ({ p: npcs.zib.pos, v: npcs.zib.rig.g.visible, h: 0, a: 0.5 }), 0.6, 0.6);
   for (const sp of spiders) addBlob(() => ({ p: sp.pos, v: sp.rig.g.visible && sp.state !== 'gone', h: sp.heading, s: sp.rig.g.scale.x }), 1.5, 1.9);
-  addBlob(() => ({ p: queen.pos, v: queen.rig.g.visible, h: queen.heading, s: queen.rig.g.scale.x / 2.4, lift: queen.pos.y }), 3.6, 4.4);
 }
 function updateBlobs() {
   const base = quality === 'ultra' ? 0.3 : 0.55;
@@ -7508,7 +7422,7 @@ function updatePaws(dt) {
   for (const t of TREASURES) if (t.glow && t.glow.visible) { t.glow.material.opacity = 0.55 + Math.sin(time * 3 + t.x) * 0.35; t.glow.position.y = 0.25 + Math.sin(time * 2 + t.z) * 0.05; }
 }
 function treasurePlan(kind, room) {
-  if (fightActive() || (room === 2 && !S.flags.queenDead)) return null;
+  if (room === 2 && !S.flags.cargoClear) return null;
   const here = TREASURES.filter(t => t.room === room && !trFound(t));
   if (!here.length) return null;
   const near = (list) => list.sort((a, b) => Math.hypot(a.sx - dog.pos.x, a.sz - dog.pos.z) - Math.hypot(b.sx - dog.pos.x, b.sz - dog.pos.z))[0];
@@ -7642,6 +7556,124 @@ function updateExtras(dt, wdt) {
 }
 function initExtras() { initBlobs(); initTreasures(); getBall(); }
 
+
+/* ---------- puzzle screens ---------- */
+let puzzleOpen = false, puzzleDone = null;
+function openPuzzle({ kicker, title, text }) {
+  puzzleOpen = true; cancelWalk(); el.tip.classList.add('hidden');
+  $('#pzKicker').textContent = kicker; $('#pzTitle').textContent = title; $('#pzText').textContent = text;
+  $('#pzMsg').textContent = ''; $('#pzMsg').className = ''; $('#pzBody').innerHTML = '';
+  $('#puzzle').classList.remove('hidden');
+  return new Promise(res => { puzzleDone = res; });
+}
+function closePuzzle(result = false) {
+  if (!puzzleOpen) return; puzzleOpen = false; $('#puzzle').classList.add('hidden');
+  const r = puzzleDone; puzzleDone = null; hoverDirty = true; if (r) r(result);
+}
+function pzMsg(t, good = false) { const m = $('#pzMsg'); m.textContent = t; m.className = good ? 'good' : ''; }
+
+// The crane: pick the bay the emergency supplies are buried in (the manifest says Row C, Bay 2).
+const CRANE_JUNK = { A1: 'a pallet of coffee beans', A2: 'six hundred rubber ducks (Rafi\'s)', A3: 'a crate of spare socks', B1: 'Juno\'s seed trays', B2: 'a box marked "DO NOT OPEN: HALLOWEEN"', B3: 'BOLT-7\'s spare wheels', C1: 'a crate of tinned peaches', C3: 'a pallet of dog food (Comet approves)' };
+async function cranePuzzle() {
+  const wait = openPuzzle({ kicker: 'CARGO CRANE · MANUAL TARGETING', title: 'Which bay should the crane clear?',
+    text: S.flags.manifestRead ? 'The emergency supply crate is buried somewhere in this grid. The manifest said where.' : 'The emergency supply crate is buried somewhere in this grid. Somewhere in the hold there must be a record of where it was stored.' });
+  const g = document.createElement('div'); g.className = 'crane-grid';
+  g.appendChild(document.createElement('span'));
+  for (const n of [1, 2, 3]) { const l = document.createElement('span'); l.className = 'lab'; l.textContent = n; g.appendChild(l); }
+  for (const row of ['A', 'B', 'C']) {
+    const l = document.createElement('span'); l.className = 'lab'; l.textContent = row; g.appendChild(l);
+    for (const n of [1, 2, 3]) {
+      const bay = row + n, b = document.createElement('button'); b.type = 'button'; b.innerHTML = `<span class="ic" aria-hidden="true">📦</span>${row}-${n}`; b.setAttribute('aria-label', `Bay ${row}-${n}`);
+      b.onclick = async () => {
+        Sound.click(); W.craneLever.rotation.x = 0.6; setTimeout(() => W.craneLever.rotation.x = 0, 400); S.crates++;
+        if (bay === 'C2') { Sound.thunk(); pzMsg('Target locked: BAY C-2. Lifting…', true); await wait_(700); closePuzzle(true); return; }
+        Sound.whoosh(); b.classList.add('tried');
+        pzMsg(`The crane whirs over to bay ${row}-${n} and hoists… ${CRANE_JUNK[bay]}. Not the supplies. It sets it back down.`);
+      };
+      g.appendChild(b);
+    }
+  }
+  $('#pzBody').appendChild(g); g.querySelector('button').focus({ preventScroll: true });
+  const ok = await wait;
+  if (ok) await craneClearCine();
+}
+const wait_ = (ms) => new Promise(r => setTimeout(r, ms));
+async function craneClearCine() {
+  const R = ROOMS[2], pile = W.patchWeb, pc = pile.parent, base = pc.getWorldPosition(new V3());
+  gameState = 'cine'; letterbox(true); setHUD(false); el.tip.classList.add('hidden');
+  cineCam(() => { camera.position.set(base.x - 4.2, 3.6, base.z + 4.8); camera.lookAt(base.x, 1.4, base.z); });
+  Sound.power();
+  const t0 = performance.now();
+  await new Promise(res => { const f = () => { const k = clamp((performance.now() - t0) / 2600, 0, 1); pile.position.set(-smooth(clamp((k - 0.45) / 0.55, 0, 1)) * 3.5, smooth(clamp(k / 0.5, 0, 1)) * 4.2, 0); if (k < 1) requestAnimationFrame(f); else res(); }; f(); });
+  Sound.thunk(); pile.visible = false; pile.position.set(0, 0, 0);
+  S.flags.cargoClear = true; applyWorld(); updateObjectives();
+  await say([['NARR', 'The crane hooks the fallen cargo, lifts the whole pile clear and swings it aside. Underneath, stencilled BAY C-2: the emergency supply crate.'], ['HALO', 'Supply crate uncovered. The hull patch kit should be inside.']]);
+  endCine(); letterbox(false); gameState = 'play'; setHUD(true); snapCamera();
+  saveGame(true); toast('💾 Auto-saved', 1500); dogAct('happy', 1.5);
+}
+
+// The power conduits: turn the tiles until one path runs from the reactor (left) to the ship (right).
+const PIPE = { N: 1, E: 2, S: 4, W: 8 };
+const rotM = (m, r) => { for (let i = 0; i < r; i++) m = ((m << 1) | (m >> 3)) & 15; return m; };
+const PIPE_LAYOUT = [ // [base shape mask, solved mask]; shapes: straight 5, elbow 3, tee 7
+  [[3, 6], [5, 10], [3, 12], [5, 5]],
+  [[3, 9], [7, 7], [5, 5], [3, 6]],
+  [[5, 10], [3, 3], [3, 3], [3, 9]],
+];
+let pipeState = null;
+function pipeInit() {
+  // turn every tile away from its solution (straights only have two distinct turns)
+  pipeState = PIPE_LAYOUT.map((row, r) => row.map(([base, want], c) => {
+    let sol = 0; while (rotM(base, sol) !== want && sol < 4) sol++;
+    let rot = (sol + 1 + ((r * 4 + c) % 3)) % 4; if (rotM(base, rot) === want) rot = (rot + 1) % 4;
+    return { base, rot };
+  }));
+}
+function pipeLit() {
+  const lit = new Set(), q = [];
+  const m = (r, c) => rotM(pipeState[r][c].base, pipeState[r][c].rot);
+  if (m(1, 0) & PIPE.W) { lit.add('1,0'); q.push([1, 0]); }
+  while (q.length) {
+    const [r, c] = q.shift(), mm = m(r, c);
+    for (const [bit, dr, dc, back] of [[PIPE.N, -1, 0, PIPE.S], [PIPE.E, 0, 1, PIPE.W], [PIPE.S, 1, 0, PIPE.N], [PIPE.W, 0, -1, PIPE.E]]) {
+      const nr = r + dr, nc = c + dc; if (!(mm & bit) || nr < 0 || nr > 2 || nc < 0 || nc > 3) continue;
+      const k = nr + ',' + nc; if (lit.has(k) || !(m(nr, nc) & back)) continue; lit.add(k); q.push([nr, nc]);
+    }
+  }
+  return { lit, solved: lit.has('1,3') && !!(m(1, 3) & PIPE.E) };
+}
+function pipeSVG(mask) {
+  const seg = [[PIPE.N, 30, 0], [PIPE.E, 60, 30], [PIPE.S, 30, 60], [PIPE.W, 0, 30]].filter(([b]) => mask & b).map(([, x, y]) => `<line class="p" x1="30" y1="30" x2="${x}" y2="${y}"/>`).join('');
+  return `<svg viewBox="0 0 60 60" aria-hidden="true">${seg}<circle class="p" cx="30" cy="30" r="2"/></svg>`;
+}
+async function powerPuzzle() {
+  if (!pipeState) pipeInit();
+  const wait = openPuzzle({ kicker: 'ENGINEERING · POWER CONDUITS', title: 'Route the power to the ship',
+    text: 'Click a tile to turn it. Make one unbroken path from the reactor on the left to the ship on the right. Lit tiles are connected to the reactor.' });
+  const wrap = document.createElement('div'); wrap.className = 'pipe-wrap';
+  const src = document.createElement('div'); src.className = 'pipe-end on'; src.innerHTML = '⚡<br>REACTOR';
+  const dst = document.createElement('div'); dst.className = 'pipe-end'; dst.innerHTML = 'SHIP<br>▸';
+  const grid = document.createElement('div'); grid.className = 'pipe-grid';
+  const btns = [];
+  const render = () => {
+    const { lit, solved } = pipeLit();
+    btns.forEach(({ b, r, c }) => { const t = pipeState[r][c]; b.innerHTML = pipeSVG(rotM(t.base, t.rot)); b.classList.toggle('lit', lit.has(r + ',' + c)); });
+    dst.classList.toggle('on', solved); return solved;
+  };
+  for (let r = 0; r < 3; r++) for (let c = 0; c < 4; c++) {
+    const b = document.createElement('button'); b.type = 'button'; b.setAttribute('aria-label', `Conduit, row ${r + 1}, column ${c + 1}. Click to turn.`);
+    b.onclick = async () => {
+      if (!puzzleOpen) return; pipeState[r][c].rot = (pipeState[r][c].rot + 1) % 4; Sound.beep();
+      if (render()) { btns.forEach(x => x.b.disabled = true); Sound.chime(); pzMsg('Power is flowing! Stand clear…', true); await wait_(1200); closePuzzle(true); }
+    };
+    btns.push({ b, r, c }); grid.appendChild(b);
+  }
+  wrap.append(src, grid, dst); $('#pzBody').appendChild(wrap); render(); btns[0].b.focus({ preventScroll: true });
+  const ok = await wait;
+  if (ok) pipeState = null;
+  return ok;
+}
+
 /* ---------- start ---------- */
 function startGate() {
   const L = el.loading; L.textContent = '';
@@ -7665,7 +7697,8 @@ if (SAFE.IN_FRAME && !SAFE.recovered && SAFE.died) startGate(); else boot();
 // Developer hook: open with ?debug to poke at the game from the browser console.
 if (/[?&]debug/.test(location.search)) window.HD = { get S() { return S; }, player, dog, npcs, queen, HS, W, ROOMS, walkTo, interact, dogAbility, applyWorld, saveGame, loadGame, camera, renderer, setCamMode,
   nav: { planPath, resolveMove, doorLocked, regionAt, insideObs, obstacles, minX, maxX, ROOM_Z, CORR_Z, HALF_W }, doors, Voice, hintStep, showHint,
-  Prefs, haloScan, get scan() { return scan; }, bannerLog, say, cineCam, endCine, TREASURES, treasureCount, throwBall, dogZoomies, powerFx, get worldScale() { return worldScale; }, spiders, dogAct, get choiceOpen() { return choiceOpen; },
+  Prefs, haloScan, get scan() { return scan; }, bannerLog, say, cineCam, endCine,
+  pipeSolve() { if (!pipeState) pipeInit(); PIPE_LAYOUT.forEach((row, r) => row.forEach(([base, want], c) => { let k = 0; while (rotM(base, k) !== want) k++; pipeState[r][c].rot = k; })); }, TREASURES, treasureCount, throwBall, dogZoomies, powerFx, get worldScale() { return worldScale; }, spiders, dogAct, get choiceOpen() { return choiceOpen; },
   get state() { return gameState; }, get busy() { return actionBusy; }, get dialog() { return dlg.open; },
   tp(x, z) { player.pos.set(x, 0, z); dog.pos.set(x + 0.8, 0, z + 0.8); snapCamera(); }, advance: advanceDialog, skip() { skipRequested = true; } };
 </script>

@@ -15,7 +15,7 @@ A 3D point-and-click space adventure that runs in the browser. Everything in it 
 | Control | Action |
 | --- | --- |
 | **Click** the floor | Walk there |
-| **Click** an object, crew member or creature | Look, use, talk or fight (the tooltip shows what you're pointing at) |
+| **Click** an object, crew member or creature | Look, use or talk (the tooltip shows what you're pointing at) |
 | **Drag** / **scroll** | Look around / zoom |
 | **V** or the 👁 button | Switch between **Behind** (third-person) and **First-Person** view |
 | **Tab** or **📡 Scan** | HALO Scan: a sonar ping labels everything you can use in the room (tap a label to use it) |
@@ -35,7 +35,7 @@ A 3D point-and-click space adventure that runs in the browser. Everything in it 
 - **Four explorable decks:** the Bridge, a Hydroponic Garden under a glass dome, the damaged Cargo Hold and Engineering, joined by sliding pressure doors.
 - **Comet, the space dog.** She wears her own face mask: a breather with teal filters, blinking LEDs and a hose to her little oxygen pack, plus a bubble helmet with an antenna. She follows you everywhere and solves problems with **AVE points** (*Animal Valor & Expertise*):
   - **Sniff** (1) finds hidden things and makes friends.
-  - **Bark** (1) scares spiders or lures the boss.
+  - **Bark** (1) calls out and gets attention.
   - **Dig** (2) digs up buried things.
   - **Fetch** (2) reaches tight spots and tugs things free.
 
@@ -46,7 +46,7 @@ A 3D point-and-click space adventure that runs in the browser. Everything in it 
   - Her ears flop when she stops, and she gallops at full speed.
   - When she's bored she lies down, scratches, yawns or rolls in the garden.
   - After digging she shakes the dirt off.
-  - She does zoomies when you beat the Queen or get the power back on.
+  - She does zoomies when you get the power back on.
 
   Take the **squeaky ball** from her bed to play fetch.
 - **Comet's lost treasures:** eight keepsakes are scattered around the ship. When there's nothing else to find, Comet's Sniff leaves glowing paw prints to the next one, and Dig or Fetch brings it back with a little story about the crew.
@@ -55,8 +55,12 @@ A 3D point-and-click space adventure that runs in the browser. Everything in it 
   - Chief Engineer Rafi Okoye, who needs rescuing.
   - BOLT-7, a maintenance robot who becomes your hint system.
   - Zib, a tiny glowing alien stowaway.
-- **Aliens, spiders and bugs:**
-  - Giant spiders, and the **Brood Queen** boss, beaten with a cargo crane, a UV torch and a well-timed bark.
+- **A puzzle adventure, not a fight:** nothing in the ship can hurt you. The meteor left everything in a mess, and every problem is a puzzle:
+  - a manifest clue and a Crane Control screen to dig out buried supplies;
+  - cutting Rafi free from fallen cargo netting;
+  - a Power Routing screen where you turn conduit tiles until power flows from the reactor to the ship.
+- **Aliens and critters:**
+  - Zib, the shy little alien who rode in on the meteor.
   - Iridescent skitterbugs that run from you.
   - Koi, butterflies and bees in the garden.
   - Bioluminescent space jellies and a kilometre-long Void Leviathan drifting past the windows.
@@ -67,11 +71,11 @@ A 3D point-and-click space adventure that runs in the browser. Everything in it 
 - **Big moments:**
   - Chapter title cards, and an "Objective complete" fanfare.
   - A skippable cutscene when the power comes back: the lights thunk on bank by bank, a wave of light runs along the hull and the engines ignite one by one.
-  - A boss finale with hit-stop, crate splinters, a slow-motion final blow and a victory fanfare. The boss music speeds up with every hit, and Comet charges in if you're badly hurt.
+  - A short cutscene when the crane lifts the fallen cargo clear.
   - A Captain's Report with a star rating at the end.
 - **Save Beacons**, with auto-saves at key moments, stored in the browser's local storage.
 - **Opening:** a cinematic prologue before the menu. You see sunrise over the ringed gas giant, drift through a rock field, fly along the Halcyon's hull and watch the engines burn, with its own generated score; skip it any time. It leads into a glass main menu with Settings, How to Play, Watch Prologue and Credits.
-- **Characters:** sculpted faces with blinking eyes and moving mouths, strand hair and fur on Ultra, detailed suits with name tapes and patches, and a natural walk cycle. Comet has a furry coat, a working jaw and tongue, and whiskers. The spiders have hairy segmented legs, and the Brood Queen has a glowing crown.
+- **Characters:** sculpted faces with blinking eyes and moving mouths, strand hair and fur on Ultra, detailed suits with name tapes and patches, and a natural walk cycle. Comet has a furry coat, a working jaw and tongue, and whiskers.
 - **Graphics:** physically based materials, soft shadows, bloom and ACES tone mapping. Red emergency lighting switches to warm light when you restore power. Every texture is procedural: panelled metal, diamond plate, soil, wood, the gas giant and Earth itself.
 - **Speech:** every line is spoken aloud with your browser's built-in speech synthesiser. The game casts each character from the most natural voices your browser has: a British woman for HALO, a British man for Captain Vega, a child's voice for Zib and a robot voice for BOLT-7 where the device has one. Microsoft Edge's "Natural" voices and Chrome's "Google" voices sound best. The 🗣 **Voices** button turns speech on or off and lets you pick and test a voice for each character; your picks are remembered. The words appear in step with the voice, with the spoken word lit up. The music dips while people talk, and characters' mouths move and heads turn toward whoever is speaking. A narrator voice reads the story text (you can switch it off), and a film-style over-the-shoulder camera frames conversations with the crew. Comet barks, Zib chirps and BOLT-7 beeps, all synthesised with the Web Audio API. There's also a generative score and ship ambience that change with the situation.
 - **Graphics quality:** toggle ✨ **Ultra**, **High** or **Lite** if your machine struggles.
@@ -81,11 +85,11 @@ A 3D point-and-click space adventure that runs in the browser. Everything in it 
 <details>
 <summary>Stuck? Click to reveal.</summary>
 
-1. **Bridge:** the locker code is Comet's birthday, **0417**. It's on her collar tag and in the photo. Take the UV torch. *(Optional: talk to BOLT-7, then have Comet **Fetch** to free it. It gives you biscuits and hints.)*
+1. **Bridge:** the locker code is Comet's birthday, **0417**. It's on her collar tag and in the photo. Take the cutting torch. *(Optional: talk to BOLT-7, then have Comet **Fetch** to free it. It gives you biscuits and hints.)*
 2. **Garden:** have Comet **Sniff**, then **Dig** at the glowing spot in the carrot bed to recover your keycard. Use it on the door panel to the right of the Cargo door. Pick a carrot or two, and the brightest sunflower.
-3. **Cargo Hold:** **Bark** to lure the Brood Queen onto the yellow X, then click the **Crane Console** to drop a crate. Hit her three times, and use the UV torch to stun her or to zap small spiders.
-4. Free Rafi from the cocoon with the UV torch. Take the patch kit from the supply crate and seal the hull breach. Rafi then opens Engineering.
-5. **Engineering:** **Sniff** to befriend the frightened alien, Zib. Send Comet down the floor vent with **Fetch** to get the power coupling, then install it in the reactor.
+3. **Cargo Hold:** read the **Cargo Manifest** on the floor by the Crane Console (or let Comet **Sniff** it out). Emergency supplies are in Row C, bay "half of Comet's paws": open the **Crane Console** and pick **C-2**.
+4. Cut Rafi free from the tangled netting with the cutting torch. Take the patch kit from the uncovered supply crate and seal the hull breach. Rafi then opens Engineering.
+5. **Engineering:** **Sniff** to befriend the frightened alien, Zib. Send Comet down the floor vent with **Fetch** to get the power coupling and install it in the reactor. Then solve the **power conduits**: from the reactor go up, along the top row to the third tile, down the middle, along the bottom to the last column, then up and out to the right.
 6. Give Zib the sunflower in exchange for the Remember-Stone, then go back to the Bridge's navigation console. Take everyone home.
 
 </details>
