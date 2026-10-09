@@ -397,6 +397,10 @@ export function resetTokenMatchesUser(
   return expected.length === given.length && timingSafeEqual(expected, given);
 }
 
+export const DIFFERENT_DEALERSHIP_CODE = "DIFFERENT_DEALERSHIP";
+export const DIFFERENT_DEALERSHIP_MESSAGE =
+  "You've signed in to a different dealership in another tab. Reload this page to use it. Nothing here was saved.";
+
 // Attaches req.user when a valid token is present, and rejects with 401
 // otherwise. Every real data route (inventory/leads/staff) uses this —
 // previously those endpoints had zero access control, so anyone who
@@ -448,6 +452,16 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
   const stamp = (claims as { pwv?: unknown }).pwv;
   if (stamp !== undefined && stamp !== sessionPasswordStamp(stored.passwordHash)) {
     return res.status(401).json({ ok: false, error: "Your password was changed. Please log in again." });
+  }
+
+  // Browser tabs share one login, so signing in to another dealership in a
+  // second tab swaps the login under the first. Each request from the web app
+  // says which dealership its tab was loaded for; if that is not the login's
+  // dealership, refuse it rather than let the first tab save one dealership's
+  // lists into the other's. Callers that don't say (the phone app) are unaffected.
+  const claimedDealership = req.get("x-dealership-id");
+  if (claimedDealership !== undefined && claimedDealership !== stored.dealershipId) {
+    return res.status(409).json({ ok: false, code: DIFFERENT_DEALERSHIP_CODE, error: DIFFERENT_DEALERSHIP_MESSAGE });
   }
 
   // A phone-app login only reaches what the phone app uses (phoneScope.ts).
