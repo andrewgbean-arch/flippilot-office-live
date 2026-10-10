@@ -10,8 +10,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Exo+2:ital,wght@0,300;0,400;0,600;1,400&display=swap" rel="stylesheet">
 <style>
 :root{
-  --ui-bg: rgba(7,13,24,.64);
-  --ui-bg2: rgba(12,22,40,.78);
+  --ui-bg: rgba(7,13,24,.8);
+  --ui-bg2: rgba(12,22,40,.86);
   --ui-line: rgba(130,200,255,.22);
   --ui-line2: rgba(130,220,255,.55);
   --accent:#6fe3ff; --warn:#ff5a4a; --gold:#ffd27a; --good:#7dffb0;
@@ -24,7 +24,9 @@ html,body{margin:0;height:100%;overflow:hidden;overscroll-behavior:none;backgrou
 #c{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;outline:none}
 .hidden{display:none!important}
 .panel{background:var(--ui-bg);border:1px solid var(--ui-line);border-radius:14px;
-  backdrop-filter:blur(10px) saturate(1.2);-webkit-backdrop-filter:blur(10px) saturate(1.2);box-shadow:0 10px 40px rgba(0,0,0,.35)}
+  box-shadow:0 10px 40px rgba(0,0,0,.35)}
+/* frosted glass only on the big pop-up panels; the always-on HUD uses solid tints (a blur over a moving 3D view is re-done every frame) */
+#help,#logPanel,#voicePanel,#puzzle,#keypad{backdrop-filter:blur(10px) saturate(1.2);-webkit-backdrop-filter:blur(10px) saturate(1.2)}
 button{font-family:inherit;color:var(--text);background:rgba(20,32,52,.72);border:1px solid var(--ui-line);border-radius:10px;
   padding:8px 12px;cursor:pointer;font-size:13px;transition:background .15s,border-color .15s,transform .1s}
 button:hover{background:rgba(40,70,110,.85);border-color:var(--ui-line2)}
@@ -257,7 +259,7 @@ button:disabled{opacity:.38;cursor:not-allowed}
 #objList li.done:before{background:var(--good);border-color:var(--good)}
 #objectives.collapsed #objList{display:none}
 #topbar{position:absolute;right:16px;top:16px;display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;max-width:60vw}
-#topbar button{backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+#topbar button{background:rgba(20,32,52,.86)}
 #btnView{border-color:rgba(255,210,122,.55)}
 #btnHint{border-color:rgba(255,210,122,.7);color:#ffe7b0}
 #btnHint.pulse{animation:hintPulse 1.4s ease-in-out infinite}
@@ -302,7 +304,7 @@ button:disabled{opacity:.38;cursor:not-allowed}
 .abil button kbd{font-size:9px;color:var(--muted);font-family:inherit}
 #inventory{flex:1;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;align-items:flex-end;padding:0 8px;pointer-events:none}
 .slot{pointer-events:auto;width:64px;height:64px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:30px;position:relative;cursor:pointer;
-  background:var(--ui-bg2);border:1px solid var(--ui-line);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);transition:transform .15s,border-color .15s}
+  background:var(--ui-bg2);border:1px solid var(--ui-line);transition:transform .15s,border-color .15s}
 .slot:hover{transform:translateY(-3px);border-color:var(--ui-line2)}
 .slot.sel{border-color:var(--gold);box-shadow:0 0 0 2px rgba(255,210,122,.4),0 0 22px rgba(255,210,122,.35)}
 .slot .cnt{position:absolute;right:5px;bottom:3px;font-size:11px;font-weight:700;color:#fff;text-shadow:0 1px 2px #000}
@@ -356,7 +358,7 @@ button:disabled{opacity:.38;cursor:not-allowed}
 #choices button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 #scanLayer{position:fixed;inset:0;pointer-events:none;z-index:26;overflow:hidden}
 .scanLabel{position:absolute;left:0;top:0;padding:4px 10px;font-size:12.5px;border-radius:999px;white-space:nowrap;color:#e8fbff;opacity:0;transition:opacity .2s;
-  background:rgba(6,24,40,.78);border:1px solid rgba(111,227,255,.7);box-shadow:0 0 12px rgba(111,227,255,.45);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+  background:rgba(6,24,40,.78);border:1px solid rgba(111,227,255,.7);box-shadow:0 0 12px rgba(111,227,255,.45)}
 .scanLabel::after{content:'';position:absolute;left:50%;bottom:-7px;width:1px;height:6px;background:rgba(111,227,255,.8)}
 #objBanner{position:fixed;left:50%;top:22%;transform:translate(-50%,-10px);z-index:46;pointer-events:none;opacity:0;text-align:center;padding:12px 26px;border-radius:14px;
   font-family:'Orbitron';font-size:clamp(14px,2vw,19px);letter-spacing:.08em;color:#fff;background:linear-gradient(180deg,rgba(60,44,8,.85),rgba(20,14,2,.85));border:1px solid rgba(255,210,122,.8);
@@ -767,6 +769,14 @@ function d2(a, b) { return Math.hypot(a.x - b.x, a.z - b.z); }
 function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 const wait = (ms) => new Promise(r => setTimeout(r, ms));
 const smooth = (t) => t * t * (3 - 2 * t);
+/* Crossfade a rig between poses: when `key` changes, ease from the last shown joint values into the new pose
+   over `dur` seconds instead of snapping. J = [[object, 'rotation'|'position', 'x'|'y'|'z'], ...], built once per rig. */
+function poseBlend(r, J, key, dt, dur = 0.3) {
+  if (!r._bLast) { r._bLast = new Float32Array(J.length); r._bFrom = new Float32Array(J.length); r._bKey = key; r._bT = dur; }
+  else if (r._bKey !== key) { r._bKey = key; r._bT = 0; r._bFrom.set(r._bLast); }
+  r._bT = Math.min(dur, r._bT + dt); const u = smooth(r._bT / dur);
+  for (let i = 0; i < J.length; i++) { const o = J[i][0][J[i][1]], ax = J[i][2]; if (u < 1) o[ax] = r._bFrom[i] + (o[ax] - r._bFrom[i]) * u; r._bLast[i] = o[ax]; }
+}
 
 /* ---------------- value noise ---------------- */
 function hash3(x, y, z) {
@@ -855,6 +865,8 @@ try {
   // so a multisampled default framebuffer (4 samples x (RGBA8 + D24S8) = 32 B/px) bought nothing.
   renderer = new THREE.WebGLRenderer({ canvas, antialias: false, depth: false, stencil: false, powerPreference: 'high-performance' });
 } catch (e) { fatalGL("Your browser couldn't start 3D graphics (WebGL 2)."); throw e; }
+// shader error checks are blocking GPU round-trips on each program's first use (a hitch when you first see something); keep them for ?debug only
+renderer.debug.checkShaderErrors = /[?&]debug/.test(location.search);
 const GPU = detectGPU(renderer.getContext());
 
 let quality = 'ultra';
@@ -1547,8 +1559,10 @@ class Particles {
     this.life[i] = life; this.maxLife[i] = life; this.base[i] = size; this.grav[i] = grav; this.drag[i] = drag; this.alpha[i] = a; this.grow[i] = grow;
   }
   update(dt) {
+    let alive = 0;
     for (let i = 0; i < this.max; i++) {
       if (this.life[i] <= 0) { if (this.size[i] !== 0) this.size[i] = 0; continue; }
+      alive++;
       this.life[i] -= dt;
       if (this.life[i] <= 0) { this.size[i] = 0; continue; }
       const k = 1 - this.drag[i] * dt;
@@ -1558,6 +1572,7 @@ class Particles {
       this.size[i] = this.base[i] * (1 + this.grow[i] * (1 - t));
       this.col[i * 4 + 3] = this.alpha[i] * Math.min(1, t * 2.5) * Math.min(1, (1 - t) * 12 + 0.2);
     }
+    if (!alive && this.idle) return; this.idle = !alive; // nothing alive (and already cleared on the GPU): skip the uploads
     this.geo.attributes.position.needsUpdate = true; this.geo.attributes.aColor.needsUpdate = true; this.geo.attributes.aSize.needsUpdate = true;
   }
 }
@@ -1597,6 +1612,7 @@ function makeMotes(n, center, ext, { color = [1, 1, 1], size = 0.03, amp = 0.4, 
 const screens = [];
 function makeScreen(kind, w = 512, h = 288) {
   const c = makeCanvas(w, h); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = maxAniso;
+  t.generateMipmaps = false; t.minFilter = THREE.LinearFilter; // seen up close; skipping mipmaps makes each refresh much cheaper
   const s = { c, g: c.getContext('2d'), t, kind, w, h, mat: null };
   s.mat = new THREE.MeshBasicMaterial({ map: t, toneMapped: false }); s.mat.color.setScalar(1.35);
   screens.push(s); return s;
@@ -3404,11 +3420,14 @@ function buildHuman(o = {}) {
 /* ---------- human animation: heel-toe walk, hip sway, breathing idle, poses ---------- */
 function gaitG(ph, c, w) { const d = Math.atan2(Math.sin(ph - c), Math.cos(ph - c)); return Math.exp(-(d * d) / (w * w)); }
 function animHuman(r, dt, speed, t, pose = 'idle') {
+  // blend the gait in and out (and smooth out per-frame speed jitter) so starting and stopping never pops
+  r._gs = r._gs === undefined ? speed : r._gs + (speed - r._gs) * (1 - Math.exp(-(speed > r._gs ? 14 : 9) * dt)); speed = r._gs < 0.05 ? 0 : r._gs;
   const w = clamp(speed / 3.5, 0, 1.4), wm = Math.min(w, 1), still = 1 - wm;
-  if (w > 0.05) r.phase += dt * (5 + speed * 1.4);
+  // cadence from stride length, so the feet plant instead of skating
+  if (w > 0.05) r.phase += dt * Math.PI * speed / Math.max(0.3, 1.68 * Math.sin(0.54 * w));
   const p = r.phase;
   const leg = (ph) => {
-    const hip = -0.44 * Math.sin(ph) * w;
+    const hip = -0.54 * Math.sin(ph) * w;
     const knee = w * (1.05 * Math.pow(Math.max(0, Math.cos(ph + 0.25)), 1.6) + 0.2 * gaitG(ph, Math.PI / 2 + 0.45, 0.4));
     const tilt = w * (-0.26 * gaitG(ph, Math.PI / 2, 0.35) + 0.55 * gaitG(ph, -Math.PI / 2 + 0.3, 0.35) - 0.1 * gaitG(ph, 0.3, 0.5));
     return { hip, knee, tilt };
@@ -3440,6 +3459,9 @@ function animHuman(r, dt, speed, t, pose = 'idle') {
   if (pose === 'sit') { r.hips.position.y = 0.62; r.legL.rotation.x = -1.45; r.legR.rotation.x = -1.45; r.knL.rotation.x = 1.45; r.knR.rotation.x = 1.45; r.armL.rotation.x = -0.6; r.armR.rotation.x = -0.6; r.elL.rotation.x = -0.6; r.elR.rotation.x = -0.6; footL = footR = 0; }
   if (pose === 'hang') { r.armL.rotation.z = -0.1; r.armR.rotation.z = 0.1; r.legL.rotation.x = 0.05; r.legR.rotation.x = -0.05; r.knL.rotation.x = 0.05; r.knR.rotation.x = 0.05; footL = footR = 0.35; }
   if (pose === 'work' || pose === 'kneel' || pose === 'pet' || pose === 'sit' || pose === 'hang') { r.hips.rotation.set(0, 0, 0); r.hips.position.x = 0; r.legL.rotation.z = r.legR.rotation.z = 0; r.torso.rotation.y = r.torso.rotation.z = 0; }
+  if (!r._J) { r._J = []; const R = (o, ...ax) => ax.forEach(a => r._J.push([o, 'rotation', a])); r._J.push([r.hips, 'position', 'y'], [r.hips, 'position', 'x']);
+    R(r.hips, 'x', 'y', 'z'); R(r.legL, 'x', 'z'); R(r.legR, 'x', 'z'); R(r.knL, 'x'); R(r.knR, 'x'); R(r.torso, 'x', 'y', 'z'); R(r.armL, 'x', 'z'); R(r.armR, 'x', 'z'); R(r.elL, 'x'); R(r.elR, 'x'); R(r.head, 'x'); }
+  poseBlend(r, r._J, pose, dt, 0.32);
   if (r.anL) { r.anL.rotation.x = clamp(-(r.legL.rotation.x + r.knL.rotation.x) + footL, -1.3, 1.6); r.anR.rotation.x = clamp(-(r.legR.rotation.x + r.knR.rotation.x) + footR, -1.3, 1.6); }
   // face life: blinks and small saccades
   const f = r.face;
@@ -5263,6 +5285,8 @@ function spawnCharacters() {
   const zib = { rig: buildZib(), pos: new V3(78 + 8.6, 0, -6.7), heading: -2.4, scared: 1, follow: false };
   scene.add(zib.rig.g); npcs.zib = zib;
   hs('zib', zib.rig.g, { name: '??? (something glowing)', pri: 3, at: () => npcs.zib.follow ? [zib.pos.x + 1, zib.pos.z + 1] : [78 + 6.9, -5.3], look: () => zib.pos.clone().setY(1.1) });
+  // pointing at characters hits simple invisible shapes, not every sculpted face, ear and hair mesh (that cost up to 10 ms a frame)
+  for (const id of ['comet', 'juno', 'rafi', 'bolt', 'zib']) pickProxy(HS[id]);
   // (no spiders: the Cargo Hold is a puzzle now, not a fight)
   // --- skitterbugs everywhere ---
   const bugRooms = [0, 0, 0, 0, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3];
@@ -5325,20 +5349,36 @@ function resolveMove(prev, nx, nz, rad = 0.35) {
 const NAV_CELL = 0.25, NAV_X0 = minX, NAV_Z0 = -ROOM_Z;
 const NAV_NX = Math.floor((maxX - minX) / NAV_CELL) + 1, NAV_NZ = Math.floor(2 * ROOM_Z / NAV_CELL) + 1;
 const navCache = new Map();
-function navFree(x, z, rad) {
+function navFree(x, z, rad, doors = true) {
   if (x < minX || x > maxX || Math.abs(z) > ROOM_Z) return false;
   const r = regionAt(x);
-  if (r.corr >= 0) { if (Math.abs(z) > CORR_Z) return false; if (doorLocked(r.corr) && Math.abs(x - (ROOMS[r.corr].cx + 13)) < 0.6) return false; }
+  if (r.corr >= 0) { if (Math.abs(z) > CORR_Z) return false; if (doors && doorLocked(r.corr) && Math.abs(x - (ROOMS[r.corr].cx + 13)) < 0.6) return false; }
   const p = { x, z }; for (const o of obstacles) if (insideObs(p, o, rad)) return false;
   return true;
 }
-function navGrid(rad) {
-  const key = `${rad}|${doorLocked(1)}|${doorLocked(2)}|${obstacles.length}`;
+// the expensive part (every cell against every obstacle) is built once per walker size with all doors open;
+// a locked door just blanks its few cells in a cheap copy, so opening a door never causes a hitch
+function navBase(rad) {
+  const key = `base|${rad}|${obstacles.length}`;
   let g = navCache.get(key); if (g) return g;
   g = new Uint8Array(NAV_NX * NAV_NZ);
-  for (let i = 0; i < NAV_NX; i++) for (let j = 0; j < NAV_NZ; j++) g[i * NAV_NZ + j] = navFree(NAV_X0 + i * NAV_CELL, NAV_Z0 + j * NAV_CELL, rad) ? 1 : 0;
+  for (let i = 0; i < NAV_NX; i++) for (let j = 0; j < NAV_NZ; j++) g[i * NAV_NZ + j] = navFree(NAV_X0 + i * NAV_CELL, NAV_Z0 + j * NAV_CELL, rad, false) ? 1 : 0;
   navCache.set(key, g); return g;
 }
+function navGrid(rad) {
+  const key = `${rad}|${doorLocked(0)}|${doorLocked(1)}|${doorLocked(2)}|${obstacles.length}`;
+  let g = navCache.get(key); if (g) return g;
+  g = navBase(rad).slice();
+  for (let d = 0; d < 3; d++) {
+    if (!doorLocked(d)) continue; const dx = ROOMS[d].cx + 13;
+    for (let i = Math.max(0, Math.floor((dx - 0.6 - NAV_X0) / NAV_CELL)); i <= Math.min(NAV_NX - 1, Math.ceil((dx + 0.6 - NAV_X0) / NAV_CELL)); i++) {
+      const x = NAV_X0 + i * NAV_CELL; if (Math.abs(x - dx) >= 0.6 || regionAt(x).corr !== d) continue;
+      for (let j = 0; j < NAV_NZ; j++) g[i * NAV_NZ + j] = 0;
+    }
+  }
+  navCache.set(key, g); return g;
+}
+function navWarm() { for (const r of [0.43, 0.36, 0.38]) navBase(r); }
 function navIdx(x, z) { const i = Math.round((x - NAV_X0) / NAV_CELL), j = Math.round((z - NAV_Z0) / NAV_CELL); return i < 0 || j < 0 || i >= NAV_NX || j >= NAV_NZ ? -1 : i * NAV_NZ + j; }
 function navPos(k) { return { x: NAV_X0 + Math.floor(k / NAV_NZ) * NAV_CELL, z: NAV_Z0 + (k % NAV_NZ) * NAV_CELL }; }
 function navNearest(g, x, z) {
@@ -5349,25 +5389,33 @@ function navNearest(g, x, z) {
   }
   return best;
 }
+let NAV_BUF = null;
 function navAstar(g, s, t) {
   if (s === t) return [s];
-  const N = g.length, gs = new Float32Array(N).fill(Infinity), came = new Int32Array(N).fill(-1), done = new Uint8Array(N), heap = [];
-  const push = (f, k) => { heap.push([f, k]); let i = heap.length - 1; while (i > 0) { const q = (i - 1) >> 1; if (heap[q][0] <= heap[i][0]) break; [heap[q], heap[i]] = [heap[i], heap[q]]; i = q; } };
-  const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let i = 0; for (;;) { const l = 2 * i + 1, r = l + 1; let m = i; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === i) break; [heap[m], heap[i]] = [heap[i], heap[m]]; i = m; } } return top; };
+  const N = g.length; if (!NAV_BUF || NAV_BUF.N !== N) NAV_BUF = { N, gs: new Float32Array(N), came: new Int32Array(N), seen: new Uint32Array(N), done: new Uint32Array(N), gen: 0, hf: [], hk: [] };
+  // reused buffers, "cleared" by bumping a generation stamp instead of allocating three ship-sized arrays per call
+  const B = NAV_BUF, gen = ++B.gen, GS = B.gs, came = B.came, seen = B.seen, done = B.done, hf = B.hf, hk = B.hk; hf.length = hk.length = 0;
+  const G = (k) => seen[k] === gen ? GS[k] : Infinity;
+  const push = (f, k) => { let i = hf.length; hf.push(f); hk.push(k); while (i > 0) { const q = (i - 1) >> 1; if (hf[q] <= f) break; hf[i] = hf[q]; hk[i] = hk[q]; i = q; } hf[i] = f; hk[i] = k; };
+  const pop = () => {
+    const top = hk[0], lf = hf.pop(), lk = hk.pop(), n = hf.length; if (!n) return top;
+    let i = 0; for (;;) { const l = 2 * i + 1, r = l + 1; let m = -1, mf = lf; if (l < n && hf[l] < mf) { m = l; mf = hf[l]; } if (r < n && hf[r] < mf) { m = r; mf = hf[r]; } if (m < 0) break; hf[i] = hf[m]; hk[i] = hk[m]; i = m; }
+    hf[i] = lf; hk[i] = lk; return top;
+  };
   const ti = Math.floor(t / NAV_NZ), tj = t % NAV_NZ;
   const h = (k) => { const dx = Math.abs(Math.floor(k / NAV_NZ) - ti), dz = Math.abs(k % NAV_NZ - tj); return dx + dz + (Math.SQRT2 - 2) * Math.min(dx, dz); };
-  gs[s] = 0; push(h(s), s);
-  while (heap.length) {
-    const k = pop()[1]; if (done[k]) continue; if (k === t) break; done[k] = 1;
-    const ki = Math.floor(k / NAV_NZ), kj = k % NAV_NZ;
+  GS[s] = 0; seen[s] = gen; came[s] = -1; push(h(s), s);
+  while (hf.length) {
+    const k = pop(); if (done[k] === gen) continue; if (k === t) break; done[k] = gen;
+    const ki = Math.floor(k / NAV_NZ), kj = k % NAV_NZ, gk = GS[k];
     for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) {
       if (!di && !dj) continue; const ni = ki + di, nj = kj + dj; if (ni < 0 || nj < 0 || ni >= NAV_NX || nj >= NAV_NZ) continue;
-      const nk = ni * NAV_NZ + nj; if (!g[nk] || done[nk]) continue;
+      const nk = ni * NAV_NZ + nj; if (!g[nk] || done[nk] === gen) continue;
       if (di && dj && (!g[ki * NAV_NZ + nj] || !g[ni * NAV_NZ + kj])) continue; // never cut a blocked corner
-      const ng = gs[k] + (di && dj ? Math.SQRT2 : 1); if (ng < gs[nk]) { gs[nk] = ng; came[nk] = k; push(ng + h(nk), nk); }
+      const ng = gk + (di && dj ? Math.SQRT2 : 1); if (ng < G(nk)) { GS[nk] = ng; seen[nk] = gen; came[nk] = k; push(ng + h(nk), nk); }
     }
   }
-  if (!Number.isFinite(gs[t])) return null;
+  if (seen[t] !== gen) return null;
   const path = []; for (let k = t; k !== -1; k = came[k]) path.push(k); return path.reverse();
 }
 function navLOS(g, a, b) {
@@ -5503,10 +5551,12 @@ function renderDialogText() {
   if (dlg.speaking && dlg.gotWords && !dlg.voiceDone) {
     let a = Math.min(Math.round(dlg.frac * full.length), Math.max(0, n - 1)); while (a > 0 && full[a - 1] !== ' ') a--;
     let b = a; while (b < n && full[b] !== ' ') b++;
+    const key = `${n}|${a}|${b}|${full}`; if (key === dlgTextKey) return; dlgTextKey = key; // only touch the DOM when the text actually changes
     const col = (SPK[dlg.who] || SPK.NARR).color;
     el.dText.innerHTML = escHTML(vis.slice(0, a)) + `<span class="now" style="color:${col}">${escHTML(vis.slice(a, b))}</span>` + escHTML(vis.slice(b));
-  } else el.dText.textContent = vis;
+  } else { const key = `${full.length}|${n}|t`; if (key === dlgTextKey && el.dText.textContent === vis) return; dlgTextKey = key; el.dText.textContent = vis; }
 }
+let dlgTextKey = '';
 function updateDialog(dt) {
   if (!dlg.open) return;
   dlg.t += dt; const L = dlg.full.length;
@@ -5687,20 +5737,30 @@ function pick(cx, cy) {
   }
   return { hs: best, floor, block };
 }
+function pickProxy(def) {
+  const g = def.obj; g.updateWorldMatrix(true, true);
+  if (def.id !== 'comet') { // Comet already carries body, head and leg proxies that move with her
+    const b = new THREE.Box3().setFromObject(g), sz = b.getSize(new V3()), c = g.worldToLocal(b.getCenter(new V3()));
+    const w = clamp(Math.max(sz.x, sz.z) * 0.8, 0.35, 1.2), m = new THREE.Mesh(new THREE.BoxGeometry(w, Math.max(0.3, sz.y), w), HIT_MAT);
+    m.position.copy(c); m.userData.hs = def.id; g.add(m); def.proxySize = [w, sz.y];
+  }
+  g.traverse(o => { if ((o.isMesh || o.isLine || o.isPoints) && o.material !== HIT_MAT) o.raycast = noRaycast; });
+}
 function hsName(def) { return typeof def.name === 'function' ? def.name() : def.name; }
 function updateHover() {
   if (!hoverDirty || gameState !== 'play' || pd?.drag) { if (gameState !== 'play') el.tip.classList.add('hidden'); return; }
+  if (time - lastPickT < 0.03) return; lastPickT = time; // ~30 picks a second is plenty
   hoverDirty = false;
   if (dlg.open || choiceOpen || keypadOpen || cine.active) { el.tip.classList.add('hidden'); canvas.style.cursor = 'default'; return; }
   const cx = camMode === 'fp' && mouseClient.x < 0 ? innerWidth / 2 : mouseClient.x, cy = camMode === 'fp' && mouseClient.y < 0 ? innerHeight / 2 : mouseClient.y;
   const p = pick(cx, cy); hoverId = p.hs ? p.hs.def.id : null; hoverPt = p.hs ? p.hs.hit.point : null;
   if (lastPointerType === 'touch') { el.tip.classList.add('hidden'); return; }
   if (p.hs) {
-    const n = hsName(p.hs.def); el.tip.innerHTML = selectedItem ? `<span class="verb">Use ${ITEMS[selectedItem].name} on</span> ${n}` : n;
+    const n = hsName(p.hs.def), html = selectedItem ? `<span class="verb">Use ${ITEMS[selectedItem].name} on</span> ${n}` : n; if (html !== tipHTML) { tipHTML = html; el.tip.innerHTML = html; }
     el.tip.style.left = `${cx}px`; el.tip.style.top = `${cy}px`; el.tip.classList.remove('hidden'); canvas.style.cursor = 'pointer';
   } else { el.tip.classList.add('hidden'); canvas.style.cursor = p.floor ? 'crosshair' : 'default'; }
 }
-let clickFx = null, hoverId = null, hoverPt = null;
+let clickFx = null, hoverId = null, hoverPt = null, lastPickT = -1, tipHTML = '';
 function spawnClickMarker(p) {
   if (!clickFx) { clickFx = new THREE.Mesh(new THREE.RingGeometry(0.16, 0.24, 32), new THREE.MeshBasicMaterial({ color: 0x6fe3ff, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false })); clickFx.rotation.x = -Math.PI / 2; scene.add(clickFx); clickFx.userData.t = 0; }
   clickFx.position.set(p.x, 0.03, p.z); clickFx.userData.t = 0.6; clickFx.visible = true;
@@ -6451,7 +6511,7 @@ async function playEnding() {
 function playerPose(p, dur) { player.pose = p; player.poseT = dur; }
 function snapCamera() {
   const hp = player.pos.clone().add(new V3(0, 1.5, 0)); const back = new V3(-Math.sin(camYaw), 0, -Math.cos(camYaw));
-  camera.position.copy(hp).addScaledVector(back, camDist * Math.cos(camPitch)).add(new V3(0, camDist * Math.sin(camPitch), 0)); clampCam(camera.position); camera.lookAt(hp); camLook.copy(hp);
+  camera.position.copy(hp).addScaledVector(back, camDist * Math.cos(camPitch)).add(new V3(0, camDist * Math.sin(camPitch), 0)); clampCam(camera.position); camera.lookAt(hp); camLook.copy(hp); camBoom = 99;
 }
 function clampCam(p) {
   p.x = clamp(p.x, ROOMS[0].cx - 10.6, ROOMS[3].cx + 10.6); const r = regionAt(p.x);
@@ -6468,8 +6528,10 @@ function updatePlayer(dt) {
   } else if (player.path.length && gameState === 'play') {
     const tgt = player.path[0], dx = tgt.x - player.pos.x, dz = tgt.z - player.pos.z, d = Math.hypot(dx, dz);
     if (d < 0.12) { player.path.shift(); if (!player.path.length) finishWalk(true); }
-    else { const s = Math.min(player.speed, d / dt); vx = dx / d * s; vz = dz / d * s; }
+    else { const s = Math.min(player.speed, d / dt, player.path.length === 1 ? 0.8 + Math.sqrt(28 * d) : 99); vx = dx / d * s; vz = dz / d * s; } // ease into the last step
   }
+  // a quick (~0.15 s) ease into full speed so walking starts smoothly but still feels instant
+  if (vx || vz) { player.acc = Math.min(1, (player.acc || 0) + dt / 0.15); const k = 0.45 + 0.55 * player.acc; vx *= k; vz *= k; } else player.acc = 0;
   let spd = 0;
   if (vx || vz) {
     const r = resolveMove(player.pos, player.pos.x + vx * dt, player.pos.z + vz * dt, 0.35);
@@ -6498,10 +6560,14 @@ function updateDog(dt) {
     const h = player.heading, tx = player.pos.x - Math.sin(h) * 1.2 - Math.cos(h) * 0.9, tz = player.pos.z - Math.cos(h) * 1.2 + Math.sin(h) * 0.9;
     const d = Math.hypot(tx - dog.pos.x, tz - dog.pos.z);
     dog.followCd -= dt;
-    if (d > 1.4 && dog.followCd <= 0) { const p = planPath(dog.pos, { x: tx, z: tz }, 0.28); dog.path = p.path; dog.followCd = 0.4; dog.runSpeed = d > 5 ? 7 : 4.8; }
-    if (d < 0.5) dog.path = [];
-    if (d2(dog.pos, player.pos) > 30) { dog.pos.set(player.pos.x - Math.sin(h) * 1.2, 0, player.pos.z - Math.cos(h) * 1.2); dog.path = []; }
-  }
+    // a speed controller (accelerate, cruise, ease in) instead of stop-start bursts
+    const want = d < 0.7 ? 0 : clamp((d - 0.7) * 2.4, 0, d > 5 ? 7 : 5.4);
+    dog.vel = (dog.vel || 0) + clamp(want - (dog.vel || 0), -16 * dt, 10 * dt);
+    if (d > 1.0 && dog.followCd <= 0 && (!dog.path.length || !dog.goal || Math.hypot(tx - dog.goal.x, tz - dog.goal.z) > 0.6)) { dog.path = planPath(dog.pos, { x: tx, z: tz }, 0.28).path; dog.goal = { x: tx, z: tz }; dog.followCd = 0.25; }
+    dog.runSpeed = Math.max(0.01, dog.vel);
+    if (!dog.path.length && dog.vel > 0.05 && d > 0.05) dog.path = [{ x: tx, z: tz }]; // close by: step straight over
+    if (d2(dog.pos, player.pos) > 30) { dog.pos.set(player.pos.x - Math.sin(h) * 1.2, 0, player.pos.z - Math.cos(h) * 1.2); dog.path = []; dog.vel = 0; }
+  } else dog.vel = 0;
   if (dog.path.length) {
     const t = dog.path[0], dx = t.x - dog.pos.x, dz = t.z - dog.pos.z, d = Math.hypot(dx, dz);
     if (d < 0.15) { dog.path.shift(); }
@@ -6513,7 +6579,8 @@ function updateDog(dt) {
   if (spd > 0.2) { dog.stepPh += spd * dt * 1.6; if (dog.stepPh > 1) { dog.stepPh = 0; Sound.paw(); } dog.idleT = 0; if (dog.act && dog.act.idle) dog.act = null; } else dog.idleT += dt;
   // after a good run she pants for a while
   if (spd > 3.5) dog.runT = Math.min(8, (dog.runT || 0) + dt * 1.5); else dog.runT = Math.max(0, (dog.runT || 0) - dt);
-  const t = time, w = clamp(spd / 4, 0, 1.3), gallop = clamp((spd - 5.6) / 1.5, 0, 1);
+  dog.animSpd = damp(dog.animSpd || 0, spd, spd > (dog.animSpd || 0) ? 12 : 8, dt); const aspd = dog.animSpd < 0.05 ? 0 : dog.animSpd;
+  const t = time, w = clamp(aspd / 4, 0, 1.3), gallop = clamp((aspd - 5.6) / 1.5, 0, 1);
   // --- idle personality: sit, then lie down; scratch, yawn, roll in the garden ---
   if (!dog.act && !dog.scripted && gameState === 'play' && dog.idleT > 5) {
     dog.idleNext = (dog.idleNext || 0) - dt;
@@ -6524,7 +6591,7 @@ function updateDog(dt) {
       else if (r0 < 0.8) { dogAct('yawn', 1.7); dog.act.idle = true; Sound.yawn(); }
     }
   } else if (dog.idleT < 1) dog.idleNext = 3 + Math.random() * 3;
-  dog.rig.phase += dt * (4 + spd * (gallop > 0 ? 1.7 : 2.4));
+  dog.rig.phase += dt * (aspd > 0.05 ? 4 + aspd * (gallop > 0 ? 1.7 : 2.4) : 0);
   const p = dog.rig.phase;
   r.g.position.copy(dog.pos); r.g.rotation.y = dog.heading;
   const act = dog.act; if (act) { act.t += dt; if (act.t > act.dur) dog.act = null; }
@@ -6635,7 +6702,7 @@ function updateCreatures(dt) {
   for (const b of bees) {
     b.t -= dt;
     if (!b.target || b.t <= 0) { const s = b.spots[Math.floor(Math.random() * b.spots.length)]; b.target = new V3(26 + s[0] + (Math.random() - 0.5) * 0.6, s[1] + 0.1, s[2] + (Math.random() - 0.5) * 0.6); b.t = 2 + Math.random() * 3; }
-    const jit = new V3(Math.sin(time * 7 + b.t) * 0.05, Math.sin(time * 9 + b.t) * 0.05, Math.cos(time * 8) * 0.05);
+    const jit = _fxV.set(Math.sin(time * 7 + b.t) * 0.05, Math.sin(time * 9 + b.t) * 0.05, Math.cos(time * 8) * 0.05);
     b.cur.lerp(b.target, 1 - Math.exp(-1.8 * dt)); b.rig.g.position.copy(b.cur).add(jit); b.rig.g.lookAt(b.target.x, b.cur.y, b.target.z);
     const flap = Math.sin(time * 90) * 0.8; b.rig.wl.rotation.z = flap; b.rig.wr.rotation.z = -flap;
     if (inGarden && Math.random() < dt * 0.05 && d2(b.cur, player.pos) < 3) Sound.buzz();
@@ -6644,26 +6711,30 @@ function updateCreatures(dt) {
   const pc = W.pondCenter; for (const k of kois) { const a = time * k.sp * k.dir + k.ph; k.rig.g.position.set(pc.x + Math.cos(a) * k.r * 1.6, 0.22, pc.z + Math.sin(a) * k.r * 1.3); k.rig.g.rotation.y = Math.atan2(-Math.sin(a) * k.dir * 1.6, Math.cos(a) * k.dir * 1.3); k.rig.tailP.rotation.y = Math.sin(time * 6 + k.ph) * 0.5; }
   if (W.water) { TX.waterN.offset.set(time * 0.02, time * 0.013); }
   // jellies drift outside
+  _fxM4.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse); _frus.setFromProjectionMatrix(_fxM4);
   for (const j of jellies) {
     const t = time * 0.25 + j.ph; const pulse = Math.sin(t * 3); j.rig.g.position.set(j.base.x + Math.sin(t * 0.3) * 6, j.base.y + Math.sin(t * 0.5) * 3 + time * 0.0, j.base.z + Math.cos(t * 0.2) * 5);
     j.rig.bell.scale.set(1 + pulse * 0.08, 0.8 - pulse * 0.1, 1 + pulse * 0.08); j.rig.g.rotation.z = Math.sin(t * 0.4) * 0.2;
+    const inView = j.rig.g.visible && _frus.intersectsSphere(_fxSph.set(j.rig.g.position, 5 * j.rig.g.scale.x)); // out of view: skip the tentacle uploads and draws
+    if (j.inView !== inView) { j.inView = inView; for (const tn of j.rig.tents) tn.line.visible = inView; } if (!inView) continue;
     for (const tn of j.rig.tents) { const a = tn.line.geometry.attributes.position; for (let q = 0; q < 16; q++) { const y = -q * 0.25; const sw = Math.sin(t * 2 - q * 0.4 + tn.a) * q * 0.03; a.setXYZ(q, Math.cos(tn.a) * tn.r + sw, y, Math.sin(tn.a) * tn.r + Math.cos(t * 1.7 - q * 0.3) * q * 0.03); } a.needsUpdate = true; }
   }
   // the void leviathan swims its slow loop past the windows
   if (leviathan) {
-    const path = (u) => new V3(40 + Math.cos(u) * 260, 25 + Math.sin(u * 2) * 35, -330 + Math.sin(u) * 150);
+    const path = (u, o = _fxV) => o.set(40 + Math.cos(u) * 260, 25 + Math.sin(u * 2) * 35, -330 + Math.sin(u) * 150);
     const u0 = time * 0.018;
-    leviathan.segs.forEach((s, i) => { const u = u0 - i * 0.0105; const p = path(u); p.y += Math.sin(time * 0.8 - i * 0.25) * 3; s.position.copy(p); const n = path(u + 0.002); n.y += Math.sin(time * 0.8 - i * 0.25 + 0.05) * 3; s.lookAt(n); });
+    leviathan.segs.forEach((s, i) => { const u = u0 - i * 0.0105; const p = path(u); p.y += Math.sin(time * 0.8 - i * 0.25) * 3; s.position.copy(p); const n = path(u + 0.002, _fxV2); n.y += Math.sin(time * 0.8 - i * 0.25 + 0.05) * 3; s.lookAt(n); });
     leviathan.fins.forEach((f, i) => f.rotation.z = Math.sin(time * 0.9 + i * Math.PI) * 0.35);
     if (Math.random() < dt * 0.02 && gameState === 'play') Sound.whale();
   }
   // asteroids tumble
-  const R = W.rocks; const m4 = new THREE.Matrix4(), q = new THREE.Quaternion();
-  R.data.forEach((d, i) => { d.a += d.w * dt; d.rot.x += d.spin.x * dt; d.rot.y += d.spin.y * dt; q.setFromEuler(d.rot); m4.compose(new V3(40 + Math.cos(d.a) * d.dist, d.y, Math.sin(d.a) * d.dist * 0.8 - 60), q, new V3(d.s, d.s, d.s)); R.mesh.setMatrixAt(i, m4); });
+  const R = W.rocks, m4 = _fxM4, q = _fxQ;
+  R.data.forEach((d, i) => { d.a += d.w * dt; d.rot.x += d.spin.x * dt; d.rot.y += d.spin.y * dt; q.setFromEuler(d.rot); m4.compose(_fxV.set(40 + Math.cos(d.a) * d.dist, d.y, Math.sin(d.a) * d.dist * 0.8 - 60), q, _fxS.set(d.s, d.s, d.s)); R.mesh.setMatrixAt(i, m4); });
   R.mesh.instanceMatrix.needsUpdate = true;
   // earth spins at the end
   if (W.earth.visible) { W.earthMesh.rotation.y += dt * 0.01; W.clouds.rotation.y += dt * 0.013; }
 }
+const _fxV = new V3(), _fxV2 = new V3(), _fxV3 = new V3(), _fxS = new V3(), _fxM4 = new THREE.Matrix4(), _fxQ = new THREE.Quaternion(), REACT_C0 = new THREE.Color(0xff7a20), REACT_C1 = new THREE.Color(0x7fe8ff), _frus = new THREE.Frustum(), _fxSph = new THREE.Sphere();
 /* Sliding pressure doors: open for anyone nearby (the camera counts, so a door never shuts between
    the camera and the Captain), stay shut while locked, green light when passable, red when locked. */
 function updateDoors(dt) {
@@ -6696,7 +6767,7 @@ function updateWorldFX(dt) {
   // reactor
   const pw = W.plasma.uniforms.uPower; pw.value = damp(pw.value, on ? 1 : 0.22, 1.2, dt);
   W.reactorRings.forEach((r, i) => r.rotation.z += dt * (0.2 + pw.value * 2.4) * (i % 2 ? -1 : 1));
-  W.reactorLight.color.lerpColors(new THREE.Color(0xff7a20), new THREE.Color(0x7fe8ff), pw.value); W.reactorLight.intensity = 14 + pw.value * 40 + Math.sin(time * 9) * 3;
+  W.reactorLight.color.lerpColors(REACT_C0, REACT_C1, pw.value); W.reactorLight.intensity = 14 + pw.value * 40 + Math.sin(time * 9) * 3;
   W.spin.forEach(s => s.o.rotation[s.axis] += dt * s.speed * (on ? 12 : 1));
   // garden: grow bars pulse gently, sprinklers
   W.growBars.forEach((b, i) => b.material.emissiveIntensity = 2.2 + Math.sin(time * 0.8 + i) * 0.3);
@@ -6802,21 +6873,43 @@ async function engineArrival() {
 
 /* Only the room the camera is in and its nearest neighbour are lit. The number of
    active lights never changes, so shaders never need recompiling as you explore. */
+let litR = 0, litN = 1;
 function updateLightLOD() {
   const x = camera.position.x; const r = clamp(Math.round(x / 26), 0, 3); let n = x > ROOMS[r].cx ? r + 1 : r - 1; if (n < 0) n = 1; if (n > 3) n = 2;
+  litR = r; litN = n;
   roomLights.forEach((L, i) => { const on = i === r || i === n; L.points.forEach(l => l.visible = on); L.extra.forEach(l => l.visible = on); L.spot.visible = on; });
+}
+
+/* Console screens: refresh one per frame (each still updates ~7 times a second), and only in the rooms
+   near the camera, instead of redrawing and re-uploading all eight in a single frame. */
+let scrI = 0, scrPrimed = false;
+function screenRoom(s) {
+  if (s.room === undefined) { s.room = -1; scene.traverse(o => { if (s.room < 0 && o.material === s.mat) { const v = o.getWorldPosition(new V3()); s.room = clamp(Math.round(v.x / 26), 0, 3); } }); }
+  return s.room;
+}
+function updateScreens(dt) {
+  if (!scrPrimed) { scrPrimed = true; for (const s of screens) drawScreen(s, time); return; }
+  screenT -= dt; if (screenT > 0) return;
+  screenT = 0.15 / screens.length;
+  for (let k = 0; k < screens.length; k++) {
+    const s = screens[scrI++ % screens.length], rm = screenRoom(s);
+    if (rm < 0 || rm === litR || rm === litN) { drawScreen(s, time); break; }
+  }
 }
 
 /* =====================================================================
    MAIN LOOP
    ===================================================================== */
 const clock = new THREE.Clock(); const camRay = new THREE.Raycaster(); const camLook = new V3();
+const _cHp = new V3(), _cDes = new V3(), _cDir = new V3(), _cSide = new V3(), _cO = new V3(), _cLook = new V3(), _cEye = new V3(), _cHits = [], CAM_OFFS = [0, 0.22, -0.22]; let camBoom = 99;
 const DT_CAP = /[?&]debug/.test(location.search) ? 0.2 : 0.05;
-function tick() {
+function tick(ts) {
   if (ctxLost) return;
   requestAnimationFrame(tick);
-  { const now = performance.now(); if (lastFrameT) govTick(now - lastFrameT); lastFrameT = now; }
-  const dt = Math.min(clock.getDelta(), DT_CAP); time += dt; uTime.value = time;
+  // step by the display's frame timestamps (steadier than reading the clock mid-frame), lightly smoothed against jitter
+  const now = typeof ts === 'number' ? ts : performance.now(), raw = lastFrameT ? now - lastFrameT : 16.7; if (lastFrameT) govTick(raw); lastFrameT = now;
+  const use = raw > 100 ? raw : (frameMs = frameMs * 0.6 + raw * 0.4); // a long stall counts once, without skewing the average
+  const dt = Math.min(use / 1000, DT_CAP); time += dt; uTime.value = time;
   // world time can freeze for a hit or slow down for the final blow; the camera and UI keep real time
   let wdt = dt * worldScale; if (hitStopT > 0) { hitStopT -= dt; wdt = 0; }
   if (gameState === 'play') S.t += dt;
@@ -6828,7 +6921,7 @@ function tick() {
   }
   updateCreatures(wdt); updateWorldFX(wdt); updateDoors(dt); updateExtras(dt, wdt);
   FX.update(wdt); DUST.update(wdt);
-  screenT -= dt; if (screenT <= 0) { screenT = 0.15; for (const s of screens) drawScreen(s, time); }
+  updateScreens(dt);
   // camera
   if (cine.active) cine.update(dt);
   else if (gameState === 'title' || gameState === 'boot') Title.update(dt);
@@ -6836,19 +6929,25 @@ function tick() {
     // only swing the camera behind you on click-to-walk; with the keys it stays put so W/A/S/D never fight it
     if (player.path.length > 0 && time - lastDrag > 1.2 && camMode === 'third') camYaw = angDamp(camYaw, player.heading, 2.0, dt);
     if (camMode === 'third') {
-      const hp = player.pos.clone().add(new V3(0, 1.5, 0)); const back = new V3(-Math.sin(camYaw), 0, -Math.cos(camYaw));
-      const desired = hp.clone().addScaledVector(back, camDist * Math.cos(camPitch)).add(new V3(0, camDist * Math.sin(camPitch), 0)); clampCam(desired);
+      const hp = _cHp.copy(player.pos); hp.y += 1.5; const hz = camDist * Math.cos(camPitch);
+      const desired = _cDes.set(hp.x - Math.sin(camYaw) * hz, hp.y + camDist * Math.sin(camPitch), hp.z - Math.cos(camYaw) * hz); clampCam(desired);
       const tcam = convoCam(hp); if (tcam) { desired.copy(tcam.pos); clampCam(desired); }
-      // keep the camera out of walls and big props
-      const cd = desired.clone().sub(hp), cl = cd.length(); cd.normalize(); camRay.set(hp, cd); camRay.far = cl;
-      const ch = camRay.intersectObjects(blockMeshes, false)[0]; if (ch) desired.copy(hp).addScaledVector(cd, Math.max(0.5, ch.distance - 0.35));
-      camera.position.lerp(desired, 1 - Math.exp(-(ch ? 18 : tcam ? 3 : 7) * dt));
-      const lookT = tcam ? tcam.look : new V3(hp.x + Math.sin(camYaw) * 0.8, hp.y - 0.15, hp.z + Math.cos(camYaw) * 0.8);
+      // keep the camera out of walls and big props: three rays (so grazing an edge doesn't flicker), and a boom that
+      // pulls in fast but lets back out gently, so the camera never "breathes" in and out by a wall or doorway
+      const cd = _cDir.subVectors(desired, hp), cl = Math.max(1e-4, cd.length()); cd.multiplyScalar(1 / cl);
+      _cSide.set(cd.z, 0, -cd.x); if (_cSide.lengthSq() > 1e-6) _cSide.normalize();
+      let hitD = cl;
+      for (const off of CAM_OFFS) { _cO.copy(hp).addScaledVector(_cSide, off); camRay.set(_cO, cd); camRay.far = cl + 0.3; _cHits.length = 0; camRay.intersectObjects(blockMeshes, false, _cHits); if (_cHits.length) hitD = Math.min(hitD, _cHits[0].distance - 0.35); }
+      hitD = Math.max(0.5, hitD);
+      camBoom = Math.min(cl, hitD < camBoom ? damp(camBoom, hitD, 30, dt) : damp(camBoom, hitD, 3, dt));
+      const blocked = camBoom < cl - 0.01; if (blocked) desired.copy(hp).addScaledVector(cd, camBoom);
+      camera.position.lerp(desired, 1 - Math.exp(-(blocked ? 14 : tcam ? 3 : 8) * dt));
+      const lookT = tcam ? tcam.look : _cLook.set(hp.x + Math.sin(camYaw) * 0.8, hp.y - 0.15, hp.z + Math.cos(camYaw) * 0.8);
       camLook.lerp(lookT, 1 - Math.exp(-(tcam ? 4 : 30) * dt)); camera.lookAt(camLook);
     } else {
       if (player.path.length && time - lastDrag > 0.8) camYaw = angDamp(camYaw, player.heading, 5, dt);
-      const bob = Math.sin(player.rig.phase * 2) * 0.025 * clamp(player.path.length ? 1 : 0, 0, 1);
-      const eye = new V3(player.pos.x + Math.sin(player.heading) * 0.14, 1.68 + bob, player.pos.z + Math.cos(player.heading) * 0.14);
+      const bob = Math.sin(player.rig.phase * 2) * 0.025 * clamp((player.rig._gs || 0) / 4.4, 0, 1);
+      const eye = _cEye.set(player.pos.x + Math.sin(player.heading) * 0.14, 1.68 + bob, player.pos.z + Math.cos(player.heading) * 0.14);
       camera.position.copy(eye); camera.lookAt(eye.x + Math.sin(camYaw) * Math.cos(fpPitch), eye.y + Math.sin(fpPitch), eye.z + Math.cos(camYaw) * Math.cos(fpPitch));
     }
   }
@@ -6857,7 +6956,7 @@ function tick() {
   govShadowFrame();
   if (!qualityBusy) { pinComposer(); composer.render(); }
 }
-let lastFrameT = 0;
+let lastFrameT = 0, frameMs = 16.7;
 
 
 /* =====================================================================
@@ -6888,12 +6987,13 @@ function setQuality(q, opts = {}) {
 /* Frame-time governor. Cheap knobs first (no shader recompiles), a tier drop only as a last resort, never above the player's pick. */
 const GOV = {
   level: 0, ceiling: quality, hold: 4, sum: 0, n: 0, slow: 0, fast: 0, severe: 0, frame: 0, shadowEvery: 1,
+  lastDown: -1e9, lastUp: -1e9, pin: -1, // sticky: no pumping the resolution up and down
   STEPS: [
     { scale: 1.0, msaa: true, shadowEvery: 1 },
     { scale: 0.85, msaa: true, shadowEvery: 1 },
-    { scale: 0.85, msaa: false, shadowEvery: 2 },
-    { scale: 0.7, msaa: false, shadowEvery: 3 },
-    { scale: 0.6, msaa: false, shadowEvery: 4 },
+    { scale: 0.85, msaa: false, shadowEvery: 1 },
+    { scale: 0.7, msaa: false, shadowEvery: 2 },
+    { scale: 0.6, msaa: false, shadowEvery: 2 },
   ],
 };
 function govApply() {
@@ -6912,6 +7012,9 @@ function govStep(d) {
     return;
   }
   const next = clamp(GOV.level + d, 0, max); if (next === GOV.level) return;
+  const now = performance.now() / 1000;
+  if (d > 0) { if (now - GOV.lastUp < 30) GOV.pin = next; GOV.lastDown = now; } // went up, then straight back down: stay here
+  else { if (GOV.pin >= 0 && next < GOV.pin) return; if (now - GOV.lastDown < 60) return; GOV.lastUp = now; }
   GOV.level = next; govApply();
 }
 function govTick(ms) {
@@ -6923,7 +7026,7 @@ function govTick(ms) {
   if (GOV.sum < 2000) return;                          // judge ~2 s windows
   const avg = GOV.sum / GOV.n; GOV.sum = GOV.n = 0; GOV.severe = 0;
   if (avg > 36) { GOV.fast = 0; if (++GOV.slow >= 2) { GOV.slow = 0; govStep(+1); } }       // < ~28 fps for 4 s
-  else if (avg < 20) { GOV.slow = 0; if (++GOV.fast >= 6) { GOV.fast = 0; govStep(-1); } }  // smooth for 12 s: give quality back (within the tier only)
+  else if (avg < 20) { GOV.slow = 0; if (++GOV.fast >= 6) { GOV.fast = 0; const L = GOV.level; if (L > 0 && avg * (GOV.STEPS[L - 1].scale / GOV.STEPS[L].scale) ** 2 < 26) govStep(-1); } }  // smooth for 12 s and the sharper level would still fit: give quality back
   else { GOV.slow = GOV.fast = 0; }
 }
 function govShadowFrame() {
@@ -7040,6 +7143,11 @@ async function precompileAll(progress) {
   // anything left over (e.g. meshes with lights inside them) — everything else is already cached
   const rest = withTarget(() => renderer.compileAsync ? renderer.compileAsync(scene, camera) : (renderer.compile(scene, camera), null));
   try { await rest; } catch (e) { }
+  // upload every texture now (a few per frame) so nothing uploads the first time you walk into a room
+  const texs = new Set();
+  scene.traverse(o => { for (const m of [].concat(o.material || [])) for (const k in m) { const v = m[k]; if (v && v.isTexture && !v.isRenderTargetTexture) texs.add(v); } });
+  let n = 0; for (const t of texs) { try { renderer.initTexture(t); } catch (e) { } if (++n % 6 === 0) await frame(); }
+  navWarm(); // build the walking grids now rather than on the first click
 }
 async function bootTail() {
   tick();
@@ -7241,7 +7349,7 @@ canvas.addEventListener('pointerdown', (e) => {
     if (gameState !== 'play' || touches.size > 1 || !pd || pd.drag) return;
     const p = pick(x, y); if (!p.hs) return;
     pd.drag = true;   // don't treat the release as a tap
-    el.tip.innerHTML = hsName(p.hs.def); el.tip.style.left = `${x}px`; el.tip.style.top = `${y - 60}px`; el.tip.classList.remove('hidden');
+    el.tip.innerHTML = tipHTML = hsName(p.hs.def); el.tip.style.left = `${x}px`; el.tip.style.top = `${y - 60}px`; el.tip.classList.remove('hidden');
     setTimeout(() => el.tip.classList.add('hidden'), 1600);
   }, 480);
 });
@@ -7714,7 +7822,7 @@ function offerSafeLink() {                         // boot() taking >15 s: give 
 if (SAFE.IN_FRAME && !SAFE.recovered && SAFE.died) startGate(); else boot();
 
 // Developer hook: open with ?debug to poke at the game from the browser console.
-if (/[?&]debug/.test(location.search)) window.HD = { get S() { return S; }, player, dog, npcs, queen, HS, W, ROOMS, walkTo, interact, dogAbility, applyWorld, saveGame, loadGame, camera, renderer, setCamMode,
+if (/[?&]debug/.test(location.search)) window.HD = { get S() { return S; }, pick, player, dog, npcs, queen, HS, W, ROOMS, walkTo, interact, dogAbility, applyWorld, saveGame, loadGame, camera, renderer, setCamMode,
   nav: { planPath, resolveMove, doorLocked, regionAt, insideObs, obstacles, minX, maxX, ROOM_Z, CORR_Z, HALF_W }, doors, Voice, hintStep, showHint,
   Prefs, haloScan, get scan() { return scan; }, bannerLog, say, cineCam, endCine,
   pipeSolve() { if (!pipeState) pipeInit(); PIPE_LAYOUT.forEach((row, r) => row.forEach(([base, want], c) => { let k = 0; while (rotM(base, k) !== want) k++; pipeState[r][c].rot = k; })); }, TREASURES, treasureCount, throwBall, dogZoomies, powerFx, get worldScale() { return worldScale; }, spiders, dogAct, get choiceOpen() { return choiceOpen; },
