@@ -10,6 +10,7 @@ import {
 import "@/staff/StaffDashboard.css";
 import { useAuth } from "@/context/AuthContext";
 import { canManageStaff } from "@/lib/permissions";
+import EditCustomerForm, { type CustomerDetails } from "./EditCustomerForm";
 
 const CONSENT_LABEL: Record<ConsentStatus, string> = {
   not_asked: "Not asked",
@@ -52,6 +53,8 @@ export default function CustomersScreen() {
   const [vehicleInterests, setVehicleInterests] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+  // The customer whose details are open for correcting, if any.
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -118,6 +121,21 @@ export default function CustomersScreen() {
 
   const { user } = useAuth();
   const canRemove = canManageStaff(user);
+
+  // An emptied box removes that detail (the server deletes the key).
+  async function saveDetails(id: string, d: CustomerDetails): Promise<string | null> {
+    const result = await updateCustomer(id, {
+      name: d.name.trim(),
+      email: d.email.trim(),
+      phone: d.phone.trim(),
+      vehicleInterests: d.vehicleInterests.trim(),
+      notes: d.notes.trim(),
+    });
+    if (!result.ok) return result.error ?? "Those details couldn't be saved. Try again.";
+    setEditingId(null);
+    await load();
+    return null;
+  }
 
   async function handleDelete(id: string) {
     const result = await deleteCustomer(id);
@@ -192,6 +210,9 @@ export default function CustomersScreen() {
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {filtered.map(c => (
                 <div key={c.id} className="sn-recent-lead" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {editingId === c.id ? (
+                    <EditCustomerForm customer={c} onSave={(d) => saveDetails(c.id, d)} onCancel={() => setEditingId(null)} />
+                  ) : (
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                     <div>
                       <div className="sn-recent-lead__name">{c.name}</div>
@@ -201,13 +222,20 @@ export default function CustomersScreen() {
                       {c.vehicleInterests && <div className="sn-empty" style={{ fontSize: 12, marginTop: 2 }}>Interested in: {c.vehicleInterests}</div>}
                       {c.notes && <div className="sn-empty" style={{ fontSize: 12, marginTop: 2, fontStyle: "italic" }}>{c.notes}</div>}
                     </div>
-                    {/* Removing (erasing) a customer is for the owner and managers. */}
-                    {canRemove && (
-                      <button className="sn-btn sn-btn--danger" style={{ padding: "6px 12px", fontSize: 12, flexShrink: 0 }} onClick={() => { if (window.confirm(`Remove ${c.name || "this customer"} and their consent record? This can't be undone.`)) void handleDelete(c.id); }}>
-                        Remove
+                    <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+                      {/* Anyone who can add a customer can correct their details. */}
+                      <button className="sn-btn" style={{ padding: "6px 12px", fontSize: 12 }} onClick={() => setEditingId(c.id)} aria-label={`Edit ${c.name || "this customer"}`}>
+                        Edit
                       </button>
-                    )}
+                      {/* Removing (erasing) a customer is for the owner and managers. */}
+                      {canRemove && (
+                        <button className="sn-btn sn-btn--danger" style={{ padding: "6px 12px", fontSize: 12 }} onClick={() => { if (window.confirm(`Remove ${c.name || "this customer"} and their consent record? This can't be undone.`)) void handleDelete(c.id); }}>
+                          Remove
+                        </button>
+                      )}
+                    </div>
                   </div>
+                  )}
 
                   <div style={{ display: "flex", gap: 16, flexWrap: "wrap", paddingTop: 8, borderTop: "1px solid rgba(255,255,255,0.08)" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>

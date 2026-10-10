@@ -160,6 +160,10 @@ export default function registerCustomersRoute(app: Express) {
     if (Array.isArray(tags)) draft.tags = tags.filter((t: unknown) => typeof t === "string");
     if (emailConsent !== undefined) draft.emailConsent = parseConsent(emailConsent);
     if (whatsappConsent !== undefined) draft.whatsappConsent = parseConsent(whatsappConsent);
+    // Same rule as adding one: a customer nobody can contact isn't a customer.
+    if (!draft.email && !draft.phone) {
+      return res.status(400).json({ ok: false, error: "Keep an email address or a phone number for them." });
+    }
     draft.updatedAt = new Date().toISOString();
 
     const updated = draft as unknown as Customer;
