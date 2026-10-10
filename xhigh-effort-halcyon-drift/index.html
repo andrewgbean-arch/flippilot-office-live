@@ -341,6 +341,14 @@ button:disabled{opacity:.38;cursor:not-allowed}
 
 #dialog .text .now{text-shadow:0 0 12px currentColor}
 #dialog.wait .next{visibility:hidden}
+/* lines that are only heard: a small "speaking" tag instead of a text box */
+#dialog.quiet{width:auto;min-height:0;padding:8px 16px 8px 58px;border-radius:999px;left:50%}
+#dialog.quiet .pic{left:8px;top:50%;transform:translateY(-50%);width:38px;height:38px;font-size:20px}
+#dialog.quiet .text,#dialog.quiet .next,#dialog.quiet .dtools{display:none}
+#dialog.quiet .who{margin:0;display:flex;align-items:center;gap:10px;white-space:nowrap}
+#dialog.quiet .who::after{content:'';width:22px;height:12px;background:linear-gradient(currentColor,currentColor) 0 50%/3px 40% no-repeat,linear-gradient(currentColor,currentColor) 6px 50%/3px 100% no-repeat,linear-gradient(currentColor,currentColor) 12px 50%/3px 60% no-repeat,linear-gradient(currentColor,currentColor) 18px 50%/3px 80% no-repeat;animation:talkBars .8s ease-in-out infinite alternate;opacity:.85}
+@keyframes talkBars{to{background-size:3px 90%,3px 40%,3px 100%,3px 50%}}
+@media (prefers-reduced-motion: reduce){#dialog.quiet .who::after{animation:none}}
 #dialog .dtools{position:absolute;right:10px;top:8px;display:flex;gap:6px}
 #dialog .dtools button{padding:3px 8px;font-size:11px;border-radius:8px;background:rgba(10,18,32,.55)}
 #dialog .dtools button.on{border-color:var(--gold);color:var(--gold)}
@@ -709,6 +717,7 @@ button:disabled{opacity:.38;cursor:not-allowed}
 <div id="voicePanel" class="panel hidden" role="dialog" aria-labelledby="voiceHead">
   <h3 id="voiceHead">VOICES</h3>
   <label class="vtoggle"><input type="checkbox" id="voiceOn" checked> Speak the dialogue aloud</label>
+  <label class="vtoggle"><input type="checkbox" id="prefAllText"> Show every line as text (otherwise only clues and instructions appear on screen; everything is in the 📜 Log)</label>
   <label class="vtoggle"><input type="checkbox" id="prefNarr"> A narrator reads the story text and Comet's antics</label>
   <label class="vtoggle"><input type="checkbox" id="prefAuto"> Auto-Play: conversations and cutscenes play by themselves</label>
   <label class="vtoggle"><input type="checkbox" id="prefCam"> Film-style camera when you talk to the crew</label>
@@ -5481,8 +5490,13 @@ function showLine(who, text) {
     const nt = narrText(who, text);
     dlg.speaking = nt ? Voice.speak('NARR', nt, SPK.NARR, cb) : who === 'NARR' ? false : Voice.speak(who, text, sp, cb);
     if (!dlg.speaking) dlg.voiceDone = true;
+    // Ordinary chatter is only heard (a small "speaking" tag shows who); clues and instructions also appear as text.
+    dlg.quiet = !Prefs.get('allText') && !importantLine(who, text) && (dlg.speaking || (who === 'COMET' && text.length < 40));
+    el.dialog.classList.toggle('quiet', dlg.quiet);
   });
 }
+const KEY_WORDS = /\b(code|0417|birthday|seventeenth|row [abc]|bay|manifest|paws?|sniff|dig|fetch|bark|skills?|AVE|patch|kit|coupling|conduits?|reactor|remember-stone|sun-?flowers?|sunny|keycard|torch|vent|ducting|crane|breach|console|override|panel|valve|locker|collar|tag|photo|hint|beacon|carrots?|biscuits?|inventory|navigation|star charts?|forget|important)\b/i;
+function importantLine(who, text) { return (who === 'NARR' && text.includes('(')) || KEY_WORDS.test(text); }
 const escHTML = (t) => t.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 function renderDialogText() {
   const n = Math.floor(dlg.shown), full = dlg.full, vis = full.slice(0, n);
@@ -5507,10 +5521,13 @@ function updateDialog(dt) {
     if (dlg.shown >= L) { dlg.shown = L; dlg.typing = false; }
     renderDialogText();
   } else if (dlg.speaking && !dlg.voiceDone) renderDialogText();
+  // a line that was only going to be heard: if the voice never starts, show it as text after all
+  if (dlg.quiet && dlg.speaking && !dlg.started && (dlg.t > 1.4 || dlg.voiceDone)) { dlg.quiet = false; el.dialog.classList.remove('quiet'); }
   // safety: some voices never report that they've finished
   if (dlg.speaking && !dlg.voiceDone && dlg.t > 4 + L / 9) { dlg.voiceDone = true; Sound.duck(false); }
   const finished = !dlg.typing && dlg.voiceDone;
   if (finished && el.dialog.classList.contains('wait')) { el.dialog.classList.remove('wait'); renderDialogText(); }
+  if (finished && dlg.quiet) { dlg.doneT += dt; if (dlg.doneT > (dlg.speaking ? 0.35 : 0.9)) advanceDialog(true); return; }
   if (finished) { dlg.doneT += dt; if (Prefs.get('autoPlay') && !choiceOpen && dlg.doneT > (dlg.speaking ? 0.6 : 1.1 + L / 20)) advanceDialog(true); }
 }
 let dlgChain = Promise.resolve(), dlgGen = 0;
@@ -6459,7 +6476,9 @@ function updatePlayer(dt) {
     const moved = Math.hypot(r.x - player.pos.x, r.z - player.pos.z); spd = moved / dt;
     if (player.path.length && moved < Math.hypot(vx, vz) * dt * 0.2) { player.stuck += dt; if (player.stuck > 0.5) { const near = player.target && d2(player.pos, player.target) < 1.8; player.path = []; finishWalk(near); } } else player.stuck = 0;
     player.pos.x = r.x; player.pos.z = r.z;
-    player.heading = angDamp(player.heading, Math.atan2(vx, vz), 12, dt);
+    // turn quickly; a big reversal snaps round faster so a change of direction feels immediate
+    const want = Math.atan2(vx, vz), off = Math.abs(angWrap(want - player.heading));
+    player.heading = angDamp(player.heading, want, off > 1.6 ? 30 : 20, dt);
     player.stepPh += spd * dt * 0.9; if (player.stepPh > 1) { player.stepPh = 0; Sound.step(); }
     if (player.pose !== 'idle' && player.pose !== 'aim') player.pose = 'idle';
   } else if (camMode === 'fp' && gameState === 'play' && !cine.active) player.heading = angDamp(player.heading, camYaw, 10, dt);
@@ -6814,8 +6833,8 @@ function tick() {
   if (cine.active) cine.update(dt);
   else if (gameState === 'title' || gameState === 'boot') Title.update(dt);
   else if (gameState === 'play' || gameState === 'dead' || gameState === 'end') {
-    const moving = player.path.length > 0 || (keys.KeyW || keys.KeyS || keys.ArrowUp || keys.ArrowDown);
-    if (moving && time - lastDrag > 1.2 && camMode === 'third') camYaw = angDamp(camYaw, player.heading, 2.0, dt);
+    // only swing the camera behind you on click-to-walk; with the keys it stays put so W/A/S/D never fight it
+    if (player.path.length > 0 && time - lastDrag > 1.2 && camMode === 'third') camYaw = angDamp(camYaw, player.heading, 2.0, dt);
     if (camMode === 'third') {
       const hp = player.pos.clone().add(new V3(0, 1.5, 0)); const back = new V3(-Math.sin(camYaw), 0, -Math.cos(camYaw));
       const desired = hp.clone().addScaledVector(back, camDist * Math.cos(camPitch)).add(new V3(0, camDist * Math.sin(camPitch), 0)); clampCam(desired);
@@ -6940,7 +6959,7 @@ function renderVoicePanel() {
   }
 }
 function syncPrefs() {
-  $('#prefAuto').checked = Prefs.get('autoPlay'); $('#prefNarr').checked = Prefs.get('narrator'); $('#prefCam').checked = Prefs.get('talkCam');
+  $('#prefAllText').checked = !!Prefs.get('allText'); $('#prefAuto').checked = Prefs.get('autoPlay'); $('#prefNarr').checked = Prefs.get('narrator'); $('#prefCam').checked = Prefs.get('talkCam');
   $('#dlgAuto').classList.toggle('on', Prefs.get('autoPlay')); $('#dlgAuto').setAttribute('aria-pressed', Prefs.get('autoPlay'));
 }
 function wireUI() {
@@ -6959,7 +6978,7 @@ function wireUI() {
   $('#pzClose').onclick = (e) => { e.stopPropagation(); Sound.click(); closePuzzle(false); };
   $('#dlgLog').onclick = (e) => { e.stopPropagation(); Sound.click(); toggleLog(); };
   $('#dlgAuto').onclick = (e) => { e.stopPropagation(); Prefs.set('autoPlay', !Prefs.get('autoPlay')); syncPrefs(); toast(Prefs.get('autoPlay') ? '▶ Auto-Play on: conversations play by themselves' : 'Auto-Play off: click to continue', 1800); };
-  for (const [id, k] of [['#prefAuto', 'autoPlay'], ['#prefNarr', 'narrator'], ['#prefCam', 'talkCam']]) $(id).onchange = (e) => { Prefs.set(k, e.target.checked); syncPrefs(); };
+  for (const [id, k] of [['#prefAllText', 'allText'], ['#prefAuto', 'autoPlay'], ['#prefNarr', 'narrator'], ['#prefCam', 'talkCam']]) $(id).onchange = (e) => { Prefs.set(k, e.target.checked); syncPrefs(); };
   syncPrefs();
   Voice.onchange = () => { if (!$('#voicePanel').classList.contains('hidden')) renderVoicePanel(); };
   btnLabel('#btnVoice', '🗣', 'Voices'); btnLabel('#btnMusic', '🎵', 'Music: On'); btnLabel('#btnView', '👁', 'View: Behind'); btnLabel('#btnHelp', '❔', 'Help');
@@ -7066,7 +7085,7 @@ async function boot() {
    treasures, the power-up cascade and the Brood Queen finale.
    ===================================================================== */
 const Prefs = (() => {
-  const D = { autoPlay: false, narrator: true, talkCam: true }; let p = {};
+  const D = { autoPlay: false, narrator: true, talkCam: true, allText: false }; let p = {};
   try { p = JSON.parse(localStorage.getItem('halcyon_prefs') || '{}') || {}; } catch (e) { p = {}; }
   return { get: (k) => (k in p ? p[k] : D[k]), set(k, v) { p[k] = v; try { localStorage.setItem('halcyon_prefs', JSON.stringify(p)); } catch (e) { } } };
 })();
