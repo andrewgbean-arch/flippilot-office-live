@@ -35,7 +35,7 @@ A 3D point-and-click space adventure that runs in the browser. Everything in it 
 - **Four explorable decks:** the Bridge, a Hydroponic Garden under a glass dome, the damaged Cargo Hold and Engineering, joined by sliding pressure doors.
 - **Comet, the space dog.** She wears her own face mask: a breather with teal filters, blinking LEDs and a hose to her little oxygen pack, plus a bubble helmet with an antenna. She follows you everywhere and solves problems with **AVE points** (*Animal Valor & Expertise*):
   - **Sniff** (1) finds hidden things and makes friends.
-  - **Bark** (1) calls out and gets attention.
+  - **Bark** (free) calls out and gets attention.
   - **Dig** (2) digs up buried things.
   - **Fetch** (2) reaches tight spots and tugs things free.
 

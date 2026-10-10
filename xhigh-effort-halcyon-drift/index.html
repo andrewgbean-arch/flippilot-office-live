@@ -26,7 +26,7 @@ html,body{margin:0;height:100%;overflow:hidden;overscroll-behavior:none;backgrou
 .panel{background:var(--ui-bg);border:1px solid var(--ui-line);border-radius:14px;
   box-shadow:0 10px 40px rgba(0,0,0,.35)}
 /* frosted glass only on the big pop-up panels; the always-on HUD uses solid tints (a blur over a moving 3D view is re-done every frame) */
-#help,#logPanel,#voicePanel,#puzzle,#keypad{backdrop-filter:blur(10px) saturate(1.2);-webkit-backdrop-filter:blur(10px) saturate(1.2)}
+#helpPanel,#logPanel,#voicePanel,#puzzle,#keypad{backdrop-filter:blur(10px) saturate(1.2);-webkit-backdrop-filter:blur(10px) saturate(1.2)}
 button{font-family:inherit;color:var(--text);background:rgba(20,32,52,.72);border:1px solid var(--ui-line);border-radius:10px;
   padding:8px 12px;cursor:pointer;font-size:13px;transition:background .15s,border-color .15s,transform .1s}
 button:hover{background:rgba(40,70,110,.85);border-color:var(--ui-line2)}
@@ -302,6 +302,8 @@ button:disabled{opacity:.38;cursor:not-allowed}
 .abil button .ic{font-size:17px}
 .abil button b{position:absolute;top:-6px;right:-5px;background:#ff9a3c;color:#1a0d00;font-size:10px;border-radius:9px;padding:1px 5px;font-weight:700}
 .abil button kbd{font-size:9px;color:var(--muted);font-family:inherit}
+.abil button.low{opacity:.55}
+.abil button.low b{background:#7a6a5a}
 #inventory{flex:1;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;align-items:flex-end;padding:0 8px;pointer-events:none}
 .slot{pointer-events:auto;width:64px;height:64px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:30px;position:relative;cursor:pointer;
   background:var(--ui-bg2);border:1px solid var(--ui-line);transition:transform .15s,border-color .15s}
@@ -336,6 +338,8 @@ button:disabled{opacity:.38;cursor:not-allowed}
 #choices{position:fixed;left:50%;bottom:calc(120px + env(safe-area-inset-bottom, 0px));transform:translateX(-50%);z-index:62;display:flex;flex-direction:column;gap:8px;min-width:300px;padding:14px}
 #choices h4{margin:0 0 4px;font-family:'Orbitron';font-size:12px;letter-spacing:.2em;color:var(--accent)}
 #choices button{text-align:left;font-size:15px;padding:10px 14px}
+#choices{max-height:calc(100dvh - 24px);overflow:auto}
+@media (max-height:500px){#choices{bottom:auto;top:50%;transform:translate(-50%,-50%);max-height:calc(100dvh - 16px)}#choices button{padding:7px 12px;font-size:14px}}
 #itemMenu{position:fixed;z-index:37;display:flex;flex-direction:column;gap:6px;padding:10px;min-width:190px}
 #itemMenu .t{font-family:'Orbitron';font-size:11px;letter-spacing:.15em;color:var(--gold)}
 #itemMenu .d{font-size:12.5px;color:#c6d6ec;max-width:240px;line-height:1.35}
@@ -633,7 +637,7 @@ button:disabled{opacity:.38;cursor:not-allowed}
           <div id="avePips"></div>
           <div class="abil">
             <button data-ab="sniff" title="Sniff (1 AVE) — find hidden things"><span class="ic">👃</span>Sniff<kbd>1</kbd><b>1</b></button>
-            <button data-ab="bark" title="Bark (1 AVE) — scare or lure"><span class="ic">📢</span>Bark<kbd>2</kbd><b>1</b></button>
+            <button data-ab="bark" title="Bark (free) — call out, get attention"><span class="ic">📢</span>Bark<kbd>2</kbd><b>0</b></button>
             <button data-ab="dig" title="Dig (2 AVE) — dig up buried things"><span class="ic">🐾</span>Dig<kbd>3</kbd><b>2</b></button>
             <button data-ab="fetch" title="Fetch (2 AVE) — reach tight spots, tug, retrieve"><span class="ic">🦴</span>Fetch<kbd>4</kbd><b>2</b></button>
           </div>
@@ -706,12 +710,12 @@ button:disabled{opacity:.38;cursor:not-allowed}
   <b>Dialogue log</b> — press <b>L</b> or 📜 Log to read back (and hear again) everything that's been said.<br>
   <b>Choices &amp; keypads</b> — press 1, 2, 3… to pick an answer, and type codes straight on your keyboard.</p>
   <p><b>Comet &amp; AVE points</b> — AVE stands for <i>Animal Valor &amp; Expertise</i>. Comet spends them on her skills:
-  <b>Sniff</b> (1) finds hidden things and makes friends, <b>Bark</b> (1) calls out and gets attention, <b>Dig</b> (2) digs up buried things,
+  <b>Sniff</b> (1) finds hidden things and makes friends, <b>Bark</b> (free) calls out and gets attention, <b>Dig</b> (2) digs up buried things,
   <b>Fetch</b> (2) reaches tight spots and tugs things free. Refill AVE by petting her (click Comet), feeding her carrots or biscuits, and at Save Beacons.</p>
   <p><b>Fetch!</b> — take the squeaky ball from Comet's bed on the Bridge, pick it in your inventory and click the floor to throw it.<br>
   <b>Lost treasures</b> — the impact scattered eight keepsakes around the ship. When there's nothing else to find, Comet's <b>Sniff</b> leads you to one with glowing paw prints; then <b>Dig</b> or <b>Fetch</b> brings it back.</p>
   <p><b>Puzzles</b> — there's no fighting and nothing can hurt you. The meteor left the ship in a mess, and every problem is a puzzle: read what you find, talk to the crew, let Comet sniff around, and use the right thing in the right place. The crane and power-conduit consoles open their own puzzle screens.</p>
-  <p><b>Save Beacons</b> — the glowing cyan pylons. Click one to save. If you fall, you return to your last save.</p>
+  <p><b>Save Beacons</b> — the glowing cyan pylons. Click one to save your progress and top up Comet's AVE.</p>
   <p><b>Stuck?</b> Press <b>💡 Hint</b> at the top of the screen. Each press of <b>Clearer hint</b> tells you a bit more, right up to the exact answer. You can also talk to the crew, read the Captain's log, and ask Comet to sniff around.</p>
   <div class="btns" style="margin-top:10px"><button id="btnHelpClose">Close</button></div>
 </div>
@@ -5473,7 +5477,8 @@ function updateBars() {
   el.hp.style.width = `${clamp(S.hp, 0, 100)}%`;
   [...el.pips.children].forEach((p, i) => p.classList.toggle('on', i < S.ave));
   el.aveText.textContent = `AVE ${S.ave}/${AVE_MAX}`;
-  document.querySelectorAll('.abil button').forEach(b => { const c = +b.querySelector('b').textContent; b.disabled = S.ave < c; });
+  // dim (not disable) a skill you can't usually afford: some uses are cheaper or free, and Comet explains if not
+  document.querySelectorAll('.abil button').forEach(b => { const c = +b.querySelector('b').textContent; b.classList.toggle('low', S.ave < c); });
   el.bossFill.style.width = `${queen.hp / 3 * 100}%`;
 }
 function addItem(id, n = 1) { S.inv[id] = (S.inv[id] || 0) + n; Sound.pickup(); updateInventory(id); updateObjectives(); floatAt(player.pos.clone().setY(2.2), `+ ${ITEMS[id].icon} ${ITEMS[id].name}`, '#ffd27a'); }
@@ -5482,12 +5487,30 @@ function setSelected(id) {
   selectedItem = id; updateInventory();
   if (id) { el.usingBar.innerHTML = `<span>Using <b>${ITEMS[id].icon} ${ITEMS[id].name}</b> · tap something to use it on</span><button id="cancelUse" type="button">✕ Cancel</button>`; el.usingBar.classList.remove('hidden'); $('#cancelUse').onclick = (e) => { e.stopPropagation(); Sound.click(); setSelected(null); }; }
   else el.usingBar.classList.add('hidden');
+  layoutHud();
 }
 function gainAve(n, where) { const before = S.ave; S.ave = clamp(S.ave + n, 0, AVE_MAX); updateBars(); if (S.ave > before) floatAt((where || dog.pos).clone().setY(1.3), `+${S.ave - before} AVE`, '#ffb040'); }
 function spendAve(n) { S.ave = Math.max(0, S.ave - n); S.aveSpent += n; updateBars(); floatAt(dog.pos.clone().setY(1.3), `−${n} AVE`, '#ff9a3c'); }
 function heal(n) { const b = S.hp; S.hp = clamp(S.hp + n, 0, 100); updateBars(); if (S.hp > b) { Sound.heal(); floatAt(player.pos.clone().setY(2.1), `+${Math.round(S.hp - b)} ♥`, '#7dffb0'); } }
 let toastTimer = 0;
-function placeToast() { const hb = document.getElementById('hintBar'); el.toast.style.top = hb && !hb.classList.contains('hidden') ? `${Math.round(hb.getBoundingClientRect().bottom + 10)}px` : ''; }
+function placeToast() {
+  // keep toasts clear of the hint bar, and (on phones, where the dialogue sits at the top) of the dialogue text
+  const hb = document.getElementById('hintBar'); let top = 0;
+  if (hb && !hb.classList.contains('hidden')) top = hb.getBoundingClientRect().bottom + 10;
+  if (!el.usingBar.classList.contains('hidden')) { const r = el.usingBar.getBoundingClientRect(); if (r.top < innerHeight / 2) top = Math.max(top, r.bottom + 10); }
+  if (dlg.open && !el.dialog.classList.contains('hidden')) { const r = el.dialog.getBoundingClientRect(); if (r.top < 120) top = Math.max(top, r.bottom + 10); }
+  el.toast.style.top = top ? `${Math.round(top)}px` : '';
+}
+/* Stack the top-of-screen bars under the real height of the button bar (it wraps to two rows on phones),
+   and the "Using…" bar under the hint bar, so nothing covers anything else. */
+function layoutHud() {
+  const tb = document.getElementById('topbar'), hb = document.getElementById('hintBar'), ob = document.getElementById('objectives'), ub = el.usingBar;
+  if (!tb || !hb || !tb.getClientRects().length || tb.getBoundingClientRect().height === 0) return; const base = Math.round(tb.getBoundingClientRect().bottom + 8), narrow = innerWidth <= 560, mid = innerWidth <= 760;
+  hb.style.top = `${Math.max(64, base)}px`;
+  if (ob) ob.style.top = narrow ? `${base}px` : '';
+  if (mid) { let t = Math.max(narrow ? 0 : 104, base); if (!hb.classList.contains('hidden')) t = Math.max(t, Math.round(hb.getBoundingClientRect().bottom + 8)); ub.style.top = `${t}px`; } else ub.style.top = '';
+}
+addEventListener('resize', () => requestAnimationFrame(layoutHud)); setInterval(layoutHud, 1000);
 function toast(msg, ms = 2600) { el.toast.innerHTML = msg; placeToast(); el.toast.style.opacity = 1; clearTimeout(toastTimer); toastTimer = setTimeout(() => el.toast.style.opacity = 0, ms); }
 const _pv = new V3();
 function floatAt(pos, text, color = '#fff') {
@@ -5572,7 +5595,9 @@ function updateDialog(dt) {
     renderDialogText();
   } else if (dlg.speaking && !dlg.voiceDone) renderDialogText();
   // a line that was only going to be heard: if the voice never starts, show it as text after all
-  if (dlg.quiet && dlg.speaking && !dlg.started && (dlg.t > 1.4 || dlg.voiceDone)) { dlg.quiet = false; el.dialog.classList.remove('quiet'); }
+  if (dlg.quiet && dlg.speaking && !dlg.started && (dlg.t > 1.4 || dlg.voiceDone)) unquietLine();
+  // ...or if it started but is running far longer than it should (a voice that died without saying so)
+  if (dlg.quiet && dlg.speaking && dlg.started && !dlg.voiceDone && dlg.t > L / (14 * ((SPK[dlg.who] || {}).rate || 1)) + 2.5) unquietLine();
   // safety: some voices never report that they've finished
   if (dlg.speaking && !dlg.voiceDone && dlg.t > 4 + L / 9) { dlg.voiceDone = true; Sound.duck(false); }
   const finished = !dlg.typing && dlg.voiceDone;
@@ -5580,6 +5605,14 @@ function updateDialog(dt) {
   if (finished && dlg.quiet) { dlg.doneT += dt; if (dlg.doneT > (dlg.speaking ? 0.35 : 0.9)) advanceDialog(true); return; }
   if (finished) { dlg.doneT += dt; if (Prefs.get('autoPlay') && !choiceOpen && dlg.doneT > (dlg.speaking ? 0.6 : 1.1 + L / 20)) advanceDialog(true); }
 }
+function unquietLine() { dlg.quiet = false; el.dialog.classList.remove('quiet'); renderDialogText(); }
+// something else took the speech channel (voice switched off, a preview or a replay from the Log): show this line as text
+function dlgVoiceLost() {
+  if (!dlg.open) return;
+  if (dlg.speaking && !dlg.voiceDone) { dlg.voiceDone = true; Sound.duck(false); }
+  if (dlg.quiet) { dlg.shown = dlg.full.length; dlg.typing = false; unquietLine(); }
+}
+{ const pv = Voice.preview.bind(Voice); Voice.preview = (...a) => { dlgVoiceLost(); return pv(...a); }; }
 let dlgChain = Promise.resolve(), dlgGen = 0;
 function say(lines) {
   const gen = dlgGen;
@@ -5590,12 +5623,14 @@ function abortDialogs() { dlgGen++; Voice.stop(); Sound.duck(false); const r = d
 function advanceDialog(auto = false) {
   if (!dlg.open) return;
   // first click shows the whole line without cutting the speaker off; the next one moves on
+  if (dlg.quiet && !auto) { dlg.shown = dlg.full.length; dlg.typing = false; unquietLine(); return; } // a voice-only line: first click shows its words
   if (dlg.typing) { dlg.shown = dlg.full.length; dlg.typing = false; renderDialogText(); return; }
   Voice.stop(); Sound.duck(false); const r = dlg.resolve; dlg.resolve = null; if (r) r();
 }
 el.dialog.addEventListener('click', (e) => { e.stopPropagation(); advanceDialog(); });
 let choiceOpen = false;
 function choose(title, opts) {
+  if (choose.resolve) choose.resolve(-1); // never strand an earlier choice (its caller would keep the game busy forever)
   return new Promise(res => {
     choiceOpen = true; el.choices.innerHTML = title ? `<h4>${title}</h4>` : '';
     const done = (i) => { choose.resolve = null; choiceOpen = false; el.choices.classList.add('hidden'); res(i); }; choose.resolve = done;
@@ -5604,7 +5639,7 @@ function choose(title, opts) {
     if (lastPointerType !== 'touch') el.choices.querySelector('button')?.focus({ preventScroll: true });
   });
 }
-function closeChoices() { if (choiceOpen) { el.choices.querySelector('button:last-child')?.click(); } }
+function closeChoices() { if (choiceOpen && choose.resolve) { Sound.click(); choose.resolve(-1); } } // cancel: never "pick the last option" (that was 'Use Ultra anyway')
 
 /* ---------- keypad ---------- */
 let keypadOpen = false;
@@ -5679,6 +5714,8 @@ document.addEventListener('webkitfullscreenchange', updateFullscreenButtons);
 function setPlayerVisible(v) { player.rig.g.traverse(o => { if (o.isMesh) o.visible = v; }); }
 window.addEventListener('keydown', (e) => {
   if (e.repeat && !['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) return;
+  // typing in a menu, a list or a pop-up panel: let the browser handle the key (Esc still closes things)
+  if (e.code !== 'Escape' && e.target && e.target.closest && e.target.closest('input,select,textarea,#voicePanel,#logPanel,#helpPanel,#puzzle')) return;
   keys[e.code] = true; Sound.init();
   if (keypadOpen) { const d = /^(Digit|Numpad)(\d)$/.exec(e.code); const bs = [...el.kpKeys.querySelectorAll('button')];
     if (d) { e.preventDefault(); bs.find(b => b.textContent === d[2])?.click(); return; }
@@ -5689,7 +5726,7 @@ window.addEventListener('keydown', (e) => {
     if (e.code === 'ArrowDown' || e.code === 'ArrowUp') { e.preventDefault(); const i = bs.indexOf(document.activeElement); bs[(i + (e.code === 'ArrowDown' ? 1 : bs.length - 1) + (i < 0 ? 1 : 0)) % bs.length].focus(); return; }
     if (e.code === 'Escape') { e.preventDefault(); closeChoices(); return; } }
   if (dlg.open && ['Space', 'Enter', 'KeyE'].includes(e.code)) { e.preventDefault(); advanceDialog(); return; }
-  if (e.code === 'Escape') { if (puzzleOpen) closePuzzle(); else if (keypadOpen) keypad.cancel(); else if (!$('#logPanel').classList.contains('hidden')) $('#logPanel').classList.add('hidden'); else if (!$('#voicePanel').classList.contains('hidden')) $('#voicePanel').classList.add('hidden'); else if (!$('#hintBar').classList.contains('hidden')) hideHint(); else if (!el.help.classList.contains('hidden')) el.help.classList.add('hidden'); else if (selectedItem) setSelected(null); else cancelWalk(); closeItemMenu(); return; }
+  if (e.code === 'Escape') { if (!$('#logPanel').classList.contains('hidden')) $('#logPanel').classList.add('hidden'); else if (!$('#voicePanel').classList.contains('hidden')) $('#voicePanel').classList.add('hidden'); else if (!el.help.classList.contains('hidden')) el.help.classList.add('hidden'); else if (puzzleOpen) closePuzzle(); else if (keypadOpen) keypad.cancel(); else if (!$('#hintBar').classList.contains('hidden')) hideHint(); else if (selectedItem) setSelected(null); else cancelWalk(); closeItemMenu(); return; }
   if (gameState === 'cine' && (e.code === 'Space' || e.code === 'Enter')) { skipRequested = true; return; }
   if (e.code === 'KeyF' && !e.ctrlKey && !e.metaKey && !e.altKey && fsSupported()) { e.preventDefault(); toggleFullscreen(); return; }
   if (gameState !== 'play') return;
@@ -5709,7 +5746,7 @@ canvas.addEventListener('pointermove', (e) => {
   if (touches.has(e.pointerId)) touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (touches.size >= 2) { const [a, b] = [...touches.values()]; const d = Math.hypot(a.x - b.x, a.y - b.y); if (pinchD && camMode === 'third') camDist = clamp(camDist - (d - pinchD) * 0.02, 2.2, 10); pinchD = d; return; }
   if (!pd || e.pointerId !== pd.id) return; const dx = e.clientX - pd.lx, dy = e.clientY - pd.ly; pd.lx = e.clientX; pd.ly = e.clientY;
-  if (Math.hypot(e.clientX - pd.x, e.clientY - pd.y) > 7) pd.drag = true;
+  if (Math.hypot(e.clientX - pd.x, e.clientY - pd.y) > (e.pointerType === 'touch' ? 12 : 7)) pd.drag = true; // fingers wobble: a tap shouldn't turn into a camera drag
   if (pd.drag && gameState === 'play' && !cine.active) {
     camYaw -= dx * 0.0055; lastDrag = time;
     if (camMode === 'fp') fpPitch = clamp(fpPitch - dy * 0.004, -1.2, 1.2); else camPitch = clamp(camPitch + dy * 0.004, 0.02, 1.2);
@@ -5781,7 +5818,7 @@ async function interact(def, point) {
   const item = selectedItem;
   if (item === 'ball' && ballOnHotspot(def, point)) return;
   convo.def = ['juno', 'rafi', 'zib', 'bolt'].includes(def.id) ? def : null;
-  if (!def.ranged) { const at = typeof def.at === 'function' ? def.at() : def.at; if (at) { const ok = await walkTo(at[0], at[1]); if (!ok) return; } }
+  if (!def.ranged) { const at = typeof def.at === 'function' ? def.at() : def.at; if (at) { const ok = await walkTo(at[0], at[1]); if (!ok || actionBusy || dlg.open || choiceOpen || puzzleOpen || keypadOpen) return; } }
   faceTo(def.look || point);
   actionBusy = true;
   try {
@@ -5893,8 +5930,8 @@ function wireHotspots() {
   HS.tulips.use = async () => say([['NARR', 'Tulips in six colours, cups turned up toward the grow-lamps like they are catching the light.']]);
   HS.roses.use = async () => say([['NARR', "Velvet-red and blush-pink roses. You lean in. For one second, you're in a garden on Earth."]]);
   HS.lavender.use = async () => {
-    if ((S.flags.lavT || -999) > time - 45) return say([['NARR', 'The lavender smells wonderful. You already feel calmer.']]);
-    S.flags.lavT = time; heal(15); return say([['NARR', 'You breathe in the lavender. Your heart rate settles. (+15 health)']]);
+    if ((S.flags.lavT || -999) > S.t - 45 && S.flags.lavT <= S.t) return say([['NARR', 'The lavender smells wonderful. You already feel calmer.']]);
+    S.flags.lavT = S.t; heal(15); return say([['NARR', 'You breathe in the lavender. Your shoulders drop. Comet sneezes.']]);
   };
   HS.orchids.use = async () => say([['JUNO', 'Starglow orchids — grown from seed we collected on Kepler-442b. They glow brighter when they are happy. Or scared. Science is still out on that one.']]);
   HS.sunflowers.use = async () => say([['NARR', 'Five tall sunflowers, faces turned toward the lamps. One of them glows noticeably brighter than the rest.']]);
@@ -5982,7 +6019,7 @@ function wireHotspots() {
   for (let i = 0; i < 4; i++) HS['save' + i].use = async () => {
     Sound.save(); const b = W.saveBeacons.find(b => b.i === i); if (b) burst(b.g.getWorldPosition(new V3()).x, 1.7, b.g.getWorldPosition(new V3()).z, 60, { speed: 2.4, color: [0.4, 0.95, 1], size: 0.06, grav: -0.5, life: 1.4, drag: 1.5 });
     heal(100); if (S.ave < 3) gainAve(3 - S.ave);
-    saveGame(); if (!S.flags.saveTip) { S.flags.saveTip = true; return say([['HALO', "Save beacon synchronised. If anything… unfortunate happens, you'll wake up here. Health restored. Comet's AVE topped up."]]); }
+    saveGame(); if (!S.flags.saveTip) { S.flags.saveTip = true; return say([['HALO', "Save beacon synchronised. Your progress is safe here. Comet's AVE topped up."]]); }
   };
   /* ---------------- COMET ---------------- */
   HS.comet.use = async (item) => {
@@ -6026,7 +6063,9 @@ async function junoTalk() {
 }
 async function rafiTalk() {
   if (!S.flags.powerOn) {
-    if (roomOf(npcs.rafi.pos) !== 3) return say([['RAFI', "Get that breach sealed, Captain, and I'll meet you in Engineering. I'm not going back up on that ceiling."]]);
+    if (roomOf(npcs.rafi.pos) !== 3) return say([['RAFI', S.flags.breachSealed ? "Breach is holding beautifully. Meet you in Engineering, Captain." : "Get that breach sealed, Captain, and I'll meet you in Engineering. I'm not going back up on that ceiling."]]);
+    if (S.flags.couplingSet) return say([['RAFI', "Coupling's seated. Now the conduits: the impact knocked them all askew. Click the reactor and turn the tiles until the light runs from the reactor all the way to the ship."]]);
+    if (S.inv.coupling) return say([['RAFI', "You've got the coupling! Put it back in the reactor, Captain. Gently. She bites."]]);
     return say([['RAFI', 'The primary coupling popped clean out of its socket and down the floor ducting. Of course it did.'], ['RAFI', "Only something small and brave fits down there. Something with a nose."], ['COMET', '*tilts head*']]);
   }
   if (!S.inv.crystal && !S.flags.jumped) return say([['RAFI', "Reactor's perfect. But HALO says the star charts are scrambled. We need a navigation reference."], S.flags.zibTalked ? ['RAFI', "That little glowing fella keeps humming about a 'Remember-Stone'. I'd trade it anything."] : ['RAFI', 'There is something glowing behind my pipes. I have decided not to look at it.']]);
@@ -6083,7 +6122,7 @@ function hintStep() {
     if (f.couplingSet) return { sig: 'power-route', title: 'THE POWER CONDUITS', tiers: [
       'The coupling is in, but the power can\'t reach the ship. Click the reactor to open the conduit panel, then turn the tiles until light flows from the reactor (left) to the ship (right).',
       'Click a tile to turn it. Lit tiles are already connected to the reactor, so follow the light and fix the first dark tile it reaches.',
-      'The path: from the reactor go UP into the top row, along the top row to the third tile, DOWN through the middle row, along the bottom row to the last column, then UP and out to the right. Three tiles are decoys and aren\'t needed.'] };
+      'The path: from the reactor go UP into the top row, along the top row to the third tile, DOWN through the middle row, along the bottom row to the last column, then UP and out to the right. Four tiles are decoys and aren\'t needed.'] };
     if (inv.coupling) return { sig: 'power-install', title: 'MAIN POWER', tiers: [
       'You have the power coupling.',
       'Put it back where it belongs: the reactor.',
@@ -6128,9 +6167,9 @@ function showHint(clearer) {
   $('#hintBar .hint-step').textContent = `HINT ${hintTier + 1} OF ${h.tiers.length} · ${h.title}`;
   $('#hintBar .hint-text').textContent = h.tiers[hintTier];
   $('#hintMore').classList.toggle('hidden', hintTier >= h.tiers.length - 1);
-  $('#hintBar').classList.remove('hidden'); $('#btnHint').classList.remove('pulse'); hintNudged = h.sig; placeToast(); S.hintsUsed = (S.hintsUsed || 0) + 1;
+  $('#hintBar').classList.remove('hidden'); $('#btnHint').classList.remove('pulse'); hintNudged = h.sig; layoutHud(); placeToast(); S.hintsUsed = (S.hintsUsed || 0) + 1;
 }
-function hideHint() { $('#hintBar').classList.add('hidden'); placeToast(); }
+function hideHint() { $('#hintBar').classList.add('hidden'); layoutHud(); placeToast(); }
 // Close the hint once you make progress; if you've been stuck on one step for a while, make the button glow.
 setInterval(() => {
   if (gameState !== 'play') return;
@@ -6147,6 +6186,8 @@ async function boltHint() {
   else if (!S.flags.cargoClear) h = 'HINT PROTOCOL: SUPPLIES ARE BURIED. CRANE NEEDS A BAY. THE MANIFEST KNOWS THE BAY. THE MANIFEST IS ON THE FLOOR. FLOORS ARE NOT FOR MANIFESTS.';
   else if (!S.flags.rafiFree) h = 'HINT PROTOCOL: CHIEF OKOYE IS A BURRITO. CUTTING TORCH UNWRAPS BURRITOS.';
   else if (!S.flags.breachSealed) h = 'HINT PROTOCOL: PATCH KIT IN THE SUPPLY CRATE. APPLY TO HOLE. HOLES ARE BAD.';
+  else if (!S.flags.powerOn && S.flags.couplingSet) h = 'HINT PROTOCOL: POWER CONDUITS MISALIGNED. TURN THE TILES. FOLLOW THE LIGHT. LIGHT IS GOOD.';
+  else if (!S.flags.powerOn && S.inv.coupling) h = 'HINT PROTOCOL: COUPLING IS IN YOUR POCKET. COUPLINGS GO IN REACTORS. NOT POCKETS.';
   else if (!S.flags.powerOn) h = 'HINT PROTOCOL: POWER COUPLING IN ENGINEERING FLOOR VENT. FLUFFY UNIT FITS. BOLT-7 WOULD FIT BUT BOLT-7 IS ON A BREAK.';
   else if (!S.inv.crystal) h = 'HINT PROTOCOL: SMALL GLOWING ALIEN LIKES LIGHT. SUNFLOWERS ARE LIGHT YOU CAN HOLD.';
   else h = 'HINT PROTOCOL: GO TO NAVIGATION CONSOLE. PRESS THE GO-HOME BUTTON. BOLT-7 IS EXCITED.';
@@ -6230,7 +6271,7 @@ function dogPlan(kind) {
 }
 async function dogAbility(kind, fromHotspot = false) {
   if (!fromHotspot && !canControl()) return;
-  if (dog.hidden || dog.scripted) return;
+  if (dog.hidden || dog.scripted) { toast('🐕 Comet is busy — try again in a moment.', 1500); return; }
   const plan = dogPlan(kind); if (!plan) return;
   if (plan.cost > S.ave) { Sound.whine(); dogAct('sit', 1.5); toast(`🐕 Comet needs <b>${plan.cost} AVE</b> for that — pet her, feed her a carrot, or visit a Save Beacon.`, 3200); return; }
   if (plan.cost) spendAve(plan.cost);
@@ -6300,8 +6341,8 @@ function updateSpiders() { }
 function updateQueen() { }
 // First time in the Cargo Hold: what the impact did, and what needs doing.
 async function cargoArrival() {
-  if (actionBusy || dlg.open) { setTimeout(cargoArrival, 1000); return; }
-  S.flags.cargoSeen = true; actionBusy = true; chapter(3); updateObjectives();
+  if (actionBusy || dlg.open || choiceOpen || puzzleOpen || keypadOpen) { setTimeout(cargoArrival, 1000); return; }
+  cancelWalk(); S.flags.cargoSeen = true; actionBusy = true; chapter(3); updateObjectives();
   await say([['HALO', 'The Cargo Hold. The meteor came through that wall and threw everything loose.'], ['VEGA', 'Rafi? RAFI!'],
     ['RAFI', "Up here, Captain! The cargo netting came down on me. I'm tied up like a parcel!"],
     ['HALO', 'The hull breach is holding behind an emergency field, but not forever. The patch kit is in the emergency supply crate, and that crate is buried under fallen cargo.'],
@@ -6316,7 +6357,7 @@ async function freeRafi() {
   c.visible = false; HS.cocoon.enabled = false; S.flags.rafiFree = true;
   r.rig.g.visible = true; r.pos.set(ROOMS[2].cx + 7.4, 0, 3.4); r.heading = -Math.PI / 2 - 0.4; Sound.thud();
   await say([['RAFI', 'Oof! Thank you, Captain. There is cargo net in my BEARD.'], ['VEGA', 'Rafi! Are you alright?'], ['RAFI', "I was checking the manifest when the meteor hit. The whole net came down and rolled me up like a burrito. Bruised pride. Nothing else."],
-    ['RAFI', S.flags.breachSealed ? "Breach is sealed? Beautiful. Override code entered — Engineering's open. The reactor coupling blew before that thing grabbed me. Meet you there." : "The reactor coupling's gone — I felt it blow before that thing grabbed me. Seal that breach and I'll punch in the override for Engineering."]]);
+    ['RAFI', S.flags.breachSealed ? "Breach is sealed? Beautiful. Override code entered — Engineering's open. The reactor coupling blew just before the net came down on me. Meet you there." : "The reactor coupling's gone — I felt it blow just before the net came down on me. Seal that breach and I'll punch in the override for Engineering."]]);
   applyWorld();
   updateObjectives(); saveGame(true);
 }
@@ -6325,7 +6366,7 @@ async function sealBreach() {
   const b = W.breachPos;
   for (let k = 0; k < 20; k++) { burst(b.x + (Math.random() - 0.5) * 3, b.y + (Math.random() - 0.5) * 2.4, b.z + 0.4, 8, { speed: 4, color: [1, 0.75, 0.35], size: 0.04, grav: 9, life: 0.6 }); fxFlash(new V3(b.x, b.y, b.z + 1), 0xffa040, 15); await wait(90); }
   S.flags.breachSealed = true; W.seamHeat = 1; applyWorld(); updateObjectives(); Sound.thud();
-  await say([['NARR', 'You press the patch over the breach. It hisses, glows white-hot, and fuses itself into the hull.'], ['HALO', 'Hull integrity restored. Pressure equalised.'], !doorLocked(2) ? ['RAFI', 'Override code entered. Engineering is open, Captain!'] : (S.flags.queenDead && !S.flags.rafiFree ? ['HALO', 'The Engineering door still needs an engineer\'s override. Rafi would know it.'] : null)]);
+  await say([['NARR', 'You press the patch over the breach. It hisses, glows white-hot, and fuses itself into the hull.'], ['HALO', 'Hull integrity restored. Pressure equalised.'], !doorLocked(2) ? ['RAFI', 'Override code entered. Engineering is open, Captain!'] : (!S.flags.rafiFree ? ['HALO', 'The Engineering door still needs an engineer\'s override, and Rafi is still tangled up in that netting.'] : null)]);
   showRoomBanner(2); saveGame(true); toast('💾 Auto-saved', 1500);
 }
 async function installCoupling() {
@@ -6367,7 +6408,9 @@ function loadGame() {
   S.hp = 100;
   if (S.flags.queenDead) { S.flags.cargoClear = true; S.flags.cargoSeen = true; } if (S.flags.queenIntro || S.flags.door1 && S.flags.cocoonSeen) S.flags.cargoSeen = true;
   player.pos.set(data.p[0], 0, data.p[1]); player.heading = data.p[2]; dog.pos.set(data.d[0], 0, data.d[1]);
-  resetTransient(); applyWorld();
+  if (S.flags.door1 && roomOf(player.pos) >= 2) S.flags.cargoSeen = true; // old saves made inside the hold
+  resetTransient(); applyWorld(); if (S.flags.jumped) arriveHome(); // a save made after the ending: Earth in the window
+  if (S.flags.ballTaken && !S.inv.ball) { S.inv.ball = 1; updateInventory(); } // the ball can't be lost for good (a save made mid-fetch)
   const r = npcs.rafi; r.path = []; r.walking = false; if (S.flags.rafiFree) { if (!doorLocked(2)) r.pos.set(ROOMS[3].cx - 6, 0, -1.2); else r.pos.set(ROOMS[2].cx + 7.4, 0, 2.6); }
   return true;
   } catch (e) { console.error(e); return false; }
@@ -6380,7 +6423,7 @@ function resetTransient() {
   W.crane.state = 'ready'; W.crane.crate.visible = true; W.crane.crate.position.y = W.crane.hangY;
   setBossBar(false); abortDialogs();
   if (keypadOpen) keypad.cancel();
-  warp.lines.visible = false; W.earth.visible = false;
+  warp.lines.visible = false; leaveHome();
 }
 function applyWorld() {
   const f = S.flags;
@@ -6468,8 +6511,15 @@ async function playIntro() {
 }
 function arriveHome() {
   // we have left the Kepler system: swap its scenery for the Sun, the Earth and the Moon
+  if (!W._kepler) W._kepler = { sun: W.sunSprite.position.clone(), parts: W.keplerParts.map(o => o.visible), rocks: W.rocks.mesh.visible };
   W.keplerParts.forEach(o => o.visible = false); jellies.forEach(j => j.rig.g.visible = false); W.rocks.mesh.visible = false; if (leviathan) leviathan.g.visible = false;
   W.setHomeSun(new V3(-1400, 260, 650)); W.earth.visible = true;
+}
+// back to the start of the voyage (a new game, or loading an earlier save after finishing)
+function leaveHome() {
+  const K = W._kepler; if (!K || !W.earth.visible) return;
+  W.keplerParts.forEach((o, i) => o.visible = K.parts[i]); jellies.forEach(j => j.rig.g.visible = true); W.rocks.mesh.visible = K.rocks; if (leviathan) leviathan.g.visible = true;
+  W.sunSprite.position.copy(K.sun); W.sunHalo.position.copy(K.sun); W.earth.visible = false;
 }
 async function playEnding() {
   actionBusy = true; gameState = 'cine'; cancelWalk(); setHUD(false); letterbox(true); Voice.stop();
@@ -6496,10 +6546,10 @@ async function playEnding() {
   await say([['COMET', '*presses her bubble helmet against the window, tail wagging*'], ['NARR', 'Somewhere down there, a lake, a porch, and a very overdue walk were waiting.']]);
   const mins = Math.floor(S.t / 60), secs = Math.floor(S.t % 60);
   $('#endText').textContent = 'Captain Rowan Vega, Dr. Juno Park, Chief Rafi Okoye, BOLT-7, one tiny alien named Zib and the best co-pilot in the galaxy made it home.';
-  const tr = treasureCount(), hints = S.hintsUsed || 0, stars = 1 + (S.deaths === 0 ? 1 : 0) + (hints <= 3 || tr >= 6 ? 1 : 0);
+  const tr = treasureCount(), hints = S.hintsUsed || 0, stars = 1 + (hints <= 3 ? 1 : 0) + (tr >= 6 ? 1 : 0);
   const rank = stars === 3 ? 'Legendary Co-Pilot' : stars === 2 ? 'Seasoned Captain' : 'Brave Explorer';
   $('#endRank').innerHTML = `<span class="stars">${'★'.repeat(stars)}<i>${'★'.repeat(3 - stars)}</i></span>${rank}`;
-  $('#endStats').innerHTML = `<div><b>${mins}:${String(secs).padStart(2, '0')}</b>Time to home</div><div><b>${S.aveSpent}</b>AVE points spent</div><div><b>${S.crates}</b>Crates dropped</div>`
+  $('#endStats').innerHTML = `<div><b>${mins}:${String(secs).padStart(2, '0')}</b>Time to home</div><div><b>${S.aveSpent}</b>AVE points spent</div><div><b>${S.crates}</b>Bays searched</div>`
     + `<div><b>${S.fetches || 0}</b>Games of fetch</div><div><b>${tr}/${TREASURES.length}</b>Treasures found</div><div><b>${hints}</b>Hints used</div>`;
   el.ending.classList.remove('hidden'); gameState = 'end'; actionBusy = false;
   memSave = null; try { localStorage.removeItem(SAVE_KEY); } catch (e) { }
@@ -6859,14 +6909,14 @@ function updateAmbience(dt) {
   alarmT -= dt; if (alarmT <= 0) { alarmT = 16; if (!S.flags.powerOn && gameState === 'play') Sound.alarm(); }
 }
 async function gardenArrival() {
-  if (actionBusy || dlg.open) { setTimeout(gardenArrival, 1000); S.flags.gardenSeen = true; return; }
-  actionBusy = true; const j = npcs.juno; chapter(2);
+  if (actionBusy || dlg.open || choiceOpen || puzzleOpen || keypadOpen) { setTimeout(gardenArrival, 1000); S.flags.gardenSeen = true; return; }
+  cancelWalk(); actionBusy = true; const j = npcs.juno; chapter(2);
   await say([['HALO', 'The Hydroponic Garden. The dome took no damage. Breathe it in, Captain — this garden is the only reason we still have air.'], ['JUNO', 'Captain! Over here, by the tomatoes!']]);
   actionBusy = false;
 }
 async function engineArrival() {
-  if (actionBusy || dlg.open) { setTimeout(engineArrival, 1000); return; }
-  actionBusy = true; chapter(4);
+  if (actionBusy || dlg.open || choiceOpen || puzzleOpen || keypadOpen) { setTimeout(engineArrival, 1000); return; }
+  cancelWalk(); actionBusy = true; chapter(4);
   await say([['HALO', 'Engineering. The reactor is idling on reserve.'], ['VEGA', "HALO… what is that glowing thing behind Rafi's pipes?"], ['HALO', 'Unknown lifeform. Non-hostile, I believe. It appears to be… hiding from you.']]);
   actionBusy = false;
 }
@@ -6914,8 +6964,8 @@ function tick(ts) {
   let wdt = dt * worldScale; if (hitStopT > 0) { hitStopT -= dt; wdt = 0; }
   if (gameState === 'play') S.t += dt;
   torchCd = Math.max(0, torchCd - dt);
-  // typewriter
-  updateDialog(dt);
+  // typewriter (dialogue timers use real time, so a slow frame rate never stretches them)
+  updateDialog(Math.min(raw / 1000, 0.5));
   if (gameState === 'play' || gameState === 'cine' || gameState === 'end' || gameState === 'dead') {
     updatePlayer(wdt); updateDog(wdt); updateNPCs(wdt); updateSpiders(wdt); updateQueen(wdt); updateCrane(wdt); updateAmbience(dt);
   }
@@ -7068,7 +7118,7 @@ function syncPrefs() {
 function wireUI() {
   $('#btnView').onclick = () => { Sound.click(); setCamMode(camMode === 'fp' ? 'third' : 'fp'); };
   $('#btnVoice').onclick = (e) => { e.stopPropagation(); Sound.click(); const p = $('#voicePanel'); if (p.classList.contains('hidden')) { renderVoicePanel(); p.classList.remove('hidden'); } else p.classList.add('hidden'); };
-  $('#voiceOn').onchange = (e) => { Voice.on = e.target.checked; toast(Voice.on ? 'Spoken dialogue on' : 'Spoken dialogue off', 1200); };
+  $('#voiceOn').onchange = (e) => { if (!e.target.checked) dlgVoiceLost(); Voice.on = e.target.checked; toast(Voice.on ? 'Spoken dialogue on' : 'Spoken dialogue off', 1200); };
   $('#btnVoiceAuto').onclick = () => { Voice.reset(); renderVoicePanel(); toast('Each character now has the best voice your browser offers', 1800); };
   $('#btnVoiceClose').onclick = () => $('#voicePanel').classList.add('hidden');
   $('#btnHint').onclick = (e) => { e.stopPropagation(); Sound.init(); Sound.click(); if ($('#hintBar').classList.contains('hidden')) showHint(false); else hideHint(); };
@@ -7087,6 +7137,7 @@ function wireUI() {
   btnLabel('#btnVoice', '🗣', 'Voices'); btnLabel('#btnMusic', '🎵', 'Music: On'); btnLabel('#btnView', '👁', 'View: Behind'); btnLabel('#btnHelp', '❔', 'Help');
   $('#btnMusic').onclick = () => { Sound.init(); Sound.setMusic(!Sound.musicOn); btnLabel('#btnMusic', '🎵', Sound.musicOn ? 'Music: On' : 'Music: Off'); };
   $('#btnQuality').onclick = async () => {
+    if (choiceOpen || dlg.open || actionBusy || puzzleOpen || keypadOpen) return;
     const next = quality === 'ultra' ? 'high' : quality === 'high' ? 'lite' : 'ultra';
     if (next === 'ultra' && GPU.tier !== 'ultra') { const c = await choose('Ultra is very demanding and may crash this computer\'s graphics (and your browser). Use it anyway?', ['Stay on Lite', 'Switch to High', 'Use Ultra anyway']); if (c === 1) return setQuality('high'); if (c !== 2) return; }
     setQuality(next);
@@ -7102,12 +7153,14 @@ function wireUI() {
   document.querySelectorAll('.abil button').forEach(b => b.onclick = (e) => { e.stopPropagation(); Sound.init(); dogAbility(b.dataset.ab); });
   el.skip.onclick = () => { skipRequested = true; };
   el.btnNew.onclick = async () => {
+    if (choiceOpen) return;
     Sound.init(); Sound.click();
     if (hasSave()) { const c = await choose('Start over? Your saved game will be replaced.', ['Start a new game', 'Keep my saved game']); if (c !== 0) return; memSave = null; try { localStorage.removeItem(SAVE_KEY); } catch (e) { } el.btnCont.classList.add('hidden'); }
     Title.hide(); S = newState(); resetTransient(); player.pos.set(1.5, 0, 1.4); dog.pos.set(2.9, 0, 2.3); applyWorld(); lastRoom = 0;
     Sound.setMood('tense'); await playIntro();
   };
   el.btnCont.onclick = async () => {
+    if (choiceOpen) return; // the "Start over?" question is up
     Sound.init(); Sound.click(); await fadeTo(1, 400); Title.hide();
     if (!loadGame()) { Title.show(); await fadeTo(0, 300); return; }
     lastRoom = roomOf(player.pos); gameState = 'play'; setHUD(true); snapCamera(); W.crater.visible = true; W.craterGlow.visible = true; W.sunLight.intensity = 0; showRoomBanner(lastRoom); Sound.setMood(S.flags.powerOn ? 'hope' : 'tense');
@@ -7292,7 +7345,7 @@ function hsAnchor(d) {
 }
 function clearScan() { if (!scan) return; scan.labels.forEach(l => l.el.remove()); scan.ring.visible = false; scan = null; }
 function haloScan() {
-  if (gameState !== 'play' || cine.active || dlg.open || choiceOpen || keypadOpen) return;
+  if (gameState !== 'play' || cine.active || dlg.open || choiceOpen || keypadOpen || puzzleOpen) return;
   if (scan && scan.t < 1.5) return;
   Sound.init(); clearScan(); Sound.ping();
   const room = roomOf(player.pos), origin = player.pos.clone(), labels = [], layer = $('#scanLayer');
@@ -7576,7 +7629,7 @@ function treasurePlan(kind, room) {
     S.flags['tr_' + t.id] = true; applyTreasures(); dogAct('happy', 1.8); Sound.chime(); gainAve(1);
     const n = treasureCount(); celebrate(`LOST TREASURE ${n} / ${TREASURES.length}`, t.name); updateObjectives();
     await say(t.lines.concat(n === TREASURES.length ? [['HALO', 'That is all eight, Captain. Every lost thing, found. Comet is — and I say this as a ship — a very good girl.']] : []));
-    if (n === TREASURES.length) dogZoomies(2);
+    if (n === TREASURES.length) setTimeout(() => dogZoomies(2), 50); // after this skill finishes, or Comet is still 'busy' and skips her victory lap
   } };
 }
 function dogShakeDust() { for (let k = 0; k < 3; k++) setTimeout(() => burst(dog.pos.x, 0.55, dog.pos.z, 14, { speed: 2.4, up: 0.6, color: [0.45, 0.32, 0.2], size: 0.04, grav: 7, life: 0.6, sys: DUST, a: 0.8 }), k * 180); }
@@ -7685,16 +7738,17 @@ function initExtras() { initBlobs(); initTreasures(); getBall(); }
 
 
 /* ---------- puzzle screens ---------- */
-let puzzleOpen = false, puzzleDone = null;
+let puzzleOpen = false, puzzleDone = null, puzzleSolving = false; // solving: solved, playing its little success beat
 function openPuzzle({ kicker, title, text }) {
-  puzzleOpen = true; cancelWalk(); el.tip.classList.add('hidden');
+  puzzleOpen = true; puzzleSolving = false; cancelWalk(); el.tip.classList.add('hidden');
   $('#pzKicker').textContent = kicker; $('#pzTitle').textContent = title; $('#pzText').textContent = text;
   $('#pzMsg').textContent = ''; $('#pzMsg').className = ''; $('#pzBody').innerHTML = '';
   $('#puzzle').classList.remove('hidden');
   return new Promise(res => { puzzleDone = res; });
 }
 function closePuzzle(result = false) {
-  if (!puzzleOpen) return; puzzleOpen = false; $('#puzzle').classList.add('hidden');
+  if (!puzzleOpen) return; if (puzzleSolving) result = true; // closing during the success beat keeps the solution
+  puzzleOpen = false; puzzleSolving = false; $('#puzzle').classList.add('hidden');
   const r = puzzleDone; puzzleDone = null; hoverDirty = true; if (r) r(result);
 }
 function pzMsg(t, good = false) { const m = $('#pzMsg'); m.textContent = t; m.className = good ? 'good' : ''; }
@@ -7713,7 +7767,8 @@ async function cranePuzzle() {
       const bay = row + n, b = document.createElement('button'); b.type = 'button'; b.innerHTML = `<span class="ic" aria-hidden="true">📦</span>${row}-${n}`; b.setAttribute('aria-label', `Bay ${row}-${n}`);
       b.onclick = async () => {
         Sound.click(); W.craneLever.rotation.x = 0.6; setTimeout(() => W.craneLever.rotation.x = 0, 400); S.crates++;
-        if (bay === 'C2') { Sound.thunk(); pzMsg('Target locked: BAY C-2. Lifting…', true); await wait_(700); closePuzzle(true); return; }
+        if (!puzzleOpen || puzzleSolving) return;
+        if (bay === 'C2') { puzzleSolving = true; Sound.thunk(); pzMsg('Target locked: BAY C-2. Lifting…', true); await wait_(700); closePuzzle(true); return; }
         Sound.whoosh(); b.classList.add('tried');
         pzMsg(`The crane whirs over to bay ${row}-${n} and hoists… ${CRANE_JUNK[bay]}. Not the supplies. It sets it back down.`);
       };
@@ -7791,11 +7846,12 @@ async function powerPuzzle() {
     const b = document.createElement('button'); b.type = 'button'; b.setAttribute('aria-label', `Conduit, row ${r + 1}, column ${c + 1}. Click to turn.`);
     b.onclick = async () => {
       if (!puzzleOpen) return; pipeState[r][c].rot = (pipeState[r][c].rot + 1) % 4; Sound.beep();
-      if (render()) { btns.forEach(x => x.b.disabled = true); Sound.chime(); pzMsg('Power is flowing! Stand clear…', true); await wait_(1200); closePuzzle(true); }
+      if (render()) { puzzleSolving = true; btns.forEach(x => x.b.disabled = true); Sound.chime(); pzMsg('Power is flowing! Stand clear…', true); await wait_(1200); closePuzzle(true); }
     };
     btns.push({ b, r, c }); grid.appendChild(b);
   }
-  wrap.append(src, grid, dst); $('#pzBody').appendChild(wrap); render(); btns[0].b.focus({ preventScroll: true });
+  wrap.append(src, grid, dst); $('#pzBody').appendChild(wrap); btns[0].b.focus({ preventScroll: true });
+  if (render()) { puzzleSolving = true; closePuzzle(true); } // already solved last time: don't make them break and remake it
   const ok = await wait;
   if (ok) pipeState = null;
   return ok;
