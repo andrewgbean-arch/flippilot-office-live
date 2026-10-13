@@ -15,14 +15,14 @@ interface FieldSpec {
   aliases: string[];
 }
 
-const VEHICLE_FIELDS: FieldSpec[] = [
+export const VEHICLE_FIELDS: FieldSpec[] = [
   { key: "make", label: "Make", required: true, aliases: ["make", "manufacturer", "brand"] },
   { key: "model", label: "Model", required: true, aliases: ["model"] },
   { key: "reg", label: "Registration", aliases: ["reg", "registration", "plate", "vrm", "reg no", "reg number"] },
   { key: "year", label: "Year", numeric: true, aliases: ["year", "reg year", "model year"] },
   { key: "mileage", label: "Mileage", numeric: true, aliases: ["mileage", "miles", "odometer"] },
   { key: "colour", label: "Colour", aliases: ["colour", "color"] },
-  { key: "buyPrice", label: "Buy / Trade Price", numeric: true, aliases: ["buy price", "trade price", "cost price", "purchase price", "cost"] },
+  { key: "buyPrice", label: "Buy / Trade Price", numeric: true, aliases: ["buy price", "trade price", "cost price", "purchase price", "price paid", "amount paid", "paid price", "bought for", "bought price", "buying price", "purchase cost", "cost"] },
   { key: "sellPrice", label: "Sell / Retail Price", numeric: true, aliases: ["sell price", "sale price", "selling price", "retail price", "asking price", "price"] },
   { key: "dateBought", label: DATE_BOUGHT_LABEL, aliases: ["date bought", "purchase date", "date purchased", "bought date", "bought on", "acquired"] },
   { key: "notes", label: "Notes", aliases: ["notes", "comments"] },

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { guessColumns } from "./csv";
+import { VEHICLE_FIELDS } from "@/screens/ImportScreen";
 
 // The import screen guesses which spreadsheet column is which. A partial match
 // on "price" used to let a "Purchase Price" column be picked as the sell price
@@ -62,5 +63,27 @@ describe("guessing spreadsheet columns", () => {
     const g = guessColumns(["  MAKE ", "model"], VEHICLE);
     expect(g.make).toBe("  MAKE ");
     expect(g.model).toBe("model");
+  });
+});
+
+// The headings dealers' own spreadsheets actually use for what they paid. "Price paid" was not
+// recognised, so a file of stock with that column imported every car with no purchase on record.
+describe("the import's real vehicle columns", () => {
+  it.each(["Price paid", "Amount Paid", "Bought for", "Buying price", "Purchase cost", "PRICE PAID (£)"])("takes %s as the buy price", heading => {
+    const g = guessColumns(["Reg", "Make", "Model", heading, "Asking price"], VEHICLE_FIELDS);
+    expect(g.buyPrice).toBe(heading);
+    expect(g.sellPrice).toBe("Asking price");
+  });
+
+  it("does not take a column about when it was paid or bought as the buy price", () => {
+    const g = guessColumns(["Make", "Model", "Date paid", "Date bought"], VEHICLE_FIELDS);
+    expect(g.buyPrice).toBeUndefined();
+    expect(g.dateBought).toBe("Date bought");
+  });
+
+  it("still takes the headings it always knew", () => {
+    const g = guessColumns(["Make", "Model", "Purchase Price", "Retail Price"], VEHICLE_FIELDS);
+    expect(g.buyPrice).toBe("Purchase Price");
+    expect(g.sellPrice).toBe("Retail Price");
   });
 });
