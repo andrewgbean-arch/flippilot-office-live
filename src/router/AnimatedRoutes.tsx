@@ -46,6 +46,7 @@ import FeedbackBoard from "@/feedback/FeedbackBoard";
 import ContactSupport from "@/support/ContactSupport";
 import SupportInbox from "@/support/SupportInbox";
 import AdminDealerships from "@/support/AdminDealerships";
+import AdminGate from "@/components/AdminGate";
 import ConsumablesBoard from "@/consumables/ConsumablesBoard";
 import WorkshopCalendar from "@/jobs/WorkshopCalendar";
 
@@ -245,8 +246,8 @@ export default function AnimatedRoutes() {
         <Route path="pilot-brain/decisions" element={<PilotBrainDecisions />} />
         <Route path="feedback" element={<FeedbackBoard />} />
         <Route path="support" element={<ContactSupport />} />
-        <Route path="admin/support" element={<SupportInbox />} />
-        <Route path="admin/dealerships" element={<AdminDealerships />} />
+        <Route path="admin/support" element={<AdminGate><SupportInbox /></AdminGate>} />
+        <Route path="admin/dealerships" element={<AdminGate><AdminDealerships /></AdminGate>} />
         <Route path="consumables" element={<ConsumablesBoard />} />
         <Route path="import" element={<ImportScreen />} />
         <Route path="contacts" element={<ContactsBoard />} />
