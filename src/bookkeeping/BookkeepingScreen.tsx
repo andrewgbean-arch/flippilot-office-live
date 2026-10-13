@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useBookkeeping } from "./BookkeepingProvider";
+import { useInventory } from "@/context/InventoryProvider";
 
 import BookkeepingTable from "./BookkeepingTable";
 import SupplierPerformance from "./SupplierPerformance";
@@ -44,13 +45,15 @@ function SummaryTile({
 
 export default function BookkeepingScreen() {
   const { costs, sales, purchases } = useBookkeeping();
+  const { vehicles, loading: stockLoading, loadError: stockLoadError } = useInventory();
   const { user } = useAuth();
   const canWrite = canWriteBookkeeping(user);
 
   // Profit and margin are worked out on SOLD cars only (see profitTotals.ts).
   // The hub used to subtract every purchase from sales income, so stock still
   // on the forecourt showed up as a loss.
-  const totals = hubTotals(purchases, sales, costs);
+  const carsInStock = stockLoading || stockLoadError ? null : new Set(vehicles.map(v => v.id));
+  const totals = hubTotals(purchases, sales, costs, carsInStock);
 
   // MODAL STATE
 // MODAL STATE. The /bookkeeping/add-* addresses (the dashboard's buttons,

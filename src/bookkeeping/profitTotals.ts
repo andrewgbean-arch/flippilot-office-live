@@ -78,7 +78,11 @@ export function carProfit(purchasePrice: unknown, salePrice: unknown, costs: unk
 export function hubTotals(
   purchases: readonly PurchaseEntry[],
   sales: readonly SaleEntry[],
-  costs: readonly CostEntry[]
+  costs: readonly CostEntry[],
+  // The ids of the cars that are still in stock, once the stock list has loaded (null while it
+  // has not, or failed to). A purchase for a car that was deleted from stock is still money spent,
+  // and stays in the totals, but the car is not "still to sell".
+  carsInStock: ReadonlySet<string> | null = null
 ): HubTotals {
   // Only a real purchase price counts as money out; an unreadable or blank one is
   // not a price and adds nothing.
@@ -120,7 +124,10 @@ export function hubTotals(
   }
 
   let boughtNotSold = 0;
-  for (const vehicleId of firstPurchase.keys()) if (!firstSale.has(vehicleId)) boughtNotSold += 1;
+  for (const vehicleId of firstPurchase.keys()) {
+    if (carsInStock && !carsInStock.has(vehicleId)) continue;
+    if (!firstSale.has(vehicleId)) boughtNotSold += 1;
+  }
 
   return {
     spend,

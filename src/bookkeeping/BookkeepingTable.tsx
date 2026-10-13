@@ -20,7 +20,10 @@ export default function BookkeepingTable({ vehicleId }: BookkeepingTableProps) {
     getTotalCostForVehicle,
     getProfitForVehicle,
   } = useBookkeeping();
-  const { vehicles } = useInventory();
+  const { vehicles, loading: stockLoading, loadError: stockLoadError } = useInventory();
+  // A car deleted from stock keeps its purchase and costs in the books (the money was spent). Once
+  // the stock list has loaded, a row with no car behind it is a removed car, not an unknown one.
+  const gone = stockLoading || stockLoadError ? "Unknown vehicle" : "Removed car";
 
   // Build dynamic ledger from provider data — scoped to vehicleId when
   // given. Previously this prop was only used in the header text
@@ -41,7 +44,7 @@ export default function BookkeepingTable({ vehicleId }: BookkeepingTableProps) {
 
     return {
       id: p.vehicleId,
-      vehicle: vehicle ? `${vehicle.make} ${vehicle.model}` : "Unknown vehicle",
+      vehicle: vehicle ? `${vehicle.make} ${vehicle.model}` : gone,
       // A purchase price that is not a real amount above zero is "not recorded",
       // shown as a dash, never as £0.
       purchase: isPositiveAmount(p.purchasePrice) ? p.purchasePrice : null,
@@ -71,7 +74,7 @@ export default function BookkeepingTable({ vehicleId }: BookkeepingTableProps) {
     const vehicle = vehicles.find((v) => v.id === id);
     return {
       id,
-      vehicle: vehicle ? `${vehicle.make} ${vehicle.model}` : "Unknown vehicle",
+      vehicle: vehicle ? `${vehicle.make} ${vehicle.model}` : gone,
       purchase: null,
       totalCost: getTotalCostForVehicle(id),
       expectedSale: isPositiveAmount(sale?.salePrice) ? sale.salePrice : null,
