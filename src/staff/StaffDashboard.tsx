@@ -56,6 +56,8 @@ export function StaffDashboard({}: Props) {
         </button>
       </div>
 
+      {staff.length === 0 && <NoStaffNote onAdd={() => navigate("/dealer/staff/add")} />}
+
       {/* METRICS STRIP */}
       <section className="sn-metrics-row">
         <MetricCard label="Total Staff" value={staff.length} accent="primary" />
@@ -101,6 +103,23 @@ export function StaffDashboard({}: Props) {
         </section>
 
       </main>
+    </div>
+  );
+}
+
+// This list is the people on the rota and the pay run. The people who can LOG IN are a separate
+// list (Settings, Manage Team), so a dealer with five logins and nobody added here saw "Total
+// Staff 0" and took it for a fault.
+export function NoStaffNote({ onAdd }: { onAdd: () => void }) {
+  return (
+    <div className="sn-panel" style={{ marginBottom: 24 }}>
+      <p style={{ margin: 0 }}>
+        Nobody is on the rota yet. This page counts the staff you add here for the rota, time clock and pay.
+        The people you have invited to log in are listed separately, under Manage Team in Settings.
+      </p>
+      <button className="sn-btn sn-btn--gold" style={{ marginTop: 12 }} onClick={onAdd}>
+        Add a staff member
+      </button>
     </div>
   );
 }
