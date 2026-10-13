@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useLeads } from "@/context/LeadsContext";
 import { useInventory } from "@/context/InventoryProvider";
-import type { Lead, LeadStatus } from "./leadTypes";
+import { LEAD_STATUS_LABELS, type Lead, type LeadStatus } from "./leadTypes";
 import AffordabilitySummaryCard from "@/components/dealer/AffordabilitySummaryCard";
 import type { FlipRecord } from "@/features/vehicles/models/FlipRecord";
 import type { BuyerProfile } from "@/features/dealer-ai/AffordabilityEngine";
@@ -171,7 +171,7 @@ export default function LeadDetails() {
         >
           {STATUS_OPTIONS.map(s => (
             <option key={s} value={s}>
-              {s.replace("_", " ")}
+              {LEAD_STATUS_LABELS[s]}
             </option>
           ))}
         </select>

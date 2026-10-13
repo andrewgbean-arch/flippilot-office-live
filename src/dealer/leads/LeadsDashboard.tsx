@@ -2,18 +2,10 @@ import { useNavigate } from "react-router-dom";
 import { useLeads } from "@/context/LeadsContext";
 import { useAuth } from "@/context/AuthContext";
 import { canDeleteLeads } from "@/lib/permissions";
-import type { Lead, LeadStatus } from "./leadTypes";
+import { LEAD_STATUS_LABELS, type Lead } from "./leadTypes";
 import "@/staff/StaffDashboard.css";
 
-const STATUS_LABELS: Record<LeadStatus, string> = {
-  new: "New",
-  contacted: "Contacted",
-  viewing_booked: "Viewing Booked",
-  test_drive: "Test Drive",
-  negotiating: "Negotiating",
-  won: "Won",
-  lost: "Lost",
-};
+const STATUS_LABELS = LEAD_STATUS_LABELS;
 
 export default function LeadsDashboard() {
   const { leads, removeLead, saveError } = useLeads();

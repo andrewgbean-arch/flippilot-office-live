@@ -7,6 +7,17 @@ export type LeadStatus =
   | "won"
   | "lost";
 
+// How each status reads on screen. The stored value stays lower-case with an underscore.
+export const LEAD_STATUS_LABELS: Record<LeadStatus, string> = {
+  new: "New",
+  contacted: "Contacted",
+  viewing_booked: "Viewing Booked",
+  test_drive: "Test Drive",
+  negotiating: "Negotiating",
+  won: "Won",
+  lost: "Lost",
+};
+
 export type Lead = {
   id: string;
   name: string;
