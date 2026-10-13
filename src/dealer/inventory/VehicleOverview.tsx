@@ -376,7 +376,7 @@ export default function VehicleOverview() {
             <p><span className="text-white/60">Make:</span> {vehicle.make}</p>
             <p><span className="text-white/60">Model:</span> {vehicle.model}</p>
             <p><span className="text-white/60">Year:</span> {vehicle.year ?? "N/A"}</p>
-            <p><span className="text-white/60">Mileage:</span> {vehicle.mileage ?? "N/A"}</p>
+            <p><span className="text-white/60">Mileage:</span> {formatMileage(vehicle.mileage) ?? "N/A"}</p>
             {/* MOT SUMMARY: only what the MOT record says. It used to add a
                 "MOT Health Score" percentage, which read 99% for a car with no
                 MOT data at all; that score is gone. */}
