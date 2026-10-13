@@ -309,6 +309,33 @@ describe("removing leads and jobs", () => {
   });
 });
 
+describe("a lead's buyer finances", () => {
+  const FINANCES = { income: 3200, expenses: 1100, deposit: 500, creditScore: 640, savings: 4000, employmentStability: 80 };
+  const lead = (id: string, extra: Record<string, unknown> = {}) => ({ id, name: `Buyer ${id}`, status: "new", phone: "07000 000000", ...extra });
+  const read = async (who: Account) => ((await request(app).get("/leads").set(auth(who))).body.items as any[]).find(l => l.id === "fin1");
+
+  it("are sent to the owner, managers, sales and finance, but not to a general account", async () => {
+    await request(app).put("/leads").set(auth(owner)).send({ items: [lead("fin1", FINANCES)] });
+    for (const who of [owner, staff.manager, staff.sales, staff.finance]) expect(await read(who)).toMatchObject(FINANCES);
+    const seen = await read(staff.general);
+    expect(seen).toMatchObject({ name: "Buyer fin1", phone: "07000 000000", status: "new" });
+    for (const field of Object.keys(FINANCES)) expect(seen).not.toHaveProperty(field);
+  });
+
+  it("are kept, not wiped, when a general account saves the list back", async () => {
+    await request(app).put("/leads").set(auth(owner)).send({ items: [lead("fin1", FINANCES)] });
+    // the general account saves what it was shown, with an edit, and tries to write its own figures
+    const res = await request(app).put("/leads").set(auth(staff.general)).send({
+      items: [lead("fin1", { status: "contacted", income: 1, creditScore: 999 }), lead("fin2", { income: 5 })],
+    });
+    expect(res.status).toBe(200);
+    for (const item of res.body.items) expect(item).not.toHaveProperty("income");
+    const asOwner = (await request(app).get("/leads").set(auth(owner))).body.items as any[];
+    expect(asOwner.find(l => l.id === "fin1")).toMatchObject({ ...FINANCES, status: "contacted" });
+    expect(asOwner.find(l => l.id === "fin2")).not.toHaveProperty("income");
+  });
+});
+
 describe("customers", () => {
   it("can be erased, or replaced wholesale, only by the owner and managers", async () => {
     const made = await request(app).post("/customers").set(auth(staff.sales)).send({ name: "Pat Buyer", phone: "07700 900123" });

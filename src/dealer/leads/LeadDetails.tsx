@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useLeads } from "@/context/LeadsContext";
 import { useInventory } from "@/context/InventoryProvider";
+import { useAuth } from "@/context/AuthContext";
+import { canSeeLeadFinances } from "@/lib/permissions";
 import { LEAD_STATUS_LABELS, type Lead, type LeadStatus } from "./leadTypes";
 import AffordabilitySummaryCard from "@/components/dealer/AffordabilitySummaryCard";
 import type { FlipRecord } from "@/features/vehicles/models/FlipRecord";
@@ -35,6 +37,7 @@ export default function LeadDetails() {
   const navigate = useNavigate();
   const { leads, updateLead } = useLeads();
   const { vehicles } = useInventory();
+  const { user } = useAuth();
 
   const existing = leads.find(l => l.id === id);
 
@@ -184,73 +187,77 @@ export default function LeadDetails() {
           rows={4}
         />
 
-        <h3 className="sn-panel__title" style={{ fontSize: 18, marginTop: 24 }}>
-          Affordability Check
-        </h3>
-        <p style={{ color: "#AAB4C3", fontSize: 13, marginBottom: 8 }}>
-          Enter what the buyer's told you during a finance conversation. Leave blank if you haven't discussed it yet — nothing is calculated until income is filled in.
-        </p>
+        {canSeeLeadFinances(user) && (
+          <>
+            <h3 className="sn-panel__title" style={{ fontSize: 18, marginTop: 24 }}>
+              Affordability Check
+            </h3>
+            <p style={{ color: "#AAB4C3", fontSize: 13, marginBottom: 8 }}>
+              Enter what the buyer's told you during a finance conversation. Leave blank if you haven't discussed it yet — nothing is calculated until income is filled in.
+            </p>
 
-        <label htmlFor="leaddetails-monthly-income">Monthly Income (£)</label>
-        <input id="leaddetails-monthly-income"
-          className="sn-input"
-          type="number"
-          value={form.income ?? ""}
-          onChange={e => updateNumber("income", e.target.value)}
-        />
+            <label htmlFor="leaddetails-monthly-income">Monthly Income (£)</label>
+            <input id="leaddetails-monthly-income"
+              className="sn-input"
+              type="number"
+              value={form.income ?? ""}
+              onChange={e => updateNumber("income", e.target.value)}
+            />
 
-        <label htmlFor="leaddetails-monthly-expenses">Monthly Expenses (£)</label>
-        <input id="leaddetails-monthly-expenses"
-          className="sn-input"
-          type="number"
-          value={form.expenses ?? ""}
-          onChange={e => updateNumber("expenses", e.target.value)}
-        />
+            <label htmlFor="leaddetails-monthly-expenses">Monthly Expenses (£)</label>
+            <input id="leaddetails-monthly-expenses"
+              className="sn-input"
+              type="number"
+              value={form.expenses ?? ""}
+              onChange={e => updateNumber("expenses", e.target.value)}
+            />
 
-        <label htmlFor="leaddetails-deposit-available">Deposit Available (£)</label>
-        <input id="leaddetails-deposit-available"
-          className="sn-input"
-          type="number"
-          value={form.deposit ?? ""}
-          onChange={e => updateNumber("deposit", e.target.value)}
-        />
+            <label htmlFor="leaddetails-deposit-available">Deposit Available (£)</label>
+            <input id="leaddetails-deposit-available"
+              className="sn-input"
+              type="number"
+              value={form.deposit ?? ""}
+              onChange={e => updateNumber("deposit", e.target.value)}
+            />
 
-        <label htmlFor="leaddetails-credit-score-0-1000">Credit Score (0–1000)</label>
-        <input id="leaddetails-credit-score-0-1000"
-          className="sn-input"
-          type="number"
-          value={form.creditScore ?? ""}
-          onChange={e => updateNumber("creditScore", e.target.value)}
-        />
+            <label htmlFor="leaddetails-credit-score-0-1000">Credit Score (0–1000)</label>
+            <input id="leaddetails-credit-score-0-1000"
+              className="sn-input"
+              type="number"
+              value={form.creditScore ?? ""}
+              onChange={e => updateNumber("creditScore", e.target.value)}
+            />
 
-        <label htmlFor="leaddetails-savings">Savings (£)</label>
-        <input id="leaddetails-savings"
-          className="sn-input"
-          type="number"
-          value={form.savings ?? ""}
-          onChange={e => updateNumber("savings", e.target.value)}
-        />
+            <label htmlFor="leaddetails-savings">Savings (£)</label>
+            <input id="leaddetails-savings"
+              className="sn-input"
+              type="number"
+              value={form.savings ?? ""}
+              onChange={e => updateNumber("savings", e.target.value)}
+            />
 
-        <label htmlFor="leaddetails-employment-stability-0-100">Employment Stability (0–100)</label>
-        <input id="leaddetails-employment-stability-0-100"
-          className="sn-input"
-          type="number"
-          value={form.employmentStability ?? ""}
-          onChange={e => updateNumber("employmentStability", e.target.value)}
-        />
+            <label htmlFor="leaddetails-employment-stability-0-100">Employment Stability (0–100)</label>
+            <input id="leaddetails-employment-stability-0-100"
+              className="sn-input"
+              type="number"
+              value={form.employmentStability ?? ""}
+              onChange={e => updateNumber("employmentStability", e.target.value)}
+            />
 
-        {!form.interestedVehicleId && hasBuyerData && (
-          <p style={{ color: "#f1c40f", fontSize: 13 }}>
-            Select a real vehicle above to run the affordability check against.
-          </p>
-        )}
+            {!form.interestedVehicleId && hasBuyerData && (
+              <p style={{ color: "#f1c40f", fontSize: 13 }}>
+                Select a real vehicle above to run the affordability check against.
+              </p>
+            )}
 
-        {flipRecordForCard && hasBuyerData && (
-          <AffordabilitySummaryCard
-            vehicle={flipRecordForCard}
-            buyer={buyerProfile}
-            theme={AFFORDABILITY_THEME}
-          />
+            {flipRecordForCard && hasBuyerData && (
+              <AffordabilitySummaryCard
+                vehicle={flipRecordForCard}
+                buyer={buyerProfile}
+                theme={AFFORDABILITY_THEME}
+              />
+            )}
+          </>
         )}
 
         <div className="sn-detail-actions">

@@ -36,6 +36,14 @@ export function canSeeWanted(user: AuthUser | null): boolean {
   return user.staffRole === "sales" || user.staffRole === "manager";
 }
 
+// A lead's buyer finances (income, credit score, savings): everyone but a general account (the
+// server holds them back too).
+export function canSeeLeadFinances(user: AuthUser | null): boolean {
+  if (!user) return false;
+  if (user.role === "owner") return true;
+  return user.staffRole === "manager" || user.staffRole === "sales" || user.staffRole === "finance";
+}
+
 // Taking a lead off the list: sales, managers and the owner (the server checks too).
 export function canDeleteLeads(user: AuthUser | null): boolean {
   return canSeeWanted(user);
