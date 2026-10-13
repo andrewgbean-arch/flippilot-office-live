@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useRef, useState, ReactNode } from "react";
+import { costValue } from "./costBasis";
 import {
   CostEntry,
   PurchaseEntry,
@@ -437,7 +438,7 @@ export function BookkeepingProvider({ children }: BookkeepingProviderProps) {
     costs.filter((c) => c.vehicleId === vehicleId);
 
   const getTotalCostForVehicle = (vehicleId: string) =>
-    getCostsForVehicle(vehicleId).reduce((sum, c) => sum + c.amount, 0);
+    getCostsForVehicle(vehicleId).reduce((sum, c) => sum + (costValue(c) ?? 0), 0);
 
   const getPurchaseForVehicle = (vehicleId: string) =>
     purchases.find((p) => p.vehicleId === vehicleId);

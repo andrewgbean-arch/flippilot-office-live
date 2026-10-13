@@ -1,4 +1,5 @@
 import React from "react";
+import { costValue } from "../costBasis";
 import { useBookkeeping } from "@/bookkeeping/BookkeepingProvider";
 import { useInventory } from "@/context/InventoryProvider";
 import { formatPrice } from "@/dealer/inventory/vehicleListModel";
@@ -34,7 +35,7 @@ export default function ProfitTab({
     0
   );
 
-  const totalGross = totalNet + totalVat;
+  const totalGross = costs.reduce((sum, c) => sum + (costValue(c) ?? 0), 0);
 
   // Was "Real Profit". It leaves out any VAT due on the sale itself (a sixth
   // of the margin under the margin scheme), so on a margin-scheme car it
@@ -97,7 +98,7 @@ export default function ProfitTab({
 
         {/* TOTAL GROSS COST */}
         <div className="bg-black/40 border border-white/10 p-4 rounded-xl">
-          <h3 className="text-white/60 text-sm">Total Cost (gross)</h3>
+          <h3 className="text-white/60 text-sm">Real cost (after reclaimable VAT)</h3>
           <p className="text-white text-2xl font-bold">
             {formatMoney(totalGross, { pence: true })}
           </p>

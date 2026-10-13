@@ -1,5 +1,6 @@
 import type { Vehicle } from "@/types/Vehicle";
 import type { CostEntry, PurchaseEntry, SaleEntry } from "@/bookkeeping/types";
+import { costValue } from "@/bookkeeping/costBasis";
 import { daysInStock, isSold } from "@/dealer/inventory/vehicleListModel";
 
 // What the Pricing Workflow shows for one car: only what the dealer recorded.
@@ -56,7 +57,7 @@ export function computePricingFacts(
       ? { amount: vehicle.priceTrade, source: "vehicle" }
       : null;
 
-  const costsLogged = costs.reduce((sum, c) => sum + (Number.isFinite(c.amount) ? c.amount : 0), 0);
+  const costsLogged = costs.reduce((sum, c) => sum + (costValue(c) ?? 0), 0);
   const totalCost = cost === null ? null : cost.amount + costsLogged;
   const margin = asking !== null && totalCost !== null ? asking - totalCost : null;
 

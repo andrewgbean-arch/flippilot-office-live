@@ -5,6 +5,7 @@ import { useBookkeeping } from "./BookkeepingProvider";
 import { readMoney, readPercent, percentToRate } from "@/lib/parseMoney";
 import { focusField } from "@/lib/focusField";
 import VehiclePicker from "./VehiclePicker";
+import { useDealer } from "@/context/DealerContext";
 
 interface AddCostModalProps {
   vehicleId: string | null;
@@ -13,6 +14,7 @@ interface AddCostModalProps {
 
 export default function AddCostModal({ vehicleId: initialVehicleId, onClose }: AddCostModalProps) {
   const { addCost } = useBookkeeping();
+  const { dealer } = useDealer();
 
   // Was a fixed prop with no way to change it — now an editable
   // selection, defaulting to whatever the caller suggested.
@@ -26,7 +28,10 @@ export default function AddCostModal({ vehicleId: initialVehicleId, onClose }: A
   const [isCredit, setIsCredit] = useState<boolean>(false);
   const [vatRate, setVatRate] = useState<string>("20");
   const [vatIncluded, setVatIncluded] = useState<boolean>(true);
-  const [vatReclaimable, setVatReclaimable] = useState<boolean>(true);
+  // VAT is only claimed back by a dealer who is VAT-registered. Starting on Yes for everyone
+  // made a dealer with no VAT number look a sixth better off on every bill they entered, so it
+  // starts on Yes only when a VAT number is saved in Settings.
+  const [vatReclaimable, setVatReclaimable] = useState<boolean>(Boolean(dealer?.vatNumber?.trim()));
   const [supplier, setSupplier] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
   const [date, setDate] = useState<string>(new Date().toISOString().slice(0, 10));
@@ -190,6 +195,11 @@ export default function AddCostModal({ vehicleId: initialVehicleId, onClose }: A
           <option value="yes">Yes (business can reclaim VAT)</option>
           <option value="no">No (VAT is a cost)</option>
         </select>
+        {!dealer?.vatNumber?.trim() && (
+          <p className="text-white/50 text-xs -mt-3 mb-4">
+            Only choose Yes if your business is VAT-registered. Add your VAT number in Settings and this starts on Yes.
+          </p>
+        )}
 
         {/* SUPPLIER */}
         <label htmlFor="addcostmodal-supplier" className="text-white/60 text-sm">Supplier</label>

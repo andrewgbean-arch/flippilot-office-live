@@ -34,6 +34,7 @@ vi.mock("@/bookkeeping/BookkeepingProvider", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/bookkeeping/BookkeepingProvider")>();
   return { ...actual, useBookkeeping: () => state.provider.result.props.value };
 });
+vi.mock("@/context/DealerContext", () => ({ useDealer: () => ({ dealer: {} }) }));
 vi.mock("@/context/InventoryProvider", () => ({
   useInventory: () => ({ vehicles: [{ id: "v1", make: "Ford", model: "Focus", vatScheme: "margin" }] }),
 }));

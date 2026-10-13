@@ -1,6 +1,7 @@
 import type { CostEntry, PurchaseEntry, SaleEntry } from "./types";
 import { isPositiveAmount } from "@/lib/parseMoney";
 import { salePaidAmount } from "./saleVat";
+import { costValue } from "./costBasis";
 
 // The four headline figures on the Bookkeeping hub, kept free of React.
 //
@@ -91,7 +92,7 @@ export function hubTotals(
   for (const p of purchases) if (!firstPurchase.has(p.vehicleId)) firstPurchase.set(p.vehicleId, p);
 
   const costsByCar = new Map<string, number>();
-  for (const c of costs) costsByCar.set(c.vehicleId, (costsByCar.get(c.vehicleId) ?? 0) + amount(c.amount));
+  for (const c of costs) costsByCar.set(c.vehicleId, (costsByCar.get(c.vehicleId) ?? 0) + amount(costValue(c) ?? 0));
 
   const firstSale = new Map<string, SaleEntry>();
   for (const s of sales) if (!firstSale.has(s.vehicleId)) firstSale.set(s.vehicleId, s);

@@ -4,7 +4,7 @@
 // snapshot, in the same evidence-only style as the rest of it.
 //
 // "Profit" here is deliberately the Bookkeeping screen's own definition
-// (sale price − purchase price − recorded costs, no VAT adjustment), so
+// (sale price − purchase price − recorded costs, each after any VAT the dealer can reclaim: costBasis.ts), so
 // Pilot Brain never contradicts the figure the dealer can see on screen.
 // Where a number needed for that isn't recorded, the car is reported as
 // UNKNOWN and left out of every total — never guessed at, never counted as
@@ -14,6 +14,7 @@
 // buyer.
 
 import { oneLine } from "./promptText";
+import { costValue } from "./costBasis";
 import { recordedPrice, recordedSalePrice } from "./recordedPrice";
 
 export interface MarginVehicle {
@@ -139,7 +140,7 @@ export function summariseVehicleMargins(
     if (salePrice === null || purchasePrice === null) continue;
 
     const costEntries = costsByCar.get(vehicleId) ?? [];
-    const amounts = costEntries.map(c => num(c.amount));
+    const amounts = costEntries.map(c => costValue(c));
     // A cost that isn't a real number means the total can't be trusted.
     if (amounts.some(a => a === null)) continue;
     const costs = amounts.reduce<number>((sum, a) => sum + (a ?? 0), 0);
@@ -173,7 +174,7 @@ export function summariseVehicleMargins(
     known.length < SMALL_SAMPLE ? ` Only ${known.length} — too few to call a trend.` : "";
 
   lines.push(
-    `Profit = sale price − purchase price − recorded costs, worked out exactly as the Bookkeeping screen does it (VAT is not separated out). Total ${formatMoney(totalProfit)} on ${formatMoney(totalSales)} of sales${overallMargin}, average ${formatMoney(totalProfit / known.length)} per car. ${atALoss > 0 ? `${atALoss} sold at a loss.` : "None sold at a loss."}${caution}`
+    `Profit = sale price − purchase price − recorded costs, worked out exactly as the Bookkeeping screen does it (each cost after any VAT you can claim back; VAT on sales is not taken off). Total ${formatMoney(totalProfit)} on ${formatMoney(totalSales)} of sales${overallMargin}, average ${formatMoney(totalProfit / known.length)} per car. ${atALoss > 0 ? `${atALoss} sold at a loss.` : "None sold at a loss."}${caution}`
   );
 
   const noCosts = known.filter(k => k.costEntries === 0).length;

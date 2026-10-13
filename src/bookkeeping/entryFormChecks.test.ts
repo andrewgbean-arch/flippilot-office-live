@@ -49,6 +49,7 @@ vi.mock("@/bookkeeping/BookkeepingProvider", () => ({
     getPurchaseForVehicle: () => spies.purchase,
   }),
 }));
+vi.mock("@/context/DealerContext", () => ({ useDealer: () => ({ dealer: { vatNumber: "GB123456789" } }) }));
 vi.mock("@/context/InventoryProvider", () => ({
   useInventory: () => ({
     vehicles: [spies.vehicle],

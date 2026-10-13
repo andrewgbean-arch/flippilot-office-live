@@ -53,7 +53,24 @@ describe("summariseVehicleMargins", () => {
     expect(lines).toContain("- 2019 BMW 3 Series: bought £9,000 + £400 costs, sold £10,200, profit £800 (7.8%)");
     // totals: 10,200 - 9,000 - 400 = 800 on 10,200 of sales
     expect(lines[1]).toContain("Total £800 on £10,200 of sales — overall margin 7.8% of sale price, average £800 per car.");
-    expect(lines[1]).toContain("VAT is not separated out");
+    expect(lines[1]).toContain("each cost after any VAT you can claim back");
+  });
+
+  it("takes VAT the dealer can claim back out of a car's costs, as the car's Profit tab does", () => {
+    const book = ledger([{ id: "a", bought: 9000, sold: 10200 }]);
+    // A £480 bill with £80 reclaimable VAT costs £400; one that cannot be claimed back costs £480.
+    book.costs = [
+      { vehicleId: "a", amount: 480, vatAmount: 80, netAmount: 400, vatReclaimable: true, date: dateDaysAgo(30) },
+    ] as typeof book.costs;
+    expect(summariseVehicleMargins(book, [car("a", "BMW", "3 Series", 2019)], NOW)).toContain(
+      "- 2019 BMW 3 Series: bought £9,000 + £400 costs, sold £10,200, profit £800 (7.8%)"
+    );
+    book.costs = [
+      { vehicleId: "a", amount: 480, vatAmount: 80, netAmount: 400, vatReclaimable: false, date: dateDaysAgo(30) },
+    ] as typeof book.costs;
+    expect(summariseVehicleMargins(book, [car("a", "BMW", "3 Series", 2019)], NOW)).toContain(
+      "- 2019 BMW 3 Series: bought £9,000 + £480 costs, sold £10,200, profit £720 (7.1%)"
+    );
   });
 
   it("reports a car with no purchase price as UNKNOWN and keeps it out of every total", () => {

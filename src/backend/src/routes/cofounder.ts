@@ -1,4 +1,5 @@
 import { randomUUID } from "crypto";
+import { costValue } from "../engines/costBasis";
 import { Express, Request } from "express";
 import { readCollection, readTenantCollection, writeTenantCollection, readTenantDoc } from "../db";
 import { requireAuth, requireStaffRole, type AuthUser, type Dealership } from "../auth";
@@ -67,7 +68,7 @@ export function computeCurrentMetricValue(
   // profit
   return recentSales.reduce((sum, s) => {
     const purchase = bookkeeping.purchases.find(p => p.vehicleId === s.vehicleId);
-    const costs = bookkeeping.costs.filter(c => c.vehicleId === s.vehicleId).reduce((a, c) => a + c.amount, 0);
+    const costs = bookkeeping.costs.filter(c => c.vehicleId === s.vehicleId).reduce((a, c) => a + (costValue(c) ?? NaN), 0);
     if (!purchase) return sum;
     // Only a car whose purchase AND sale prices are real amounts above zero has a
     // profit that can be worked out (engines/recordedPrice.ts): otherwise it is

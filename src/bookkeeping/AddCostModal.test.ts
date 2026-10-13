@@ -4,6 +4,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 // The amount is REQUIRED and must be above £0: a blank used to be saved as a £0
 // cost or transaction, and "£120" or "1,200" was read as nothing.
 
+const dealerVat = vi.hoisted(() => ({ value: undefined as string | undefined }));
+
 const spies = vi.hoisted(() => ({
   addCost: null as null | ((entry: any) => void),
   addTransaction: null as null | ((entry: any) => void),
@@ -29,6 +31,7 @@ vi.mock("@/bookkeeping/BookkeepingProvider", () => ({
     addTransaction: (e: any) => spies.addTransaction!(e),
   }),
 }));
+vi.mock("@/context/DealerContext", () => ({ useDealer: () => ({ dealer: { vatNumber: dealerVat.value } }) }));
 vi.mock("@/context/InventoryProvider", () => ({
   useInventory: () => ({ vehicles: [{ id: "v1", make: "Ford", model: "Focus" }] }),
 }));
@@ -56,6 +59,7 @@ async function press(label: string) {
 }
 
 beforeEach(() => {
+  dealerVat.value = undefined;
   costs = [];
   transactions = [];
   closed = 0;
@@ -117,12 +121,41 @@ describe("Add Cost", () => {
   });
 
   it("works the VAT out from the amount that was read: 120 incl 20% is 20 VAT, net 100", async () => {
+    dealerVat.value = "GB123456789";
     await open();
     await type("addcostmodal-amount", "£120");
     await press("Save Cost");
     expect(costs[0]).toMatchObject({ amount: 120, vatRate: 0.2, vatIncluded: true, vatReclaimable: true });
     expect(costs[0].vatAmount).toBeCloseTo(20, 10);
     expect(costs[0].netAmount).toBeCloseTo(100, 10);
+  });
+
+  // A dealer who is not VAT-registered cannot claim VAT back, so the VAT on a bill is a real cost.
+  // "Reclaimable: Yes" for everyone made their profit a sixth of every bill too high.
+  it("a dealer with no VAT number starts on 'VAT is a cost', so the bill costs what was paid", async () => {
+    await open();
+    await type("addcostmodal-amount", "£120");
+    await press("Save Cost");
+    expect(costs[0]).toMatchObject({ amount: 120, vatReclaimable: false });
+  });
+
+  it("a blank or spaces-only VAT number counts as no VAT number", async () => {
+    dealerVat.value = "   ";
+    await open();
+    await type("addcostmodal-amount", "50");
+    await press("Save Cost");
+    expect(costs[0].vatReclaimable).toBe(false);
+  });
+
+  it("tells a dealer with no VAT number what the Yes answer is for", async () => {
+    await open();
+    expect(screenText(screen())).toContain("Only choose Yes if your business is VAT-registered");
+  });
+
+  it("does not show that hint to a VAT-registered dealer", async () => {
+    dealerVat.value = "GB123456789";
+    await open();
+    expect(screenText(screen())).not.toContain("Only choose Yes if your business is VAT-registered");
   });
 });
 

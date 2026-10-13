@@ -14,6 +14,7 @@
 // app to actually read it server-side.
 
 import { recordedPrice, recordedSalePrice, saleRevenue } from "./recordedPrice";
+import { costValue } from "./costBasis";
 
 interface Vehicle {
   id: string;
@@ -122,7 +123,7 @@ export function profitForVehicle(vehicleId: string, bookkeeping: Bookkeeping): n
   if (bought === null || sold === null) return null;
   const totalCosts = bookkeeping.costs
     .filter(c => c.vehicleId === vehicleId)
-    .reduce((sum, c) => sum + c.amount, 0);
+    .reduce((sum, c) => sum + (costValue(c) ?? NaN), 0);
   return sold - bought - totalCosts;
 }
 

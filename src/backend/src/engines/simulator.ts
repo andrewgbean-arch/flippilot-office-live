@@ -15,13 +15,14 @@
 //    what the records cannot support is returned as an UNKNOWN figure that says why.
 //
 // "Profit" is deliberately the Bookkeeping screen's own definition, exactly as
-// vehicleMargins.ts works it out: sale price - purchase price - recorded costs,
-// no VAT adjustment, the FIRST purchase and FIRST sale entry per car. A car with
-// a missing figure is UNKNOWN and stays out of every total and average.
+// vehicleMargins.ts works it out: sale price - purchase price - recorded costs
+// (each cost after any VAT the dealer can reclaim, costBasis.ts), the FIRST purchase
+// and FIRST sale entry per car. A car with a missing figure is UNKNOWN and stays out of every total and average.
 //
 // Pure and deterministic: the clock is never read (`now` is a parameter) and no
 // input is ever changed (the tests hand it deeply frozen data).
 
+import { costValue } from "./costBasis";
 import {
   parseConfidence,
   type Confidence,
@@ -234,7 +235,7 @@ function measure(inputs: SimulationInputs): Measures {
     // same rule as the Bookkeeping hub and vehicleMargins.ts.
     const salePrice = recordedSalePrice(sale);
     const purchasePrice = recordedPrice(purchase?.purchasePrice);
-    const amounts = (costsByCar.get(vehicleId) ?? []).map(c => num(c.amount));
+    const amounts = (costsByCar.get(vehicleId) ?? []).map(c => costValue(c));
     // A cost that is not a real number means the total cannot be trusted.
     const costs = amounts.some(a => a === null) ? null : amounts.reduce<number>((sum, a) => sum + (a ?? 0), 0);
 
@@ -439,7 +440,7 @@ function describeFacts(m: Measures): SimFacts {
         "inferred",
         m.avgProfit === null
           ? `No car sold in ${LAST_WINDOW} has a sale price, a purchase price and usable costs all recorded, so profit per car is unknown.`
-          : `Sale price - purchase price - recorded costs (no VAT adjustment, as on the Bookkeeping screen), averaged over the ${carsText(m.profitCars)} where all three are known.${
+          : `Sale price - purchase price - recorded costs (each after any VAT you can reclaim, as on the Bookkeeping screen), averaged over the ${carsText(m.profitCars)} where all three are known.${
               m.sold > m.profitCars
                 ? ` The other ${carsText(m.sold - m.profitCars)} sold in ${win} ${plural(m.sold - m.profitCars, "is", "are")} left out, not counted as £0.`
                 : ""

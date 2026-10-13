@@ -17,6 +17,7 @@
 //    lists nothing unknown is refused outright.
 
 import { readTenantCollection, readTenantDoc } from "../db";
+import { costValue } from "./costBasis";
 import { recordedPrice, recordedSalePrice } from "./recordedPrice";
 import { toMemoryLine } from "../untrustedText";
 import {
@@ -115,7 +116,7 @@ export function countEvidence(bookkeeping: MarginBookkeeping, leads: unknown, no
   const costAmounts = new Map<string, unknown[]>();
   for (const c of records(bookkeeping.costs)) {
     if (typeof c.vehicleId !== "string") continue;
-    costAmounts.set(c.vehicleId, [...(costAmounts.get(c.vehicleId) ?? []), c.amount]);
+    costAmounts.set(c.vehicleId, [...(costAmounts.get(c.vehicleId) ?? []), costValue(c)]);
   }
 
   let recentSales = 0;
