@@ -99,7 +99,7 @@ export default function BookkeepingTable({ vehicleId }: BookkeepingTableProps) {
           <tr>
             <th className="p-3 text-left">Vehicle</th>
             <th className="p-3 text-left">Purchase</th>
-            <th className="p-3 text-left">Total Cost</th>
+            <th className="p-3 text-left">Extra Costs</th>
             <th className="p-3 text-left">Sale</th>
             <th className="p-3 text-left">Profit</th>
             <th className="p-3 text-left">Margin</th>
