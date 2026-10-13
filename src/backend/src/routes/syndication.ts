@@ -73,6 +73,10 @@ function tokenMatches(expected: string, given: unknown): boolean {
   return expectedBuf.length === givenBuf.length && timingSafeEqual(expectedBuf, givenBuf);
 }
 
+export function isHostedImage(url: unknown): url is string {
+  return typeof url === "string" && /^https?:\/\//i.test(url);
+}
+
 function csvEscape(value: unknown): string {
   const str = value == null ? "" : String(value);
   if (/[",\n]/.test(str)) {
@@ -113,7 +117,10 @@ function vehiclesToCsv(vehicles: VehicleLike[]): string {
     // pulls this file, matching the exact "internal vs public copy"
     // distinction the rest of the app already draws for this vehicle.
     v.listingDescription ?? "",
-    (v.images ?? []).join(";"),
+    // Only photos a portal can fetch from an address. A picture added through the web form is
+    // stored inside the car's record as data:image/... text, hundreds of kilobytes each, which a
+    // portal cannot use and which would make this file enormous.
+    (v.images ?? []).filter(isHostedImage).join(";"),
     v.vatScheme ?? "",
     v.status ?? "",
   ]);

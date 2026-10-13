@@ -234,6 +234,27 @@ describe("syndication feed — no login needed, but a secret token is required",
       .set("Authorization", `Bearer ${staff.token}`);
     expect(res.status).toBe(403);
   });
+
+  it("lists only photos a portal can fetch, never the picture text stored inside a car added through the web form", async () => {
+    const dealer = await signup("synd-photos");
+    const hosted = "https://api.example.test/photos/a1b2c3d4-0000-4000-8000-000000000001.jpg";
+    const inline = "data:image/jpeg;base64," + "A".repeat(5000);
+    // Straight into storage: the save route drops a hosted link it has no photo for.
+    writeTenantCollection(dealer.user.dealershipId, "vehicles", [
+      { id: "p1", make: "Ford", model: "Focus", year: 2019, mileage: 30000, priceRetail: 9000, condition: "Good", status: "In Stock", images: [inline, hosted, inline] },
+      { id: "p2", make: "Audi", model: "A1", year: 2018, mileage: 40000, priceRetail: 8000, condition: "Good", status: "In Stock", images: [inline] },
+    ]);
+    const token = getOrCreateSyndicationToken(dealer.user.dealershipId);
+    const feed = await request(app).get(`/syndication/${dealer.user.dealershipId}/feed.csv?token=${token}`);
+    expect(feed.status).toBe(200);
+    expect(feed.text).not.toContain("data:image");
+    expect(feed.text.length).toBeLessThan(2000);
+    const focus = feed.text.split("\r\n").find(line => line.includes("Focus"))!;
+    const audi = feed.text.split("\r\n").find(line => line.includes("Audi"))!;
+    expect(focus).toContain(hosted);
+    expect(focus).not.toContain(";");
+    expect(audi).not.toContain("http");
+  });
 });
 
 describe("signup → login → tenant isolation", () => {
