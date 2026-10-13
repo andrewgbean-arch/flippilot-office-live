@@ -12,6 +12,7 @@ import {
 } from "@/lib/pilotBrainApi";
 import "@/staff/StaffDashboard.css";
 import { formatMoney } from "@/lib/formatMoney";
+import ScoreGauge from "@/components/ScoreGauge";
 
 // "£8,200 of £20,000", "14 of 20", or, for a money goal the viewer isn't sent
 // the pounds of, just who can see them.
@@ -29,12 +30,6 @@ const METRIC_LABEL: Record<GoalMetric, string> = {
   leadsAdded: "Leads added",
   salesCount: "Vehicles sold",
 };
-
-function healthColor(score: number): string {
-  if (score >= 75) return "text-green-300";
-  if (score >= 50) return "text-yellow-300";
-  return "text-red-300";
-}
 
 // V7 (The Co-Founder) — real goal tracking and the Executive Briefing
 // (Modules 2 and 9). Setting a goal is gated to owner/manager
@@ -122,17 +117,15 @@ export default function PilotBrainStrategy() {
                 <div style={{ display: "flex", gap: 20, flexWrap: "wrap", marginBottom: 12 }}>
                   <div>
                     <div style={{ color: "#f5f7ff60", fontSize: 12 }}>Strategic Health</div>
-                    <div className={healthColor(briefing.strategicHealth.overall)} style={{ fontSize: 22, fontWeight: 700 }}>{briefing.strategicHealth.overall}/100</div>
+                    <ScoreGauge score={briefing.strategicHealth.overall} label="Strategic health" width={150} />
                   </div>
                   <div>
                     <div style={{ color: "#f5f7ff60", fontSize: 12 }}>Business Health</div>
-                    <div className={healthColor(briefing.businessHealth)} style={{ fontSize: 22, fontWeight: 700 }}>{briefing.businessHealth}/100</div>
+                    <ScoreGauge score={briefing.businessHealth} label="Business health" width={150} />
                   </div>
                   <div>
                     <div style={{ color: "#f5f7ff60", fontSize: 12 }}>Market Health</div>
-                    <div style={{ fontSize: 22, fontWeight: 700, color: briefing.marketHealth == null ? "#f5f7ff40" : undefined }} className={briefing.marketHealth != null ? healthColor(briefing.marketHealth) : ""}>
-                      {briefing.marketHealth ?? "Not checked yet"}
-                    </div>
+                    <ScoreGauge score={briefing.marketHealth} label="Market health" noData="Not checked yet" width={150} />
                   </div>
                 </div>
 

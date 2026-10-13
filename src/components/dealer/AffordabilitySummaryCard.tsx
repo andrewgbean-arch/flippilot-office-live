@@ -3,6 +3,11 @@ import { motion } from "framer-motion";
 import { affordabilityEngine, BuyerProfile } from "@/features/dealer-ai/AffordabilityEngine";
 import { FlipRecord } from "@/features/vehicles/models/FlipRecord";
 import { formatMoney } from "@/lib/formatMoney";
+import ScoreGauge, { type BandEdges } from "@/components/ScoreGauge";
+
+// Its own Match Band (Green from 75, Yellow from 45) sits right under the gauge, so the
+// gauge's Good starts where Green does and the two never disagree.
+const AFFORDABILITY_EDGES: BandEdges = [25, 45, 75, 90];
 
 type Props = {
   vehicle: FlipRecord;
@@ -81,8 +86,8 @@ export default function AffordabilitySummaryCard({ vehicle, buyer, theme }: Prop
 
       {/* Content */}
       <div className="relative">
-        <div style={{ color: theme.white, fontSize: 16, marginTop: 10 }}>
-          Affordability Score: {score}/100
+        <div className="flex justify-center" style={{ marginTop: 10 }}>
+          <ScoreGauge score={score} label="Affordability score" edges={AFFORDABILITY_EDGES} />
         </div>
 
         <div style={{ color: theme.secondary, fontSize: 16 }}>

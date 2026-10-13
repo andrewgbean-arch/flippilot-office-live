@@ -1,11 +1,6 @@
 import { useState } from "react";
 import { fetchMarketCheck, type MarketCheckResult } from "@/lib/pilotBrainApi";
-
-function healthColor(score: number): string {
-  if (score >= 75) return "text-green-300 border-green-400/40";
-  if (score >= 50) return "text-yellow-300 border-yellow-400/40";
-  return "text-red-300 border-red-400/40";
-}
+import ScoreGauge from "@/components/ScoreGauge";
 
 const CONFIDENCE_STYLE: Record<string, string> = {
   high: "text-green-300",
@@ -34,11 +29,7 @@ export default function PilotBrainMarketCard() {
     <div className="bg-black/20 border border-white/10 rounded-xl p-6 backdrop-blur-xl">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-yellow-300 font-bold text-lg">Pilot Brain — Market Intelligence</h2>
-        {result && (
-          <div className={`px-3 py-1 rounded-lg border text-sm font-bold ${healthColor(result.health.overall)}`}>
-            {result.health.overall}/100
-          </div>
-        )}
+        {result && <ScoreGauge score={result.health.overall} label="Market health" width={140} />}
       </div>
 
       {!checked && !loading && (

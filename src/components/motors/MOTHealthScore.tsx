@@ -1,6 +1,7 @@
 import React from "react";
 import { motion } from "framer-motion";
 import { motAiEngine, MOT_RULE_OF_THUMB } from "@/engines/motAiEngine";
+import ScoreGauge from "@/components/ScoreGauge";
 
 type Props = {
   mot: any; // Vehicle.mot structure
@@ -80,31 +81,9 @@ export default function MOTHealthScore({ mot }: Props) {
 
       {showScore && (
         <>
-          {/* Gauge Bar */}
-          <div
-            className="w-full rounded-lg overflow-hidden mb-3"
-            style={{
-              height: 14,
-              backgroundColor: theme.muted,
-            }}
-          >
-            <motion.div
-              initial={{ width: "0%" }}
-              animate={{ width: `${ai.healthScore}%` }}
-              transition={{ duration: 0.8, ease: "easeOut" }}
-              style={{
-                height: "100%",
-                backgroundColor: barColor,
-              }}
-            />
+          <div className="flex justify-center mb-2">
+            <ScoreGauge score={ai.healthScore} label="MOT health" />
           </div>
-
-          <p
-            className="text-3xl font-extrabold text-center mb-2"
-            style={{ color: barColor }}
-          >
-            {ai.healthScore}/100
-          </p>
 
           <p className="text-sm mb-2" style={{ color: theme.text }}>
             {ai.summary}
