@@ -2,6 +2,10 @@ import { useEffect, useState } from "react";
 import { SupernovaGlowCard } from "@/components/supernova/SupernovaGlowCard";
 import { SupernovaHeroHeader } from "@/components/supernova/SupernovaHeroHeader";
 import { useAuth } from "@/context/AuthContext";
+import { useLeads } from "@/context/LeadsContext";
+import { useJobs } from "@/context/JobsContext";
+import { useContacts } from "@/context/ContactsContext";
+import { useConsumables } from "@/context/ConsumablesContext";
 import { deleteForGood, fetchRecentlyDeleted, restoreDeleted, type DeletedItem, type DeletedList } from "@/lib/recentlyDeletedApi";
 
 const LIST_NAMES: Record<DeletedList, string> = {
@@ -21,6 +25,16 @@ const when = (iso: string) =>
 export default function RecentlyDeletedScreen() {
   const { user } = useAuth();
   const allowed = user?.role === "owner" || user?.staffRole === "manager";
+  const { refreshLeads } = useLeads();
+  const { refreshJobs } = useJobs();
+  const { refreshContacts } = useContacts();
+  const { refreshConsumables } = useConsumables();
+  const refreshList: Record<DeletedList, () => void> = {
+    leads: refreshLeads,
+    jobs: refreshJobs,
+    contacts: refreshContacts,
+    consumables: refreshConsumables,
+  };
 
   const [items, setItems] = useState<DeletedItem[] | null>(null);
   const [days, setDays] = useState(30);
@@ -50,6 +64,9 @@ export default function RecentlyDeletedScreen() {
     const res = await restoreDeleted(item.id);
     setBusyId(null);
     if (!res.ok) return setError(res.error);
+    // The restore happened on the server; the Leads, Jobs, Contacts and Consumables screens
+    // keep their own copy, so they need to read it again or the restored item doesn't show.
+    refreshList[item.list]();
     setNote(res.alreadyThere ? `“${item.label}” was already back in ${LIST_NAMES[item.list]}.` : `“${item.label}” is back in ${LIST_NAMES[item.list]}.`);
     setItems((all) => (all ?? []).filter((i) => i.id !== item.id));
   }

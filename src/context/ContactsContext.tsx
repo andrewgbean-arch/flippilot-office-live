@@ -24,6 +24,8 @@ interface ContactsContextType {
   // false = nothing was saved because the contacts haven't loaded.
   updateContact: (id: string, patch: Partial<Contact>) => Promise<boolean>;
   removeContact: (id: string) => Promise<void>;
+  // Reads the contacts again from the server, for when something changed them elsewhere.
+  refreshContacts: () => void;
 }
 
 const ContactsContext = createContext<ContactsContextType | undefined>(undefined);
@@ -38,7 +40,7 @@ export function ContactsProvider({ children }: { children: React.ReactNode }) {
   // one-item list on screen), edit it, and the whole-list save replaced
   // every real contact with that one. Add and remove hit per-item
   // endpoints, so they need no guard.
-  const { loading, guardSave } = useGuardedLoad<Contact[]>({
+  const { loading, guardSave, reload } = useGuardedLoad<Contact[]>({
     id: "contacts",
     label: "contacts",
     key: user?.dealershipId,
@@ -75,7 +77,7 @@ export function ContactsProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <ContactsContext.Provider value={{ contacts, loading, addContact, updateContact, removeContact }}>
+    <ContactsContext.Provider value={{ contacts, loading, addContact, updateContact, removeContact, refreshContacts: reload }}>
       {children}
     </ContactsContext.Provider>
   );

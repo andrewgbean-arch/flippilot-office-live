@@ -33,6 +33,8 @@ interface ConsumablesContextType {
     input: { type: "receive" | "adjust"; quantity: number; date?: string; cost?: number; supplier?: string; note?: string }
   ) => Promise<string | null>;
   removeConsumable: (id: string) => Promise<void>;
+  // Reads the consumables again from the server, for when something changed them elsewhere.
+  refreshConsumables: () => void;
   importConsumables: (rows: {
     name: string;
     partNumber?: string;
@@ -57,7 +59,7 @@ export function ConsumablesProvider({ children }: { children: React.ReactNode })
   // so guardSave() refuses until the consumables have loaded for this
   // login. Add, stock movements and remove hit per-item endpoints, so
   // they need no guard.
-  const { loading, guardSave } = useGuardedLoad<Consumable[]>({
+  const { loading, guardSave, reload } = useGuardedLoad<Consumable[]>({
     id: "consumables",
     label: "consumables",
     key: user?.dealershipId,
@@ -157,7 +159,7 @@ export function ConsumablesProvider({ children }: { children: React.ReactNode })
 
   return (
     <ConsumablesContext.Provider
-      value={{ consumables, loading, addConsumable, updateConsumable, updateStock, recordStockMovement, removeConsumable, importConsumables }}
+      value={{ consumables, loading, addConsumable, updateConsumable, updateStock, recordStockMovement, removeConsumable, importConsumables, refreshConsumables: reload }}
     >
       {children}
     </ConsumablesContext.Provider>

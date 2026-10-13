@@ -11,6 +11,8 @@ interface JobsContextType {
   addJob: (job: Job) => Promise<boolean>;
   updateJob: (job: Job) => Promise<boolean>;
   removeJob: (id: string) => Promise<boolean>;
+  // Reads the jobs again from the server, for when something changed them elsewhere.
+  refreshJobs: () => void;
   saveError: string | null;
 }
 
@@ -31,7 +33,7 @@ export function JobsProvider({ children }: { children: React.ReactNode }) {
   // in memory, so guardSave() refuses until the jobs have loaded for
   // THIS login. Without it, one failed load followed by an ordinary
   // "add job" saved a one-job list over the dealer's real ones.
-  const { loading, guardSave } = useGuardedLoad<Job[]>({
+  const { loading, guardSave, reload } = useGuardedLoad<Job[]>({
     id: "jobs",
     label: "jobs",
     key: user?.dealershipId,
@@ -69,7 +71,7 @@ export function JobsProvider({ children }: { children: React.ReactNode }) {
   const removeJob = (id: string) => change(current => current.filter(j => j.id !== id));
 
   return (
-    <JobsContext.Provider value={{ jobs, loading, addJob, updateJob, removeJob, saveError }}>
+    <JobsContext.Provider value={{ jobs, loading, addJob, updateJob, removeJob, saveError, refreshJobs: reload }}>
       {children}
     </JobsContext.Provider>
   );
