@@ -18,7 +18,7 @@ type Props = {
 export default function AffordabilitySummaryCard({ vehicle, buyer, theme }: Props) {
   const score = affordabilityEngine.affordabilityScore(vehicle, buyer);
   const band = affordabilityEngine.matchBand(score);
-  const recommendedDeposit = affordabilityEngine.recommendedDeposit(vehicle, buyer);
+  const depositAdvice = affordabilityEngine.depositAdvice(vehicle, buyer);
 
   return (
     <motion.div
@@ -95,11 +95,22 @@ export default function AffordabilitySummaryCard({ vehicle, buyer, theme }: Prop
         </div>
 
         <div style={{ color: theme.white, marginTop: 10 }}>
-          Recommended Deposit: {formatMoney(recommendedDeposit)}
+          {depositAdvice === null ? (
+            <>Deposit guide: add the buyer's income and a price for the car to see one.</>
+          ) : (
+            <>
+              Deposit to keep the monthly payment within 15% of income: {formatMoney(depositAdvice.needed)}
+              {depositAdvice.short && (
+                <span style={{ color: theme.muted }}>
+                  {" "}— more than the {formatMoney(depositAdvice.have)} entered as deposit and savings
+                </span>
+              )}
+            </>
+          )}
         </div>
 
         <div style={{ color: theme.muted, marginTop: 6 }}>
-          A rough guide from the figures entered, not a lender's decision. Higher is easier to finance.
+          A rough guide from the figures entered (48 months at about 8-19% APR depending on the buyer), not a lender's decision. A higher score is easier to finance.
         </div>
 
         <div

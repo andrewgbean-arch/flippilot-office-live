@@ -118,6 +118,34 @@ export class AffordabilityEngine {
     return Math.min(best, maxPossible);
   }
 
+  /* The same deposit, explained. recommendedDeposit() is the smallest deposit that brings the
+     48-month payment down to 15% of income, but then it is capped at the savings and deposit the
+     buyer has entered, so a small figure could mean "needs little" or "has little" and the screen
+     could not tell which. This says which, and returns null when there is nothing to work from. */
+  depositAdvice(vehicle: FlipRecord, buyer: BuyerProfile) {
+    const price = vehicle.sellPrice ?? vehicle.valuation ?? vehicle.buyPrice ?? 0;
+    const income = buyer.income ?? 0;
+    if (!(price > 0) || !(income > 0)) return null;
+
+    const apr = this.aprForBuyer(buyer);
+    const targetPayment = income * 0.15;
+    let needed = price; // even the whole price as a deposit leaves no payment
+    let low = 0;
+    let high = price;
+    while (low <= high) {
+      const mid = Math.floor((low + high) / 2);
+      if (this.monthlyPayment(price, apr, 48, mid) <= targetPayment) {
+        needed = mid;
+        high = mid - 100;
+      } else {
+        low = mid + 100;
+      }
+    }
+
+    const have = Math.max(0, (buyer.savings ?? 0) + (buyer.deposit ?? 0));
+    return { needed, have, short: needed > have, apr, payment: targetPayment };
+  }
+
   /* ⭐ Deal closing probability (NEW) */
   closingProbability(score: number, buyer: BuyerProfile) {
     let prob = score;
