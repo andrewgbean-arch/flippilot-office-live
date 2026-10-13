@@ -14,6 +14,13 @@ export function showcaseCarId(vehicles: readonly CarLike[]): string | null {
   return (rich ?? inStock.find(v => (v.images?.length ?? 0) > 0) ?? inStock[0] ?? vehicles[0])?.id ?? null;
 }
 
+// The pages a customer opens from a link the dealer shared (the public store, the booking form and
+// a car's passport). A dealer who is signed in and opens their own link to see it must see the page
+// as their customer does, not with the tour's card on top of it.
+export function isPublicPage(pathname: string): boolean {
+  return /^\/(store|book|car)\//.test(pathname);
+}
+
 function seenKey(userId: string) {
   return `flippilot_tour_seen_${userId}`;
 }
@@ -507,7 +514,7 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
       }}
     >
       {children}
-      <TourOverlay />
+      {!isPublicPage(location.pathname) && <TourOverlay />}
     </TourContext.Provider>
   );
 }
