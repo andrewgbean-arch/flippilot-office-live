@@ -71,6 +71,28 @@ export const HOWTO_VIDEOS: HowtoVideo[] = [
     pages: [/^\/bookkeeping(\/|$)/],
     needs: "/bookkeeping",
   },
+  {
+    id: "howto-costs",
+    title: "Costs and profit on a car",
+    about: "Put what you spend on a car in the books, see its real profit, and fix a mistake.",
+    seconds: 49,
+    pages: [/^\/bookkeeping(\/|$)/],
+    needs: "/bookkeeping",
+  },
+  {
+    id: "howto-leads",
+    title: "Add a lead and keep it moving",
+    about: "Add someone who's asked about a car, move them along as things happen, and see the pipeline.",
+    seconds: 53,
+    pages: [/^\/dealer\/sales\/(leads|add|pipeline)(\/|$)/],
+  },
+  {
+    id: "howto-jobs",
+    title: "The Jobs Board",
+    about: "Add a job, give it to someone, move it along, and see it on the workshop calendar.",
+    seconds: 47,
+    pages: [/^\/jobs$/, /^\/workshop-calendar$/],
+  },
 ];
 
 export const videoFile = (v: HowtoVideo) => `/howto/${v.id}.mp4`;

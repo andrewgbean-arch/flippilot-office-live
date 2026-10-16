@@ -70,8 +70,18 @@ describe("which videos each screen offers", () => {
     expect(ids(videosForPage("/appointments", owner))).toEqual(["howto-bookings"]);
     expect(ids(videosForPage("/pilot-brain", owner))).toEqual(["howto-wendy"]);
     expect(ids(videosForPage("/photo-studio/abc", owner))).toEqual(["howto-photos"]);
-    expect(ids(videosForPage("/bookkeeping/entry/abc", owner))).toEqual(["howto-sale"]);
+    expect(ids(videosForPage("/bookkeeping/entry/abc", owner))).toEqual(["howto-sale", "howto-costs"]);
     expect(ids(videosForPage("/dealer/settings", owner))).toEqual(["howto-team"]);
+  });
+
+  it("the leads screens, the Jobs Board and the workshop calendar have theirs", () => {
+    for (const p of ["/dealer/sales/leads", "/dealer/sales/leads/l-1", "/dealer/sales/add", "/dealer/sales/pipeline"]) {
+      expect(ids(videosForPage(p, owner)), p).toEqual(["howto-leads"]);
+    }
+    expect(ids(videosForPage("/jobs", owner))).toEqual(["howto-jobs"]);
+    expect(ids(videosForPage("/workshop-calendar", owner))).toEqual(["howto-jobs"]);
+    // other Sales screens aren't about leads
+    expect(videosForPage("/dealer/sales/wanted", owner)).toEqual([]);
   });
 
   it("a car's page offers the Car Passport video, but the stock list and its tools don't", () => {
@@ -81,13 +91,15 @@ describe("which videos each screen offers", () => {
   });
 
   it("screens with no video offer none", () => {
-    expect(videosForPage("/dealer/sales/leads", owner)).toEqual([]);
+    expect(videosForPage("/dealer/staff/planner", owner)).toEqual([]);
     expect(videosForPage("/", owner)).toEqual([]);
   });
 
   it("never offers a video about a screen the person can't open", () => {
     const sales = as("staff", "sales");
     expect(ids(videosFor(sales))).not.toContain("howto-sale");
+    expect(ids(videosFor(sales))).not.toContain("howto-costs");
+    expect(ids(videosFor(sales))).toContain("howto-leads");
     expect(ids(videosFor(sales))).not.toContain("howto-team");
     expect(videosForPage("/bookkeeping", sales)).toEqual([]);
     expect(ids(videosFor(as("staff", "finance")))).toContain("howto-sale");
